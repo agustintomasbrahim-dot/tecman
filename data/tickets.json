@@ -324,5 +324,19 @@
     "observaciones": "Presupuestos en caratula de Salta",
     "creado": "2026-04-12T08:00:00",
     "actualizado": "2026-04-15T14:00:00"
+  },
+  {
+    "id": 21,
+    "sucursal": "Sucursal 123",
+    "categoria": "Plomeria",
+    "subcategoria": "Perdidas en canerias",
+    "descripcion": "Perdida de agua en el bano de hombres, la canilla no cierra bien y gotea constantemente. Se forma charco en el piso.",
+    "prioridad": 2,
+    "estado": "Nuevo",
+    "asignado": "Gustavo Avellaneda",
+    "fotos": [],
+    "observaciones": "",
+    "creado": "2026-04-17T08:30:00",
+    "actualizado": "2026-04-17T08:30:00"
   }
 ]
