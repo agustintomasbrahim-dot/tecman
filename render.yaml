@@ -9,3 +9,5 @@ services:
         value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
+      - key: RENDER
+        value: "true"

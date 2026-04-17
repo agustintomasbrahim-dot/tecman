@@ -492,6 +492,8 @@ def admin_proveedores():
 @app.route("/admin/inventario")
 @login_required
 def admin_inventario():
+    if IS_CLOUD:
+        return render_template("admin_inventario.html", inventario=[], total_ge=0, total_respondieron=0, total_sucursales=0, total_persianas=0, total_aires=0)
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
     from gauth import sheets as get_sheets
