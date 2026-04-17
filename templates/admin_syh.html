@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Seguridad e Higiene{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_syh') }}" style="background: rgba(255,255,255,0.15);">S&H</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <h2>Seguridad e Higiene</h2>
+    <span style="color: #64748b; font-size: 13px;">Patricia - Control de habilitaciones</span>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #e63946;">{{ total }}</div>
+        <div class="label">Sucursales</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #34d399;">{{ habilitadas }}</div>
+        <div class="label">Habilitadas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #38bdf8;">{{ bomberos_ok }}</div>
+        <div class="label">Bomberos OK</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #f59e0b;">{{ sin_datos }}</div>
+        <div class="label">Sin datos</div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card" style="padding: 0; overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Sucursal</th>
+                <th>Marca</th>
+                <th>Ciudad</th>
+                <th>Habilitacion</th>
+                <th>Bomberos</th>
+                <th>Matafuegos</th>
+                <th>Plano evac.</th>
+                <th>Senalizacion</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sucursales %}
+            <tr>
+                <td style="font-weight: 700;">{{ s.num }}</td>
+                <td><span class="badge" style="background: {% if s.marca == 'DX' %}rgba(230,57,70,0.2); color: #e63946{% elif s.marca == 'MV' %}rgba(255,255,255,0.15); color: #fff{% else %}rgba(232,145,168,0.2); color: #e891a8{% endif %};">{{ s.marca }}</span></td>
+                <td style="color: #94a3b8; font-size: 12px;">{{ s.ciudad }}</td>
+                <td>
+                    {% if s.habilitacion == 'Vigente' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Vigente</span>
+                    {% elif s.habilitacion == 'Vencida' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencida</span>
+                    {% elif s.habilitacion == 'En tramite' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">En tramite</span>
+                    {% elif s.habilitacion == 'Sin habilitacion' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Sin hab.</span>
+                    {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if s.bomberos == 'Aprobado' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">OK</span>
+                    {% elif s.bomberos == 'Pendiente' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">Pend.</span>
+                    {% elif s.bomberos == 'Vencido' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencido</span>
+                    {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if s.matafuegos == 'Al dia' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">OK</span>
+                    {% elif s.matafuegos == 'Proximo a vencer' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">Prox. venc.</span>
+                    {% elif s.matafuegos == 'Vencidos' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencidos</span>
+                    {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if s.plano_evacuacion == 'Tiene' %}<span style="color: #34d399;">&#10004;</span>
+                    {% elif s.plano_evacuacion == 'No tiene' %}<span style="color: #f87171;">&#10008;</span>
+                    {% else %}<span style="color: #475569;">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if s.senalizacion == 'Completa' %}<span style="color: #34d399;">&#10004;</span>
+                    {% elif s.senalizacion == 'Incompleta' %}<span style="color: #f59e0b;">&#9888;</span>
+                    {% else %}<span style="color: #475569;">-</span>{% endif %}
+                </td>
+                <td><a href="{{ url_for('admin_syh_edit', suc_num=s.num) }}" class="btn btn-sm btn-outline" style="font-size: 11px;">Editar</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

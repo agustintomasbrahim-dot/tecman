@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Tecman - S&H Sucursal {{ suc_num }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_syh') }}">S&H</a>
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div class="card" style="border-left: 4px solid #e63946;">
+    <h2>Sucursal {{ suc_num }}</h2>
+    {% if info %}
+    <p style="color: #94a3b8; margin-top: 4px;">
+        <span class="badge" style="background: {% if info.marca == 'DX' %}rgba(230,57,70,0.2); color: #e63946{% elif info.marca == 'MV' %}rgba(255,255,255,0.15); color: #fff{% else %}rgba(232,145,168,0.2); color: #e891a8{% endif %};">
+            {% if info.marca == 'DX' %}Dexter{% elif info.marca == 'MV' %}Moov{% else %}Stock Center{% endif %}
+        </span>
+        {{ info.tienda }} — {{ info.ciudad }}, {{ info.provincia }}
+    </p>
+    {% endif %}
+    {% if estado.actualizado %}
+    <p style="color: #475569; font-size: 12px; margin-top: 8px;">Ultima actualizacion: {{ estado.actualizado[:10] }} por {{ estado.actualizado_por }}</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 16px;">Actualizar estado S&H</h3>
+    <form method="POST" enctype="multipart/form-data">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+                <label>Habilitacion municipal</label>
+                <select name="habilitacion">
+                    {% for opt in syh_estados.habilitacion %}
+                    <option value="{{ opt }}" {% if estado.get('habilitacion') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Bomberos</label>
+                <select name="bomberos">
+                    {% for opt in syh_estados.bomberos %}
+                    <option value="{{ opt }}" {% if estado.get('bomberos') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Matafuegos - Estado</label>
+                <select name="matafuegos">
+                    {% for opt in syh_estados.matafuegos %}
+                    <option value="{{ opt }}" {% if estado.get('matafuegos') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Matafuegos - Cantidad</label>
+                <input type="number" name="matafuegos_cantidad" value="{{ estado.get('matafuegos_cantidad', '') }}" placeholder="Ej: 6">
+            </div>
+            <div class="form-group">
+                <label>Matafuegos - Vencimiento</label>
+                <input type="date" name="matafuegos_vencimiento" value="{{ estado.get('matafuegos_vencimiento', '') }}">
+            </div>
+            <div class="form-group">
+                <label>Plano de evacuacion</label>
+                <select name="plano_evacuacion">
+                    {% for opt in syh_estados.plano_evacuacion %}
+                    <option value="{{ opt }}" {% if estado.get('plano_evacuacion') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Senalizacion</label>
+                <select name="senalizacion">
+                    {% for opt in syh_estados.senalizacion %}
+                    <option value="{{ opt }}" {% if estado.get('senalizacion') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Observaciones</label>
+            <textarea name="observaciones" placeholder="Notas, tramites en curso, contactos de municipio...">{{ estado.get('observaciones', '') }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Subir documento (habilitacion, acta bomberos, etc.)</label>
+            <input type="file" name="documento" accept=".pdf,image/*" style="padding: 10px;">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Guardar</button>
+    </form>
+</div>
+
+<!-- Documentos existentes -->
+{% if estado.documentos is defined and estado.documentos %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Documentos cargados</h3>
+    {% for doc in estado.documentos %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a2a;">
+        <div>
+            <a href="/static/uploads/{{ doc.archivo }}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">{{ doc.nombre }}</a>
+            <span style="color: #475569; font-size: 12px; margin-left: 8px;">{{ doc.fecha[:10] }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

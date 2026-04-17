@@ -77,7 +77,27 @@ ADMINS = {
     "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
     "carolina": {"password": "tecman2026", "nombre": "Carolina", "rol": "admin"},
     "jonathan": {"password": "tecman2026", "nombre": "Jonathan", "rol": "tecnico"},
+    "patricia": {"password": "tecman2026", "nombre": "Patricia", "rol": "syh"},
+    "rita": {"password": "tecman2026", "nombre": "Rita", "rol": "admin"},
 }
+
+SYH_FILE = DATA_DIR / "syh.json"
+
+SYH_ESTADOS = {
+    "habilitacion": ["Vigente", "Vencida", "En tramite", "Sin habilitacion"],
+    "bomberos": ["Aprobado", "Pendiente", "Vencido", "Sin tramitar"],
+    "matafuegos": ["Al dia", "Proximo a vencer", "Vencidos", "Sin datos"],
+    "plano_evacuacion": ["Tiene", "No tiene"],
+    "senalizacion": ["Completa", "Incompleta", "Sin datos"],
+}
+
+def load_syh():
+    if SYH_FILE.exists():
+        return json.loads(SYH_FILE.read_text())
+    return {}
+
+def save_syh(data):
+    SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 # Sucursal login: each sucursal has a unique password
 SUCURSAL_USERS = {}
@@ -952,6 +972,94 @@ def admin_exportar():
         output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=tecman_tickets.csv"}
+    )
+
+
+# --- Routes: Seguridad e Higiene ---
+
+@app.route("/admin/syh")
+@login_required
+def admin_syh():
+    from sucursales_data import SUCURSALES_INFO
+    syh_data = load_syh()
+
+    sucursales_syh = []
+    for num in sorted(SUCURSALES_INFO.keys()):
+        info = SUCURSALES_INFO[num]
+        estado = syh_data.get(num, {})
+        sucursales_syh.append({
+            "num": num,
+            "marca": info.get("marca", ""),
+            "tienda": info.get("tienda", ""),
+            "ciudad": info.get("ciudad", ""),
+            "habilitacion": estado.get("habilitacion", "Sin datos"),
+            "bomberos": estado.get("bomberos", "Sin datos"),
+            "matafuegos": estado.get("matafuegos", "Sin datos"),
+            "plano_evacuacion": estado.get("plano_evacuacion", "Sin datos"),
+            "senalizacion": estado.get("senalizacion", "Sin datos"),
+        })
+
+    # Stats
+    total = len(sucursales_syh)
+    habilitadas = sum(1 for s in sucursales_syh if s["habilitacion"] == "Vigente")
+    bomberos_ok = sum(1 for s in sucursales_syh if s["bomberos"] == "Aprobado")
+    sin_datos = sum(1 for s in sucursales_syh if s["habilitacion"] == "Sin datos")
+
+    return render_template(
+        "admin_syh.html",
+        sucursales=sucursales_syh,
+        total=total,
+        habilitadas=habilitadas,
+        bomberos_ok=bomberos_ok,
+        sin_datos=sin_datos,
+        syh_estados=SYH_ESTADOS,
+    )
+
+
+@app.route("/admin/syh/<suc_num>", methods=["GET", "POST"])
+@login_required
+def admin_syh_edit(suc_num):
+    from sucursales_data import SUCURSALES_INFO
+    info = SUCURSALES_INFO.get(suc_num, {})
+    syh_data = load_syh()
+    estado = syh_data.get(suc_num, {})
+
+    if request.method == "POST":
+        syh_data[suc_num] = {
+            "habilitacion": request.form.get("habilitacion", ""),
+            "bomberos": request.form.get("bomberos", ""),
+            "matafuegos": request.form.get("matafuegos", ""),
+            "matafuegos_cantidad": request.form.get("matafuegos_cantidad", ""),
+            "matafuegos_vencimiento": request.form.get("matafuegos_vencimiento", ""),
+            "plano_evacuacion": request.form.get("plano_evacuacion", ""),
+            "senalizacion": request.form.get("senalizacion", ""),
+            "observaciones": request.form.get("observaciones", ""),
+            "actualizado_por": session.get("nombre", ""),
+            "actualizado": datetime.datetime.now().isoformat(),
+        }
+
+        # Handle document upload
+        f = request.files.get("documento")
+        if f and f.filename:
+            ext = Path(f.filename).suffix.lower()
+            fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
+            f.save(str(UPLOADS_DIR / fname))
+            if "documentos" not in syh_data[suc_num]:
+                syh_data[suc_num]["documentos"] = []
+            syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+        else:
+            syh_data[suc_num]["documentos"] = estado.get("documentos", [])
+
+        save_syh(syh_data)
+        flash("Sucursal actualizada")
+        return redirect(url_for("admin_syh"))
+
+    return render_template(
+        "admin_syh_edit.html",
+        suc_num=suc_num,
+        info=info,
+        estado=estado,
+        syh_estados=SYH_ESTADOS,
     )
 
 
