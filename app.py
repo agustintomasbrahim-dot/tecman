@@ -977,6 +977,130 @@ def admin_exportar():
 
 # --- Routes: Seguridad e Higiene ---
 
+SYH_USERS = {
+    "patricia": {"password": "syh2026", "nombre": "Patricia"},
+}
+
+def syh_login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "syh_user" not in session and "user" not in session:
+            return redirect(url_for("syh_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/syh/login", methods=["GET", "POST"])
+def syh_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        if user in SYH_USERS and SYH_USERS[user]["password"] == pwd:
+            session["syh_user"] = user
+            session["syh_nombre"] = SYH_USERS[user]["nombre"]
+            return redirect(url_for("syh_panel"))
+        # Also allow admins
+        if user in ADMINS and ADMINS[user]["password"] == pwd:
+            session["user"] = user
+            session["nombre"] = ADMINS[user]["nombre"]
+            session["syh_user"] = user
+            session["syh_nombre"] = ADMINS[user]["nombre"]
+            return redirect(url_for("syh_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("syh_login.html")
+
+
+@app.route("/syh/logout")
+def syh_logout():
+    session.pop("syh_user", None)
+    session.pop("syh_nombre", None)
+    return redirect(url_for("syh_login"))
+
+
+@app.route("/syh")
+@syh_login_required
+def syh_panel():
+    from sucursales_data import SUCURSALES_INFO
+    syh_data = load_syh()
+
+    sucursales_syh = []
+    for num in sorted(SUCURSALES_INFO.keys()):
+        info = SUCURSALES_INFO[num]
+        estado = syh_data.get(num, {})
+        sucursales_syh.append({
+            "num": num,
+            "marca": info.get("marca", ""),
+            "tienda": info.get("tienda", ""),
+            "ciudad": info.get("ciudad", ""),
+            "habilitacion": estado.get("habilitacion", "Sin datos"),
+            "bomberos": estado.get("bomberos", "Sin datos"),
+            "matafuegos": estado.get("matafuegos", "Sin datos"),
+            "plano_evacuacion": estado.get("plano_evacuacion", "Sin datos"),
+            "senalizacion": estado.get("senalizacion", "Sin datos"),
+        })
+
+    total = len(sucursales_syh)
+    habilitadas = sum(1 for s in sucursales_syh if s["habilitacion"] == "Vigente")
+    bomberos_ok = sum(1 for s in sucursales_syh if s["bomberos"] == "Aprobado")
+    sin_datos = sum(1 for s in sucursales_syh if s["habilitacion"] == "Sin datos")
+
+    return render_template(
+        "syh_panel.html",
+        sucursales=sucursales_syh,
+        total=total,
+        habilitadas=habilitadas,
+        bomberos_ok=bomberos_ok,
+        sin_datos=sin_datos,
+        syh_estados=SYH_ESTADOS,
+    )
+
+
+@app.route("/syh/sucursal/<suc_num>", methods=["GET", "POST"])
+@syh_login_required
+def syh_edit(suc_num):
+    from sucursales_data import SUCURSALES_INFO
+    info = SUCURSALES_INFO.get(suc_num, {})
+    syh_data = load_syh()
+    estado = syh_data.get(suc_num, {})
+
+    if request.method == "POST":
+        syh_data[suc_num] = {
+            "habilitacion": request.form.get("habilitacion", ""),
+            "bomberos": request.form.get("bomberos", ""),
+            "matafuegos": request.form.get("matafuegos", ""),
+            "matafuegos_cantidad": request.form.get("matafuegos_cantidad", ""),
+            "matafuegos_vencimiento": request.form.get("matafuegos_vencimiento", ""),
+            "plano_evacuacion": request.form.get("plano_evacuacion", ""),
+            "senalizacion": request.form.get("senalizacion", ""),
+            "observaciones": request.form.get("observaciones", ""),
+            "actualizado_por": session.get("syh_nombre", session.get("nombre", "")),
+            "actualizado": datetime.datetime.now().isoformat(),
+        }
+        f = request.files.get("documento")
+        if f and f.filename:
+            ext = Path(f.filename).suffix.lower()
+            fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
+            f.save(str(UPLOADS_DIR / fname))
+            if "documentos" not in syh_data[suc_num]:
+                syh_data[suc_num]["documentos"] = []
+            syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+        else:
+            syh_data[suc_num]["documentos"] = estado.get("documentos", [])
+        save_syh(syh_data)
+        flash("Sucursal actualizada")
+        return redirect(url_for("syh_panel"))
+
+    return render_template(
+        "syh_edit.html",
+        suc_num=suc_num,
+        info=info,
+        estado=estado,
+        syh_estados=SYH_ESTADOS,
+    )
+
+
+# --- Routes: S&H Admin (duplicate for admin access) ---
+
 @app.route("/admin/syh")
 @login_required
 def admin_syh():
