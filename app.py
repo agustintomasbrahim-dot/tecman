@@ -112,10 +112,13 @@ for suc in SUCURSALES:
         SUCURSAL_USERS["garin"] = {"password": "mtogarin", "sucursal": suc}
 
 # Auto-assignment rules
-ASIGNACION_AUTO = {
-    "Luminarias": "Jonathan",
-}
 ASIGNACION_DEFAULT = "Agustín Brahim"
+
+# Sucursales por zona para asignación automática
+SUCS_CORDOBA = {"076","078","123","124","203","215","224","233"}
+SUCS_NOA = {"120","126","128","135","139","146","158","173","191","193","212","229","230","234","235"}
+SUCS_MENDOZA = {"128","132","145","206","207","236"}
+SUCS_SANJUAN = {"159","172"}
 
 # Proveedor login
 PROVEEDOR_USERS = {
@@ -192,8 +195,29 @@ def next_ticket_id(tickets):
     return max(t["id"] for t in tickets) + 1
 
 
-def auto_assign(subcategoria):
-    return ASIGNACION_AUTO.get(subcategoria, ASIGNACION_DEFAULT)
+def auto_assign(subcategoria, sucursal=""):
+    # Extract sucursal number
+    suc_num = sucursal.replace("Sucursal ", "").strip()
+
+    # By category
+    if subcategoria == "Luminarias":
+        return "Jonathan"
+    if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
+        # AA in AMBA goes to CEYH
+        if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
+            return "Croacia (CEYH/Construir24)"
+
+    # By zone
+    if suc_num in SUCS_CORDOBA:
+        return "Gustavo Avellaneda"
+    if suc_num in SUCS_NOA:
+        return "Julio Fuga (JRF)"
+    if suc_num in SUCS_MENDOZA:
+        return "Ismael Allende (JRF)"
+    if suc_num in SUCS_SANJUAN:
+        return "Oscar San Juan"
+
+    return ASIGNACION_DEFAULT
 
 
 def login_required(f):
@@ -278,7 +302,7 @@ def nuevo_ticket():
             "descripcion": request.form.get("descripcion", ""),
             "prioridad": int(request.form.get("prioridad", 4)),
             "estado": "Nuevo",
-            "asignado": auto_assign(subcategoria),
+            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", ""))),
             "fotos": fotos,
             "observaciones": "",
             "creado": datetime.datetime.now().isoformat(),
