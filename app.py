@@ -1,0 +1,967 @@
+"""Tecman - Sistema de tickets de mantenimiento para Grupo Dabra"""
+
+import os
+import json
+import uuid
+import datetime
+from pathlib import Path
+from functools import wraps
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
+
+IS_CLOUD = os.environ.get("RENDER", False)
+
+DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR.mkdir(exist_ok=True)
+TICKETS_FILE = DATA_DIR / "tickets.json"
+UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+# --- Data ---
+
+SUCURSALES = [
+    "Central - Dabra", "Garin",
+    "Sucursal 011", "Sucursal 014", "Sucursal 023", "Sucursal 028",
+    "Sucursal 035", "Sucursal 036", "Sucursal 043", "Sucursal 049",
+    "Sucursal 051", "Sucursal 052", "Sucursal 053", "Sucursal 054",
+    "Sucursal 058", "Sucursal 065", "Sucursal 076", "Sucursal 077",
+    "Sucursal 078", "Sucursal 080", "Sucursal 082", "Sucursal 083",
+    "Sucursal 091", "Sucursal 092", "Sucursal 102", "Sucursal 111",
+    "Sucursal 114", "Sucursal 120", "Sucursal 121", "Sucursal 123",
+    "Sucursal 124", "Sucursal 125", "Sucursal 126", "Sucursal 128",
+    "Sucursal 132", "Sucursal 133", "Sucursal 134", "Sucursal 135",
+    "Sucursal 139", "Sucursal 141", "Sucursal 142", "Sucursal 145",
+    "Sucursal 146", "Sucursal 147", "Sucursal 148", "Sucursal 156",
+    "Sucursal 157", "Sucursal 158", "Sucursal 159", "Sucursal 160",
+    "Sucursal 165", "Sucursal 166", "Sucursal 167", "Sucursal 170",
+    "Sucursal 171", "Sucursal 172", "Sucursal 173", "Sucursal 176",
+    "Sucursal 177", "Sucursal 178", "Sucursal 183", "Sucursal 184",
+    "Sucursal 185", "Sucursal 186", "Sucursal 187", "Sucursal 188",
+    "Sucursal 190", "Sucursal 191", "Sucursal 192", "Sucursal 193",
+    "Sucursal 194", "Sucursal 196", "Sucursal 198", "Sucursal 199",
+    "Sucursal 200", "Sucursal 202", "Sucursal 203", "Sucursal 204",
+    "Sucursal 205", "Sucursal 206", "Sucursal 207", "Sucursal 208",
+    "Sucursal 209", "Sucursal 211", "Sucursal 212", "Sucursal 213",
+    "Sucursal 214", "Sucursal 215", "Sucursal 216", "Sucursal 217",
+    "Sucursal 220", "Sucursal 221", "Sucursal 222", "Sucursal 224",
+    "Sucursal 226", "Sucursal 229", "Sucursal 230", "Sucursal 231",
+    "Sucursal 233", "Sucursal 234", "Sucursal 235", "Sucursal 236",
+    "Sucursal 237", "Sucursal 238", "Sucursal 239", "Sucursal 240",
+    "Sucursal 241",
+]
+
+CATEGORIAS = {
+    "Problema Eléctrico": ["Luminarias", "Tablero", "Cableado", "Tomas", "Otro eléctrico"],
+    "Plomería": ["Agua fría", "Agua caliente", "Pérdidas en cañerías", "Pérdidas en canillas", "Otro plomería"],
+    "Filtraciones": ["Por lluvia", "Por azotea", "Por membrana", "Por muros/humedad", "Por alcantarillas", "Otra filtración"],
+    "Aire Acondicionado": ["Sin funcionamiento", "Reparación", "Goteo", "Limpieza", "Instalación", "Otro AA"],
+    "Pintura": ["Interior", "Exterior", "Durlock reparación", "Otra pintura"],
+    "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
+    "Materiales": ["Solicitud de materiales"],
+    "Otro": ["Otro"],
+}
+
+PRIORIDADES = {
+    1: "Urgente",
+    2: "Alta",
+    3: "Media",
+    4: "Baja",
+}
+
+ESTADOS = ["Nuevo", "Abierto", "En progreso", "Pendiente", "Resuelto", "Cerrado"]
+
+ADMINS = {
+    "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
+    "carolina": {"password": "tecman2026", "nombre": "Carolina", "rol": "admin"},
+    "jonathan": {"password": "tecman2026", "nombre": "Jonathan", "rol": "tecnico"},
+}
+
+# Sucursal login: each sucursal has a unique password
+SUCURSAL_USERS = {}
+for suc in SUCURSALES:
+    # Extract number or key from name
+    if "Sucursal" in suc:
+        num = suc.replace("Sucursal ", "")
+        SUCURSAL_USERS[f"suc{num}"] = {"password": f"mto{num}", "sucursal": suc}
+    elif suc == "Central - Dabra":
+        SUCURSAL_USERS["central"] = {"password": "mtocentral", "sucursal": suc}
+    elif suc == "Garin":
+        SUCURSAL_USERS["garin"] = {"password": "mtogarin", "sucursal": suc}
+
+# Auto-assignment rules
+ASIGNACION_AUTO = {
+    "Luminarias": "Jonathan",
+}
+ASIGNACION_DEFAULT = "Agustín Brahim"
+
+# Proveedor login
+PROVEEDOR_USERS = {
+    "ceyh": {"password": "prov2026", "nombre": "Croacia (CEYH/Construir24)"},
+    "gustavo": {"password": "prov2026", "nombre": "Gustavo Avellaneda"},
+    "fuga": {"password": "prov2026", "nombre": "Julio Fuga (JRF)"},
+    "ismael": {"password": "prov2026", "nombre": "Ismael Allende (JRF)"},
+    "escalmeca": {"password": "prov2026", "nombre": "Escalmeca / Mauricio"},
+    "adriel": {"password": "prov2026", "nombre": "Adriel (Pintor)"},
+    "oscar": {"password": "prov2026", "nombre": "Oscar San Juan"},
+    "jose": {"password": "prov2026", "nombre": "Jose Sanchez"},
+    "blanco": {"password": "prov2026", "nombre": "Gustavo Blanco"},
+    "nestor": {"password": "prov2026", "nombre": "Nestor Raul Diaz"},
+    "federico": {"password": "prov2026", "nombre": "Federico Confort"},
+    "javier": {"password": "prov2026", "nombre": "Javier"},
+    "nicolas": {"password": "prov2026", "nombre": "Nicolas Audio"},
+    "frattini": {"password": "prov2026", "nombre": "Cesar Frattini (No Bugs)"},
+    "polaris": {"password": "prov2026", "nombre": "Polaris"},
+    "astronovo": {"password": "prov2026", "nombre": "Astronovo"},
+    "geronimo": {"password": "prov2026", "nombre": "Geronimo - Leo"},
+    "croacia": {"password": "prov2026", "nombre": "Croacia (CEYH/Construir24)"},
+    "microglobal": {"password": "prov2026", "nombre": "Martin Microglobal"},
+}
+
+# Proveedores database
+PROVEEDORES = [
+    {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","190","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
+    {"nombre": "Croacia (CEYH/Construir24)", "zona": "AMBA", "tipo": "General + AA", "tel": "-", "sucursales": ["023","028","035","054","058","077","082","083","092","141","157","165","167","170","176","177","184","188","195","196","200","202","209","213","214","216","222","223","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
+    {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["011","023","036","077","147","176","177","183","186","198","209","211","213","222","223","234"]},
+    {"nombre": "Angel JYS", "zona": "AMBA", "tipo": "General", "tel": "113560-9316", "sucursales": ["Zona Norte AMBA"]},
+    {"nombre": "Jorge (Limpieza vidrios)", "zona": "AMBA", "tipo": "Limpieza", "tel": "115182-7823", "sucursales": ["AMBA general"]},
+    {"nombre": "Polaris", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["171","183","184"]},
+    {"nombre": "Astronovo", "zona": "AMBA", "tipo": "General", "tel": "116527-7128", "sucursales": ["176","186"]},
+    {"nombre": "Escalmeca / Mauricio", "zona": "AMBA", "tipo": "Escaleras mecanicas", "tel": "115308-9834", "sucursales": ["183","184","186"], "monto": "$688.000 + IVA/mes", "incluye": "Mantenimiento preventivo de 8 escaleras mecanicas en 3 sucursales, lubricacion, engrase, limpieza, desarme parcial", "no_incluye": "-"},
+    {"nombre": "Geronimo - Leo", "zona": "AMBA", "tipo": "Tecnicos", "tel": "-", "sucursales": ["092","217","239","240"]},
+    {"nombre": "Sergio Marmol", "zona": "AMBA", "tipo": "Aire Acondicionado", "tel": "-", "sucursales": ["141"]},
+    {"nombre": "Nicolas Audio", "zona": "Nacional", "tipo": "Audio", "tel": "-", "sucursales": ["036","049","053","065","077","083","091","092","125","127","128","141","148","156","165","166","167","176","177","183","186","194","200","202","210","211","213","216","226"]},
+    {"nombre": "Gustavo Avellaneda", "zona": "Cordoba", "tipo": "General", "tel": "0351-320-1198", "sucursales": ["076","078","123","124","203","215","224","233"], "monto": "$1.800.000/mes", "incluye": "Limpieza canaletas/techos, filtros AA, destapes, plomeria menor, albañileria menor, pintura menor, luminarias, cerraduras, arranque semanal generadores, mantenimiento AA planificado", "no_incluye": "Combustible, pintura grande, zingueria, techos, albañileria mayor"},
+    {"nombre": "Adriel (Pintor)", "zona": "Cordoba", "tipo": "Pintura", "tel": "351-860-2101", "sucursales": ["076","078","123","124","203","215","233"]},
+    {"nombre": "Julio Fuga (JRF)", "zona": "NOA", "tipo": "Electrico + AA + Gral", "tel": "0381-454-5659", "sucursales": ["120","126","128","135","139","146","158","173","191","193","212","229","230","234","235"], "monto": "$2.050.000 + IVA/mes", "incluye": "Mto electrico preventivo (luminarias, tableros, bornes, termicas), mto AA (filtros, evaporadora, condensadora, desagues, plaquetas), 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
+    {"nombre": "Ismael Allende (JRF)", "zona": "Mendoza/San Luis", "tipo": "Electrico + AA + Gral", "tel": "0261-664-3429", "sucursales": ["128","132","145","206","207","236"], "monto": "$1.200.000 + IVA/mes", "incluye": "Mto electrico preventivo, mto AA, plomeria, gral. 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
+    {"nombre": "Oscar San Juan", "zona": "San Juan", "tipo": "General", "tel": "0264-498-5365", "sucursales": ["159","172"]},
+    {"nombre": "Jose Sanchez", "zona": "San Juan", "tipo": "General", "tel": "0264-504-1961", "sucursales": ["159","172"]},
+    {"nombre": "Gustavo Blanco", "zona": "Chaco/Corrientes", "tipo": "General", "tel": "379-434-7529", "sucursales": ["220","224"]},
+    {"nombre": "Majo", "zona": "Chaco/Corrientes", "tipo": "General", "tel": "-", "sucursales": ["220","224"]},
+    {"nombre": "Nestor Raul Diaz", "zona": "Neuquen", "tipo": "General", "tel": "299-418-7955", "sucursales": ["133"]},
+    {"nombre": "Federico Confort", "zona": "Neuquen", "tipo": "General", "tel": "299-418-7955", "sucursales": ["178","210"]},
+    {"nombre": "Javier", "zona": "Santa Fe", "tipo": "General", "tel": "342-478-0031", "sucursales": ["226"]},
+    {"nombre": "Liliana (Paisajista)", "zona": "AMBA", "tipo": "Paisajismo", "tel": "115872-4697", "sucursales": ["222"]},
+    {"nombre": "Cesar Frattini (No Bugs)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "114474-9457", "sucursales": ["165","183","200","208","209","211","213","214","221","222"], "monto": "Por servicio", "incluye": "Fumigacion, urgencias bonificadas", "no_incluye": "-"},
+    {"nombre": "Gerardo Goog", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "115851-5565", "sucursales": ["052","167","187"]},
+    {"nombre": "Pablo Norsuply", "zona": "AMBA", "tipo": "Insumos", "tel": "115923-5320", "sucursales": ["AMBA general"]},
+    {"nombre": "Cesar Avalos (Prov. varios)", "zona": "Nacional", "tipo": "Varios", "tel": "116433-6302", "sucursales": ["091","114","116","126","127","166","178","210","214","226"]},
+]
+
+ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
+
+
+# --- Helpers ---
+
+def load_tickets():
+    if TICKETS_FILE.exists():
+        return json.loads(TICKETS_FILE.read_text())
+    return []
+
+
+def save_tickets(tickets):
+    TICKETS_FILE.write_text(json.dumps(tickets, indent=2, ensure_ascii=False))
+
+
+def next_ticket_id(tickets):
+    if not tickets:
+        return 1
+    return max(t["id"] for t in tickets) + 1
+
+
+def auto_assign(subcategoria):
+    return ASIGNACION_AUTO.get(subcategoria, ASIGNACION_DEFAULT)
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def suc_login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "suc_user" not in session:
+            return redirect(url_for("suc_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# --- Routes: Sucursal login ---
+
+@app.route("/")
+def index():
+    if "suc_user" in session:
+        return redirect(url_for("suc_panel"))
+    return render_template("index.html", sucursales=SUCURSALES)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def suc_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
+            session["suc_user"] = user
+            session["suc_nombre"] = SUCURSAL_USERS[user]["sucursal"]
+            return redirect(url_for("suc_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("suc_login.html")
+
+
+@app.route("/logout")
+def suc_logout():
+    session.pop("suc_user", None)
+    session.pop("suc_nombre", None)
+    return redirect(url_for("suc_login"))
+
+
+@app.route("/mi-panel")
+@suc_login_required
+def suc_panel():
+    tickets = load_tickets()
+    mis_tickets = [t for t in tickets if t["sucursal"] == session["suc_nombre"]]
+    mis_tickets.sort(key=lambda t: t["creado"], reverse=True)
+    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES)
+
+
+@app.route("/nuevo", methods=["GET", "POST"])
+@suc_login_required
+def nuevo_ticket():
+    if request.method == "POST":
+        tickets = load_tickets()
+        tid = next_ticket_id(tickets)
+
+        # Handle photo uploads
+        fotos = []
+        for f in request.files.getlist("fotos"):
+            if f and f.filename:
+                ext = Path(f.filename).suffix.lower()
+                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                    fname = f"{tid}_{uuid.uuid4().hex[:8]}{ext}"
+                    f.save(str(UPLOADS_DIR / fname))
+                    fotos.append(fname)
+
+        subcategoria = request.form.get("subcategoria", "")
+        ticket = {
+            "id": tid,
+            "sucursal": session.get("suc_nombre", request.form.get("sucursal", "")),
+            "categoria": request.form.get("categoria", ""),
+            "subcategoria": subcategoria,
+            "descripcion": request.form.get("descripcion", ""),
+            "prioridad": int(request.form.get("prioridad", 4)),
+            "estado": "Nuevo",
+            "asignado": auto_assign(subcategoria),
+            "fotos": fotos,
+            "observaciones": "",
+            "creado": datetime.datetime.now().isoformat(),
+            "actualizado": datetime.datetime.now().isoformat(),
+        }
+        tickets.append(ticket)
+        save_tickets(tickets)
+        return render_template("ticket_creado.html", ticket=ticket)
+
+    sucursal = request.args.get("sucursal", "")
+    return render_template(
+        "nuevo_ticket.html",
+        sucursales=SUCURSALES,
+        categorias=CATEGORIAS,
+        prioridades=PRIORIDADES,
+        sucursal_selected=sucursal,
+    )
+
+
+@app.route("/estado/<int:ticket_id>")
+def estado_ticket(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+    return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
+
+
+# --- Routes: Admin panel ---
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower()
+        pwd = request.form.get("password", "")
+        if user in ADMINS and ADMINS[user]["password"] == pwd:
+            session["user"] = user
+            session["nombre"] = ADMINS[user]["nombre"]
+            session["rol"] = ADMINS[user]["rol"]
+            return redirect(url_for("admin_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("admin_login.html")
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin")
+@login_required
+def admin_panel():
+    tickets = load_tickets()
+    filtro_estado = request.args.get("estado", "")
+    filtro_suc = request.args.get("sucursal", "")
+    filtro_prioridad = request.args.get("prioridad", "")
+
+    filtered = tickets
+    if filtro_estado:
+        filtered = [t for t in filtered if t["estado"] == filtro_estado]
+    if filtro_suc:
+        filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
+    if filtro_prioridad:
+        filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
+
+    filtered.sort(key=lambda t: (t["prioridad"], t["creado"]))
+
+    stats = {
+        "total": len(tickets),
+        "nuevos": sum(1 for t in tickets if t["estado"] == "Nuevo"),
+        "abiertos": sum(1 for t in tickets if t["estado"] == "Abierto"),
+        "en_progreso": sum(1 for t in tickets if t["estado"] == "En progreso"),
+        "pendientes": sum(1 for t in tickets if t["estado"] == "Pendiente"),
+        "resueltos": sum(1 for t in tickets if t["estado"] == "Resuelto"),
+    }
+
+    # Chart data
+    from collections import Counter
+    prioridad_counts = Counter(PRIORIDADES.get(t["prioridad"], "?") for t in tickets)
+    categoria_counts = Counter(t.get("categoria", "Otro") for t in tickets)
+    asignado_counts = Counter(t.get("asignado", "Sin asignar") for t in tickets)
+
+    # My work counts
+    user_nombre = session.get("nombre", "")
+    mis_esperando = [t for t in tickets if t.get("asignado") == user_nombre and t["estado"] in ("Nuevo", "Abierto")]
+    mis_asignados = [t for t in tickets if t.get("asignado") == user_nombre and t["estado"] not in ("Resuelto", "Cerrado")]
+    sin_asignar = [t for t in tickets if not t.get("asignado") or t.get("asignado") == ""]
+
+    # Alertas: tickets > 150 dias (5 meses)
+    alertas = []
+    for t in tickets:
+        if t["estado"] not in ("Resuelto", "Cerrado"):
+            try:
+                created = datetime.datetime.fromisoformat(t["creado"])
+                age = (datetime.datetime.now() - created).days
+                if age > 150:
+                    t["dias"] = age
+                    alertas.append(t)
+            except:
+                pass
+    alertas.sort(key=lambda t: t.get("dias", 0), reverse=True)
+
+    vista = request.args.get("vista", "dashboard")
+
+    return render_template(
+        "admin_panel.html",
+        tickets=filtered,
+        stats=stats,
+        estados=ESTADOS,
+        sucursales=SUCURSALES,
+        prioridades=PRIORIDADES,
+        filtro_estado=filtro_estado,
+        filtro_suc=filtro_suc,
+        filtro_prioridad=filtro_prioridad,
+        prioridad_counts=dict(prioridad_counts),
+        categoria_counts=dict(categoria_counts),
+        asignado_counts=dict(asignado_counts),
+        mis_esperando=len(mis_esperando),
+        mis_asignados=len(mis_asignados),
+        sin_asignar_count=len(sin_asignar),
+        vista=vista,
+        alertas=alertas,
+    )
+
+
+@app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
+@login_required
+def admin_ticket(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    if request.method == "POST":
+        # Check if it's a note or an update
+        nueva_nota = request.form.get("nueva_nota", "").strip()
+        if nueva_nota:
+            if "notas" not in ticket:
+                ticket["notas"] = []
+            ticket["notas"].append({
+                "autor": session.get("nombre", "?"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": nueva_nota,
+            })
+        else:
+            ticket["estado"] = request.form.get("estado", ticket["estado"])
+            ticket["asignado"] = request.form.get("asignado", ticket["asignado"])
+            ticket["prioridad"] = int(request.form.get("prioridad", ticket["prioridad"]))
+            ticket["observaciones"] = request.form.get("observaciones", ticket["observaciones"])
+        ticket["actualizado"] = datetime.datetime.now().isoformat()
+        save_tickets(tickets)
+        flash("Ticket actualizado")
+        return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+    return render_template(
+        "admin_ticket.html",
+        ticket=ticket,
+        estados=ESTADOS,
+        prioridades=PRIORIDADES,
+    )
+
+
+# --- Routes: Proveedores ---
+
+@app.route("/admin/proveedores")
+@login_required
+def admin_proveedores():
+    vista = request.args.get("vista", "zona")
+    buscar_suc = request.args.get("sucursal", "").replace("Sucursal ", "")
+    filtro_zona = request.args.get("zona", "")
+
+    # Build sucursal -> proveedores map
+    suc_map = {}
+    for p in PROVEEDORES:
+        for s in p["sucursales"]:
+            if s not in suc_map:
+                suc_map[s] = []
+            suc_map[s].append(p)
+
+    # Filter by zone
+    proveedores_filtrados = PROVEEDORES
+    if filtro_zona:
+        proveedores_filtrados = [p for p in PROVEEDORES if p["zona"] == filtro_zona]
+
+    # Search by sucursal
+    resultados_suc = []
+    if buscar_suc:
+        buscar_suc_padded = buscar_suc.zfill(3)
+        for p in PROVEEDORES:
+            for s in p["sucursales"]:
+                if buscar_suc in s or buscar_suc_padded in s:
+                    resultados_suc.append(p)
+                    break
+
+    return render_template(
+        "admin_proveedores.html",
+        proveedores=proveedores_filtrados,
+        zonas=ZONAS,
+        suc_map=suc_map,
+        vista=vista,
+        buscar_suc=buscar_suc,
+        filtro_zona=filtro_zona,
+        resultados_suc=resultados_suc,
+        sucursales=SUCURSALES,
+    )
+
+
+# --- Routes: Inventario ---
+
+@app.route("/admin/inventario")
+@login_required
+def admin_inventario():
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
+    from gauth import sheets as get_sheets
+
+    SSID = "1nsWmQ1umlOoFLt9C3O1Uhi0SQp02JEQd7PX-btb4pm0"
+    service = get_sheets()
+    meta = service.spreadsheets().get(spreadsheetId=SSID).execute()
+    sheet_names = [s["properties"]["title"] for s in meta["sheets"]]
+
+    inventario = []
+    for name in sheet_names:
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=SSID,
+                range=f"'{name}'!H4:K4",
+            ).execute()
+            rows = result.get("values", [])
+            if rows and any(str(c).strip() for c in rows[0]):
+                r = rows[0]
+                tiene_ge = r[0] if len(r) > 0 else ""
+                modelo_ge = r[1] if len(r) > 1 else ""
+                persianas = r[2] if len(r) > 2 else ""
+                aires = r[3] if len(r) > 3 else ""
+                if tiene_ge and tiene_ge not in ("¿Cuenta con grupo electrógeno?",):
+                    inventario.append({
+                        "sucursal": name,
+                        "grupo_electrogeno": tiene_ge,
+                        "modelo_ge": modelo_ge,
+                        "persianas": persianas,
+                        "aires": aires,
+                    })
+        except:
+            pass
+
+    inventario.sort(key=lambda x: x["sucursal"])
+    total_ge = sum(1 for i in inventario if i["grupo_electrogeno"] == "Sí")
+    total_persianas = sum(int(i["persianas"]) for i in inventario if i["persianas"].isdigit())
+    total_aires = sum(int(i["aires"]) for i in inventario if i["aires"].isdigit())
+
+    return render_template(
+        "admin_inventario.html",
+        inventario=inventario,
+        total_ge=total_ge,
+        total_respondieron=len(inventario),
+        total_sucursales=len(sheet_names),
+        total_persianas=total_persianas,
+        total_aires=total_aires,
+    )
+
+
+# --- Routes: Portal Proveedor ---
+
+def prov_login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "prov_user" not in session:
+            return redirect(url_for("prov_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/proveedor/login", methods=["GET", "POST"])
+def prov_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        if user in PROVEEDOR_USERS and PROVEEDOR_USERS[user]["password"] == pwd:
+            session["prov_user"] = user
+            session["prov_nombre"] = PROVEEDOR_USERS[user]["nombre"]
+            return redirect(url_for("prov_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("prov_login.html")
+
+
+@app.route("/proveedor/logout")
+def prov_logout():
+    session.pop("prov_user", None)
+    session.pop("prov_nombre", None)
+    return redirect(url_for("prov_login"))
+
+
+@app.route("/proveedor")
+@prov_login_required
+def prov_panel():
+    tickets = load_tickets()
+    prov_nombre = session.get("prov_nombre", "")
+    mis_tickets = [t for t in tickets if t.get("asignado") == prov_nombre and t["estado"] not in ("Cerrado",)]
+    pendientes = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
+    resueltos = [t for t in mis_tickets if t["estado"] == "Resuelto"]
+    return render_template(
+        "prov_panel.html",
+        pendientes=pendientes,
+        resueltos=resueltos,
+        prioridades=PRIORIDADES,
+    )
+
+
+@app.route("/proveedor/ticket/<int:ticket_id>", methods=["GET", "POST"])
+@prov_login_required
+def prov_ticket(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    if request.method == "POST":
+        accion = request.form.get("accion", "")
+        prov_nombre = session.get("prov_nombre", "Proveedor")
+        if "notas" not in ticket:
+            ticket["notas"] = []
+
+        etapa_labels = {
+            "recibido": ("Recibido", "Abierto"),
+            "planificado": ("Planificado", "En progreso"),
+            "relevado": ("Relevado", "En progreso"),
+            "esperando_presupuesto": ("Esperando aprobacion de presupuesto", "Pendiente"),
+            "hecho": ("Hecho", "Resuelto"),
+        }
+
+        if accion in etapa_labels:
+            label, estado = etapa_labels[accion]
+            ticket["etapa_prov"] = accion
+            ticket["estado"] = estado
+            ticket["notas"].append({
+                "autor": prov_nombre,
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Etapa: {label}",
+            })
+        elif accion == "nota":
+            nota = request.form.get("nota", "").strip()
+            if nota:
+                ticket["notas"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": nota,
+                })
+        elif accion == "foto_antes":
+            f = request.files.get("foto")
+            if f and f.filename:
+                ext = Path(f.filename).suffix.lower()
+                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                    fname = f"{ticket_id}_antes_{uuid.uuid4().hex[:8]}{ext}"
+                    f.save(str(UPLOADS_DIR / fname))
+                    if "fotos_antes" not in ticket:
+                        ticket["fotos_antes"] = []
+                    ticket["fotos_antes"].append(fname)
+                    ticket["notas"].append({
+                        "autor": prov_nombre,
+                        "fecha": datetime.datetime.now().isoformat(),
+                        "texto": "Subio foto ANTES del trabajo",
+                        "fotos": [fname],
+                    })
+        elif accion == "foto_despues":
+            f = request.files.get("foto")
+            if f and f.filename:
+                ext = Path(f.filename).suffix.lower()
+                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                    fname = f"{ticket_id}_despues_{uuid.uuid4().hex[:8]}{ext}"
+                    f.save(str(UPLOADS_DIR / fname))
+                    if "fotos_despues" not in ticket:
+                        ticket["fotos_despues"] = []
+                    ticket["fotos_despues"].append(fname)
+                    ticket["notas"].append({
+                        "autor": prov_nombre,
+                        "fecha": datetime.datetime.now().isoformat(),
+                        "texto": "Subio foto DESPUES del trabajo",
+                        "fotos": [fname],
+                    })
+        elif accion == "no_se_pudo":
+            motivo = request.form.get("motivo", "").strip()
+            if motivo:
+                ticket["etapa_prov"] = "bloqueado"
+                ticket["estado"] = "Pendiente"
+                ticket["notas"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"NO SE PUDO REALIZAR: {motivo}",
+                })
+        elif accion == "presupuesto":
+            detalle = request.form.get("detalle_presupuesto", "").strip()
+            monto = request.form.get("monto_presupuesto", "")
+            archivo = ""
+            f = request.files.get("archivo_presupuesto")
+            if f and f.filename:
+                ext = Path(f.filename).suffix.lower()
+                fname = f"{ticket_id}_ppto_{uuid.uuid4().hex[:8]}{ext}"
+                f.save(str(UPLOADS_DIR / fname))
+                archivo = fname
+            if detalle:
+                if "presupuestos" not in ticket:
+                    ticket["presupuestos"] = []
+                ticket["presupuestos"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "detalle": detalle,
+                    "monto": monto,
+                    "archivo": archivo,
+                })
+                ticket["notas"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Envio presupuesto adicional: ${monto} - {detalle[:80]}",
+                })
+        elif accion == "informe":
+            informe_texto = request.form.get("informe", "").strip()
+            archivo = ""
+            f = request.files.get("archivo_informe")
+            if f and f.filename:
+                ext = Path(f.filename).suffix.lower()
+                fname = f"{ticket_id}_informe_{uuid.uuid4().hex[:8]}{ext}"
+                f.save(str(UPLOADS_DIR / fname))
+                archivo = fname
+            if informe_texto:
+                if "informes" not in ticket:
+                    ticket["informes"] = []
+                ticket["informes"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": informe_texto,
+                    "archivo": archivo,
+                })
+                ticket["notas"].append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Envio informe: {informe_texto[:80]}...",
+                })
+
+        ticket["actualizado"] = datetime.datetime.now().isoformat()
+        save_tickets(tickets)
+        flash("Actualizado")
+        return redirect(url_for("prov_ticket", ticket_id=ticket_id))
+
+    return render_template("prov_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
+
+
+# --- Routes: Ficha Sucursal ---
+
+@app.route("/admin/sucursal/<suc_num>")
+@login_required
+def admin_sucursal(suc_num):
+    from sucursales_data import SUCURSALES_INFO
+
+    # Sucursal info
+    info = SUCURSALES_INFO.get(suc_num, {})
+    suc_name = f"Sucursal {suc_num}"
+
+    # Tickets
+    tickets = load_tickets()
+    suc_tickets = [t for t in tickets if t["sucursal"] == suc_name]
+    activos = [t for t in suc_tickets if t["estado"] not in ("Resuelto", "Cerrado")]
+    cerrados = [t for t in suc_tickets if t["estado"] in ("Resuelto", "Cerrado")]
+
+    # Proveedores que cubren esta sucursal
+    mis_proveedores = []
+    for p in PROVEEDORES:
+        for s in p["sucursales"]:
+            if suc_num in s or suc_num.lstrip("0") in s:
+                mis_proveedores.append(p)
+                break
+
+    # Inventario from Google Sheets
+    inventario = {}
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
+        from gauth import sheets as get_sheets
+        SSID = "1nsWmQ1umlOoFLt9C3O1Uhi0SQp02JEQd7PX-btb4pm0"
+        service = get_sheets()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SSID,
+            range=f"'{suc_name}'!H4:K4",
+        ).execute()
+        rows = result.get("values", [])
+        if rows and rows[0]:
+            r = rows[0]
+            inventario = {
+                "grupo_electrogeno": r[0] if len(r) > 0 else "",
+                "modelo_ge": r[1] if len(r) > 1 else "",
+                "persianas": r[2] if len(r) > 2 else "",
+                "aires": r[3] if len(r) > 3 else "",
+            }
+    except:
+        pass
+
+    return render_template(
+        "admin_sucursal.html",
+        suc_num=suc_num,
+        suc_name=suc_name,
+        info=info,
+        activos=activos,
+        cerrados=cerrados,
+        mis_proveedores=mis_proveedores,
+        inventario=inventario,
+        prioridades=PRIORIDADES,
+    )
+
+
+# --- Routes: Mapa ---
+
+@app.route("/admin/mapa")
+@login_required
+def admin_mapa():
+    from sucursales_data import SUCURSALES_INFO
+    tickets = load_tickets()
+
+    # Count tickets per sucursal
+    from collections import Counter
+    ticket_counts = Counter(t["sucursal"].replace("Sucursal ", "") for t in tickets if t["estado"] not in ("Resuelto", "Cerrado"))
+
+    sucursales_mapa = []
+    for num, info in SUCURSALES_INFO.items():
+        sucursales_mapa.append({
+            "num": num,
+            "marca": info["marca"],
+            "tienda": info["tienda"],
+            "ciudad": info["ciudad"],
+            "provincia": info["provincia"],
+            "direccion": info["direccion"],
+            "lat": info["lat"],
+            "lng": info["lng"],
+            "tickets": ticket_counts.get(num, 0),
+        })
+
+    return render_template("admin_mapa.html", sucursales=sucursales_mapa)
+
+
+# --- Routes: Reporte semanal ---
+
+@app.route("/admin/reporte", methods=["POST"])
+@login_required
+def admin_reporte():
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
+
+    tickets = load_tickets()
+    now = datetime.datetime.now()
+
+    # Stats
+    total = len(tickets)
+    nuevos = sum(1 for t in tickets if t["estado"] == "Nuevo")
+    abiertos = sum(1 for t in tickets if t["estado"] == "Abierto")
+    en_progreso = sum(1 for t in tickets if t["estado"] == "En progreso")
+    pendientes = sum(1 for t in tickets if t["estado"] == "Pendiente")
+    resueltos = sum(1 for t in tickets if t["estado"] == "Resuelto")
+
+    # Tickets this week
+    semana = [t for t in tickets if (now - datetime.datetime.fromisoformat(t["creado"])).days <= 7]
+
+    # Urgentes (prioridad 1)
+    urgentes = [t for t in tickets if t["prioridad"] == 1 and t["estado"] not in ("Resuelto", "Cerrado")]
+
+    # Alertas (> 5 meses)
+    alertas = []
+    for t in tickets:
+        if t["estado"] not in ("Resuelto", "Cerrado"):
+            try:
+                age = (now - datetime.datetime.fromisoformat(t["creado"])).days
+                if age > 150:
+                    alertas.append({"ticket": t, "dias": age})
+            except:
+                pass
+
+    # Build HTML email
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #111; color: #e2e8f0; padding: 24px; border-radius: 12px;">
+        <div style="text-align: center; padding: 16px; border-bottom: 2px solid #e63946;">
+            <h1 style="color: #e63946; margin: 0;">TECMAN</h1>
+            <p style="color: #64748b; margin: 4px 0 0;">Reporte Semanal - {now.strftime('%d/%m/%Y')}</p>
+        </div>
+
+        <h2 style="color: #fff; margin-top: 24px;">Resumen General</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+            <tr><td style="padding: 8px; color: #94a3b8;">Total tickets</td><td style="padding: 8px; font-weight: 700; color: #fff; text-align: right;">{total}</td></tr>
+            <tr style="background: rgba(255,255,255,0.03);"><td style="padding: 8px; color: #94a3b8;">Nuevos</td><td style="padding: 8px; font-weight: 700; color: #38bdf8; text-align: right;">{nuevos}</td></tr>
+            <tr><td style="padding: 8px; color: #94a3b8;">Abiertos</td><td style="padding: 8px; font-weight: 700; color: #fbbf24; text-align: right;">{abiertos}</td></tr>
+            <tr style="background: rgba(255,255,255,0.03);"><td style="padding: 8px; color: #94a3b8;">En progreso</td><td style="padding: 8px; font-weight: 700; color: #a78bfa; text-align: right;">{en_progreso}</td></tr>
+            <tr><td style="padding: 8px; color: #94a3b8;">Pendientes</td><td style="padding: 8px; font-weight: 700; color: #f59e0b; text-align: right;">{pendientes}</td></tr>
+            <tr style="background: rgba(255,255,255,0.03);"><td style="padding: 8px; color: #94a3b8;">Resueltos</td><td style="padding: 8px; font-weight: 700; color: #34d399; text-align: right;">{resueltos}</td></tr>
+        </table>
+
+        <h2 style="color: #fff; margin-top: 24px;">Tickets esta semana ({len(semana)})</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+            <tr style="border-bottom: 1px solid #333;"><th style="padding: 6px; color: #64748b; text-align: left; font-size: 11px;">#</th><th style="padding: 6px; color: #64748b; text-align: left; font-size: 11px;">Sucursal</th><th style="padding: 6px; color: #64748b; text-align: left; font-size: 11px;">Problema</th><th style="padding: 6px; color: #64748b; text-align: left; font-size: 11px;">Estado</th></tr>
+    """
+    for t in semana[:15]:
+        html += f"""<tr style="border-bottom: 1px solid #1a1a1a;"><td style="padding: 6px; color: #e63946; font-weight: 700;">{t['id']}</td><td style="padding: 6px; font-size: 13px;">{t['sucursal'].replace('Sucursal ', 'Suc ')}</td><td style="padding: 6px; font-size: 13px;">{t['subcategoria']}</td><td style="padding: 6px; font-size: 13px;">{t['estado']}</td></tr>"""
+
+    if urgentes:
+        html += f"""
+        </table>
+        <h2 style="color: #f87171; margin-top: 24px;">Tickets Urgentes ({len(urgentes)})</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+        """
+        for t in urgentes:
+            html += f"""<tr style="border-bottom: 1px solid #1a1a1a; background: rgba(239,68,68,0.05);"><td style="padding: 8px; color: #f87171; font-weight: 700;">#{t['id']}</td><td style="padding: 8px;">{t['sucursal']}</td><td style="padding: 8px;">{t['subcategoria']}</td></tr>"""
+
+    if alertas:
+        html += f"""
+        </table>
+        <h2 style="color: #f59e0b; margin-top: 24px;">Alertas: {len(alertas)} tickets con mas de 5 meses</h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+        """
+        for a in sorted(alertas, key=lambda x: -x["dias"])[:10]:
+            t = a["ticket"]
+            html += f"""<tr style="border-bottom: 1px solid #1a1a1a;"><td style="padding: 6px; color: #f59e0b;">#{t['id']}</td><td style="padding: 6px;">{t['sucursal'].replace('Sucursal ', 'Suc ')}</td><td style="padding: 6px;">{t['subcategoria']}</td><td style="padding: 6px; color: #f87171; font-weight: 700;">{a['dias']}d</td></tr>"""
+
+    html += """
+        </table>
+        <div style="text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px solid #222;">
+            <p style="color: #333; font-size: 11px;">Generado por Tecman - Grupo Dabra</p>
+        </div>
+    </div>
+    """
+
+    # Send email via Gmail API
+    try:
+        from gauth import gmail as get_gmail
+        import base64
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        service = get_gmail()
+        msg = MIMEMultipart("alternative")
+        msg["To"] = "agustintomasbrahim@gmail.com"
+        msg["Subject"] = f"Tecman - Reporte Semanal {now.strftime('%d/%m/%Y')}"
+        msg.attach(MIMEText(html, "html"))
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        flash("Reporte enviado a agustintomasbrahim@gmail.com")
+    except Exception as e:
+        flash(f"Error al enviar: {str(e)}")
+
+    return redirect(url_for("admin_panel", vista="dashboard"))
+
+
+# --- Routes: Buscador ---
+
+@app.route("/admin/buscar")
+@login_required
+def admin_buscar():
+    q = request.args.get("q", "").strip().lower()
+    tickets = load_tickets()
+    resultados = []
+    if q:
+        for t in tickets:
+            if (q in str(t.get("id", "")) or
+                q in t.get("sucursal", "").lower() or
+                q in t.get("descripcion", "").lower() or
+                q in t.get("subcategoria", "").lower() or
+                q in t.get("categoria", "").lower() or
+                q in t.get("asignado", "").lower() or
+                q in t.get("observaciones", "").lower()):
+                resultados.append(t)
+    return render_template("admin_buscar.html", q=q, resultados=resultados, prioridades=PRIORIDADES)
+
+
+# --- Routes: Exportar ---
+
+@app.route("/admin/exportar")
+@login_required
+def admin_exportar():
+    import csv
+    import io
+    from flask import Response
+
+    tickets = load_tickets()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Sucursal", "Categoria", "Subcategoria", "Descripcion", "Prioridad", "Estado", "Asignado", "Observaciones", "Creado", "Actualizado"])
+    for t in tickets:
+        writer.writerow([
+            t["id"], t["sucursal"], t["categoria"], t["subcategoria"],
+            t["descripcion"], t["prioridad"], t["estado"], t["asignado"],
+            t["observaciones"], t["creado"][:10], t["actualizado"][:10],
+        ])
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=tecman_tickets.csv"}
+    )
+
+
+# --- API ---
+
+@app.route("/api/categorias")
+def api_categorias():
+    cat = request.args.get("categoria", "")
+    return jsonify(CATEGORIAS.get(cat, []))
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5050, debug=True)

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Mapa{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}" style="background: rgba(255,255,255,0.15);">Mapa</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+    #map { height: 600px; border-radius: 12px; border: 1px solid #334155; margin-top: 16px; }
+    .leaflet-popup-content { color: #333; }
+    .suc-icon { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 800; font-size: 10px; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+</style>
+
+<div style="display: flex; justify-content: space-between; align-items: center;">
+    <h2>Mapa de Sucursales</h2>
+    <div style="display: flex; gap: 12px; font-size: 12px; color: #94a3b8;">
+        <span><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ef4444; margin-right: 4px;"></span>Con tickets</span>
+        <span><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #e63946; margin-right: 4px;"></span>DX</span>
+        <span><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ffffff; margin-right: 4px;"></span>MV</span>
+        <span><span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #e891a8; margin-right: 4px;"></span>SC</span>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var map = L.map('map').setView([-34.6, -60.0], 5);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 18,
+    attribution: ''
+}).addTo(map);
+
+var sucursales = {{ sucursales | tojson }};
+
+sucursales.forEach(function(s) {
+    var color;
+    if (s.tickets > 0) {
+        color = '#ef4444';
+    } else if (s.marca === 'DX') {
+        color = '#e63946';
+    } else if (s.marca === 'MV') {
+        color = '#ffffff';
+    } else {
+        color = '#e891a8';
+    }
+
+    var size = s.tickets > 0 ? 28 : 20;
+
+    var icon = L.divIcon({
+        className: '',
+        html: '<div class="suc-icon" style="width:' + size + 'px;height:' + size + 'px;background:' + color + ';color:white;">' + s.num + '</div>',
+        iconSize: [size, size],
+        iconAnchor: [size/2, size/2],
+    });
+
+    var popup = '<div style="min-width: 180px;">' +
+        '<strong style="font-size: 15px;">' + s.marca + ' ' + s.num + '</strong><br>' +
+        '<span style="color: #666;">' + s.tienda + '</span><br>' +
+        '<span style="font-size: 12px;">' + s.ciudad + ', ' + s.provincia + '</span><br>' +
+        '<span style="font-size: 11px; color: #999;">' + s.direccion + '</span>';
+
+    if (s.tickets > 0) {
+        popup += '<br><br><strong style="color: #ef4444;">' + s.tickets + ' ticket' + (s.tickets > 1 ? 's' : '') + ' abierto' + (s.tickets > 1 ? 's' : '') + '</strong>';
+    }
+    popup += '<br><br><a href="/admin/sucursal/' + s.num + '" style="color: #e63946; font-weight: 600;">Ver ficha completa &rarr;</a>';
+    popup += '</div>';
+
+    L.marker([s.lat, s.lng], {icon: icon}).addTo(map).bindPopup(popup);
+});
+</script>
+{% endblock %}

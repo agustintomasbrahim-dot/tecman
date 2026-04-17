@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Buscar{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="margin-bottom: 16px;">Buscar</h2>
+    <form action="{{ url_for('admin_buscar') }}" method="GET" style="display: flex; gap: 8px;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por N de ticket, sucursal, descripcion, categoria, asignado..." style="flex: 1; padding: 14px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; font-size: 16px;">
+        <button type="submit" class="btn btn-primary" style="padding: 14px 28px;">Buscar</button>
+    </form>
+</div>
+
+{% if q %}
+<div style="margin: 16px 0; color: #94a3b8;">
+    {{ resultados | length }} resultado{{ 's' if resultados | length != 1 }} para "{{ q }}"
+</div>
+
+{% if resultados %}
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr><th>#</th><th>Sucursal</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Asignado</th><th>Fecha</th></tr>
+        </thead>
+        <tbody>
+            {% for t in resultados %}
+            <tr style="cursor: pointer;" onclick="window.location='/admin/ticket/{{ t.id }}'">
+                <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
+                <td>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</td>
+                <td>{{ t.subcategoria }}{% if t.fotos %} &#128247;{% endif %}</td>
+                <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
+                <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
+                <td style="color: #94a3b8;">{{ t.asignado }}</td>
+                <td style="color: #64748b;">{{ t.creado[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 40px; color: #475569;">
+    No se encontraron resultados
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Tecman - {{ suc_name }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<!-- Header sucursal -->
+<div class="card" style="border-left: 4px solid #e63946;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h2 style="font-size: 24px; margin-bottom: 4px;">{{ suc_name }}</h2>
+            {% if info %}
+            <div style="font-size: 15px; color: #94a3b8; margin-bottom: 8px;">
+                <span class="badge" style="background: {% if info.marca == 'DX' %}rgba(230,57,70,0.2); color: #e63946{% elif info.marca == 'MV' %}rgba(255,255,255,0.15); color: #ffffff{% else %}rgba(232,145,168,0.2); color: #e891a8{% endif %}; font-size: 13px; padding: 4px 12px;">
+                    {% if info.marca == 'DX' %}Dexter{% elif info.marca == 'MV' %}Moov{% else %}Stock Center{% endif %}
+                </span>
+                {{ info.tienda }}
+            </div>
+            <div style="color: #64748b; font-size: 14px;">
+                &#128205; {{ info.direccion or '-' }}<br>
+                {{ info.ciudad }}, {{ info.provincia }}
+            </div>
+            {% endif %}
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 36px; font-weight: 800; color: #e63946;">{{ activos | length }}</div>
+            <div style="font-size: 12px; color: #64748b; text-transform: uppercase;">Tickets activos</div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats row -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0;">
+    <!-- Inventario -->
+    <div class="stat-card">
+        <div class="number" style="font-size: 24px; color: {% if inventario.grupo_electrogeno == 'Si' or inventario.grupo_electrogeno == 'Sí' %}#34d399{% else %}#f87171{% endif %};">
+            {% if inventario.grupo_electrogeno == 'Si' or inventario.grupo_electrogeno == 'Sí' %}Si{% elif inventario.grupo_electrogeno == 'No' %}No{% else %}?{% endif %}
+        </div>
+        <div class="label">Grupo electrogeno</div>
+        {% if inventario.modelo_ge %}<div style="font-size: 10px; color: #64748b; margin-top: 2px;">{{ inventario.modelo_ge }}</div>{% endif %}
+    </div>
+    <div class="stat-card">
+        <div class="number" style="font-size: 24px; color: #a78bfa;">{{ inventario.persianas or '?' }}</div>
+        <div class="label">Persianas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="font-size: 24px; color: #38bdf8;">{{ inventario.aires or '?' }}</div>
+        <div class="label">Aires AC</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="font-size: 24px; color: #fbbf24;">{{ mis_proveedores | length }}</div>
+        <div class="label">Proveedores</div>
+    </div>
+</div>
+
+<!-- Proveedores -->
+{% if mis_proveedores %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Proveedores asignados</h3>
+    {% for p in mis_proveedores %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #2a2a2a;{% endif %}">
+        <div>
+            <span style="font-weight: 600; color: #f1f5f9;">{{ p.nombre }}</span>
+            <span class="badge" style="background: rgba(139,92,246,0.15); color: #a78bfa; margin-left: 6px;">{{ p.tipo }}</span>
+            {% if p.monto is defined and p.monto %}
+            <div style="font-size: 12px; color: #34d399; margin-top: 2px;">{{ p.monto }}</div>
+            {% endif %}
+        </div>
+        {% if p.tel != '-' %}
+        <a href="tel:{{ p.tel }}" style="color: #34d399; font-weight: 700; text-decoration: none; white-space: nowrap;">&#128222; {{ p.tel }}</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Tickets activos -->
+<div class="card">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
+        Tickets activos ({{ activos | length }})
+    </h3>
+    {% if activos %}
+    <table>
+        <thead>
+            <tr><th>#</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Asignado</th><th>Fecha</th></tr>
+        </thead>
+        <tbody>
+            {% for t in activos %}
+            <tr style="cursor: pointer;" onclick="window.location='/admin/ticket/{{ t.id }}'">
+                <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
+                <td>{{ t.subcategoria }}</td>
+                <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
+                <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
+                <td style="color: #94a3b8;">{{ t.asignado }}</td>
+                <td style="color: #64748b;">{{ t.creado[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 24px; color: #475569;">Sin tickets activos</div>
+    {% endif %}
+</div>
+
+<!-- Tickets cerrados -->
+{% if cerrados %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
+        Tickets cerrados ({{ cerrados | length }})
+    </h3>
+    <table>
+        <thead>
+            <tr><th>#</th><th>Problema</th><th>Fecha</th><th>Resolucion</th></tr>
+        </thead>
+        <tbody>
+            {% for t in cerrados %}
+            <tr style="opacity: 0.6;">
+                <td>{{ t.id }}</td>
+                <td>{{ t.subcategoria }}</td>
+                <td>{{ t.creado[:10] }}</td>
+                <td style="font-size: 12px;">{{ t.observaciones[:50] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

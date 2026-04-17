@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Proveedores{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
+    <a href="{{ url_for('admin_proveedores') }}" style="background: rgba(255,255,255,0.15);">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <h2>Proveedores</h2>
+    <div style="display: flex; gap: 6px;">
+        <a href="{{ url_for('admin_proveedores', vista='zona') }}" class="btn btn-sm {% if vista == 'zona' %}btn-primary{% else %}btn-outline{% endif %}">Por zona</a>
+        <a href="{{ url_for('admin_proveedores', vista='lista') }}" class="btn btn-sm {% if vista == 'lista' %}btn-primary{% else %}btn-outline{% endif %}">Todos</a>
+        <a href="{{ url_for('admin_proveedores', vista='sucursal') }}" class="btn btn-sm {% if vista == 'sucursal' %}btn-primary{% else %}btn-outline{% endif %}">Buscar sucursal</a>
+    </div>
+</div>
+
+{% if vista == 'sucursal' %}
+<!-- SEARCH BY SUCURSAL -->
+<div class="card">
+    <h3 style="margin-bottom: 16px;">Buscar proveedores por sucursal</h3>
+    <form style="display: flex; gap: 8px; margin-bottom: 20px;">
+        <input type="hidden" name="vista" value="sucursal">
+        <select name="sucursal" style="flex: 1; padding: 12px; border: 1px solid #475569; border-radius: 8px; background: #0f172a; color: #e2e8f0; font-size: 16px;">
+            <option value="">Seleccionar sucursal...</option>
+            {% for suc in sucursales %}
+            <option value="{{ suc }}" {% if suc.replace('Sucursal ', '') == buscar_suc %}selected{% endif %}>{{ suc }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">Buscar</button>
+    </form>
+
+    {% if buscar_suc %}
+    <div style="margin-bottom: 12px;">
+        <h3 style="color: #38bdf8;">Sucursal {{ buscar_suc }}</h3>
+        <p style="color: #64748b; font-size: 13px;">{{ resultados_suc|length }} proveedor{{ 'es' if resultados_suc|length != 1 }} encontrado{{ 's' if resultados_suc|length != 1 }}</p>
+    </div>
+    {% if resultados_suc %}
+    <div style="display: grid; gap: 12px;">
+        {% for p in resultados_suc %}
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-weight: 700; font-size: 16px; color: #f1f5f9;">{{ p.nombre }}</div>
+                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                        <span class="badge" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8;">{{ p.zona }}</span>
+                        <span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">{{ p.tipo }}</span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    {% if p.tel != '-' %}
+                    <a href="tel:{{ p.tel }}" style="color: #34d399; font-size: 18px; font-weight: 700; text-decoration: none;">
+                        &#128222; {{ p.tel }}
+                    </a>
+                    {% else %}
+                    <span style="color: #475569;">Sin telefono</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if p.monto is defined and p.monto %}
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155;">
+                <span style="color: #34d399; font-weight: 700; font-size: 15px;">{{ p.monto }}</span>
+                {% if p.incluye is defined and p.incluye %}
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">{{ p.incluye }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 32px; color: #475569;">
+        No se encontraron proveedores para esta sucursal
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+{% elif vista == 'lista' %}
+<!-- ALL PROVIDERS LIST -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>Proveedor</th>
+                <th>Zona</th>
+                <th>Tipo</th>
+                <th>Telefono</th>
+                <th>Sucursales</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in proveedores %}
+            <tr>
+                <td style="font-weight: 600; color: #f1f5f9;">{{ p.nombre }}</td>
+                <td><span class="badge" style="background: rgba(14, 165, 233, 0.15); color: #38bdf8;">{{ p.zona }}</span></td>
+                <td><span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">{{ p.tipo }}</span></td>
+                <td>
+                    {% if p.tel != '-' %}
+                    <a href="tel:{{ p.tel }}" style="color: #34d399; text-decoration: none;">{{ p.tel }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td style="font-size: 12px; color: #94a3b8; max-width: 300px;">{{ p.sucursales | join(', ') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<!-- BY ZONE -->
+<div class="card" style="padding: 16px;">
+    <form style="display: flex; gap: 8px; align-items: center;">
+        <input type="hidden" name="vista" value="zona">
+        <select name="zona" style="padding: 10px; border: 1px solid #475569; border-radius: 6px; background: #0f172a; color: #e2e8f0;">
+            <option value="">Todas las zonas</option>
+            {% for z in zonas %}<option value="{{ z }}" {% if z == filtro_zona %}selected{% endif %}>{{ z }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+        <a href="{{ url_for('admin_proveedores', vista='zona') }}" class="btn btn-outline btn-sm">Limpiar</a>
+    </form>
+</div>
+
+{% set ns = namespace(current_zona='') %}
+{% for p in proveedores | sort(attribute='zona') %}
+    {% if p.zona != ns.current_zona %}
+        {% set ns.current_zona = p.zona %}
+        <h3 style="margin-top: 24px; margin-bottom: 12px; color: #38bdf8; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
+            &#128205; {{ p.zona }}
+        </h3>
+    {% endif %}
+    <div class="card" style="padding: 16px; margin: 8px 0; border-left: 4px solid {% if p.zona == 'AMBA' %}#0ea5e9{% elif p.zona == 'Cordoba' %}#f59e0b{% elif p.zona == 'NOA' %}#10b981{% elif 'Mendoza' in p.zona %}#a78bfa{% elif 'Neuquen' in p.zona %}#f87171{% elif 'San Juan' in p.zona %}#fbbf24{% else %}#64748b{% endif %};">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+            <div style="flex: 1;">
+                <div style="font-weight: 700; font-size: 17px; color: #f1f5f9;">{{ p.nombre }}</div>
+                <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
+                    <span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">{{ p.tipo }}</span>
+                </div>
+                {% if p.monto is defined and p.monto %}
+                <div style="margin-top: 10px; background: #0f172a; border-radius: 8px; padding: 12px;">
+                    <div style="font-size: 20px; font-weight: 800; color: #34d399;">{{ p.monto }}</div>
+                    {% if p.incluye is defined and p.incluye %}
+                    <div style="margin-top: 8px; font-size: 12px;">
+                        <span style="color: #10b981; font-weight: 600;">Incluye:</span>
+                        <span style="color: #94a3b8;">{{ p.incluye }}</span>
+                    </div>
+                    {% endif %}
+                    {% if p.no_incluye is defined and p.no_incluye and p.no_incluye != '-' %}
+                    <div style="margin-top: 4px; font-size: 12px;">
+                        <span style="color: #f87171; font-weight: 600;">No incluye:</span>
+                        <span style="color: #94a3b8;">{{ p.no_incluye }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div style="margin-top: 8px; font-size: 13px; color: #94a3b8;">
+                    Sucursales: <span style="color: #e2e8f0;">{{ p.sucursales | join(' - ') }}</span>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                {% if p.tel != '-' %}
+                <a href="tel:{{ p.tel }}" style="color: #34d399; font-size: 20px; font-weight: 700; text-decoration: none; white-space: nowrap;">
+                    &#128222; {{ p.tel }}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

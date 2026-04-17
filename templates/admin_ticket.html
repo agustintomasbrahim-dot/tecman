@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket #{{ ticket.id }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_buscar') }}">Buscar</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card" style="border-left: 4px solid {% if ticket.prioridad == 1 %}#ef4444{% elif ticket.prioridad == 2 %}#f59e0b{% elif ticket.prioridad == 3 %}#e63946{% else %}#64748b{% endif %};">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>Ticket #{{ ticket.id }}</h2>
+        <div style="display: flex; gap: 8px;">
+            <span class="badge badge-p{{ ticket.prioridad }}">{{ prioridades[ticket.prioridad] }}</span>
+            <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+        </div>
+    </div>
+
+    <table>
+        <tr><td style="width: 140px; font-weight: 600; color: #94a3b8;">Sucursal</td><td><a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a></td></tr>
+        <tr><td style="font-weight: 600; color: #94a3b8;">Categoria</td><td>{{ ticket.categoria }} &raquo; {{ ticket.subcategoria }}</td></tr>
+        <tr><td style="font-weight: 600; color: #94a3b8;">Asignado</td><td>{{ ticket.asignado }}</td></tr>
+        <tr><td style="font-weight: 600; color: #94a3b8;">Creado</td><td>{{ ticket.creado[:16].replace('T', ' ') }}</td></tr>
+        <tr><td style="font-weight: 600; color: #94a3b8;">Actualizado</td><td>{{ ticket.actualizado[:16].replace('T', ' ') }}</td></tr>
+    </table>
+
+    <h3 style="margin-top: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Descripcion</h3>
+    <p style="margin: 8px 0; white-space: pre-wrap; background: #0a0a0a; padding: 14px; border-radius: 8px; color: #e2e8f0;">{{ ticket.descripcion }}</p>
+
+    {% if ticket.fotos %}
+    <h3 style="margin-top: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Fotos</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for foto in ticket.fotos %}
+        <a href="/static/uploads/{{ foto }}" target="_blank">
+            <img src="/static/uploads/{{ foto }}" class="foto-thumb" alt="Foto" style="width: 120px; height: 120px;">
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Notas / Comentarios -->
+<div class="card">
+    <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Notas y comentarios</h3>
+
+    {% if ticket.notas is defined and ticket.notas %}
+    <div style="margin-bottom: 16px;">
+        {% for nota in ticket.notas %}
+        <div style="background: #0a0a0a; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 3px solid #e63946;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span style="font-weight: 700; color: #e63946; font-size: 13px;">{{ nota.autor }}</span>
+                <span style="color: #475569; font-size: 12px;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+            </div>
+            <p style="color: #e2e8f0; white-space: pre-wrap; margin: 0;">{{ nota.texto }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #475569; margin-bottom: 16px;">Sin notas todavia</p>
+    {% endif %}
+
+    <form method="POST">
+        <div class="form-group">
+            <textarea name="nueva_nota" placeholder="Escribir una nota o comentario..." style="height: 70px;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Agregar nota</button>
+    </form>
+</div>
+
+<!-- Gestionar ticket -->
+<div class="card">
+    <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Gestionar ticket</h3>
+    <form method="POST">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+                <label>Estado</label>
+                <select name="estado">
+                    {% for e in estados %}
+                    <option value="{{ e }}" {% if e == ticket.estado %}selected{% endif %}>{{ e }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Prioridad</label>
+                <select name="prioridad">
+                    {% for pid, pname in prioridades.items() %}
+                    <option value="{{ pid }}" {% if pid == ticket.prioridad %}selected{% endif %}>{{ pid }} - {{ pname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Asignado a</label>
+            <input type="text" name="asignado" value="{{ ticket.asignado }}">
+        </div>
+        <div class="form-group">
+            <label>Observaciones</label>
+            <textarea name="observaciones">{{ ticket.observaciones }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Guardar cambios</button>
+    </form>
+</div>
+{% endblock %}

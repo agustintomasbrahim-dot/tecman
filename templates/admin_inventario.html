@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Inventario{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}" style="background: rgba(255,255,255,0.15);">Inventario</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<h2 style="margin-bottom: 8px;">Inventario por Sucursal</h2>
+<p style="color: #64748b; margin-bottom: 20px;">Datos del relevamiento Google Sheets (en vivo)</p>
+
+<!-- Stats -->
+<div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #38bdf8;">{{ total_respondieron }}/{{ total_sucursales }}</div>
+        <div class="label">Sucursales respondieron</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #f59e0b;">{{ total_ge }}</div>
+        <div class="label">Con grupo electrogeno</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #a78bfa;">{{ total_persianas }}</div>
+        <div class="label">Total persianas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #34d399;">{{ total_aires }}</div>
+        <div class="label">Total aires acondicionados</div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>Sucursal</th>
+                <th>Grupo electrogeno</th>
+                <th>Modelo</th>
+                <th>Persianas</th>
+                <th>Aires AC</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for i in inventario %}
+            <tr>
+                <td style="font-weight: 600; color: #f1f5f9;">{{ i.sucursal }}</td>
+                <td>
+                    {% if i.grupo_electrogeno == 'Si' or i.grupo_electrogeno == 'Sí' %}
+                    <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">Si</span>
+                    {% elif i.grupo_electrogeno == 'No' %}
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">No</span>
+                    {% else %}
+                    <span style="color: #475569;">{{ i.grupo_electrogeno }}</span>
+                    {% endif %}
+                </td>
+                <td style="color: #94a3b8; font-size: 13px;">{{ i.modelo_ge or '-' }}</td>
+                <td>
+                    {% if i.persianas and i.persianas != '0' %}
+                    <span style="color: #a78bfa; font-weight: 700;">{{ i.persianas }}</span>
+                    {% else %}
+                    <span style="color: #475569;">{{ i.persianas or '-' }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if i.aires and i.aires != '0' %}
+                    <span style="color: #34d399; font-weight: 700;">{{ i.aires }}</span>
+                    {% else %}
+                    <span style="color: #475569;">{{ i.aires or '-' }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="text-align: center; margin-top: 16px; color: #475569; font-size: 13px;">
+    {{ total_sucursales - total_respondieron }} sucursales aun no completaron el relevamiento
+</div>
+
+{% endblock %}

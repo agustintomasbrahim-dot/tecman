@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket #{{ ticket.id }}{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>Ticket #{{ ticket.id }}</h2>
+        <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+    </div>
+    <table>
+        <tr><td style="width: 140px; font-weight: 600;">Sucursal</td><td>{{ ticket.sucursal }}</td></tr>
+        <tr><td style="font-weight: 600;">Categoria</td><td>{{ ticket.categoria }} - {{ ticket.subcategoria }}</td></tr>
+        <tr><td style="font-weight: 600;">Prioridad</td><td><span class="badge badge-p{{ ticket.prioridad }}">{{ ticket.prioridad }} - {{ prioridades[ticket.prioridad] }}</span></td></tr>
+        <tr><td style="font-weight: 600;">Asignado a</td><td>{{ ticket.asignado }}</td></tr>
+        <tr><td style="font-weight: 600;">Creado</td><td>{{ ticket.creado[:16].replace('T', ' ') }}</td></tr>
+        <tr><td style="font-weight: 600;">Actualizado</td><td>{{ ticket.actualizado[:16].replace('T', ' ') }}</td></tr>
+    </table>
+    <h3 style="margin-top: 16px;">Descripcion</h3>
+    <p style="margin: 8px 0; white-space: pre-wrap;">{{ ticket.descripcion }}</p>
+    {% if ticket.observaciones %}
+    <h3 style="margin-top: 16px;">Observaciones</h3>
+    <p style="margin: 8px 0; white-space: pre-wrap;">{{ ticket.observaciones }}</p>
+    {% endif %}
+    {% if ticket.fotos %}
+    <h3 style="margin-top: 16px;">Fotos</h3>
+    {% for foto in ticket.fotos %}
+    <img src="/static/uploads/{{ foto }}" class="foto-full" alt="Foto del ticket">
+    {% endfor %}
+    {% endif %}
+</div>
+<div style="text-align: center; margin-top: 12px;">
+    <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al inicio</a>
+</div>
+{% endblock %}

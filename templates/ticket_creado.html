@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket Creado{% endblock %}
+{% block content %}
+<div class="card" style="text-align: center;">
+    <div class="success-icon">&#10004;</div>
+    <h2 style="color: #34d399; margin-bottom: 8px;">Ticket creado exitosamente</h2>
+    <p style="color: #94a3b8; margin: 16px 0;">
+        Su ticket de mantenimiento fue registrado con el numero:
+    </p>
+    <div style="font-size: 42px; font-weight: 800; color: #38bdf8; margin: 20px 0;">
+        #{{ ticket.id }}
+    </div>
+    <div style="background: #0f172a; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: left;">
+        <p style="margin-bottom: 6px;"><span style="color: #64748b;">Sucursal:</span> {{ ticket.sucursal }}</p>
+        <p style="margin-bottom: 6px;"><span style="color: #64748b;">Categoria:</span> {{ ticket.categoria }} - {{ ticket.subcategoria }}</p>
+        <p><span style="color: #64748b;">Asignado a:</span> {{ ticket.asignado }}</p>
+    </div>
+    <p style="color: #475569; font-size: 13px; margin-bottom: 24px;">
+        Guarde este numero para consultar el estado de su ticket.
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center;">
+        <a href="{{ url_for('estado_ticket', ticket_id=ticket.id) }}" class="btn btn-primary">Ver estado</a>
+        <a href="{{ url_for('nuevo_ticket') }}" class="btn btn-success">Crear otro ticket</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket #{{ ticket.id }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('prov_panel') }}">Mis trabajos</a>
+    <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+    .action-tab { padding: 10px 16px; border: none; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; background: #2a2a2a; color: #94a3b8; transition: all 0.2s; }
+    .action-tab.active { background: #e63946; color: white; }
+    .action-tab:hover:not(.active) { background: #333; }
+    .action-content { display: none; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 0 8px 8px 8px; padding: 20px; }
+    .action-content.active { display: block; }
+</style>
+
+{% set etapa = ticket.get('etapa_prov', 'pendiente') %}
+{% set etapas = [('pendiente','Pendiente','#64748b'), ('recibido','Recibido','#0ea5e9'), ('planificado','Planificado','#a78bfa'), ('relevado','Relevado','#f59e0b'), ('hecho','Hecho','#10b981')] %}
+{% if etapa == 'esperando_presupuesto' %}
+{% set etapas = [('pendiente','Pendiente','#64748b'), ('recibido','Recibido','#0ea5e9'), ('planificado','Planificado','#a78bfa'), ('relevado','Relevado','#f59e0b'), ('esperando_presupuesto','Esperando Ppto','#f59e0b'), ('hecho','Hecho','#10b981')] %}
+{% endif %}
+
+<!-- Progress bar -->
+<div class="card" style="padding: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="font-size: 20px;">Ticket #{{ ticket.id }}</h2>
+        <span class="badge badge-p{{ ticket.prioridad }}" style="font-size: 12px; padding: 5px 14px;">{{ prioridades[ticket.prioridad] }}</span>
+    </div>
+    <div style="display: flex; gap: 6px;">
+        {% set found = [false] %}
+        {% for key, label, color in etapas %}
+        {% set is_current = (key == etapa) %}
+        {% set is_done = not found[0] and not is_current %}
+        {% if is_current %}{% set _ = found.__setitem__(0, true) %}{% endif %}
+        <div style="flex: 1; text-align: center;">
+            <div style="height: 8px; border-radius: 4px; background: {% if is_done or is_current %}{{ color }}{% else %}#2a2a2a{% endif %}; margin-bottom: 6px;"></div>
+            <div style="font-size: 11px; color: {% if is_current %}{{ color }}{% elif is_done %}#94a3b8{% else %}#333{% endif %}; font-weight: {% if is_current %}800{% else %}400{% endif %};">{{ label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Info del ticket -->
+<div class="card">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px;">
+        <div><span style="color: #64748b;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
+        <div><span style="color: #64748b;">Categoria:</span> {{ ticket.subcategoria }}</div>
+        <div style="grid-column: span 2;"><span style="color: #64748b;">Creado:</span> {{ ticket.creado[:10] }}</div>
+    </div>
+    <div style="margin-top: 14px; background: #0a0a0a; padding: 14px; border-radius: 8px; font-size: 15px; line-height: 1.5;">
+        {{ ticket.descripcion }}
+    </div>
+    {% if ticket.observaciones %}
+    <div style="margin-top: 10px; background: rgba(245,158,11,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #f59e0b; font-size: 13px; color: #fbbf24;">
+        <strong>Admin:</strong> {{ ticket.observaciones }}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Fotos antes / despues side by side -->
+{% set fotos_antes = ticket.get('fotos_antes', []) + ticket.get('fotos', []) %}
+{% set fotos_despues = ticket.get('fotos_despues', []) %}
+{% if fotos_antes or fotos_despues %}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+    <div class="card" style="padding: 14px;">
+        <h4 style="color: #f87171; font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Antes</h4>
+        {% if fotos_antes %}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            {% for foto in fotos_antes %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover;"></a>
+            {% endfor %}
+        </div>
+        {% else %}<p style="color: #475569; font-size: 13px;">Sin fotos</p>{% endif %}
+    </div>
+    <div class="card" style="padding: 14px;">
+        <h4 style="color: #34d399; font-size: 12px; text-transform: uppercase; margin-bottom: 8px;">Despues</h4>
+        {% if fotos_despues %}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            {% for foto in fotos_despues %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover;"></a>
+            {% endfor %}
+        </div>
+        {% else %}<p style="color: #475569; font-size: 13px;">Sin fotos</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if etapa != 'hecho' %}
+<!-- Boton principal de avance -->
+<div style="margin: 16px 0;">
+    {% if etapa == 'pendiente' %}
+    <form method="POST"><input type="hidden" name="accion" value="recibido">
+        <button type="submit" class="btn btn-block" style="background: #0ea5e9; color: white; font-size: 17px; padding: 16px;">&#128065; Marcar como RECIBIDO</button>
+    </form>
+    {% elif etapa == 'recibido' %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <form method="POST"><input type="hidden" name="accion" value="planificado">
+            <button type="submit" class="btn btn-block" style="background: #a78bfa; color: white; padding: 14px;">&#128197; PLANIFICADO</button>
+        </form>
+        <form method="POST"><input type="hidden" name="accion" value="relevado">
+            <button type="submit" class="btn btn-block" style="background: #f59e0b; color: white; padding: 14px;">&#128270; RELEVADO</button>
+        </form>
+    </div>
+    {% elif etapa == 'planificado' %}
+    <form method="POST"><input type="hidden" name="accion" value="relevado">
+        <button type="submit" class="btn btn-block" style="background: #f59e0b; color: white; font-size: 17px; padding: 16px;">&#128270; Marcar como RELEVADO</button>
+    </form>
+    {% elif etapa == 'relevado' or etapa == 'esperando_presupuesto' %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <form method="POST"><input type="hidden" name="accion" value="hecho">
+            <button type="submit" class="btn btn-block" style="background: #10b981; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
+        </form>
+        <button type="button" class="btn btn-block" style="background: #78350f; color: #fcd34d; font-size: 14px; padding: 16px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Acciones secundarias con tabs -->
+<div style="margin-top: 20px;">
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+        <button class="action-tab active" onclick="showTab('fotos')">&#128247; Fotos</button>
+        <button class="action-tab" onclick="showTab('nota')">&#128172; Nota</button>
+        <button class="action-tab" onclick="showTab('presupuesto')">&#128176; Presupuesto</button>
+        <button class="action-tab" onclick="showTab('informe')">&#128196; Informe</button>
+        <button class="action-tab" onclick="showTab('problema')">&#10060; Problema</button>
+    </div>
+
+    <!-- Tab: Fotos -->
+    <div id="tab-fotos" class="action-content active">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="accion" value="foto_antes">
+                <label style="color: #f87171; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto ANTES</label>
+                <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
+                <button type="submit" class="btn btn-sm" style="background: #7f1d1d; color: #fca5a5; margin-top: 8px; width: 100%;">Subir</button>
+            </form>
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="accion" value="foto_despues">
+                <label style="color: #34d399; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto DESPUES</label>
+                <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
+                <button type="submit" class="btn btn-sm" style="background: #14532d; color: #86efac; margin-top: 8px; width: 100%;">Subir</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tab: Nota -->
+    <div id="tab-nota" class="action-content">
+        <form method="POST">
+            <input type="hidden" name="accion" value="nota">
+            <textarea name="nota" placeholder="Escribir comentario..." style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; height: 80px; font-size: 15px; resize: vertical;"></textarea>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 8px;">Enviar nota</button>
+        </form>
+    </div>
+
+    <!-- Tab: Presupuesto -->
+    <div id="tab-presupuesto" class="action-content">
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="accion" value="presupuesto">
+            <p style="color: #fbbf24; font-size: 13px; margin-bottom: 12px;">Para trabajos que no estan incluidos en el abono</p>
+            <textarea name="detalle_presupuesto" placeholder="Detalle del trabajo adicional..." style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; height: 70px; font-size: 15px;" required></textarea>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <div>
+                    <label style="color: #94a3b8; font-size: 12px;">Monto ($)</label>
+                    <input type="number" name="monto_presupuesto" placeholder="250000" style="width: 100%; padding: 10px; border: 1px solid #333; border-radius: 6px; background: #0a0a0a; color: #e2e8f0;">
+                </div>
+                <div>
+                    <label style="color: #94a3b8; font-size: 12px;">Archivo (opcional)</label>
+                    <input type="file" name="archivo_presupuesto" accept="image/*,.pdf" style="padding: 8px; width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-sm" style="background: #78350f; color: #fcd34d; margin-top: 10px;">Enviar presupuesto</button>
+        </form>
+    </div>
+
+    <!-- Tab: Informe -->
+    <div id="tab-informe" class="action-content">
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="accion" value="informe">
+            <textarea name="informe" placeholder="Descripcion del trabajo, materiales usados, observaciones tecnicas..." style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; height: 100px; font-size: 15px;" required></textarea>
+            <div style="margin-top: 10px;">
+                <label style="color: #94a3b8; font-size: 12px;">Adjuntar archivo (opcional)</label>
+                <input type="file" name="archivo_informe" accept="image/*,.pdf" style="padding: 8px;">
+            </div>
+            <button type="submit" class="btn btn-sm" style="background: #0c4a6e; color: #7dd3fc; margin-top: 10px;">Enviar informe</button>
+        </form>
+    </div>
+
+    <!-- Tab: Problema -->
+    <div id="tab-problema" class="action-content">
+        <form method="POST">
+            <input type="hidden" name="accion" value="no_se_pudo">
+            <p style="color: #f87171; font-size: 13px; margin-bottom: 12px;">Indicar por que no se pudo realizar el trabajo</p>
+            <textarea name="motivo" placeholder="Ej: No habia acceso, falta material, problema mayor al esperado..." style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; height: 80px; font-size: 15px;" required></textarea>
+            <button type="submit" class="btn btn-sm" style="background: #7f1d1d; color: #fca5a5; margin-top: 10px;">Reportar problema</button>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<div class="card" style="text-align: center; padding: 32px; border: 2px solid #10b981;">
+    <div style="font-size: 48px; margin-bottom: 8px;">&#10004;</div>
+    <p style="color: #34d399; font-weight: 700; font-size: 20px;">Trabajo completado</p>
+    <p style="color: #64748b; font-size: 13px;">{{ ticket.actualizado[:16].replace('T', ' ') }}</p>
+</div>
+{% endif %}
+
+<!-- Historial -->
+{% if ticket.notas is defined and ticket.notas %}
+<div class="card" style="margin-top: 16px;">
+    <h3 style="margin-bottom: 12px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Historial</h3>
+    {% for nota in ticket.notas | reverse %}
+    <div style="display: flex; gap: 10px; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #1a1a1a;{% endif %}">
+        <div style="width: 8px; min-height: 100%; border-radius: 4px; background: {% if 'Recibido' in nota.texto %}#0ea5e9{% elif 'Planificado' in nota.texto %}#a78bfa{% elif 'Relevado' in nota.texto %}#f59e0b{% elif 'Hecho' in nota.texto %}#10b981{% elif 'NO SE PUDO' in nota.texto %}#ef4444{% elif 'presupuesto' in nota.texto.lower() %}#f59e0b{% elif 'informe' in nota.texto.lower() %}#0ea5e9{% else %}#333{% endif %};"></div>
+        <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                <span style="color: #94a3b8; font-weight: 600;">{{ nota.autor }}</span>
+                <span style="color: #475569;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+            </div>
+            <p style="color: #e2e8f0; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>
+            {% if nota.fotos is defined %}
+            <div style="margin-top: 6px; display: flex; gap: 4px;">
+                {% for foto in nota.fotos %}
+                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Presupuestos -->
+{% if ticket.presupuestos is defined and ticket.presupuestos %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; color: #fbbf24; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Presupuestos adicionales</h3>
+    {% for p in ticket.presupuestos %}
+    <div style="background: #0a0a0a; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between;"><span style="color: #fbbf24; font-weight: 700; font-size: 18px;">${{ p.monto }}</span><span style="color: #475569; font-size: 12px;">{{ p.fecha[:10] }}</span></div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">{{ p.detalle }}</p>
+        {% if p.archivo %}<a href="/static/uploads/{{ p.archivo }}" target="_blank" style="color: #38bdf8; font-size: 12px;">Ver adjunto</a>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Informes -->
+{% if ticket.informes is defined and ticket.informes %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; color: #38bdf8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Informes</h3>
+    {% for inf in ticket.informes %}
+    <div style="background: #0a0a0a; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between;"><span style="color: #38bdf8; font-weight: 600;">{{ inf.autor }}</span><span style="color: #475569; font-size: 12px;">{{ inf.fecha[:10] }}</span></div>
+        <p style="color: #e2e8f0; font-size: 13px; margin-top: 6px; white-space: pre-wrap;">{{ inf.texto }}</p>
+        {% if inf.archivo %}<a href="/static/uploads/{{ inf.archivo }}" target="_blank" style="color: #38bdf8; font-size: 12px;">Ver adjunto</a>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Modal: Esperando presupuesto -->
+<div id="presupuestoModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; backdrop-filter: blur(4px);">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 440px;">
+        <div style="background: #1a1a1a; border: 2px solid #f59e0b; border-radius: 16px; overflow: hidden; animation: modalIn 0.3s ease;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #78350f, #92400e); padding: 24px; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 8px; animation: pulse 2s infinite;">&#128176;</div>
+                <h2 style="color: #fcd34d; font-size: 20px;">Esperando aprobacion de presupuesto</h2>
+            </div>
+            <!-- Body -->
+            <div style="padding: 24px;">
+                <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 24px;">&#9888;</span>
+                        <strong style="color: #fbbf24; font-size: 15px;">Recordatorio importante</strong>
+                    </div>
+                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">
+                        Para que el equipo de mantenimiento pueda aprobar tu presupuesto, <strong style="color: #fcd34d;">debes cargarlo en esta plataforma</strong>.
+                    </p>
+                </div>
+                <div style="background: #0a0a0a; border-radius: 10px; padding: 16px;">
+                    <p style="color: #94a3b8; font-size: 13px; margin-bottom: 12px;">Pasos a seguir:</p>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 28px; height: 28px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">1</div>
+                        <span style="color: #e2e8f0; font-size: 13px;">Hace clic en la pestaña <strong style="color: #fcd34d;">&#128176; Presupuesto</strong> mas abajo</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 28px; height: 28px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">2</div>
+                        <span style="color: #e2e8f0; font-size: 13px;">Completa el detalle del trabajo y el monto</span>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div style="width: 28px; height: 28px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">3</div>
+                        <span style="color: #e2e8f0; font-size: 13px;">Adjunta el archivo del presupuesto (PDF o foto)</span>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                    <button onclick="closeModal()" style="padding: 12px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: #94a3b8; font-size: 14px; cursor: pointer;">Cancelar</button>
+                    <button onclick="confirmPresupuesto()" style="padding: 12px; border-radius: 8px; border: none; background: #f59e0b; color: #000; font-size: 14px; font-weight: 700; cursor: pointer;">Entendido, cargar presupuesto</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Form oculto para cambiar etapa -->
+<form id="presupuestoForm" method="POST" style="display: none;">
+    <input type="hidden" name="accion" value="esperando_presupuesto">
+</form>
+
+<style>
+@keyframes modalIn { from { opacity: 0; transform: translate(-50%, -48%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+</style>
+
+<script>
+function showTab(name) {
+    document.querySelectorAll('.action-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.action-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function showPresupuestoAlert() {
+    document.getElementById('presupuestoModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('presupuestoModal').style.display = 'none';
+}
+
+function confirmPresupuesto() {
+    // Submit form to change stage
+    var form = document.getElementById('presupuestoForm');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', window.location.href, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        // Close modal
+        closeModal();
+        // Switch to presupuesto tab
+        showTab('presupuesto');
+        // Scroll to the tab
+        document.getElementById('tab-presupuesto').scrollIntoView({behavior: 'smooth', block: 'center'});
+        // Highlight the tab briefly
+        var tab = document.getElementById('tab-presupuesto');
+        tab.style.boxShadow = '0 0 30px rgba(245,158,11,0.4)';
+        tab.style.border = '1px solid #f59e0b';
+        setTimeout(function() { tab.style.boxShadow = ''; tab.style.border = ''; }, 3000);
+    };
+    xhr.send('accion=esperando_presupuesto');
+}
+
+// Close modal on click outside
+document.getElementById('presupuestoModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+</script>
+{% endblock %}

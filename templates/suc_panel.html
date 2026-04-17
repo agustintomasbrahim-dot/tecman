@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tecman - {{ session.suc_nombre }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('suc_panel') }}">Mis tickets</a>
+    <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
+    <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <h2>{{ session.suc_nombre }}</h2>
+    <span style="color: #64748b;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
+</div>
+
+<a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="margin-bottom: 20px; font-size: 18px; padding: 16px;">
+    + Crear nuevo ticket
+</a>
+
+{% if tickets %}
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Problema</th>
+                <th>Prioridad</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+            <tr style="cursor: pointer;" onclick="window.location='/estado/{{ t.id }}'">
+                <td style="font-weight: 600; color: #38bdf8;">{{ t.id }}</td>
+                <td>{{ t.subcategoria }}{% if t.fotos %} &#128247;{% endif %}</td>
+                <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
+                <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
+                <td style="color: #64748b;">{{ t.creado[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 48px;">
+    <div style="font-size: 48px; margin-bottom: 12px;">&#9989;</div>
+    <p style="color: #64748b; font-size: 16px;">No tiene tickets abiertos</p>
+    <p style="color: #475569; font-size: 13px; margin-top: 4px;">Cree uno nuevo si necesita reportar un problema</p>
+</div>
+{% endif %}
+{% endblock %}
