@@ -122,7 +122,7 @@ SUCS_SANJUAN = {"159","172"}
 
 # Proveedor login
 PROVEEDOR_USERS = {
-    "ceyh": {"password": "prov2026", "nombre": "Croacia (CEYH/Construir24)"},
+    "ceyh": {"password": "prov2026", "nombre": "CEYH"},
     "gustavo": {"password": "prov2026", "nombre": "Gustavo Avellaneda"},
     "fuga": {"password": "prov2026", "nombre": "Julio Fuga (JRF)"},
     "ismael": {"password": "prov2026", "nombre": "Ismael Allende (JRF)"},
@@ -139,7 +139,7 @@ PROVEEDOR_USERS = {
     "polaris": {"password": "prov2026", "nombre": "Polaris"},
     "astronovo": {"password": "prov2026", "nombre": "Astronovo"},
     "geronimo": {"password": "prov2026", "nombre": "Geronimo - Leo"},
-    "croacia": {"password": "prov2026", "nombre": "Croacia (CEYH/Construir24)"},
+    "croacia": {"password": "prov2026", "nombre": "Croacia"},
     "microglobal": {"password": "prov2026", "nombre": "Martin Microglobal"},
 }
 
@@ -173,7 +173,7 @@ PROVEEDORES = [
     {"nombre": "Gerardo Goog", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "115851-5565", "sucursales": ["052","167","187"]},
     {"nombre": "Pablo Norsuply", "zona": "AMBA", "tipo": "Insumos", "tel": "115923-5320", "sucursales": ["AMBA general"]},
     {"nombre": "Cesar Avalos (Prov. varios)", "zona": "Nacional", "tipo": "Varios", "tel": "116433-6302", "sucursales": ["091","114","116","126","127","166","178","210","214","226"]},
-    {"nombre": "Croacia (Urgencias)", "zona": "AMBA", "tipo": "Urgencias", "tel": "11 3663-6408", "contacto": "Raquel", "fijo": False, "sucursales": ["AMBA general"]},
+    {"nombre": "Croacia", "zona": "AMBA", "tipo": "Urgencias persianas", "tel": "11 3663-6408", "contacto": "Raquel", "fijo": False, "sucursales": ["AMBA general"]},
     {"nombre": "Home Pro", "zona": "AMBA", "tipo": "General", "tel": "11 4416-3911", "contacto": "Nicolas", "fijo": False, "sucursales": ["AMBA eventual"]},
     {"nombre": "Nivelar Construcciones", "zona": "Chaco/Corrientes", "tipo": "Construccion", "tel": "54 9 364 430-2787", "contacto": "Maria Jose", "fijo": False, "sucursales": ["220","224"]},
     {"nombre": "Conex", "zona": "Neuquen", "tipo": "General", "tel": "54 9 2995 57-5495", "contacto": "Rodrigo", "fijo": False, "sucursales": ["160","233","133","134","231"]},
@@ -213,7 +213,7 @@ def auto_assign(subcategoria, sucursal=""):
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
         # AA in AMBA goes to CEYH
         if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
-            return "Croacia (CEYH/Construir24)"
+            return "CEYH"
 
     # By zone
     if suc_num in SUCS_CORDOBA:
