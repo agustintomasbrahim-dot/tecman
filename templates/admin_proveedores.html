@@ -56,7 +56,7 @@
                 </div>
                 <div style="text-align: right;">
                     {% if p.tel != '-' %}
-                    <a href="tel:{{ p.tel }}" style="color: #34d399; font-size: 18px; font-weight: 700; text-decoration: none;">
+                    <a href="tel:{{ p.tel }}" style="color: #059669; font-size: 16px; font-weight: 700; text-decoration: none;">
                         &#128222; {{ p.tel }}
                     </a>
                     {% else %}
@@ -66,7 +66,7 @@
             </div>
             {% if p.monto is defined and p.monto %}
             <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-                <span style="color: #34d399; font-weight: 700; font-size: 15px;">{{ p.monto }}</span>
+                <span style="color: #059669; font-weight: 700; font-size: 15px;">{{ p.monto }}</span>
                 {% if p.incluye is defined and p.incluye %}
                 <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">{{ p.incluye }}</div>
                 {% endif %}
@@ -104,7 +104,7 @@
                 <td><span class="badge" style="background: #ede9fe; color: #6d28d9;">{{ p.tipo }}</span></td>
                 <td>
                     {% if p.tel != '-' %}
-                    <a href="tel:{{ p.tel }}" style="color: #34d399; text-decoration: none;">{{ p.tel }}</a>
+                    <a href="tel:{{ p.tel }}" style="color: #059669; text-decoration: none;">{{ p.tel }}</a>
                     {% else %}-{% endif %}
                 </td>
                 <td style="font-size: 12px; color: #94a3b8; max-width: 300px;">{{ p.sucursales | join(', ') }}</td>
@@ -119,7 +119,7 @@
 <div class="card" style="padding: 16px;">
     <form style="display: flex; gap: 8px; align-items: center;">
         <input type="hidden" name="vista" value="zona">
-        <select name="zona" style="padding: 10px; border: 1px solid #475569; border-radius: 6px; background: #f8fafc; color: #e2e8f0;">
+        <select name="zona" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #1a1a2e;">
             <option value="">Todas las zonas</option>
             {% for z in zonas %}<option value="{{ z }}" {% if z == filtro_zona %}selected{% endif %}>{{ z }}</option>{% endfor %}
         </select>
@@ -144,17 +144,17 @@
                     <span class="badge" style="background: #ede9fe; color: #6d28d9;">{{ p.tipo }}</span>
                 </div>
                 {% if p.monto is defined and p.monto %}
-                <div style="margin-top: 10px; background: #f8fafc; border-radius: 8px; padding: 12px;">
-                    <div style="font-size: 20px; font-weight: 800; color: #34d399;">{{ p.monto }}</div>
+                <div style="margin-top: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #059669;">{{ p.monto }}</div>
                     {% if p.incluye is defined and p.incluye %}
                     <div style="margin-top: 8px; font-size: 12px;">
-                        <span style="color: #10b981; font-weight: 600;">Incluye:</span>
+                        <span style="color: #059669; font-weight: 600;">Incluye:</span>
                         <span style="color: #374151;">{{ p.incluye }}</span>
                     </div>
                     {% endif %}
                     {% if p.no_incluye is defined and p.no_incluye and p.no_incluye != '-' %}
                     <div style="margin-top: 4px; font-size: 12px;">
-                        <span style="color: #f87171; font-weight: 600;">No incluye:</span>
+                        <span style="color: #dc2626; font-weight: 600;">No incluye:</span>
                         <span style="color: #6b7280;">{{ p.no_incluye }}</span>
                     </div>
                     {% endif %}
@@ -166,7 +166,7 @@
             </div>
             <div style="text-align: right;">
                 {% if p.tel != '-' %}
-                <a href="tel:{{ p.tel }}" style="color: #34d399; font-size: 20px; font-weight: 700; text-decoration: none; white-space: nowrap;">
+                <a href="tel:{{ p.tel }}" style="color: #059669; font-size: 18px; font-weight: 700; text-decoration: none; white-space: nowrap;">
                     &#128222; {{ p.tel }}
                 </a>
                 {% endif %}
