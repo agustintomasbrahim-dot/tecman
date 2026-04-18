@@ -248,6 +248,8 @@ def auto_assign(subcategoria, sucursal=""):
     # By category
     if subcategoria == "Luminarias":
         return "Jonathan"
+    if categoria == "Materiales":
+        return "Jonathan"
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
         # AA in AMBA goes to CEYH
         if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
@@ -1266,6 +1268,89 @@ def admin_syh_edit(suc_num):
         info=info,
         estado=estado,
         syh_estados=SYH_ESTADOS,
+    )
+
+
+# --- Routes: Jonathan - Pedidos de materiales ---
+
+@app.route("/admin/pedidos")
+@login_required
+def admin_pedidos():
+    tickets = load_tickets()
+    # Filter material tickets assigned to Jonathan
+    pedidos = [t for t in tickets if t.get("categoria") == "Materiales" and t["estado"] not in ("Cerrado",)]
+    pendientes = [t for t in pedidos if t["estado"] in ("Nuevo", "Abierto")]
+    en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Pendiente")]
+    resueltos = [t for t in pedidos if t["estado"] == "Resuelto"]
+
+    return render_template(
+        "admin_pedidos.html",
+        pendientes=pendientes,
+        en_proceso=en_proceso,
+        resueltos=resueltos,
+        prioridades=PRIORIDADES,
+    )
+
+
+@app.route("/admin/pedido/<int:ticket_id>", methods=["GET", "POST"])
+@login_required
+def admin_pedido(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    stock = load_stock()
+    central = stock.get("central", {})
+
+    # Check if sucursal is AMBA
+    suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
+    es_amba = suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN
+
+    if request.method == "POST":
+        accion = request.form.get("accion", "")
+
+        if "notas" not in ticket:
+            ticket["notas"] = []
+
+        if accion == "cuento_material":
+            metodo_envio = request.form.get("metodo_envio", "")
+            ticket["estado"] = "En progreso"
+            ticket["metodo_envio"] = metodo_envio
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Jonathan"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Cuento con material. Envio: {metodo_envio}",
+            })
+
+        elif accion == "solicitar_compras":
+            detalle = request.form.get("detalle_compras", "")
+            ticket["estado"] = "Pendiente"
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Jonathan"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Se solicita material a Compras: {detalle}",
+            })
+
+        elif accion == "enviado":
+            ticket["estado"] = "Resuelto"
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Jonathan"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": "Material enviado a sucursal",
+            })
+
+        ticket["actualizado"] = datetime.datetime.now().isoformat()
+        save_tickets(tickets)
+        flash("Pedido actualizado")
+        return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
+    return render_template(
+        "admin_pedido.html",
+        ticket=ticket,
+        central=central,
+        es_amba=es_amba,
+        prioridades=PRIORIDADES,
     )
 
 

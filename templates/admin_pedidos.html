@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Pedidos de Materiales{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_pedidos') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<h2 style="margin-bottom: 16px;">Pedidos de Materiales</h2>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #e63946;">{{ pendientes | length }}</div>
+        <div class="label">Pendientes</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #1d4ed8;">{{ en_proceso | length }}</div>
+        <div class="label">En proceso</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">{{ resueltos | length }}</div>
+        <div class="label">Enviados</div>
+    </div>
+</div>
+
+{% if pendientes %}
+<h3 style="margin: 16px 0 8px; color: #e63946;">Pendientes de gestion</h3>
+{% for t in pendientes %}
+<a href="{{ url_for('admin_pedido', ticket_id=t.id) }}" style="text-decoration: none;">
+    <div class="card" style="padding: 14px; border-left: 4px solid #e63946; cursor: pointer;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-weight: 700; color: #e63946;">#{{ t.id }}</span>
+                <span style="font-weight: 600; color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
+                <span class="badge" style="background: #ede9fe; color: #6d28d9; margin-left: 6px;">{{ t.subcategoria }}</span>
+            </div>
+            <span style="color: #6b7280; font-size: 12px;">{{ t.creado[:10] }}</span>
+        </div>
+        <p style="color: #374151; font-size: 13px; margin-top: 6px;">{{ t.descripcion[:100] }}</p>
+    </div>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if en_proceso %}
+<h3 style="margin: 16px 0 8px; color: #1d4ed8;">En proceso</h3>
+{% for t in en_proceso %}
+<a href="{{ url_for('admin_pedido', ticket_id=t.id) }}" style="text-decoration: none;">
+    <div class="card" style="padding: 14px; border-left: 4px solid #1d4ed8; cursor: pointer;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-weight: 700; color: #1d4ed8;">#{{ t.id }}</span>
+                <span style="font-weight: 600; color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
+                <span class="badge" style="background: #ede9fe; color: #6d28d9; margin-left: 6px;">{{ t.subcategoria }}</span>
+                {% if t.metodo_envio is defined and t.metodo_envio %}
+                <span class="badge" style="background: #dbeafe; color: #1d4ed8; margin-left: 4px;">{{ t.metodo_envio }}</span>
+                {% endif %}
+            </div>
+            <span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span>
+        </div>
+    </div>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if resueltos %}
+<h3 style="margin: 16px 0 8px; color: #059669;">Enviados</h3>
+{% for t in resueltos %}
+<div class="card" style="padding: 14px; border-left: 4px solid #059669; opacity: 0.7;">
+    <span style="font-weight: 700; color: #059669;">#{{ t.id }}</span>
+    <span style="color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
+    <span style="color: #6b7280; margin-left: 8px; font-size: 12px;">{{ t.subcategoria }}</span>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if not pendientes and not en_proceso and not resueltos %}
+<div class="card" style="text-align: center; padding: 40px; color: #9ca3af;">Sin pedidos de materiales</div>
+{% endif %}
+
+{% endblock %}

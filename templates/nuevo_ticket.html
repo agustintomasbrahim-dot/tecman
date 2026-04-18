@@ -37,7 +37,7 @@
             </select>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" id="subcategoria-group">
             <label>Subcategoria *</label>
             <select name="subcategoria" id="subcategoria" required>
                 <option value="">Primero seleccione una categoria</option>
@@ -65,14 +65,25 @@
 var categorias = {{ categorias | tojson }};
 document.getElementById('categoria').addEventListener('change', function() {
     var sub = document.getElementById('subcategoria');
-    sub.innerHTML = '<option value="">Seleccionar...</option>';
+    var subGroup = document.getElementById('subcategoria-group');
+    if (this.value === 'Materiales') {
+        subGroup.style.display = 'none';
+        sub.removeAttribute('required');
+        sub.innerHTML = '<option value="Solicitud de materiales" selected>Solicitud de materiales</option>';
+    } else {
+        subGroup.style.display = 'block';
+        sub.setAttribute('required', 'required');
+        sub.innerHTML = '<option value="">Seleccionar...</option>';
+    }
     var subs = categorias[this.value] || [];
+    if (this.value !== 'Materiales') {
     subs.forEach(function(s) {
         var opt = document.createElement('option');
         opt.value = s;
         opt.textContent = s;
         sub.appendChild(opt);
     });
+    }
 });
 </script>
 {% endblock %}

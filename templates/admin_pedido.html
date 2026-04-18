@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Pedido #{{ ticket.id }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div class="card" style="border-left: 4px solid #e63946;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2>Pedido #{{ ticket.id }}</h2>
+        <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
+        <div><span style="color: #6b7280;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
+        <div><span style="color: #6b7280;">Material:</span> <strong>{{ ticket.subcategoria }}</strong></div>
+        <div><span style="color: #6b7280;">Zona:</span> {% if es_amba %}<span class="badge" style="background: #dbeafe; color: #1d4ed8;">AMBA</span>{% else %}<span class="badge" style="background: #fef3c7; color: #b45309;">Interior</span>{% endif %}</div>
+        <div><span style="color: #6b7280;">Fecha:</span> {{ ticket.creado[:10] }}</div>
+    </div>
+    <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
+        <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
+    </div>
+</div>
+
+<!-- Stock disponible -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Stock Central disponible</h3>
+    {% if central %}
+    <table>
+        <thead><tr><th>Item</th><th style="text-align: right;">Disponible</th></tr></thead>
+        <tbody>
+            {% for item, cant in central.items() %}
+            <tr>
+                <td>{{ item }}</td>
+                <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% else %}#1a1a2e{% endif %};">{{ cant }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #9ca3af;">Stock central vacio</p>
+    {% endif %}
+</div>
+
+<!-- Acciones -->
+{% if ticket.estado in ('Nuevo', 'Abierto') %}
+<div class="card">
+    <h3 style="margin-bottom: 16px;">Gestion del pedido</h3>
+
+    <!-- Cuento con material -->
+    <form method="POST" style="margin-bottom: 16px;">
+        <input type="hidden" name="accion" value="cuento_material">
+        <p style="font-weight: 600; margin-bottom: 8px;">Cuento con el material - Metodo de envio:</p>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            {% if es_amba %}
+            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
+                <span><strong>Recoge CEYH</strong> — la camioneta de CEYH lo retira de Central</span>
+            </label>
+            {% endif %}
+            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
+                <span><strong>Envio desde Central</strong> — se despacha desde Dabra Central</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
+                <span><strong>Envio directo a sucursal</strong> — el proveedor envia directo</span>
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Confirmar - Cuento con material</button>
+    </form>
+
+    <div style="border-top: 1px solid #e5e7eb; padding-top: 16px;">
+        <!-- Solicitar a compras -->
+        <form method="POST">
+            <input type="hidden" name="accion" value="solicitar_compras">
+            <p style="font-weight: 600; margin-bottom: 8px;">No cuento con el material</p>
+            <div class="form-group">
+                <label>Detalle del pedido a Compras</label>
+                <textarea name="detalle_compras" placeholder="Ej: Necesito 10 luminarias LED 60cm, 5 candados Yale..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white;">Solicitar material a Compras</button>
+        </form>
+    </div>
+</div>
+
+{% elif ticket.estado == 'En progreso' %}
+<div class="card">
+    <p style="margin-bottom: 12px;"><strong>Metodo de envio:</strong> {{ ticket.metodo_envio }}</p>
+    <form method="POST">
+        <input type="hidden" name="accion" value="enviado">
+        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Confirmar que el material fue enviado?')">Marcar como ENVIADO</button>
+    </form>
+</div>
+
+{% elif ticket.estado == 'Pendiente' %}
+<div class="card" style="border-left: 4px solid #b45309;">
+    <p style="color: #b45309; font-weight: 600;">Esperando material de Compras</p>
+    <form method="POST" style="margin-top: 12px;">
+        <input type="hidden" name="accion" value="cuento_material">
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">Cuando llegue el material, seleccione metodo de envio:</p>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            {% if es_amba %}
+            <label style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
+                <span>Recoge CEYH</span>
+            </label>
+            {% endif %}
+            <label style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
+                <span>Envio desde Central</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
+                <span>Envio directo a sucursal</span>
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Material recibido - Confirmar envio</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Historial -->
+{% if ticket.notas is defined and ticket.notas %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Historial</h3>
+    {% for nota in ticket.notas | reverse %}
+    <div style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span style="font-weight: 600; color: #374151;">{{ nota.autor }}</span>
+            <span style="color: #9ca3af;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+        </div>
+        <p style="color: #374151; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
