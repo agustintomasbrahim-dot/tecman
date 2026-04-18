@@ -331,7 +331,14 @@ def suc_panel():
                 mis_proveedores.append(p)
                 break
 
-    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES, mis_proveedores=mis_proveedores)
+    # Notifications
+    notificaciones = []
+    for t in mis_tickets:
+        for n in t.get("notificaciones", []):
+            notificaciones.append({"ticket_id": t["id"], **n})
+    notificaciones.sort(key=lambda x: x.get("fecha", ""), reverse=True)
+
+    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES, mis_proveedores=mis_proveedores, notificaciones=notificaciones)
 
 
 @app.route("/nuevo", methods=["GET", "POST"])
@@ -699,10 +706,27 @@ def prov_ticket(ticket_id):
             label, estado = etapa_labels[accion]
             ticket["etapa_prov"] = accion
             ticket["estado"] = estado
+
+            # Save visit date if planificado
+            nota_texto = f"Etapa: {label}"
+            if accion == "planificado":
+                fecha_visita = request.form.get("fecha_visita", "")
+                if fecha_visita:
+                    ticket["fecha_visita"] = fecha_visita
+                    nota_texto = f"Visita planificada para {fecha_visita}"
+                    # Create notification for sucursal
+                    if "notificaciones" not in ticket:
+                        ticket["notificaciones"] = []
+                    ticket["notificaciones"].append({
+                        "fecha": datetime.datetime.now().isoformat(),
+                        "texto": f"{prov_nombre} visitara la sucursal el {fecha_visita}",
+                        "leida": False,
+                    })
+
             ticket["notas"].append({
                 "autor": prov_nombre,
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Etapa: {label}",
+                "texto": nota_texto,
             })
         elif accion == "nota":
             nota = request.form.get("nota", "").strip()

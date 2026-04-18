@@ -17,6 +17,21 @@
     + Crear nuevo ticket
 </a>
 
+{% if notificaciones %}
+<div class="card" style="border-left: 4px solid #e63946; margin-bottom: 16px;">
+    <h3 style="margin-bottom: 10px; font-size: 14px; color: #e63946;">&#128276; Notificaciones</h3>
+    {% for n in notificaciones[:5] %}
+    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <p style="color: #1a1a2e; font-size: 13px; font-weight: 500;">{{ n.texto }}</p>
+            <span style="color: #9ca3af; font-size: 11px; white-space: nowrap; margin-left: 8px;">{{ n.fecha[:10] }}</span>
+        </div>
+        <span style="color: #9ca3af; font-size: 11px;">Ticket #{{ n.ticket_id }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% if tickets %}
 <div class="card" style="padding: 0; overflow: hidden;">
     <table>

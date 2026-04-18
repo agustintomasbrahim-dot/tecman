@@ -94,13 +94,18 @@
         <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; font-size: 17px; padding: 16px;">&#128065; Marcar como RECIBIDO</button>
     </form>
     {% elif etapa == 'recibido' %}
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <form method="POST"><input type="hidden" name="accion" value="planificado">
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">&#128197; PLANIFICADO</button>
+    <div class="card" style="padding: 16px;">
+        <form method="POST">
+            <input type="hidden" name="accion" value="planificado">
+            <p style="font-weight: 600; margin-bottom: 8px;">&#128197; Planificar visita - Seleccione fecha:</p>
+            <input type="date" name="fecha_visita" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; margin-bottom: 12px;">
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">Confirmar fecha de visita</button>
         </form>
-        <form method="POST"><input type="hidden" name="accion" value="relevado">
-            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128270; RELEVADO</button>
-        </form>
+        <div style="border-top: 1px solid #e5e7eb; margin-top: 12px; padding-top: 12px;">
+            <form method="POST"><input type="hidden" name="accion" value="relevado">
+                <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128270; Ya relevé - Marcar como RELEVADO</button>
+            </form>
+        </div>
     </div>
     {% elif etapa == 'planificado' %}
     <form method="POST"><input type="hidden" name="accion" value="relevado">
