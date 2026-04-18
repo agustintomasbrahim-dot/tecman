@@ -241,14 +241,14 @@ def next_ticket_id(tickets):
     return max(t["id"] for t in tickets) + 1
 
 
-def auto_assign(subcategoria, sucursal=""):
+def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
 
     # By category
     if subcategoria == "Luminarias":
         return "Jonathan"
-    if categoria == "Materiales":
+    if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
         return "Jonathan"
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
         # AA in AMBA goes to CEYH
@@ -367,7 +367,7 @@ def nuevo_ticket():
             "descripcion": request.form.get("descripcion", ""),
             "prioridad": auto_priority(request.form.get("categoria", ""), subcategoria),
             "estado": "Nuevo",
-            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", ""))),
+            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", "")), request.form.get("categoria", "")),
             "fotos": fotos,
             "observaciones": "",
             "creado": datetime.datetime.now().isoformat(),
