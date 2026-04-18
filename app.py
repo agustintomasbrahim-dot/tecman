@@ -17,6 +17,8 @@ IS_CLOUD = os.environ.get("RENDER", False)
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 TICKETS_FILE = DATA_DIR / "tickets.json"
+STOCK_FILE = DATA_DIR / "stock.json"
+TRANSFERS_FILE = DATA_DIR / "transfers.json"
 UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -98,6 +100,22 @@ def load_syh():
 
 def save_syh(data):
     SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_stock():
+    if STOCK_FILE.exists():
+        return json.loads(STOCK_FILE.read_text())
+    return {"central": {}, "sucursales": {}}
+
+def save_stock(data):
+    STOCK_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_transfers():
+    if TRANSFERS_FILE.exists():
+        return json.loads(TRANSFERS_FILE.read_text())
+    return []
+
+def save_transfers(data):
+    TRANSFERS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 # Sucursal login: each sucursal has a unique password
 SUCURSAL_USERS = {}
@@ -195,6 +213,26 @@ def load_tickets():
 
 def save_tickets(tickets):
     TICKETS_FILE.write_text(json.dumps(tickets, indent=2, ensure_ascii=False))
+
+
+def auto_priority(categoria, subcategoria):
+    # 1 Urgente: local no puede operar
+    urgentes = {"Tablero", "Persianas"}
+    if subcategoria in urgentes:
+        return 1
+    # 2 Alta: importante pero puede esperar 1-3 dias
+    altas = {"Sin funcionamiento", "Reparacion", "Goteo", "Perdidas en canerias",
+             "Perdidas en canillas", "Por alcantarillas", "Por azotea", "Por muros/humedad"}
+    if subcategoria in altas or categoria == "Filtraciones" or categoria == "Aire Acondicionado":
+        return 2
+    # 3 Media: resolver en la semana
+    medias = {"Luminarias", "Cambio", "General", "Solicitud de materiales", "Tablero",
+              "Cableado", "Tomas", "Agua fria", "Agua caliente"}
+    if subcategoria in medias or categoria == "Reparaciones" or categoria == "Materiales":
+        return 3
+    # 4 Baja: puede esperar
+    return 4
+
 
 
 def next_ticket_id(tickets):
@@ -318,7 +356,7 @@ def nuevo_ticket():
             "categoria": request.form.get("categoria", ""),
             "subcategoria": subcategoria,
             "descripcion": request.form.get("descripcion", ""),
-            "prioridad": int(request.form.get("prioridad", 4)),
+            "prioridad": auto_priority(request.form.get("categoria", ""), subcategoria),
             "estado": "Nuevo",
             "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", ""))),
             "fotos": fotos,
@@ -1229,6 +1267,96 @@ def admin_syh_edit(suc_num):
         estado=estado,
         syh_estados=SYH_ESTADOS,
     )
+
+
+# --- Routes: Stock / Inventario deposito ---
+
+@app.route("/admin/stock")
+@login_required
+def admin_stock():
+    stock = load_stock()
+    transfers = load_transfers()
+    central = stock.get("central", {})
+    sucursales_stock = stock.get("sucursales", {})
+
+    # Sort items
+    central_items = sorted(central.items(), key=lambda x: x[0])
+    total_items_central = sum(int(v) for v in central.values())
+
+    # Recent transfers
+    recent = sorted(transfers, key=lambda x: x.get("fecha", ""), reverse=True)[:20]
+
+    return render_template(
+        "admin_stock.html",
+        central=central_items,
+        total_items=total_items_central,
+        sucursales_stock=sucursales_stock,
+        transfers=recent,
+        sucursales=SUCURSALES,
+    )
+
+
+@app.route("/admin/stock/add", methods=["POST"])
+@login_required
+def stock_add():
+    stock = load_stock()
+    item = request.form.get("item", "").strip()
+    cantidad = int(request.form.get("cantidad", 0))
+    ubicacion = request.form.get("ubicacion", "central")
+
+    if item and cantidad > 0:
+        if ubicacion == "central":
+            stock["central"][item] = stock["central"].get(item, 0) + cantidad
+        else:
+            if ubicacion not in stock["sucursales"]:
+                stock["sucursales"][ubicacion] = {}
+            stock["sucursales"][ubicacion][item] = stock["sucursales"][ubicacion].get(item, 0) + cantidad
+        save_stock(stock)
+        flash(f"Agregado: {cantidad}x {item} en {ubicacion}")
+    return redirect(url_for("admin_stock"))
+
+
+@app.route("/admin/stock/transfer", methods=["POST"])
+@login_required
+def stock_transfer():
+    stock = load_stock()
+    transfers = load_transfers()
+
+    item = request.form.get("item", "").strip()
+    cantidad = int(request.form.get("cantidad", 0))
+    destino = request.form.get("destino", "")
+
+    if item and cantidad > 0 and destino:
+        # Check stock
+        disponible = stock["central"].get(item, 0)
+        if cantidad > disponible:
+            flash(f"Stock insuficiente: hay {disponible} de {item}")
+            return redirect(url_for("admin_stock"))
+
+        # Transfer
+        stock["central"][item] -= cantidad
+        if stock["central"][item] <= 0:
+            del stock["central"][item]
+
+        if destino not in stock["sucursales"]:
+            stock["sucursales"][destino] = {}
+        stock["sucursales"][destino][item] = stock["sucursales"][destino].get(item, 0) + cantidad
+
+        # Log transfer
+        transfers.append({
+            "fecha": datetime.datetime.now().isoformat(),
+            "item": item,
+            "cantidad": cantidad,
+            "origen": "Central Dabra",
+            "destino": destino,
+            "usuario": session.get("nombre", ""),
+        })
+
+        save_stock(stock)
+        save_transfers(transfers)
+        flash(f"Transferido: {cantidad}x {item} → {destino}")
+
+    return redirect(url_for("admin_stock"))
 
 
 # --- API ---

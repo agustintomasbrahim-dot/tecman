@@ -45,15 +45,6 @@
         </div>
 
         <div class="form-group">
-            <label>Prioridad *</label>
-            <select name="prioridad" required>
-                {% for pid, pname in prioridades.items() %}
-                <option value="{{ pid }}" {% if pid == 3 %}selected{% endif %}>{{ pid }} - {{ pname }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="form-group">
             <label>Descripcion del problema *</label>
             <textarea name="descripcion" required placeholder="Describa el problema con el mayor detalle posible..."></textarea>
         </div>
