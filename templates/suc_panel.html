@@ -10,10 +10,10 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
     <h2>{{ session.suc_nombre }}</h2>
-    <span style="color: #64748b;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
+    <span style="color: #6b7280;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
 </div>
 
-<a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="margin-bottom: 20px; font-size: 18px; padding: 16px;">
+<a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="margin-bottom: 20px; font-size: 16px; padding: 14px;">
     + Crear nuevo ticket
 </a>
 
@@ -32,21 +32,48 @@
         <tbody>
             {% for t in tickets %}
             <tr style="cursor: pointer;" onclick="window.location='/estado/{{ t.id }}'">
-                <td style="font-weight: 600; color: #38bdf8;">{{ t.id }}</td>
+                <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
                 <td>{{ t.subcategoria }}{% if t.fotos %} &#128247;{% endif %}</td>
                 <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
                 <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
-                <td style="color: #64748b;">{{ t.creado[:10] }}</td>
+                <td style="color: #6b7280;">{{ t.creado[:10] }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 {% else %}
-<div class="card" style="text-align: center; padding: 48px;">
-    <div style="font-size: 48px; margin-bottom: 12px;">&#9989;</div>
-    <p style="color: #64748b; font-size: 16px;">No tiene tickets abiertos</p>
-    <p style="color: #475569; font-size: 13px; margin-top: 4px;">Cree uno nuevo si necesita reportar un problema</p>
+<div class="card" style="text-align: center; padding: 40px;">
+    <p style="color: #6b7280;">No tiene tickets abiertos</p>
+    <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Cree uno nuevo si necesita reportar un problema</p>
+</div>
+{% endif %}
+
+<!-- Mis Proveedores -->
+{% if mis_proveedores %}
+<div style="margin-top: 24px;">
+    <h3 style="margin-bottom: 12px; color: #374151;">Proveedores asignados a esta sucursal</h3>
+    {% for p in mis_proveedores %}
+    <div class="card" style="padding: 14px; margin: 8px 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <span style="font-weight: 700; color: #1a1a2e; font-size: 15px;">{{ p.nombre }}</span>
+                <span class="badge" style="background: #ede9fe; color: #6d28d9; margin-left: 6px;">{{ p.tipo }}</span>
+                {% if p.fijo is defined %}
+                <span class="badge" style="background: {% if p.fijo %}#d1fae5; color: #065f46{% else %}#fef3c7; color: #b45309{% endif %}; margin-left: 4px;">{% if p.fijo %}Fijo{% else %}Eventual{% endif %}</span>
+                {% endif %}
+            </div>
+            {% if p.tel and p.tel != '-' %}
+            <a href="tel:{{ p.tel }}" style="color: #059669; font-weight: 700; text-decoration: none; font-size: 14px;">&#128222; {{ p.tel }}</a>
+            {% endif %}
+        </div>
+        {% if p.incluye is defined and p.incluye %}
+        <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">
+            <span style="color: #059669; font-weight: 600;">Incluye:</span> {{ p.incluye }}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
 </div>
 {% endif %}
 {% endblock %}

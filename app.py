@@ -281,7 +281,17 @@ def suc_panel():
     tickets = load_tickets()
     mis_tickets = [t for t in tickets if t["sucursal"] == session["suc_nombre"]]
     mis_tickets.sort(key=lambda t: t["creado"], reverse=True)
-    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES)
+
+    # Find providers for this sucursal
+    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    mis_proveedores = []
+    for p in PROVEEDORES:
+        for s in p["sucursales"]:
+            if suc_num in s or suc_num.lstrip("0") in s:
+                mis_proveedores.append(p)
+                break
+
+    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES, mis_proveedores=mis_proveedores)
 
 
 @app.route("/nuevo", methods=["GET", "POST"])
