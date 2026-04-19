@@ -443,12 +443,31 @@ def confirmar_recepcion(ticket_id):
         nota["fotos"] = [remito_file]
 
     ticket["notas"].append(nota)
-    ticket["estado"] = "Cerrado"
     ticket["actualizado"] = datetime.datetime.now().isoformat()
+
+    # Handle next step
+    siguiente_paso = request.form.get("siguiente_paso", "sucursal")
+    pasos = {
+        "sucursal": ("Cerrado", "Trabajo a realizar por personal de sucursal"),
+        "proveedor_abono": ("En progreso", "Coordinar con proveedor del abono"),
+        "proveedor_eventual": ("En progreso", "Coordinar con proveedor eventual"),
+    }
+    estado, paso_texto = pasos.get(siguiente_paso, ("Cerrado", ""))
+
+    ticket["estado"] = estado
+    ticket["siguiente_paso"] = siguiente_paso
+    ticket["notas"].append({
+        "autor": session.get("suc_nombre", "Sucursal"),
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": f"Siguiente paso: {paso_texto}",
+    })
 
     # Notify provider
     if "notificaciones_prov" not in ticket:
         ticket["notificaciones_prov"] = []
+    notif_texto = f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales."
+    if siguiente_paso in ("proveedor_abono", "proveedor_eventual"):
+        notif_texto += " Se requiere coordinar visita para ejecutar el trabajo."
     ticket["notificaciones_prov"].append({
         "fecha": datetime.datetime.now().isoformat(),
         "texto": f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales. Ya cuenta con los materiales.",
@@ -1425,10 +1444,11 @@ def admin_pedido(ticket_id):
         elif accion == "solicitar_compras":
             detalle = request.form.get("detalle_compras", "")
             ticket["estado"] = "Pendiente"
+            ticket["detalle_compras"] = detalle  # internal only
             ticket["notas"].append({
                 "autor": session.get("nombre", "Jonathan"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Se solicita material a Compras: {detalle}",
+                "texto": "Pedido realizado a compras",
             })
 
         elif accion == "enviado":

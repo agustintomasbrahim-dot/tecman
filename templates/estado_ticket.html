@@ -69,13 +69,41 @@
 <!-- Confirmar recepcion de materiales -->
 {% if ticket.metodo_envio is defined and ticket.estado == 'Resuelto' and session.suc_user is defined %}
 <div class="card" style="border-left: 4px solid #e63946;">
-    <h3 style="margin-bottom: 8px;">Confirmar recepcion de materiales</h3>
-    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Suba el remito para confirmar que recibio los materiales</p>
+    <h3 style="margin-bottom: 8px;">Materiales recibidos - Siguiente paso</h3>
+    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Suba el remito y seleccione como se realizara el trabajo</p>
     <form method="POST" action="{{ url_for('confirmar_recepcion', ticket_id=ticket.id) }}" enctype="multipart/form-data">
         <div class="form-group">
             <label>Remito (foto o PDF)</label>
             <input type="file" name="remito" accept="image/*,.pdf" required style="padding: 8px;">
         </div>
+
+        <div class="form-group">
+            <label>Como se realizara el trabajo?</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="siguiente_paso" value="sucursal" required>
+                    <div>
+                        <strong>Personal de sucursal</strong>
+                        <p style="color: #6b7280; font-size: 12px; margin: 0;">Nuestro personal realiza el trabajo con los materiales</p>
+                    </div>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="siguiente_paso" value="proveedor_abono">
+                    <div>
+                        <strong>Proveedor del abono</strong>
+                        <p style="color: #6b7280; font-size: 12px; margin: 0;">Coordinar con el proveedor fijo asignado</p>
+                    </div>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="siguiente_paso" value="proveedor_eventual">
+                    <div>
+                        <strong>Proveedor eventual</strong>
+                        <p style="color: #6b7280; font-size: 12px; margin: 0;">Contratar un proveedor fuera del abono</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+
         <div class="form-group">
             <label>Comentario (opcional)</label>
             <textarea name="comentario" placeholder="Ej: Recibi todo conforme..." style="height: 60px;"></textarea>
