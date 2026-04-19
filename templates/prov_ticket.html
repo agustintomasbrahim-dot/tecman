@@ -3,6 +3,7 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('prov_panel') }}">Mis trabajos</a>
+    <a href="{{ url_for('index') }}">Inicio</a>
     <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
 </div>
 {% endblock %}
@@ -111,12 +112,44 @@
     <form method="POST"><input type="hidden" name="accion" value="relevado">
         <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 17px; padding: 16px;">&#128270; Marcar como RELEVADO</button>
     </form>
-    {% elif etapa == 'relevado' or etapa == 'esperando_presupuesto' %}
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    {% elif etapa == 'relevado' %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">&#128296; EN PROGRESO - Estoy trabajando</button>
+        </form>
+        <form method="POST"><input type="hidden" name="accion" value="esperando_materiales">
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">&#128230; ESPERANDO MATERIALES</button>
+        </form>
         <form method="POST"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
-        <button type="button" class="btn btn-block" style="background: #1a1a2e; color: white; font-size: 14px; padding: 16px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
+        <button type="button" class="btn btn-block" style="background: #fff; border: 1px solid #e5e7eb; color: #374151; padding: 14px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
+    </div>
+    {% elif etapa == 'en_progreso_prov' %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="card" style="padding: 12px; border-left: 4px solid #1a1a2e; margin: 0;">
+            <p style="font-weight: 600; color: #1a1a2e;">&#128296; En progreso</p>
+        </div>
+        <form method="POST"><input type="hidden" name="accion" value="hecho">
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
+        </form>
+    </div>
+    {% elif etapa == 'esperando_materiales' %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="card" style="padding: 12px; border-left: 4px solid #b45309; margin: 0;">
+            <p style="font-weight: 600; color: #b45309;">&#128230; Esperando materiales</p>
+            <p style="color: #6b7280; font-size: 13px; margin-top: 4px;">Se notificara cuando los materiales lleguen a la sucursal</p>
+        </div>
+        <form method="POST"><input type="hidden" name="accion" value="hecho">
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
+        </form>
+    </div>
+    {% elif etapa == 'esperando_presupuesto' %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <form method="POST"><input type="hidden" name="accion" value="hecho">
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
+        </form>
+        <button type="button" class="btn btn-block" style="background: #fff; border: 1px solid #e5e7eb; color: #374151; padding: 14px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
     </div>
     {% endif %}
 </div>

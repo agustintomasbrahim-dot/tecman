@@ -396,6 +396,56 @@ def estado_ticket(ticket_id):
     return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
 
 
+@app.route("/confirmar-recepcion/<int:ticket_id>", methods=["POST"])
+@suc_login_required
+def confirmar_recepcion(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    if "notas" not in ticket:
+        ticket["notas"] = []
+
+    # Handle remito upload
+    remito_file = ""
+    f = request.files.get("remito")
+    if f and f.filename:
+        ext = Path(f.filename).suffix.lower()
+        fname = f"{ticket_id}_remito_{uuid.uuid4().hex[:8]}{ext}"
+        f.save(str(UPLOADS_DIR / fname))
+        remito_file = fname
+
+    comentario = request.form.get("comentario", "").strip()
+    nota_texto = "Materiales recibidos en sucursal"
+    if comentario:
+        nota_texto += f": {comentario}"
+
+    nota = {
+        "autor": session.get("suc_nombre", "Sucursal"),
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": nota_texto,
+    }
+    if remito_file:
+        nota["fotos"] = [remito_file]
+
+    ticket["notas"].append(nota)
+    ticket["estado"] = "Cerrado"
+    ticket["actualizado"] = datetime.datetime.now().isoformat()
+
+    # Notify provider
+    if "notificaciones_prov" not in ticket:
+        ticket["notificaciones_prov"] = []
+    ticket["notificaciones_prov"].append({
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales. Ya cuenta con los materiales.",
+    })
+
+    save_tickets(tickets)
+    flash("Recepcion confirmada")
+    return redirect(url_for("estado_ticket", ticket_id=ticket_id))
+
+
 # --- Routes: Admin panel ---
 
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -672,11 +722,21 @@ def prov_panel():
     mis_tickets = [t for t in tickets if t.get("asignado") == prov_nombre and t["estado"] not in ("Cerrado",)]
     pendientes = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
     resueltos = [t for t in mis_tickets if t["estado"] == "Resuelto"]
+
+    # Notifications for provider
+    notif_prov = []
+    for t in tickets:
+        if t.get("asignado") == prov_nombre:
+            for n in t.get("notificaciones_prov", []):
+                notif_prov.append({"ticket_id": t["id"], "sucursal": t["sucursal"], **n})
+    notif_prov.sort(key=lambda x: x.get("fecha", ""), reverse=True)
+
     return render_template(
         "prov_panel.html",
         pendientes=pendientes,
         resueltos=resueltos,
         prioridades=PRIORIDADES,
+        notificaciones=notif_prov,
     )
 
 
@@ -698,6 +758,8 @@ def prov_ticket(ticket_id):
             "recibido": ("Recibido", "Abierto"),
             "planificado": ("Planificado", "En progreso"),
             "relevado": ("Relevado", "En progreso"),
+            "en_progreso_prov": ("En progreso", "En progreso"),
+            "esperando_materiales": ("Esperando materiales", "Pendiente"),
             "esperando_presupuesto": ("Esperando aprobacion de presupuesto", "Pendiente"),
             "hecho": ("Hecho", "Resuelto"),
         }
@@ -1358,10 +1420,19 @@ def admin_pedido(ticket_id):
 
         elif accion == "enviado":
             ticket["estado"] = "Resuelto"
+            metodo = ticket.get("metodo_envio", "")
             ticket["notas"].append({
                 "autor": session.get("nombre", "Jonathan"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": "Material enviado a sucursal",
+                "texto": f"Material enviado a sucursal ({metodo})",
+            })
+            # Notify sucursal
+            if "notificaciones" not in ticket:
+                ticket["notificaciones"] = []
+            ticket["notificaciones"].append({
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Materiales enviados desde Central ({metodo}). Por favor confirme recepcion adjuntando el remito.",
+                "leida": False,
             })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()

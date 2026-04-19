@@ -1,33 +1,118 @@
 {% extends "base.html" %}
 {% block title %}Tecman - Ticket #{{ ticket.id }}{% endblock %}
+{% block nav %}
+{% if session.suc_user is defined %}
+<div class="nav">
+    <a href="{{ url_for('suc_panel') }}">Mis tickets</a>
+    <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
+    <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
+</div>
+{% endif %}
+{% endblock %}
 {% block content %}
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>Ticket #{{ ticket.id }}</h2>
         <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
     </div>
-    <table>
-        <tr><td style="width: 140px; font-weight: 600;">Sucursal</td><td>{{ ticket.sucursal }}</td></tr>
-        <tr><td style="font-weight: 600;">Categoria</td><td>{{ ticket.categoria }} - {{ ticket.subcategoria }}</td></tr>
-        <tr><td style="font-weight: 600;">Prioridad</td><td><span class="badge badge-p{{ ticket.prioridad }}">{{ ticket.prioridad }} - {{ prioridades[ticket.prioridad] }}</span></td></tr>
-        <tr><td style="font-weight: 600;">Asignado a</td><td>{{ ticket.asignado }}</td></tr>
-        <tr><td style="font-weight: 600;">Creado</td><td>{{ ticket.creado[:16].replace('T', ' ') }}</td></tr>
-        <tr><td style="font-weight: 600;">Actualizado</td><td>{{ ticket.actualizado[:16].replace('T', ' ') }}</td></tr>
-    </table>
-    <h3 style="margin-top: 16px;">Descripcion</h3>
-    <p style="margin: 8px 0; white-space: pre-wrap;">{{ ticket.descripcion }}</p>
-    {% if ticket.observaciones %}
-    <h3 style="margin-top: 16px;">Observaciones</h3>
-    <p style="margin: 8px 0; white-space: pre-wrap;">{{ ticket.observaciones }}</p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
+        <div><span style="color: #6b7280;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
+        <div><span style="color: #6b7280;">Categoria:</span> {{ ticket.categoria }} - {{ ticket.subcategoria }}</div>
+        <div><span style="color: #6b7280;">Asignado a:</span> {{ ticket.asignado }}</div>
+        <div><span style="color: #6b7280;">Prioridad:</span> <span class="badge badge-p{{ ticket.prioridad }}">{{ prioridades[ticket.prioridad] }}</span></div>
+        <div><span style="color: #6b7280;">Creado:</span> {{ ticket.creado[:10] }}</div>
+        <div><span style="color: #6b7280;">Actualizado:</span> {{ ticket.actualizado[:10] }}</div>
+    </div>
+
+    {% if ticket.fecha_visita is defined and ticket.fecha_visita %}
+    <div style="margin-top: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px;">
+        <strong style="color: #059669;">Visita programada:</strong> {{ ticket.fecha_visita }}
+    </div>
     {% endif %}
+
+    <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
+        <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
+    </div>
+
     {% if ticket.fotos %}
-    <h3 style="margin-top: 16px;">Fotos</h3>
-    {% for foto in ticket.fotos %}
-    <img src="/static/uploads/{{ foto }}" class="foto-full" alt="Foto del ticket">
-    {% endfor %}
+    <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px;">
+        {% for foto in ticket.fotos %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endfor %}
+    </div>
     {% endif %}
 </div>
+
+<!-- Fotos antes/despues -->
+{% if ticket.fotos_antes is defined and ticket.fotos_antes %}
+<div class="card">
+    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos ANTES</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        {% for foto in ticket.fotos_antes %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if ticket.fotos_despues is defined and ticket.fotos_despues %}
+<div class="card">
+    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos DESPUES</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        {% for foto in ticket.fotos_despues %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Confirmar recepcion de materiales -->
+{% if ticket.metodo_envio is defined and ticket.estado == 'Resuelto' and session.suc_user is defined %}
+<div class="card" style="border-left: 4px solid #e63946;">
+    <h3 style="margin-bottom: 8px;">Confirmar recepcion de materiales</h3>
+    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Suba el remito para confirmar que recibio los materiales</p>
+    <form method="POST" action="{{ url_for('confirmar_recepcion', ticket_id=ticket.id) }}" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Remito (foto o PDF)</label>
+            <input type="file" name="remito" accept="image/*,.pdf" required style="padding: 8px;">
+        </div>
+        <div class="form-group">
+            <label>Comentario (opcional)</label>
+            <textarea name="comentario" placeholder="Ej: Recibi todo conforme..." style="height: 60px;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Confirmar recepcion</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Historial -->
+{% if ticket.notas is defined and ticket.notas %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; font-size: 14px; color: #6b7280;">Historial</h3>
+    {% for nota in ticket.notas | reverse %}
+    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span style="font-weight: 600; color: #374151;">{{ nota.autor }}</span>
+            <span style="color: #9ca3af;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+        </div>
+        <p style="color: #374151; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>
+        {% if nota.fotos is defined %}
+        <div style="margin-top: 6px; display: flex; gap: 4px;">
+            {% for foto in nota.fotos %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div style="text-align: center; margin-top: 12px;">
-    <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al inicio</a>
+    {% if session.suc_user is defined %}
+    <a href="{{ url_for('suc_panel') }}" class="btn btn-outline">Volver a mis tickets</a>
+    {% else %}
+    <a href="{{ url_for('index') }}" class="btn btn-outline">Volver</a>
+    {% endif %}
 </div>
 {% endblock %}

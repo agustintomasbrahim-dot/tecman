@@ -3,10 +3,23 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('prov_panel') }}">Mis trabajos</a>
+    <a href="{{ url_for('index') }}">Inicio</a>
     <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
 </div>
 {% endblock %}
 {% block content %}
+
+{% if notificaciones %}
+<div class="card" style="border-left: 4px solid #059669; margin-bottom: 16px;">
+    <h3 style="margin-bottom: 10px; font-size: 14px; color: #059669;">&#128276; Notificaciones</h3>
+    {% for n in notificaciones[:5] %}
+    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <p style="color: #1a1a2e; font-size: 13px;">{{ n.texto }}</p>
+        <span style="color: #9ca3af; font-size: 11px;">{{ n.sucursal }} - Ticket #{{ n.ticket_id }} - {{ n.fecha[:10] }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div>
