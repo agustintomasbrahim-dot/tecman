@@ -25,22 +25,14 @@
             <span class="badge" style="background: {% if p.fijo %}#d1fae5; color: #065f46{% else %}#fef3c7; color: #b45309{% endif %}; margin-left: 4px;">{% if p.fijo %}Fijo{% else %}Eventual{% endif %}</span>
             {% endif %}
         </div>
-        {% if p.tel and p.tel != '-' %}
-        <a href="tel:{{ p.tel }}" style="color: #059669; font-weight: 700; text-decoration: none; font-size: 15px;">&#128222; {{ p.tel }}</a>
-        {% endif %}
     </div>
-    {% if p.contacto is defined and p.contacto %}
-    <div style="margin-top: 6px; font-size: 13px; color: #6b7280;">Contacto: <strong style="color: #374151;">{{ p.contacto }}</strong></div>
-    {% endif %}
     {% if p.incluye is defined and p.incluye %}
     <div style="margin-top: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px; font-size: 13px;">
         <span style="color: #059669; font-weight: 600;">Incluye:</span>
         <span style="color: #374151;">{{ p.incluye }}</span>
     </div>
     {% endif %}
-    {% if p.monto is defined and p.monto %}
-    <div style="margin-top: 6px; font-size: 14px; font-weight: 700; color: #059669;">{{ p.monto }}</div>
-    {% endif %}
+
 </div>
 {% endfor %}
 {% else %}
