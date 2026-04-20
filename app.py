@@ -465,7 +465,9 @@ def estado_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
-    return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
+    suc_num = str(ticket.get("sucursal_num", "") or ticket.get("sucursal", "")).replace("Sucursal ", "").strip()
+    tiene_abono = bool(get_proveedor_abono_sucursal(suc_num))
+    return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES, tiene_abono=tiene_abono)
 
 
 @app.route("/confirmar-recepcion/<int:ticket_id>", methods=["POST"])

@@ -87,6 +87,7 @@
                         <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Nuestro personal realiza el trabajo con los materiales</div>
                     </div>
                 </label>
+                {% if tiene_abono %}
                 <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
                     <input type="radio" name="siguiente_paso" value="proveedor_abono" style="margin-top: 3px; flex-shrink: 0;">
                     <div style="flex: 1; min-width: 0;">
@@ -94,6 +95,7 @@
                         <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Coordinar con el proveedor fijo asignado</div>
                     </div>
                 </label>
+                {% endif %}
                 <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
                     <input type="radio" name="siguiente_paso" value="proveedor_eventual" style="margin-top: 3px; flex-shrink: 0;">
                     <div style="flex: 1; min-width: 0;">
