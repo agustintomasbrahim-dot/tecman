@@ -1,0 +1,21 @@
+{
+  "central": {
+    "Luminaria > Lámparas AR111": 20,
+    "Luminaria > Artefactos de embutir": 35,
+    "Luminaria > Tubos LED": 50,
+    "Luminaria > Lámparas HQI": 12,
+    "Luminaria > Artefactos de aplicar": 18,
+    "Insumos de electricidad > Térmica": 30,
+    "Insumos de electricidad > Disyuntor": 25,
+    "Insumos de electricidad > Cables unipolares 2.5": 100,
+    "Insumos de electricidad > Cables unipolares 1.5": 80,
+    "Insumos de electricidad > Tomas simples": 40,
+    "Insumos de electricidad > Tomas dobles": 30,
+    "Cortinas de aires > 90cm Negra": 15,
+    "Cortinas de aires > 1.20 Negra": 10,
+    "Pinturas": 20,
+    "Accesorios para pintar > Rodillo de pelo corto": 25,
+    "Placas de Durlock": 40
+  },
+  "sucursales": {}
+}
