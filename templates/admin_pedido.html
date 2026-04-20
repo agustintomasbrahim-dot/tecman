@@ -152,10 +152,75 @@
 {% elif ticket.estado == 'En progreso' %}
 <div class="card">
     <p style="margin-bottom: 12px;"><strong>Metodo de envio:</strong> {{ ticket.metodo_envio }}</p>
-    <form method="POST">
-        <input type="hidden" name="accion" value="enviado">
-        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Confirmar que el material fue enviado?')">Marcar como ENVIADO</button>
+
+    <!-- Retiro / Envio con fecha -->
+    <form method="POST" style="margin-bottom: 0;">
+        <input type="hidden" name="accion" value="gestion_retiro">
+        <h4 style="margin-bottom: 10px; color: #374151;">Retiro / Envío del material</h4>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio2" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
+                <span><strong>Envío a sucursal</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov2" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
+                <span><strong>Retira proveedor</strong></span>
+            </label>
+        </div>
+        <!-- Proveedor (si aplica) -->
+        <div id="prov-group2" style="display: {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}block{% else %}none{% endif %};">
+            <div class="form-group">
+                <label>Proveedor</label>
+                <select name="proveedor_nombre" id="prov-select2">
+                    <option value="">Seleccionar proveedor...</option>
+                    {% for p in proveedores_sucursal %}
+                    <option value="{{ p }}" {% if ticket.proveedor_nombre == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                    <option value="__otro__">Otro...</option>
+                </select>
+            </div>
+            <div id="prov-otro-group2" style="display: none;">
+                <div class="form-group">
+                    <label>Nombre del proveedor</label>
+                    <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Detalle (contacto, observaciones)</label>
+                <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
+            </div>
+        </div>
+        <!-- Fecha programada -->
+        <div class="form-group" style="margin-bottom: 12px;">
+            <label style="font-weight: 600;">📅 Fecha programada de envío / retiro</label>
+            <input type="date" name="fecha_envio" value="{{ ticket.fecha_envio or '' }}" style="max-width: 200px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-bottom: 12px;">Guardar</button>
     </form>
+
+    <script>
+    (function() {
+        document.querySelectorAll('input[name="retiro_tipo"]').forEach(function(r) {
+            r.addEventListener('change', function() {
+                document.getElementById('prov-group2').style.display = (this.value === 'proveedor') ? 'block' : 'none';
+            });
+        });
+        var sel2 = document.getElementById('prov-select2');
+        if (sel2) sel2.addEventListener('change', function() {
+            document.getElementById('prov-otro-group2').style.display = (this.value === '__otro__') ? 'block' : 'none';
+        });
+    })();
+    </script>
+
+    <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 4px;">
+        <form method="POST">
+            <input type="hidden" name="accion" value="enviado">
+            {% if ticket.fecha_envio %}
+            <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">📅 Fecha programada: <strong>{{ ticket.fecha_envio }}</strong></p>
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Confirmar que el material fue enviado?')">Marcar como ENVIADO</button>
+        </form>
+    </div>
 </div>
 
 {% elif ticket.estado == 'Pendiente' %}

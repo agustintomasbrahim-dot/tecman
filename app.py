@@ -1576,6 +1576,9 @@ def admin_pedido(ticket_id):
         if accion == "gestion_retiro":
             retiro_tipo = request.form.get("retiro_tipo", "envio")
             ticket["retiro_tipo"] = retiro_tipo
+            fecha_envio = request.form.get("fecha_envio", "").strip()
+            if fecha_envio:
+                ticket["fecha_envio"] = fecha_envio
             if retiro_tipo == "proveedor":
                 prov = request.form.get("proveedor_nombre", "").strip()
                 if prov == "__otro__":
@@ -1591,6 +1594,8 @@ def admin_pedido(ticket_id):
                 ticket["proveedor_nombre"] = ""
                 ticket["proveedor_detalle"] = ""
                 nota_txt = "Retiro definido: ENVIO a sucursal"
+            if fecha_envio:
+                nota_txt += f" | Fecha programada: {fecha_envio}"
             ticket["notas"].append({
                 "autor": session.get("nombre", "Admin"),
                 "fecha": datetime.datetime.now().isoformat(),
