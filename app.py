@@ -14,13 +14,24 @@ app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
 
 IS_CLOUD = os.environ.get("RENDER", False)
 
-DATA_DIR = Path(__file__).parent / "data"
+# En Render usamos el disco persistente montado en /data
+# En local usamos ./data relativo al proyecto
+if IS_CLOUD and Path("/data").exists():
+    DATA_DIR = Path("/data")
+else:
+    DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
+
 TICKETS_FILE = DATA_DIR / "tickets.json"
 STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
-UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
+
+# Uploads: también en disco persistente en Render
+if IS_CLOUD and Path("/data").exists():
+    UPLOADS_DIR = Path("/data") / "uploads"
+else:
+    UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 COMPROBANTES_DIR = UPLOADS_DIR / "comprobantes"
 COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
@@ -215,6 +226,19 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 
 
 # --- Helpers ---
+
+def _seed_data_dir():
+    """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
+    repo_data = Path(__file__).parent / "data"
+    for fname in ["tickets.json", "stock.json"]:
+        dest = DATA_DIR / fname
+        src = repo_data / fname
+        if not dest.exists() and src.exists():
+            import shutil
+            shutil.copy2(src, dest)
+
+_seed_data_dir()
+
 
 def load_tickets():
     if TICKETS_FILE.exists():
