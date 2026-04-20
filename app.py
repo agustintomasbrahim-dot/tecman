@@ -208,6 +208,25 @@ def load_movimientos():
 def save_movimientos(data):
     STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+def _get_precio_historico(item_key, hasta=None):
+    """Retorna el precio unitario del ultimo ingreso de un item antes de 'hasta'.
+    Si no hay ingresos registrados, retorna None."""
+    movimientos = load_movimientos()
+    ingresos = [
+        m for m in movimientos.get("movimientos", [])
+        if m.get("item") == item_key
+        and m.get("tipo") == "ingreso"
+        and m.get("precio_unitario", 0)
+    ]
+    if hasta:
+        ingresos = [m for m in ingresos if m.get("fecha", "") <= hasta]
+    if not ingresos:
+        return None
+    # Ordenar por fecha descendente y tomar el mas reciente
+    ingresos.sort(key=lambda m: m.get("fecha", ""), reverse=True)
+    return float(ingresos[0].get("precio_unitario", 0))
+
+
 def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None):
     """Registra un movimiento de stock (ingreso o egreso)."""
     if not item or not tipo or not cantidad:
@@ -1754,7 +1773,9 @@ def admin_pedido(ticket_id):
             imputacion_txt = ""
             if item_key:
                 stock_data = load_stock()
-                precio_unit = get_central_precio(stock_data, item_key)
+                # Usar precio del ultimo ingreso historico (fecha de compra)
+                # para respetar el valor unitario vigente al momento de la compra
+                precio_unit = _get_precio_historico(item_key) or get_central_precio(stock_data, item_key)
                 disponible = get_central_qty(stock_data, item_key)
                 nuevo = max(0, disponible - cantidad_env)
                 if nuevo == 0 and item_key in stock_data.get("central", {}):
