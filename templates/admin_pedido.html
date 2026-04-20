@@ -12,7 +12,10 @@
 
 <div class="card" style="border-left: 4px solid #e63946;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-        <h2>Pedido #{{ ticket.id }}</h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <a href="{{ url_for('admin_pedidos') }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Pedidos</a>
+            <h2 style="margin: 0;">Pedido #{{ ticket.id }}</h2>
+        </div>
         <div style="display: flex; gap: 8px; align-items: center;">
             <a href="{{ url_for('admin_comprobantes', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline">&#129534; Cargar comprobante</a>
             <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>

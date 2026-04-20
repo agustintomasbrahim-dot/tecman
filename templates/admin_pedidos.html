@@ -13,7 +13,12 @@
 {% endblock %}
 {% block content %}
 
-<h2 style="margin-bottom: 16px;">Pedidos de Materiales</h2>
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+    <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">
+        ← Inicio
+    </a>
+    <h2 style="margin: 0;">Pedidos de Materiales</h2>
+</div>
 
 <div class="stats">
     <div class="stat-card">
