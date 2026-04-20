@@ -1549,6 +1549,24 @@ def admin_pedido(ticket_id):
     es_amba = suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN
     proveedores_sucursal = get_proveedores_para_sucursal(suc_num)
 
+    # Stock relevante al pedido
+    cat = ticket.get("categoria_mat", "").lower()
+    subitem = ticket.get("subitem_mat", "").lower()
+    stock_relevante = {}
+    stock_similares = {}
+    for k, v in central.items():
+        k_lower = k.lower()
+        # Exacto o muy cercano
+        if cat and (cat in k_lower or k_lower in cat):
+            stock_relevante[k] = v
+        elif subitem and (subitem in k_lower or k_lower in subitem):
+            stock_relevante[k] = v
+        else:
+            # Similares: misma primera palabra del cat
+            first_word = cat.split()[0] if cat else ""
+            if first_word and len(first_word) > 3 and first_word in k_lower:
+                stock_similares[k] = v
+
     if request.method == "POST":
         accion = request.form.get("accion", "")
 
@@ -1660,6 +1678,8 @@ def admin_pedido(ticket_id):
         prioridades=PRIORIDADES,
         proveedores_sucursal=proveedores_sucursal,
         trabajo_prov_ticket=trabajo_prov_ticket,
+        stock_relevante=stock_relevante,
+        stock_similares=stock_similares,
     )
 
 
