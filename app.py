@@ -4,6 +4,7 @@ import os
 import json
 import uuid
 import datetime
+import shutil
 from pathlib import Path
 from functools import wraps
 
@@ -234,7 +235,6 @@ def _seed_data_dir():
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
-            import shutil
             shutil.copy2(src, dest)
 
 _seed_data_dir()
