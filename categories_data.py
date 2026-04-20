@@ -14,6 +14,17 @@ MATERIAL_CATEGORIAS = [
         # Guia visible al seleccionar Luminaria. Si "archivo" esta vacio o
         # None, se muestra como "proximamente" (deshabilitado).
         "guia": {"archivo": "LAMPARAS_BASICAS.docx", "titulo": "Ver guia de luminaria"},
+        "items": [
+            "Artefactos de embutir",
+            "Artefactos de aplicar",
+            "Tubos LED",
+            "Zócalos",
+            "Lámparas AR111",
+            "Lámparas PAR30",
+            "Lámparas globo",
+            "Lámparas campana",
+            "Lámparas HQI",
+        ],
     },
     {
         "nombre": "Insumos de electricidad",
