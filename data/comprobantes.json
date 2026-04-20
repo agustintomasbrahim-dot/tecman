@@ -1,0 +1,56 @@
+{
+  "comprobantes": [
+    {
+      "id": "fact0001lumi",
+      "tipo": "factura",
+      "numero": "0001-00012345",
+      "fecha": "2026-03-12",
+      "proveedor": "Iluminac SRL",
+      "monto": 1030000.0,
+      "descripcion": "Compra mensual de luminaria para stock central",
+      "ticket_ids": [],
+      "archivo": "",
+      "items_factura": [
+        {"item": "Luminaria > Lámparas AR111", "cantidad": 40, "precio_unitario": 8500},
+        {"item": "Luminaria > Tubos LED", "cantidad": 100, "precio_unitario": 4500},
+        {"item": "Luminaria > Lámparas HQI", "cantidad": 16, "precio_unitario": 15000}
+      ],
+      "created_at": "2026-03-12T10:00:00",
+      "cargado_por": "Agustín Brahim"
+    },
+    {
+      "id": "fact0002elec",
+      "tipo": "factura",
+      "numero": "0003-00007890",
+      "fecha": "2026-03-20",
+      "proveedor": "Electricidad del Norte SA",
+      "monto": 489000.0,
+      "descripcion": "Insumos de electricidad - reposicion trimestral",
+      "ticket_ids": [],
+      "archivo": "",
+      "items_factura": [
+        {"item": "Insumos de electricidad > Térmica", "cantidad": 30, "precio_unitario": 6800},
+        {"item": "Insumos de electricidad > Disyuntor", "cantidad": 15, "precio_unitario": 9200},
+        {"item": "Insumos de electricidad > Cables unipolares 2.5", "cantidad": 180, "precio_unitario": 850}
+      ],
+      "created_at": "2026-03-20T14:30:00",
+      "cargado_por": "Agustín Brahim"
+    },
+    {
+      "id": "fact0003cort",
+      "tipo": "factura",
+      "numero": "0002-00003456",
+      "fecha": "2026-04-05",
+      "proveedor": "Cortinas Industriales SRL",
+      "monto": 450000.0,
+      "descripcion": "Cortinas de aire para sucursales",
+      "ticket_ids": [],
+      "archivo": "",
+      "items_factura": [
+        {"item": "Cortinas de aires > 90cm Negra", "cantidad": 10, "precio_unitario": 45000}
+      ],
+      "created_at": "2026-04-05T09:15:00",
+      "cargado_por": "Carolina"
+    }
+  ]
+}

@@ -1,21 +1,69 @@
 {
   "central": {
-    "Luminaria > Lámparas AR111": 20,
-    "Luminaria > Artefactos de embutir": 35,
-    "Luminaria > Tubos LED": 50,
-    "Luminaria > Lámparas HQI": 12,
-    "Luminaria > Artefactos de aplicar": 18,
-    "Insumos de electricidad > Térmica": 30,
-    "Insumos de electricidad > Disyuntor": 25,
-    "Insumos de electricidad > Cables unipolares 2.5": 100,
-    "Insumos de electricidad > Cables unipolares 1.5": 80,
-    "Insumos de electricidad > Tomas simples": 40,
-    "Insumos de electricidad > Tomas dobles": 30,
-    "Cortinas de aires > 90cm Negra": 15,
-    "Cortinas de aires > 1.20 Negra": 10,
-    "Pinturas": 20,
-    "Accesorios para pintar > Rodillo de pelo corto": 25,
-    "Placas de Durlock": 40
+    "Luminaria > Lámparas AR111": {
+      "cantidad": 20,
+      "precio_unitario": 8500.0
+    },
+    "Luminaria > Artefactos de embutir": {
+      "cantidad": 35,
+      "precio_unitario": 12000.0
+    },
+    "Luminaria > Tubos LED": {
+      "cantidad": 50,
+      "precio_unitario": 4500.0
+    },
+    "Luminaria > Lámparas HQI": {
+      "cantidad": 12,
+      "precio_unitario": 15000.0
+    },
+    "Luminaria > Artefactos de aplicar": {
+      "cantidad": 18,
+      "precio_unitario": 0.0
+    },
+    "Insumos de electricidad > Térmica": {
+      "cantidad": 30,
+      "precio_unitario": 6800.0
+    },
+    "Insumos de electricidad > Disyuntor": {
+      "cantidad": 25,
+      "precio_unitario": 9200.0
+    },
+    "Insumos de electricidad > Cables unipolares 2.5": {
+      "cantidad": 100,
+      "precio_unitario": 850.0
+    },
+    "Insumos de electricidad > Cables unipolares 1.5": {
+      "cantidad": 80,
+      "precio_unitario": 0.0
+    },
+    "Insumos de electricidad > Tomas simples": {
+      "cantidad": 40,
+      "precio_unitario": 0.0
+    },
+    "Insumos de electricidad > Tomas dobles": {
+      "cantidad": 30,
+      "precio_unitario": 0.0
+    },
+    "Cortinas de aires > 90cm Negra": {
+      "cantidad": 15,
+      "precio_unitario": 45000.0
+    },
+    "Cortinas de aires > 1.20 Negra": {
+      "cantidad": 10,
+      "precio_unitario": 0.0
+    },
+    "Pinturas": {
+      "cantidad": 20,
+      "precio_unitario": 0.0
+    },
+    "Accesorios para pintar > Rodillo de pelo corto": {
+      "cantidad": 25,
+      "precio_unitario": 0.0
+    },
+    "Placas de Durlock": {
+      "cantidad": 40,
+      "precio_unitario": 0.0
+    }
   },
   "sucursales": {}
 }

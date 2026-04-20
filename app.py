@@ -117,13 +117,72 @@ def load_syh():
 def save_syh(data):
     SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+def _stock_entry(val):
+    """Normaliza un valor de stock central al formato {cantidad, precio_unitario}.
+    Compatible con formato viejo (int/float)."""
+    if isinstance(val, dict):
+        try:
+            cantidad = int(val.get("cantidad", 0) or 0)
+        except (TypeError, ValueError):
+            cantidad = 0
+        try:
+            precio = float(val.get("precio_unitario", 0) or 0)
+        except (TypeError, ValueError):
+            precio = 0.0
+        return {"cantidad": cantidad, "precio_unitario": precio}
+    try:
+        return {"cantidad": int(val or 0), "precio_unitario": 0.0}
+    except (TypeError, ValueError):
+        return {"cantidad": 0, "precio_unitario": 0.0}
+
+
 def load_stock():
     if STOCK_FILE.exists():
-        return json.loads(STOCK_FILE.read_text())
-    return {"central": {}, "sucursales": {}}
+        data = json.loads(STOCK_FILE.read_text())
+    else:
+        data = {"central": {}, "sucursales": {}}
+    central = data.get("central", {}) or {}
+    for k in list(central.keys()):
+        central[k] = _stock_entry(central[k])
+    data["central"] = central
+    data.setdefault("sucursales", {})
+    return data
+
 
 def save_stock(data):
     STOCK_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def get_central_qty(stock, item):
+    e = stock.get("central", {}).get(item)
+    return int(e.get("cantidad", 0)) if e else 0
+
+
+def get_central_precio(stock, item):
+    e = stock.get("central", {}).get(item)
+    return float(e.get("precio_unitario", 0.0)) if e else 0.0
+
+
+def set_central_qty(stock, item, cantidad, precio=None):
+    """Setea la cantidad del item en central. Si <= 0, lo elimina."""
+    central = stock.setdefault("central", {})
+    cantidad = int(cantidad)
+    if cantidad <= 0:
+        central.pop(item, None)
+        return
+    entry = central.get(item) or {"cantidad": 0, "precio_unitario": 0.0}
+    entry["cantidad"] = cantidad
+    if precio is not None:
+        entry["precio_unitario"] = float(precio)
+    central[item] = entry
+
+
+def set_central_precio(stock, item, precio):
+    """Setea el precio_unitario del item en central (creando entrada si hace falta)."""
+    central = stock.setdefault("central", {})
+    entry = central.get(item) or {"cantidad": 0, "precio_unitario": 0.0}
+    entry["precio_unitario"] = float(precio)
+    central[item] = entry
 
 def load_transfers():
     if TRANSFERS_FILE.exists():
@@ -149,12 +208,12 @@ def load_movimientos():
 def save_movimientos(data):
     STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
-def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota=""):
+def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None):
     """Registra un movimiento de stock (ingreso o egreso)."""
     if not item or not tipo or not cantidad:
         return
     data = load_movimientos()
-    data.setdefault("movimientos", []).append({
+    mov = {
         "id": uuid.uuid4().hex[:12],
         "item": item,
         "tipo": tipo,
@@ -163,7 +222,12 @@ def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota
         "sucursal": sucursal or "",
         "ticket_id": ticket_id,
         "nota": nota or "",
-    })
+    }
+    if monto_imputado is not None:
+        mov["monto_imputado"] = float(monto_imputado)
+    if precio_unitario is not None:
+        mov["precio_unitario"] = float(precio_unitario)
+    data.setdefault("movimientos", []).append(mov)
     save_movimientos(data)
 
 # Sucursal login: each sucursal has a unique password
@@ -257,7 +321,7 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 def _seed_data_dir():
     """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
     repo_data = Path(__file__).parent / "data"
-    for fname in ["tickets.json", "stock.json", "stock_movimientos.json"]:
+    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json"]:
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
@@ -1593,6 +1657,7 @@ def admin_pedido(ticket_id):
 
     stock = load_stock()
     central = stock.get("central", {})
+    central_qtys = {k: v.get("cantidad", 0) for k, v in central.items()}
 
     # Check if sucursal is AMBA
     suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
@@ -1604,18 +1669,16 @@ def admin_pedido(ticket_id):
     subitem = ticket.get("subitem_mat", "").lower()
     stock_relevante = {}
     stock_similares = {}
-    for k, v in central.items():
+    for k, qty in central_qtys.items():
         k_lower = k.lower()
-        # Exacto o muy cercano
         if cat and (cat in k_lower or k_lower in cat):
-            stock_relevante[k] = v
+            stock_relevante[k] = qty
         elif subitem and (subitem in k_lower or k_lower in subitem):
-            stock_relevante[k] = v
+            stock_relevante[k] = qty
         else:
-            # Similares: misma primera palabra del cat
             first_word = cat.split()[0] if cat else ""
             if first_word and len(first_word) > 3 and first_word in k_lower:
-                stock_similares[k] = v
+                stock_similares[k] = qty
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
@@ -1679,7 +1742,7 @@ def admin_pedido(ticket_id):
         elif accion == "enviado":
             ticket["estado"] = "Resuelto"
             metodo = ticket.get("metodo_envio", "")
-            # Descontar del stock central
+            # Descontar del stock central e imputar costo a la sucursal
             cat = ticket.get("categoria_mat", "")
             subitem = ticket.get("subitem_mat", "")
             try:
@@ -1687,30 +1750,50 @@ def admin_pedido(ticket_id):
             except (ValueError, TypeError):
                 cantidad_env = 1
             item_key = f"{cat} > {subitem}" if subitem else cat
+            descuento_txt = ""
+            imputacion_txt = ""
             if item_key:
                 stock_data = load_stock()
-                disponible = stock_data["central"].get(item_key, 0)
+                precio_unit = get_central_precio(stock_data, item_key)
+                disponible = get_central_qty(stock_data, item_key)
                 nuevo = max(0, disponible - cantidad_env)
-                if nuevo == 0:
-                    stock_data["central"].pop(item_key, None)
-                else:
-                    stock_data["central"][item_key] = nuevo
+                if nuevo == 0 and item_key in stock_data.get("central", {}):
+                    # Preservar precio en item con cantidad 0
+                    stock_data["central"][item_key]["cantidad"] = 0
+                elif item_key in stock_data.get("central", {}):
+                    stock_data["central"][item_key]["cantidad"] = nuevo
                 save_stock(stock_data)
+
+                imputacion_monto = round(cantidad_env * precio_unit, 2)
+                ticket["imputacion_item"] = item_key
+                ticket["imputacion_cantidad"] = cantidad_env
+                ticket["imputacion_precio_unitario"] = precio_unit
+                ticket["imputacion_monto"] = imputacion_monto
+                ticket["imputacion_fecha"] = datetime.datetime.now().isoformat()
+
                 descuento_txt = f" | Stock descontado: '{item_key}' -{cantidad_env} (quedaron {nuevo})"
+                if precio_unit > 0:
+                    imputacion_txt = f" | Imputado a {ticket.get('sucursal', '')}: ${imputacion_monto:,.2f} ({cantidad_env} x ${precio_unit:,.2f})"
+                else:
+                    imputacion_txt = " | Sin precio unitario cargado (imputacion $0)"
+
+                nota_mov = f"Enviado por ticket #{ticket.get('id')}"
+                if metodo:
+                    nota_mov += f" ({metodo})"
                 registrar_movimiento(
                     item=item_key,
                     tipo="egreso",
                     cantidad=cantidad_env,
                     sucursal=ticket.get("sucursal", ""),
                     ticket_id=ticket.get("id"),
-                    nota=f"Enviado por ticket #{ticket.get('id')} ({metodo})" if metodo else f"Enviado por ticket #{ticket.get('id')}",
+                    nota=nota_mov,
+                    monto_imputado=imputacion_monto,
+                    precio_unitario=precio_unit,
                 )
-            else:
-                descuento_txt = ""
             ticket["notas"].append({
                 "autor": session.get("nombre", "Jonathan"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}",
+                "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}{imputacion_txt}",
             })
             # Notify sucursal
             if "notificaciones" not in ticket:
@@ -1758,9 +1841,13 @@ def admin_stock():
     central = stock.get("central", {})
     sucursales_stock = stock.get("sucursales", {})
 
-    # Sort items
-    central_items = sorted(central.items(), key=lambda x: x[0])
-    total_items_central = sum(int(v) for v in central.values())
+    # Sort items → lista de (item, cantidad, precio_unitario)
+    central_items = sorted(
+        ((k, v.get("cantidad", 0), v.get("precio_unitario", 0.0)) for k, v in central.items()),
+        key=lambda x: x[0],
+    )
+    total_items_central = sum(c for _, c, _ in central_items)
+    valor_stock_central = sum(c * p for _, c, p in central_items)
 
     # Recent transfers
     recent = sorted(transfers, key=lambda x: x.get("fecha", ""), reverse=True)[:20]
@@ -1769,6 +1856,7 @@ def admin_stock():
         "admin_stock.html",
         central=central_items,
         total_items=total_items_central,
+        valor_stock_central=valor_stock_central,
         sucursales_stock=sucursales_stock,
         transfers=recent,
         sucursales=SUCURSALES,
@@ -1797,7 +1885,8 @@ def stock_add():
 
     if item and cantidad > 0:
         if ubicacion == "central":
-            stock["central"][item] = stock["central"].get(item, 0) + cantidad
+            actual = get_central_qty(stock, item)
+            set_central_qty(stock, item, actual + cantidad)
             destino_label = "Central Dabra"
         else:
             if ubicacion not in stock["sucursales"]:
@@ -1828,15 +1917,17 @@ def stock_transfer():
 
     if item and cantidad > 0 and destino:
         # Check stock
-        disponible = stock["central"].get(item, 0)
+        disponible = get_central_qty(stock, item)
         if cantidad > disponible:
             flash(f"Stock insuficiente: hay {disponible} de {item}")
             return redirect(url_for("admin_stock"))
 
         # Transfer
-        stock["central"][item] -= cantidad
-        if stock["central"][item] <= 0:
-            del stock["central"][item]
+        nuevo = disponible - cantidad
+        if nuevo <= 0:
+            stock["central"][item]["cantidad"] = 0
+        else:
+            stock["central"][item]["cantidad"] = nuevo
 
         if destino not in stock["sucursales"]:
             stock["sucursales"][destino] = {}
@@ -1873,6 +1964,26 @@ def stock_transfer():
     return redirect(url_for("admin_stock"))
 
 
+@app.route("/admin/stock/precio", methods=["POST"])
+@login_required
+def stock_precio():
+    stock = load_stock()
+    item = request.form.get("item", "").strip()
+    precio_raw = request.form.get("precio_unitario", "").strip().replace(",", ".")
+    if not item:
+        flash("Item no especificado")
+        return redirect(url_for("admin_stock"))
+    try:
+        precio = float(precio_raw) if precio_raw else 0.0
+    except ValueError:
+        flash("Precio invalido")
+        return redirect(url_for("admin_stock"))
+    set_central_precio(stock, item, precio)
+    save_stock(stock)
+    flash(f"Precio actualizado: {item} → ${precio:,.2f}")
+    return redirect(request.form.get("next") or url_for("admin_stock"))
+
+
 @app.route("/admin/stock/item")
 @login_required
 def admin_stock_item():
@@ -1882,7 +1993,8 @@ def admin_stock_item():
         return redirect(url_for("admin_stock"))
 
     stock = load_stock()
-    stock_actual = stock.get("central", {}).get(item, 0)
+    stock_actual = get_central_qty(stock, item)
+    precio_unitario = get_central_precio(stock, item)
     stock_sucursales = {
         suc: items.get(item, 0)
         for suc, items in stock.get("sucursales", {}).items()
@@ -1918,6 +2030,7 @@ def admin_stock_item():
         "admin_stock_item.html",
         item=item,
         stock_actual=stock_actual,
+        precio_unitario=precio_unitario,
         stock_sucursales=stock_sucursales,
         movimientos=movs,
         total_egresos=total_egresos,
@@ -2025,6 +2138,9 @@ def admin_comprobantes():
 
     proveedores_unicos = sorted(set(c.get("proveedor", "") for c in comprobantes if c.get("proveedor")))
 
+    stock = load_stock()
+    stock_items = sorted(stock.get("central", {}).keys())
+
     return render_template(
         "admin_comprobantes.html",
         comprobantes=filtrados,
@@ -2036,6 +2152,7 @@ def admin_comprobantes():
         total_facturas=total_facturas,
         total_remitos=total_remitos,
         proveedores_unicos=proveedores_unicos,
+        stock_items=stock_items,
         ticket_pre=ticket_pre,
     )
 
@@ -2079,6 +2196,46 @@ def admin_comprobantes_nuevo():
         flash("Complete tipo, numero, fecha y proveedor")
         return redirect(url_for("admin_comprobantes"))
 
+    # Items asociados (items_factura): listas paralelas item_nombre[], item_cantidad[], item_precio[]
+    items_factura = []
+    item_names = request.form.getlist("item_nombre[]")
+    item_cants = request.form.getlist("item_cantidad[]")
+    item_precios = request.form.getlist("item_precio[]")
+    stock_data = None
+    for idx, nombre in enumerate(item_names):
+        nombre = (nombre or "").strip()
+        if not nombre:
+            continue
+        try:
+            cant = int(item_cants[idx]) if idx < len(item_cants) and item_cants[idx] else 0
+        except ValueError:
+            cant = 0
+        try:
+            precio = float((item_precios[idx] if idx < len(item_precios) else "0").replace(",", ".")) if item_precios[idx] else 0.0
+        except (ValueError, IndexError):
+            precio = 0.0
+        if cant <= 0 and precio <= 0:
+            continue
+        items_factura.append({"item": nombre, "cantidad": cant, "precio_unitario": precio})
+        # En facturas: sumar al stock central e impactar el precio_unitario del item
+        if tipo == "factura":
+            if stock_data is None:
+                stock_data = load_stock()
+            actual = get_central_qty(stock_data, nombre)
+            nueva_cant = actual + cant if cant > 0 else actual
+            set_central_qty(stock_data, nombre, nueva_cant, precio=precio if precio > 0 else None)
+            if cant > 0:
+                registrar_movimiento(
+                    item=nombre,
+                    tipo="ingreso",
+                    cantidad=cant,
+                    sucursal="Central Dabra",
+                    nota=f"Ingreso por factura {numero} ({proveedor})",
+                    precio_unitario=precio if precio > 0 else None,
+                )
+    if stock_data is not None:
+        save_stock(stock_data)
+
     comprobante = {
         "id": uuid.uuid4().hex[:12],
         "tipo": tipo,
@@ -2089,12 +2246,13 @@ def admin_comprobantes_nuevo():
         "descripcion": descripcion,
         "ticket_ids": ticket_ids,
         "archivo": archivo,
+        "items_factura": items_factura,
         "created_at": datetime.datetime.now().isoformat(),
         "cargado_por": session.get("nombre", ""),
     }
     data.setdefault("comprobantes", []).append(comprobante)
     save_comprobantes(data)
-    flash(f"Comprobante registrado: {tipo} #{numero}")
+    flash(f"Comprobante registrado: {tipo} #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))
     return redirect(url_for("admin_comprobantes"))
 
 
@@ -2108,6 +2266,98 @@ def admin_comprobantes_eliminar(cid):
         save_comprobantes(data)
         flash("Comprobante eliminado")
     return redirect(url_for("admin_comprobantes"))
+
+
+# --- Routes: Contable (imputacion por sucursal) ---
+
+def _tickets_imputados(tickets, desde="", hasta="", sucursal=""):
+    out = []
+    for t in tickets:
+        if "imputacion_monto" not in t:
+            continue
+        if t.get("estado") not in ("Resuelto", "Cerrado"):
+            continue
+        fecha_imp = (t.get("imputacion_fecha") or t.get("actualizado") or t.get("creado") or "")[:10]
+        if desde and fecha_imp < desde:
+            continue
+        if hasta and fecha_imp > hasta:
+            continue
+        if sucursal and t.get("sucursal") != sucursal:
+            continue
+        out.append(t)
+    return out
+
+
+@app.route("/admin/contable/reporte")
+@login_required
+def admin_contable_reporte():
+    tickets = load_tickets()
+    desde = request.args.get("desde", "").strip()
+    hasta = request.args.get("hasta", "").strip()
+    sucursal = request.args.get("sucursal", "").strip()
+    formato = request.args.get("formato", "").strip().lower()
+
+    imputados = _tickets_imputados(tickets, desde=desde, hasta=hasta, sucursal=sucursal)
+
+    # Agrupar por sucursal
+    por_suc = {}
+    for t in imputados:
+        suc = t.get("sucursal", "Sin sucursal")
+        fecha_imp = (t.get("imputacion_fecha") or t.get("actualizado") or t.get("creado") or "")[:10]
+        fila = {
+            "ticket_id": t.get("id"),
+            "item": t.get("imputacion_item", ""),
+            "cantidad": t.get("imputacion_cantidad", 0),
+            "precio_unitario": float(t.get("imputacion_precio_unitario", 0) or 0),
+            "subtotal": float(t.get("imputacion_monto", 0) or 0),
+            "fecha": fecha_imp,
+        }
+        grupo = por_suc.setdefault(suc, {"items": [], "total": 0.0, "cantidad_items": 0})
+        grupo["items"].append(fila)
+        grupo["total"] += fila["subtotal"]
+        grupo["cantidad_items"] += int(fila["cantidad"] or 0)
+
+    # Ordenar: sucursales por total desc, filas por fecha desc
+    for g in por_suc.values():
+        g["items"].sort(key=lambda x: x["fecha"], reverse=True)
+    reporte = sorted(por_suc.items(), key=lambda kv: kv[1]["total"], reverse=True)
+
+    total_general = sum(g["total"] for g in por_suc.values())
+
+    if formato == "csv":
+        import csv
+        import io
+        from flask import Response
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Sucursal", "Item", "Cantidad", "Precio Unit.", "Subtotal", "Fecha", "Ticket#"])
+        for suc_nom, grupo in reporte:
+            for fila in grupo["items"]:
+                writer.writerow([
+                    suc_nom,
+                    fila["item"],
+                    fila["cantidad"],
+                    f"{fila['precio_unitario']:.2f}",
+                    f"{fila['subtotal']:.2f}",
+                    fila["fecha"],
+                    fila["ticket_id"],
+                ])
+        nombre = datetime.datetime.now().strftime("tecman_contable_%Y%m%d.csv")
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment;filename={nombre}"},
+        )
+
+    return render_template(
+        "admin_contable.html",
+        reporte=reporte,
+        total_general=total_general,
+        desde=desde,
+        hasta=hasta,
+        sucursal=sucursal,
+        sucursales=SUCURSALES,
+    )
 
 
 @app.route("/admin/comprobantes/reporte")

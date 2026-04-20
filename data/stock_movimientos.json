@@ -1,3 +1,16 @@
 {
-  "movimientos": []
+  "movimientos": [
+    {
+      "id": "52fee4e37b6f",
+      "item": "Luminaria > Tubos LED",
+      "tipo": "egreso",
+      "cantidad": 5,
+      "fecha": "2026-04-20T19:57:51.760572",
+      "sucursal": "Sucursal 054",
+      "ticket_id": 28,
+      "nota": "Enviado por ticket #28 (Envio por encomienda)",
+      "monto_imputado": 22500.0,
+      "precio_unitario": 4500.0
+    }
+  ]
 }

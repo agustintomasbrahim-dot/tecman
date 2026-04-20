@@ -7,6 +7,7 @@
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
     <a href="{{ url_for('admin_comprobantes') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Comprobantes</a>
+    <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
     <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
@@ -84,9 +85,40 @@
             <label>Archivo (PDF, JPG, PNG)</label>
             <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
         </div>
-        <button type="submit" class="btn btn-primary">Guardar comprobante</button>
+
+        <!-- Items de factura -->
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5e7eb;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label style="font-weight: 600; color: #374151; font-size: 14px; margin: 0;">Items del comprobante</label>
+                <span style="font-size: 12px; color: #9ca3af;">En facturas: suma al stock central y actualiza el precio unitario del item</span>
+            </div>
+            <datalist id="items-stock-list">
+                {% for it in stock_items %}
+                <option value="{{ it }}">
+                {% endfor %}
+            </datalist>
+            <div id="items-factura-container"></div>
+            <button type="button" onclick="agregarItemFactura()" class="btn btn-outline" style="margin-top: 8px;">+ Agregar item</button>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Guardar comprobante</button>
     </form>
 </div>
+<script>
+function agregarItemFactura() {
+    var cont = document.getElementById('items-factura-container');
+    var row = document.createElement('div');
+    row.style.cssText = 'display: grid; grid-template-columns: 2fr 0.6fr 0.8fr 40px; gap: 8px; margin-bottom: 6px; align-items: center;';
+    row.innerHTML = ''
+      + '<input type="text" name="item_nombre[]" list="items-stock-list" placeholder="Item (ej: Luminaria > Tubos LED)" style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
+      + '<input type="number" name="item_cantidad[]" min="0" step="1" placeholder="Cant." style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
+      + '<input type="number" name="item_precio[]" min="0" step="0.01" placeholder="$ precio unit." style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
+      + '<button type="button" onclick="this.parentNode.remove()" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">X</button>';
+    cont.appendChild(row);
+}
+// Arranca con una fila vacia lista para usar
+agregarItemFactura();
+</script>
 
 <!-- Filtros -->
 <div class="card">
@@ -169,6 +201,18 @@
             {% if c.descripcion %}
             <tr>
                 <td colspan="8" style="color: #6b7280; font-size: 12px; padding-top: 0;">&nbsp;&nbsp;{{ c.descripcion }}</td>
+            </tr>
+            {% endif %}
+            {% if c.items_factura %}
+            <tr>
+                <td colspan="8" style="padding-top: 0; padding-bottom: 10px;">
+                    <div style="margin-left: 8px; padding: 8px 10px; background: #f9fafb; border-left: 3px solid #1d4ed8; border-radius: 4px;">
+                        <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Items</div>
+                        {% for it in c.items_factura %}
+                        <div style="font-size: 12px; color: #374151;">&bull; {{ it.item }} &mdash; {{ it.cantidad }} x $ {{ '{:,.2f}'.format(it.precio_unitario | float) }} = <strong>$ {{ '{:,.2f}'.format((it.cantidad | int) * (it.precio_unitario | float)) }}</strong></div>
+                        {% endfor %}
+                    </div>
+                </td>
             </tr>
             {% endif %}
             {% endfor %}

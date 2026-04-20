@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Contable{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('admin_contable_reporte') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Contable</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <div>
+        <h2>Reporte contable por sucursal</h2>
+        <p style="font-size: 13px; color: #6b7280; margin-top: 4px;">Imputacion de materiales enviados desde Central hacia cada sucursal</p>
+    </div>
+    <a href="{{ url_for('admin_contable_reporte', desde=desde, hasta=hasta, sucursal=sucursal, formato='csv') }}" class="btn btn-outline">&#128190; Descargar CSV</a>
+</div>
+
+<!-- Filtros -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Filtros</h3>
+    <form method="GET" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Desde</label>
+            <input type="date" name="desde" value="{{ desde }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Hasta</label>
+            <input type="date" name="hasta" value="{{ hasta }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        </div>
+        <div style="flex: 2; min-width: 200px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Sucursal</label>
+            <select name="sucursal" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <option value="">Todas</option>
+                {% for suc in sucursales %}
+                <option value="{{ suc }}" {% if sucursal == suc %}selected{% endif %}>{{ suc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="height: 42px;">Filtrar</button>
+        <a href="{{ url_for('admin_contable_reporte') }}" class="btn btn-outline" style="height: 42px; line-height: 22px;">Limpiar</a>
+    </form>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ reporte | length }}</div>
+        <div class="label">Sucursales con imputacion</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">$ {{ '{:,.0f}'.format(total_general or 0) }}</div>
+        <div class="label">Total imputado</div>
+    </div>
+</div>
+
+<!-- Resumen por sucursal -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Resumen por sucursal</h3>
+    {% if reporte %}
+    <table>
+        <thead>
+            <tr>
+                <th>Sucursal</th>
+                <th style="text-align: right;">Tickets</th>
+                <th style="text-align: right;">Items enviados</th>
+                <th style="text-align: right;">Total imputado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for suc, grupo in reporte %}
+            <tr style="cursor: pointer;" onclick="toggleDetalle('det-{{ loop.index }}')">
+                <td style="font-weight: 600;">{{ suc }}</td>
+                <td style="text-align: right;">{{ grupo['items'] | length }}</td>
+                <td style="text-align: right;">{{ grupo['cantidad_items'] }}</td>
+                <td style="text-align: right; font-weight: 700; color: #059669;">$ {{ '{:,.2f}'.format(grupo['total']) }}</td>
+            </tr>
+            <tr id="det-{{ loop.index }}" style="display: none;">
+                <td colspan="4" style="padding: 0;">
+                    <div style="padding: 10px 12px; background: #f9fafb; border-left: 3px solid #e63946;">
+                        <table style="margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Ticket</th>
+                                    <th>Item</th>
+                                    <th style="text-align: right;">Cant.</th>
+                                    <th style="text-align: right;">Precio unit.</th>
+                                    <th style="text-align: right;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for fila in grupo['items'] %}
+                                <tr>
+                                    <td style="color: #6b7280; font-size: 12px;">{{ fila.fecha }}</td>
+                                    <td style="font-size: 12px;"><a href="{{ url_for('admin_ticket', ticket_id=fila.ticket_id) }}" style="color: #e63946; text-decoration: none; font-weight: 600;">#{{ fila.ticket_id }}</a></td>
+                                    <td style="font-size: 12px;">{{ fila.item }}</td>
+                                    <td style="text-align: right; font-weight: 600;">{{ fila.cantidad }}</td>
+                                    <td style="text-align: right;">$ {{ '{:,.2f}'.format(fila.precio_unitario) }}</td>
+                                    <td style="text-align: right; font-weight: 700; color: {% if fila.subtotal > 0 %}#059669{% else %}#9ca3af{% endif %};">
+                                        {% if fila.subtotal > 0 %}$ {{ '{:,.2f}'.format(fila.subtotal) }}{% else %}sin precio{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p style="font-size: 12px; color: #9ca3af; margin-top: 12px;">Hace click en una fila para ver el detalle de items.</p>
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Sin imputaciones en el periodo seleccionado</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleDetalle(id) {
+    var row = document.getElementById(id);
+    if (!row) return;
+    row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
+}
+</script>
+
+{% endblock %}

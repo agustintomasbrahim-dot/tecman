@@ -7,6 +7,7 @@
     <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
     <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
     <a href="{{ url_for('admin_syh') }}">S&H</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
@@ -31,6 +32,10 @@
     <div class="stat-card">
         <div class="number">{{ sucursales_stock | length }}</div>
         <div class="label">Sucursales con stock</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">$ {{ '{:,.0f}'.format(valor_stock_central or 0) }}</div>
+        <div class="label">Valor stock central</div>
     </div>
 </div>
 
@@ -139,7 +144,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
             <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Item</label>
             <select name="item" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
                 <option value="">Seleccionar item...</option>
-                {% for item, cant in central %}
+                {% for item, cant, precio in central %}
                 <option value="{{ item }}">{{ item }} ({{ cant }} disponibles)</option>
                 {% endfor %}
             </select>
@@ -166,15 +171,24 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
     <h3 style="margin-bottom: 12px;">Stock Central Dabra</h3>
     {% if central %}
     <table>
-        <thead><tr><th>Item</th><th style="text-align: right;">Cantidad</th><th style="width: 40px;"></th></tr></thead>
+        <thead><tr><th>Item</th><th style="text-align: right;">Cantidad</th><th style="text-align: right;">Precio unitario</th><th style="text-align: right;">Valor</th><th style="width: 40px;"></th></tr></thead>
         <tbody>
-            {% for item, cant in central %}
-            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('admin_stock_item', item=item) }}'">
+            {% for item, cant, precio in central %}
+            <tr>
                 <td style="font-weight: 600;">
                     <a href="{{ url_for('admin_stock_item', item=item) }}" style="color: inherit; text-decoration: none;">{{ item }}</a>
                 </td>
                 <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% elif cant <= 5 %}#b45309{% else %}#1a1a2e{% endif %};">{{ cant }}</td>
-                <td style="text-align: right; color: #9ca3af;">&#128269;</td>
+                <td style="text-align: right;">
+                    <form method="POST" action="{{ url_for('stock_precio') }}" style="display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end;">
+                        <input type="hidden" name="item" value="{{ item }}">
+                        <span style="color: #6b7280;">$</span>
+                        <input type="number" name="precio_unitario" step="0.01" min="0" value="{{ '%.2f'|format(precio) }}" style="width: 110px; padding: 4px 6px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; text-align: right;">
+                        <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; padding: 4px 8px;">OK</button>
+                    </form>
+                </td>
+                <td style="text-align: right; color: #059669; font-weight: 600;">$ {{ '{:,.0f}'.format(cant * precio) }}</td>
+                <td style="text-align: right;"><a href="{{ url_for('admin_stock_item', item=item) }}" style="color: #9ca3af; text-decoration: none;">&#128269;</a></td>
             </tr>
             {% endfor %}
         </tbody>
