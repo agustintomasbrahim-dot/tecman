@@ -222,8 +222,8 @@ def _get_precio_historico(item_key, hasta=None):
         ingresos = [m for m in ingresos if m.get("fecha", "") <= hasta]
     if not ingresos:
         return None
-    # Ordenar por fecha descendente y tomar el mas reciente
-    ingresos.sort(key=lambda m: m.get("fecha", ""), reverse=True)
+    # FIFO: ordenar por fecha ascendente, tomar el mas antiguo (primera compra)
+    ingresos.sort(key=lambda m: m.get("fecha", ""))
     return float(ingresos[0].get("precio_unitario", 0))
 
 
