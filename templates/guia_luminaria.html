@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Guía de Luminaria{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-1">💡 Guía de Lámparas Básicas</h2>
+  <p class="text-muted mb-4">Referencia visual de artefactos y lámparas disponibles</p>
+
+  <div class="row g-4">
+
+    <!-- Artefacto de embutir 18w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image1.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Artefacto de Embutir 18w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 20 cm de diámetro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artefacto de embutir 24w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image2.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Artefacto de Embutir 24w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 30 cm de diámetro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artefacto de aplicar 18w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image3.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Artefacto de Aplicar 18w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 20 cm de diámetro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artefacto de aplicar 24w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image4.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Artefacto de Aplicar 24w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 30 cm de diámetro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tubo LED 18w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image5.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Tubo LED 18w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 1.20 m de longitud</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tubo LED 24w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image6.png') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Tubo LED 24w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 1.50 m de longitud</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tubo LED 45w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image7.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Tubo LED 45w</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 2.40 m de longitud</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zócalo GU10 -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image8.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Zócalo "GU10"</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — Para lámpara AR111</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lámpara AR111 -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image9.png') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Lámpara "AR111" 11W</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — Cálido</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lámpara PAR30 -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image10.png') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Lámpara "PAR30" 11W</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — Cálido</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lámpara globo chica -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image11.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Lámpara "Globo" 9W</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — Cálido — Rosca chica</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lámpara campana -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image12.png') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Lámpara "Campana" 60W</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — Frío — Rosca grande</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artefacto embutir cuadrado 12w -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image13.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Artefacto Embutir Cuadrado 12W</p>
+          <p class="card-text text-muted" style="font-size:12px;">Frío, Cálido o Neutro — 17×17 cm</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lámpara HQI -->
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <img src="{{ url_for('static', filename='lamparas/image14.jpeg') }}" class="card-img-top p-2" style="object-fit:contain; height:160px;">
+        <div class="card-body p-2">
+          <p class="card-title fw-bold mb-1" style="font-size:13px;">Lámpara "HQI" 70W / 150W</p>
+          <p class="card-text text-muted" style="font-size:12px;">220V — 70W: 11 cm / 150W: 13 cm longitud</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="mt-4">
+    <a href="javascript:history.back()" class="btn btn-secondary btn-sm">← Volver</a>
+  </div>
+</div>
+{% endblock %}

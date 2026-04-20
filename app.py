@@ -1837,5 +1837,10 @@ def api_categorias():
     return jsonify(CATEGORIAS.get(cat, []))
 
 
+@app.route("/guia-luminaria")
+def guia_luminaria():
+    return render_template("guia_luminaria.html")
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)
