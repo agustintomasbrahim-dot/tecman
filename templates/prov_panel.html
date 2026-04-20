@@ -38,6 +38,49 @@
     </div>
 </div>
 
+<!-- Trabajos pendientes con materiales (vinculados a un pedido de materiales) -->
+{% if trabajos_materiales %}
+<h3 style="color: #0ea5e9; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">&#128230; Trabajos pendientes con materiales</h3>
+<div style="display: grid; gap: 12px; margin-bottom: 24px;">
+    {% for t in trabajos_materiales %}
+    {% set etapa = t.get('etapa_prov', 'pendiente') %}
+    <div class="card" style="padding: 16px; border-left: 4px solid #0ea5e9;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
+            <span class="badge" style="background: {% if etapa == 'en_camino' %}rgba(14,165,233,0.2); color: #38bdf8{% elif etapa == 'trabajo_iniciado' %}rgba(245,158,11,0.2); color: #fbbf24{% elif etapa == 'trabajo_terminado' %}rgba(16,185,129,0.2); color: #34d399{% else %}rgba(100,116,139,0.2); color: #94a3b8{% endif %};">
+                {% if etapa == 'en_camino' %}&#128666; En camino{% elif etapa == 'trabajo_iniciado' %}&#128296; Trabajo iniciado{% elif etapa == 'trabajo_terminado' %}&#10004; Trabajo terminado{% else %}Pendiente{% endif %}
+            </span>
+        </div>
+        <h3 style="font-size: 16px; color: #f1f5f9; margin-bottom: 6px;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}...{% endif %}</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; font-size: 13px; margin-bottom: 12px; flex-wrap: wrap; gap: 4px;">
+            <span>{{ t.sucursal }} &bull; {{ t.creado[:10] }}</span>
+            <span>
+                {% if t.origen_ticket_id %}<a href="{{ url_for('estado_ticket', ticket_id=t.origen_ticket_id) }}" style="color: #94a3b8;">Origen #{{ t.origen_ticket_id }}</a> &bull; {% endif %}
+                <span style="color: #e63946; font-weight: 700;">#{{ t.id }}</span>
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+            <form method="POST" action="{{ url_for('prov_ticket', ticket_id=t.id) }}">
+                <input type="hidden" name="accion" value="en_camino">
+                <button type="submit" class="btn btn-sm btn-block" style="background: {% if etapa == 'en_camino' %}#0ea5e9{% else %}#1a1a2e{% endif %}; color: white; padding: 10px 4px; font-size: 12px;">&#128666; En camino</button>
+            </form>
+            <form method="POST" action="{{ url_for('prov_ticket', ticket_id=t.id) }}">
+                <input type="hidden" name="accion" value="trabajo_iniciado">
+                <button type="submit" class="btn btn-sm btn-block" style="background: {% if etapa == 'trabajo_iniciado' %}#f59e0b{% else %}#1a1a2e{% endif %}; color: white; padding: 10px 4px; font-size: 12px;">&#128296; Iniciado</button>
+            </form>
+            <form method="POST" action="{{ url_for('prov_ticket', ticket_id=t.id) }}" onsubmit="return confirm('Confirmar trabajo TERMINADO?');">
+                <input type="hidden" name="accion" value="trabajo_terminado">
+                <button type="submit" class="btn btn-sm btn-block" style="background: {% if etapa == 'trabajo_terminado' %}#10b981{% else %}#e63946{% endif %}; color: white; padding: 10px 4px; font-size: 12px;">&#10004; Terminado</button>
+            </form>
+        </div>
+        <div style="margin-top: 8px; text-align: right;">
+            <a href="{{ url_for('prov_ticket', ticket_id=t.id) }}" style="color: #64748b; font-size: 12px;">Ver detalle &rsaquo;</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Pendientes -->
 {% if pendientes %}
 <h3 style="color: #f59e0b; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">&#9888; Trabajos pendientes</h3>
@@ -68,7 +111,7 @@
     </a>
     {% endfor %}
 </div>
-{% else %}
+{% elif not trabajos_materiales %}
 <div class="card" style="text-align: center; padding: 48px;">
     <div style="font-size: 48px; margin-bottom: 12px;">&#9989;</div>
     <h3 style="color: #34d399;">Sin trabajos pendientes</h3>

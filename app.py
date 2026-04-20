@@ -277,6 +277,20 @@ def get_proveedores_para_sucursal(suc_num):
     return nombres
 
 
+def get_proveedor_abono_sucursal(suc_num):
+    """Devuelve el nombre del primer proveedor 'fijo' (del abono) asignado
+    a la sucursal, o None si no hay."""
+    suc_num = str(suc_num).strip()
+    suc_num_sin_cero = suc_num.lstrip("0")
+    for p in PROVEEDORES:
+        if not p.get("fijo"):
+            continue
+        for s in p.get("sucursales", []):
+            if suc_num and (suc_num in s or (suc_num_sin_cero and suc_num_sin_cero in s)):
+                return p["nombre"]
+    return None
+
+
 def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
@@ -517,6 +531,44 @@ def confirmar_recepcion(ticket_id):
         "fecha": datetime.datetime.now().isoformat(),
         "texto": f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales. Ya cuenta con los materiales.",
     })
+
+    # Si la sucursal eligio "Proveedor del abono", crear ticket vinculado
+    if siguiente_paso == "proveedor_abono":
+        suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
+        prov_abono = get_proveedor_abono_sucursal(suc_num)
+        if prov_abono:
+            now_iso = datetime.datetime.now().isoformat()
+            new_id = next_ticket_id(tickets)
+            descripcion_nueva = (ticket.get("descripcion", "") or "").strip()
+            descripcion_nueva += "\n\nRequiere trabajo con materiales recibidos"
+            nuevo = {
+                "id": new_id,
+                "tipo": "trabajo_proveedor",
+                "sucursal": ticket["sucursal"],
+                "origen_ticket_id": ticket["id"],
+                "descripcion": descripcion_nueva,
+                "estado": "Nuevo",
+                "asignado_proveedor": prov_abono,
+                "asignado": prov_abono,
+                "prioridad": ticket.get("prioridad", 3),
+                "creado": now_iso,
+                "actualizado": now_iso,
+                "categoria": "Trabajo con materiales",
+                "subcategoria": ticket.get("subcategoria", ""),
+                "fotos": [],
+                "notas": [{
+                    "autor": "Sistema",
+                    "fecha": now_iso,
+                    "texto": f"Ticket generado automaticamente desde pedido de materiales #{ticket['id']}",
+                }],
+            }
+            tickets.append(nuevo)
+            ticket["trabajo_proveedor_ticket_id"] = new_id
+            ticket["notas"].append({
+                "autor": "Sistema",
+                "fecha": now_iso,
+                "texto": f"Se creo ticket #{new_id} asignado a {prov_abono} para ejecutar el trabajo",
+            })
 
     save_tickets(tickets)
     flash("Recepcion confirmada")
@@ -797,7 +849,9 @@ def prov_panel():
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
     mis_tickets = [t for t in tickets if t.get("asignado") == prov_nombre and t["estado"] not in ("Cerrado",)]
-    pendientes = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
+    pendientes_todo = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
+    trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
+    pendientes = [t for t in pendientes_todo if t.get("tipo") != "trabajo_proveedor"]
     resueltos = [t for t in mis_tickets if t["estado"] == "Resuelto"]
 
     # Notifications for provider
@@ -811,6 +865,7 @@ def prov_panel():
     return render_template(
         "prov_panel.html",
         pendientes=pendientes,
+        trabajos_materiales=trabajos_materiales,
         resueltos=resueltos,
         prioridades=PRIORIDADES,
         notificaciones=notif_prov,
@@ -839,6 +894,9 @@ def prov_ticket(ticket_id):
             "esperando_materiales": ("Esperando materiales", "Pendiente"),
             "esperando_presupuesto": ("Esperando aprobacion de presupuesto", "Pendiente"),
             "hecho": ("Hecho", "Resuelto"),
+            "en_camino": ("En camino", "En progreso"),
+            "trabajo_iniciado": ("Trabajo iniciado", "En progreso"),
+            "trabajo_terminado": ("Trabajo terminado", "Resuelto"),
         }
 
         if accion in etapa_labels:
@@ -867,6 +925,24 @@ def prov_ticket(ticket_id):
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": nota_texto,
             })
+
+            # Si es un trabajo de proveedor vinculado a un pedido de materiales,
+            # avisar al ticket origen (especialmente al terminar).
+            if ticket.get("tipo") == "trabajo_proveedor" and ticket.get("origen_ticket_id"):
+                origen = next((x for x in tickets if x["id"] == ticket["origen_ticket_id"]), None)
+                if origen is not None:
+                    if "notas" not in origen:
+                        origen["notas"] = []
+                    if accion == "trabajo_terminado":
+                        origen_texto = f"{prov_nombre} marco el trabajo como TERMINADO (ticket #{ticket['id']})"
+                    else:
+                        origen_texto = f"{prov_nombre} actualizo el trabajo: {label} (ticket #{ticket['id']})"
+                    origen["notas"].append({
+                        "autor": "Sistema",
+                        "fecha": datetime.datetime.now().isoformat(),
+                        "texto": origen_texto,
+                    })
+                    origen["actualizado"] = datetime.datetime.now().isoformat()
         elif accion == "nota":
             nota = request.form.get("nota", "").strip()
             if nota:
@@ -1567,6 +1643,13 @@ def admin_pedido(ticket_id):
         flash("Pedido actualizado")
         return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
+    trabajo_prov_ticket = None
+    if ticket.get("trabajo_proveedor_ticket_id"):
+        trabajo_prov_ticket = next(
+            (x for x in tickets if x["id"] == ticket["trabajo_proveedor_ticket_id"]),
+            None,
+        )
+
     return render_template(
         "admin_pedido.html",
         ticket=ticket,
@@ -1574,6 +1657,7 @@ def admin_pedido(ticket_id):
         es_amba=es_amba,
         prioridades=PRIORIDADES,
         proveedores_sucursal=proveedores_sucursal,
+        trabajo_prov_ticket=trabajo_prov_ticket,
     )
 
 

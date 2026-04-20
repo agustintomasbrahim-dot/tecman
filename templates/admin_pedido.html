@@ -45,6 +45,24 @@
     </div>
 </div>
 
+{% if trabajo_prov_ticket %}
+{% set tp = trabajo_prov_ticket %}
+{% set etapa_tp = tp.get('etapa_prov', 'pendiente') %}
+{% set etapa_label = {'pendiente': 'Pendiente', 'en_camino': 'En camino', 'trabajo_iniciado': 'Trabajo iniciado', 'trabajo_terminado': 'Trabajo terminado', 'recibido': 'Recibido', 'planificado': 'Planificado', 'relevado': 'Relevado', 'en_progreso_prov': 'En progreso', 'esperando_materiales': 'Esperando materiales', 'hecho': 'Hecho'}.get(etapa_tp, etapa_tp) %}
+<div class="card" style="border-left: 4px solid #0ea5e9;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <h3 style="margin-bottom: 4px;">Trabajo del proveedor vinculado</h3>
+            <p style="color: #6b7280; font-size: 13px;">Ticket #{{ tp.id }} &bull; Asignado a <strong>{{ tp.asignado_proveedor or tp.asignado }}</strong></p>
+        </div>
+        <span class="badge" style="background: {% if etapa_tp == 'trabajo_terminado' or etapa_tp == 'hecho' %}#d1fae5; color: #065f46{% elif etapa_tp == 'trabajo_iniciado' %}#fef3c7; color: #b45309{% elif etapa_tp == 'en_camino' %}#dbeafe; color: #1d4ed8{% else %}#e5e7eb; color: #374151{% endif %};">{{ etapa_label }}</span>
+    </div>
+    <div style="margin-top: 8px; font-size: 13px; color: #6b7280;">
+        Estado: <strong>{{ tp.estado }}</strong> &bull; Actualizado: {{ tp.actualizado[:16].replace('T', ' ') }}
+    </div>
+</div>
+{% endif %}
+
 <!-- Stock disponible -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Stock Central disponible</h3>
