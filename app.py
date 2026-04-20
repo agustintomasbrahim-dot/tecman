@@ -1519,7 +1519,7 @@ def admin_syh_edit(suc_num):
 def admin_pedidos():
     tickets = load_tickets()
     # Filter material tickets assigned to Jonathan
-    pedidos = [t for t in tickets if t.get("categoria") == "Materiales" and t["estado"] not in ("Cerrado",)]
+    pedidos = [t for t in tickets if (t.get("categoria") in ("Materiales", "Solicitud de materiales") or t.get("tipo") == "materiales") and t["estado"] not in ("Cerrado",)]
     pendientes = [t for t in pedidos if t["estado"] in ("Nuevo", "Abierto")]
     en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Pendiente")]
     resueltos = [t for t in pedidos if t["estado"] == "Resuelto"]
