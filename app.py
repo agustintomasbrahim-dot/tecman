@@ -427,6 +427,7 @@ def nuevo_ticket():
         if categoria == "Materiales":
             ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
             ticket["subitem_mat"] = request.form.get("subitem_mat", "").strip()
+            ticket["cantidad_mat"] = request.form.get("cantidad_mat", "1").strip()
 
         tickets.append(ticket)
         save_tickets(tickets)

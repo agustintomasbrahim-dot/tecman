@@ -26,7 +26,7 @@
     </div>
     {% if ticket.categoria_mat %}
     <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #ede9fe; border: 1px solid #ddd6fe;">
-        <strong style="color: #6d28d9;">Tipo:</strong> {{ ticket.categoria_mat }}{% if ticket.subitem_mat %} &rsaquo; {{ ticket.subitem_mat }}{% endif %}
+        <strong style="color: #6d28d9;">Tipo:</strong> {{ ticket.categoria_mat }}{% if ticket.subitem_mat %} &rsaquo; {{ ticket.subitem_mat }}{% endif %}{% if ticket.cantidad_mat %} &mdash; <strong>Cantidad: {{ ticket.cantidad_mat }}</strong>{% endif %}
     </div>
     {% endif %}
     {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}
