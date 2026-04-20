@@ -33,27 +33,99 @@
 <!-- Agregar item -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Agregar al stock</h3>
-    <form method="POST" action="{{ url_for('stock_add') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
-        <div style="flex: 2; min-width: 200px;">
-            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Item</label>
-            <input type="text" name="item" placeholder="Ej: Luminaria LED 60cm" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+    <form method="POST" action="{{ url_for('stock_add') }}" id="stock-add-form">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 2; min-width: 200px;">
+                <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Categoria</label>
+                <select name="categoria_mat" id="cat-mat-select" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                    <option value="">Seleccionar categoria...</option>
+                    {% for cat in material_categorias %}
+                    <option value="{{ cat.nombre }}" data-has-items="{{ '1' if cat.items else '0' }}" data-guia-archivo="{{ cat.guia.archivo if cat.guia else '' }}" data-guia-titulo="{{ cat.guia.titulo if cat.guia else '' }}">{{ cat.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex: 2; min-width: 200px;" id="subitem-wrap" hidden>
+                <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Sub-item</label>
+                <select name="subitem" id="subitem-select" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                    <option value="">Seleccionar...</option>
+                </select>
+            </div>
+            <div style="flex: 2; min-width: 200px;" id="item-libre-wrap">
+                <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Item (texto libre, opcional)</label>
+                <input type="text" name="item" placeholder="Solo si no hay categoria" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+            </div>
+            <div style="flex: 0.5; min-width: 80px;">
+                <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Cantidad</label>
+                <input type="number" name="cantidad" min="1" value="1" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+                <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Ubicacion</label>
+                <select name="ubicacion" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                    <option value="central">Central Dabra</option>
+                    {% for suc in sucursales %}
+                    <option value="{{ suc }}">{{ suc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="height: 42px;">Agregar</button>
         </div>
-        <div style="flex: 0.5; min-width: 80px;">
-            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Cantidad</label>
-            <input type="number" name="cantidad" min="1" value="1" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+        <!-- Placeholder guia -->
+        <div id="guia-box" style="display: none; margin-top: 10px; padding: 10px 12px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 8px; font-size: 13px; color: #92400e;">
+            <span id="guia-content"></span>
         </div>
-        <div style="flex: 1; min-width: 150px;">
-            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Ubicacion</label>
-            <select name="ubicacion" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
-                <option value="central">Central Dabra</option>
-                {% for suc in sucursales %}
-                <option value="{{ suc }}">{{ suc }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="btn btn-primary" style="height: 42px;">Agregar</button>
     </form>
 </div>
+
+<!-- Mapa de sub-items por categoria para el JS -->
+<script>
+var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
+
+(function() {
+    var catSel = document.getElementById('cat-mat-select');
+    var subWrap = document.getElementById('subitem-wrap');
+    var subSel = document.getElementById('subitem-select');
+    var libreWrap = document.getElementById('item-libre-wrap');
+    var guiaBox = document.getElementById('guia-box');
+    var guiaContent = document.getElementById('guia-content');
+
+    catSel.addEventListener('change', function() {
+        var opt = this.options[this.selectedIndex];
+        var hasItems = opt.getAttribute('data-has-items') === '1';
+        var guiaArchivo = opt.getAttribute('data-guia-archivo') || '';
+        var guiaTitulo = opt.getAttribute('data-guia-titulo') || '';
+
+        subSel.innerHTML = '<option value="">Seleccionar...</option>';
+        if (this.value && hasItems) {
+            var cat = MATERIAL_CATEGORIAS.find(function(c) { return c.nombre === catSel.value; });
+            if (cat) {
+                cat.items.forEach(function(it) {
+                    var o = document.createElement('option');
+                    o.value = it;
+                    o.textContent = it;
+                    subSel.appendChild(o);
+                });
+            }
+            subWrap.removeAttribute('hidden');
+            libreWrap.style.display = 'none';
+        } else {
+            subWrap.setAttribute('hidden', '');
+            libreWrap.style.display = this.value ? 'none' : 'block';
+        }
+
+        // Guia
+        if (this.value && guiaTitulo) {
+            if (guiaArchivo) {
+                guiaContent.innerHTML = '&#128206; <a href="/static/' + guiaArchivo + '" target="_blank" style="color: #92400e; font-weight: 600;">' + guiaTitulo + '</a>';
+            } else {
+                guiaContent.innerHTML = '&#128206; ' + guiaTitulo + ' <em>(proximamente)</em>';
+            }
+            guiaBox.style.display = 'block';
+        } else {
+            guiaBox.style.display = 'none';
+        }
+    });
+})();
+</script>
 
 <!-- Transferencia -->
 <div class="card">

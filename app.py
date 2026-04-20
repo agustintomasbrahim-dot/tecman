@@ -1531,6 +1531,8 @@ def admin_pedido(ticket_id):
 @app.route("/admin/stock")
 @login_required
 def admin_stock():
+    from categories_data import MATERIAL_CATEGORIAS
+
     stock = load_stock()
     transfers = load_transfers()
     central = stock.get("central", {})
@@ -1550,6 +1552,7 @@ def admin_stock():
         sucursales_stock=sucursales_stock,
         transfers=recent,
         sucursales=SUCURSALES,
+        material_categorias=MATERIAL_CATEGORIAS,
     )
 
 
@@ -1557,7 +1560,18 @@ def admin_stock():
 @login_required
 def stock_add():
     stock = load_stock()
-    item = request.form.get("item", "").strip()
+    # El item puede venir armado desde categoria + subitem o como texto libre.
+    categoria = request.form.get("categoria_mat", "").strip()
+    subitem = request.form.get("subitem", "").strip()
+    item_libre = request.form.get("item", "").strip()
+
+    if categoria and subitem:
+        item = f"{categoria} > {subitem}"
+    elif categoria:
+        item = categoria
+    else:
+        item = item_libre
+
     cantidad = int(request.form.get("cantidad", 0))
     ubicacion = request.form.get("ubicacion", "central")
 
