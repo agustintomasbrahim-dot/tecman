@@ -1528,10 +1528,30 @@ def admin_pedido(ticket_id):
         elif accion == "enviado":
             ticket["estado"] = "Resuelto"
             metodo = ticket.get("metodo_envio", "")
+            # Descontar del stock central
+            cat = ticket.get("categoria_mat", "")
+            subitem = ticket.get("subitem_mat", "")
+            try:
+                cantidad_env = int(ticket.get("cantidad_mat", 1))
+            except (ValueError, TypeError):
+                cantidad_env = 1
+            item_key = f"{cat} > {subitem}" if subitem else cat
+            if item_key:
+                stock_data = load_stock()
+                disponible = stock_data["central"].get(item_key, 0)
+                nuevo = max(0, disponible - cantidad_env)
+                if nuevo == 0:
+                    stock_data["central"].pop(item_key, None)
+                else:
+                    stock_data["central"][item_key] = nuevo
+                save_stock(stock_data)
+                descuento_txt = f" | Stock descontado: '{item_key}' -{cantidad_env} (quedaron {nuevo})"
+            else:
+                descuento_txt = ""
             ticket["notas"].append({
                 "autor": session.get("nombre", "Jonathan"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Material enviado a sucursal ({metodo})",
+                "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}",
             })
             # Notify sucursal
             if "notificaciones" not in ticket:
