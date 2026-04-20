@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Stock: {{ item }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    <a href="{{ url_for('admin_syh') }}">S&H</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <a href="{{ url_for('admin_stock') }}" style="color: #6b7280; font-size: 13px; text-decoration: none;">&larr; Volver al stock</a>
+        <h2 style="margin-top: 4px;">{{ item }}</h2>
+    </div>
+    <div style="text-align: right;">
+        <div style="font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;">Stock central actual</div>
+        <div style="font-size: 32px; font-weight: 800; color: {% if stock_actual <= 2 %}#dc2626{% elif stock_actual <= 5 %}#b45309{% else %}#1a1a2e{% endif %};">{{ stock_actual }}</div>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #dc2626;">{{ total_egresos }}</div>
+        <div class="label">Total enviado</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #065f46;">{{ total_ingresos }}</div>
+        <div class="label">Total recibido</div>
+    </div>
+    <div class="stat-card">
+        <div class="number">{{ movs_mes }}</div>
+        <div class="label">Movimientos este mes</div>
+    </div>
+    <div class="stat-card">
+        <div class="number">{{ movimientos | length }}</div>
+        <div class="label">Movimientos totales</div>
+    </div>
+</div>
+
+{% if stock_sucursales %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Stock en sucursales</h3>
+    <table>
+        <thead><tr><th>Sucursal</th><th style="text-align: right;">Cantidad</th></tr></thead>
+        <tbody>
+            {% for suc, cant in stock_sucursales.items() %}
+            <tr>
+                <td>{{ suc }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ cant }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if egresos_por_mes %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Egresos por mes</h3>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+        {% for ym, cant in egresos_por_mes %}
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 70px; font-size: 12px; color: #6b7280; flex-shrink: 0;">{{ ym }}</div>
+            <div style="flex: 1; background: #f3f4f6; border-radius: 6px; height: 22px; position: relative; overflow: hidden;">
+                <div style="background: #e63946; height: 100%; width: {{ (cant / max_egreso_mes * 100) if max_egreso_mes else 0 }}%; border-radius: 6px; transition: width 0.3s;"></div>
+            </div>
+            <div style="width: 50px; text-align: right; font-weight: 700; font-size: 14px;">{{ cant }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <h3>Historial de movimientos</h3>
+        {% if anios_disponibles %}
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="anio-filter" style="font-size: 12px; color: #6b7280;">Año:</label>
+            <select id="anio-filter" style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">
+                <option value="">Todos</option>
+                {% for a in anios_disponibles %}
+                <option value="{{ a }}">{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if movimientos %}
+    <table id="mov-table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th style="text-align: right;">Cant.</th>
+                <th>Sucursal</th>
+                <th>Ticket</th>
+                <th>Nota</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in movimientos %}
+            <tr data-anio="{{ m.fecha[:4] }}">
+                <td style="color: #6b7280; font-size: 12px; white-space: nowrap;">{{ m.fecha[:10] }} {{ m.fecha[11:16] }}</td>
+                <td>
+                    {% if m.tipo == 'ingreso' %}
+                    <span class="badge" style="background: #d1fae5; color: #065f46;">Ingreso</span>
+                    {% else %}
+                    <span class="badge" style="background: #fee2e2; color: #dc2626;">Egreso</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right; font-weight: 700;">{{ m.cantidad }}</td>
+                <td style="font-size: 12px;">{{ m.sucursal or '-' }}</td>
+                <td style="font-size: 12px;">
+                    {% if m.ticket_id %}
+                    <a href="{{ url_for('admin_ticket', ticket_id=m.ticket_id) }}" style="color: #e63946; text-decoration: none; font-weight: 600;">#{{ m.ticket_id }}</a>
+                    {% else %}-{% endif %}
+                </td>
+                <td style="font-size: 12px; color: #6b7280;">{{ m.nota or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Sin movimientos registrados</p>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    var sel = document.getElementById('anio-filter');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+        var anio = this.value;
+        var rows = document.querySelectorAll('#mov-table tbody tr');
+        rows.forEach(function(r) {
+            r.style.display = (!anio || r.getAttribute('data-anio') === anio) ? '' : 'none';
+        });
+    });
+})();
+</script>
+
+{% endblock %}

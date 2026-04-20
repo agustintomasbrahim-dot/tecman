@@ -14,7 +14,10 @@
 {% endblock %}
 {% block content %}
 
-<h2 style="margin-bottom: 16px;">Stock / Deposito</h2>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+    <h2>Stock / Deposito</h2>
+    <a href="{{ url_for('admin_stock_movimientos') }}" class="btn" style="background: #f3f4f6; color: #374151;">Ver historial de movimientos</a>
+</div>
 
 <div class="stats">
     <div class="stat-card">
@@ -163,12 +166,15 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
     <h3 style="margin-bottom: 12px;">Stock Central Dabra</h3>
     {% if central %}
     <table>
-        <thead><tr><th>Item</th><th style="text-align: right;">Cantidad</th></tr></thead>
+        <thead><tr><th>Item</th><th style="text-align: right;">Cantidad</th><th style="width: 40px;"></th></tr></thead>
         <tbody>
             {% for item, cant in central %}
-            <tr>
-                <td style="font-weight: 600;">{{ item }}</td>
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('admin_stock_item', item=item) }}'">
+                <td style="font-weight: 600;">
+                    <a href="{{ url_for('admin_stock_item', item=item) }}" style="color: inherit; text-decoration: none;">{{ item }}</a>
+                </td>
                 <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% elif cant <= 5 %}#b45309{% else %}#1a1a2e{% endif %};">{{ cant }}</td>
+                <td style="text-align: right; color: #9ca3af;">&#128269;</td>
             </tr>
             {% endfor %}
         </tbody>

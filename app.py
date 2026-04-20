@@ -27,6 +27,7 @@ TICKETS_FILE = DATA_DIR / "tickets.json"
 STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
+STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -140,6 +141,31 @@ def load_comprobantes():
 def save_comprobantes(data):
     COMPROBANTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+def load_movimientos():
+    if STOCK_MOV_FILE.exists():
+        return json.loads(STOCK_MOV_FILE.read_text())
+    return {"movimientos": []}
+
+def save_movimientos(data):
+    STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota=""):
+    """Registra un movimiento de stock (ingreso o egreso)."""
+    if not item or not tipo or not cantidad:
+        return
+    data = load_movimientos()
+    data.setdefault("movimientos", []).append({
+        "id": uuid.uuid4().hex[:12],
+        "item": item,
+        "tipo": tipo,
+        "cantidad": int(cantidad),
+        "fecha": datetime.datetime.now().isoformat(),
+        "sucursal": sucursal or "",
+        "ticket_id": ticket_id,
+        "nota": nota or "",
+    })
+    save_movimientos(data)
+
 # Sucursal login: each sucursal has a unique password
 SUCURSAL_USERS = {}
 for suc in SUCURSALES:
@@ -231,7 +257,7 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 def _seed_data_dir():
     """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
     repo_data = Path(__file__).parent / "data"
-    for fname in ["tickets.json", "stock.json"]:
+    for fname in ["tickets.json", "stock.json", "stock_movimientos.json"]:
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
@@ -1671,6 +1697,14 @@ def admin_pedido(ticket_id):
                     stock_data["central"][item_key] = nuevo
                 save_stock(stock_data)
                 descuento_txt = f" | Stock descontado: '{item_key}' -{cantidad_env} (quedaron {nuevo})"
+                registrar_movimiento(
+                    item=item_key,
+                    tipo="egreso",
+                    cantidad=cantidad_env,
+                    sucursal=ticket.get("sucursal", ""),
+                    ticket_id=ticket.get("id"),
+                    nota=f"Enviado por ticket #{ticket.get('id')} ({metodo})" if metodo else f"Enviado por ticket #{ticket.get('id')}",
+                )
             else:
                 descuento_txt = ""
             ticket["notas"].append({
@@ -1764,11 +1798,20 @@ def stock_add():
     if item and cantidad > 0:
         if ubicacion == "central":
             stock["central"][item] = stock["central"].get(item, 0) + cantidad
+            destino_label = "Central Dabra"
         else:
             if ubicacion not in stock["sucursales"]:
                 stock["sucursales"][ubicacion] = {}
             stock["sucursales"][ubicacion][item] = stock["sucursales"][ubicacion].get(item, 0) + cantidad
+            destino_label = ubicacion
         save_stock(stock)
+        registrar_movimiento(
+            item=item,
+            tipo="ingreso",
+            cantidad=cantidad,
+            sucursal=destino_label,
+            nota=f"Ingreso manual a {destino_label} por {session.get('nombre', 'admin')}",
+        )
         flash(f"Agregado: {cantidad}x {item} en {ubicacion}")
     return redirect(url_for("admin_stock"))
 
@@ -1811,9 +1854,140 @@ def stock_transfer():
 
         save_stock(stock)
         save_transfers(transfers)
+        registrar_movimiento(
+            item=item,
+            tipo="egreso",
+            cantidad=cantidad,
+            sucursal=destino,
+            nota=f"Transferencia de Central a {destino}",
+        )
+        registrar_movimiento(
+            item=item,
+            tipo="ingreso",
+            cantidad=cantidad,
+            sucursal=destino,
+            nota=f"Recepcion por transferencia desde Central",
+        )
         flash(f"Transferido: {cantidad}x {item} → {destino}")
 
     return redirect(url_for("admin_stock"))
+
+
+@app.route("/admin/stock/item")
+@login_required
+def admin_stock_item():
+    item = request.args.get("item", "").strip()
+    if not item:
+        flash("Item no especificado")
+        return redirect(url_for("admin_stock"))
+
+    stock = load_stock()
+    stock_actual = stock.get("central", {}).get(item, 0)
+    stock_sucursales = {
+        suc: items.get(item, 0)
+        for suc, items in stock.get("sucursales", {}).items()
+        if items.get(item, 0) > 0
+    }
+
+    data = load_movimientos()
+    movs = [m for m in data.get("movimientos", []) if m.get("item") == item]
+    movs.sort(key=lambda m: m.get("fecha", ""), reverse=True)
+
+    total_egresos = sum(m["cantidad"] for m in movs if m.get("tipo") == "egreso")
+    total_ingresos = sum(m["cantidad"] for m in movs if m.get("tipo") == "ingreso")
+
+    hoy = datetime.datetime.now()
+    mes_actual = hoy.strftime("%Y-%m")
+    movs_mes = sum(1 for m in movs if m.get("fecha", "").startswith(mes_actual))
+
+    # Agrupar egresos por mes (YYYY-MM)
+    por_mes = {}
+    for m in movs:
+        if m.get("tipo") != "egreso":
+            continue
+        ym = m.get("fecha", "")[:7]
+        if not ym:
+            continue
+        por_mes[ym] = por_mes.get(ym, 0) + m.get("cantidad", 0)
+    egresos_por_mes = sorted(por_mes.items())
+    max_egreso_mes = max((c for _, c in egresos_por_mes), default=0)
+
+    anios_disponibles = sorted({m.get("fecha", "")[:4] for m in movs if m.get("fecha")}, reverse=True)
+
+    return render_template(
+        "admin_stock_item.html",
+        item=item,
+        stock_actual=stock_actual,
+        stock_sucursales=stock_sucursales,
+        movimientos=movs,
+        total_egresos=total_egresos,
+        total_ingresos=total_ingresos,
+        movs_mes=movs_mes,
+        egresos_por_mes=egresos_por_mes,
+        max_egreso_mes=max_egreso_mes,
+        anios_disponibles=anios_disponibles,
+    )
+
+
+@app.route("/admin/stock/movimientos")
+@login_required
+def admin_stock_movimientos():
+    data = load_movimientos()
+    movs = list(data.get("movimientos", []))
+
+    filtro_tipo = request.args.get("tipo", "").strip()
+    filtro_item = request.args.get("item", "").strip()
+    filtro_desde = request.args.get("desde", "").strip()
+    filtro_hasta = request.args.get("hasta", "").strip()
+    formato = request.args.get("formato", "").strip().lower()
+
+    if filtro_tipo:
+        movs = [m for m in movs if m.get("tipo") == filtro_tipo]
+    if filtro_item:
+        movs = [m for m in movs if filtro_item.lower() in m.get("item", "").lower()]
+    if filtro_desde:
+        movs = [m for m in movs if m.get("fecha", "")[:10] >= filtro_desde]
+    if filtro_hasta:
+        movs = [m for m in movs if m.get("fecha", "")[:10] <= filtro_hasta]
+
+    movs.sort(key=lambda m: m.get("fecha", ""), reverse=True)
+
+    if formato == "csv":
+        import csv
+        import io
+        from flask import Response
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Fecha", "Tipo", "Item", "Cantidad", "Sucursal", "Ticket", "Nota"])
+        for m in movs:
+            writer.writerow([
+                m.get("fecha", ""),
+                m.get("tipo", ""),
+                m.get("item", ""),
+                m.get("cantidad", 0),
+                m.get("sucursal", ""),
+                m.get("ticket_id") or "",
+                m.get("nota", ""),
+            ])
+        nombre = datetime.datetime.now().strftime("tecman_movimientos_%Y%m%d.csv")
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment;filename={nombre}"},
+        )
+
+    items_unicos = sorted({m.get("item", "") for m in data.get("movimientos", []) if m.get("item")})
+
+    return render_template(
+        "admin_stock_movimientos.html",
+        movimientos=movs,
+        filtro_tipo=filtro_tipo,
+        filtro_item=filtro_item,
+        filtro_desde=filtro_desde,
+        filtro_hasta=filtro_hasta,
+        items_unicos=items_unicos,
+    )
 
 
 # --- Routes: Comprobantes (facturas / remitos) ---
