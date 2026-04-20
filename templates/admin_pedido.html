@@ -45,64 +45,6 @@
     </div>
 </div>
 
-<!-- Gestion de retiro / envio -->
-{% if ticket.estado not in ('Resuelto', 'Cerrado') %}
-<div class="card">
-    <h3 style="margin-bottom: 12px;">Retiro / Envio del material</h3>
-    <form method="POST">
-        <input type="hidden" name="accion" value="gestion_retiro">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
-                <span><strong>Envio a sucursal</strong></span>
-            </label>
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
-                <span><strong>Retira proveedor</strong></span>
-            </label>
-        </div>
-        <div id="prov-group" style="display: {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}block{% else %}none{% endif %};">
-            <div class="form-group">
-                <label>Proveedor</label>
-                <select name="proveedor_nombre" id="prov-select">
-                    <option value="">Seleccionar proveedor...</option>
-                    {% for p in proveedores_sucursal %}
-                    <option value="{{ p }}" {% if ticket.proveedor_nombre == p %}selected{% endif %}>{{ p }}</option>
-                    {% endfor %}
-                    <option value="__otro__">Otro...</option>
-                </select>
-            </div>
-            <div id="prov-otro-group" style="display: none;">
-                <div class="form-group">
-                    <label>Nombre del proveedor</label>
-                    <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Detalle (contacto, telefono, observaciones)</label>
-                <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">Guardar retiro</button>
-    </form>
-</div>
-<script>
-(function() {
-    document.querySelectorAll('input[name="retiro_tipo"]').forEach(function(r) {
-        r.addEventListener('change', function() {
-            document.getElementById('prov-group').style.display = (this.value === 'proveedor') ? 'block' : 'none';
-        });
-    });
-    var sel = document.getElementById('prov-select');
-    if (sel) {
-        sel.addEventListener('change', function() {
-            document.getElementById('prov-otro-group').style.display = (this.value === '__otro__') ? 'block' : 'none';
-        });
-    }
-})();
-</script>
-{% endif %}
-
 <!-- Stock disponible -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Stock Central disponible</h3>
@@ -199,6 +141,64 @@
         <button type="submit" class="btn btn-primary btn-block">Material recibido - Confirmar envio</button>
     </form>
 </div>
+{% endif %}
+
+<!-- Gestion de retiro / envio -->
+{% if ticket.estado not in ('Nuevo', 'Abierto', 'Resuelto', 'Cerrado') %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Retiro / Envio del material</h3>
+    <form method="POST">
+        <input type="hidden" name="accion" value="gestion_retiro">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
+                <span><strong>Envio a sucursal</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
+                <span><strong>Retira proveedor</strong></span>
+            </label>
+        </div>
+        <div id="prov-group" style="display: {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}block{% else %}none{% endif %};">
+            <div class="form-group">
+                <label>Proveedor</label>
+                <select name="proveedor_nombre" id="prov-select">
+                    <option value="">Seleccionar proveedor...</option>
+                    {% for p in proveedores_sucursal %}
+                    <option value="{{ p }}" {% if ticket.proveedor_nombre == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                    <option value="__otro__">Otro...</option>
+                </select>
+            </div>
+            <div id="prov-otro-group" style="display: none;">
+                <div class="form-group">
+                    <label>Nombre del proveedor</label>
+                    <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Detalle (contacto, telefono, observaciones)</label>
+                <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar retiro</button>
+    </form>
+</div>
+<script>
+(function() {
+    document.querySelectorAll('input[name="retiro_tipo"]').forEach(function(r) {
+        r.addEventListener('change', function() {
+            document.getElementById('prov-group').style.display = (this.value === 'proveedor') ? 'block' : 'none';
+        });
+    });
+    var sel = document.getElementById('prov-select');
+    if (sel) {
+        sel.addEventListener('change', function() {
+            document.getElementById('prov-otro-group').style.display = (this.value === '__otro__') ? 'block' : 'none';
+        });
+    }
+})();
+</script>
 {% endif %}
 
 <!-- Historial -->
