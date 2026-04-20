@@ -1,5 +1,12 @@
 """Datos de sucursales Grupo Dabra/Dexter - extraido del listado oficial"""
 
+# Proveedores habituales por sucursal (para retiro directo de materiales).
+# Si una sucursal no figura aca, se toma el listado general PROVEEDORES de app.py.
+# Agustin puede completar/ajustar esta lista segun las necesidades reales.
+PROVEEDORES_SUCURSAL = {
+    # Ejemplo: "023": ["CEYH", "Martin Microglobal"],
+}
+
 SUCURSALES_INFO = {
     "011": {"marca": "MV", "tienda": "Moov Moov", "ciudad": "Moron", "provincia": "Buenos Aires", "direccion": "Av. 25 De Mayo 127", "lat": -34.6534, "lng": -58.6197},
     "014": {"marca": "DX", "tienda": "Shop Soleil", "ciudad": "San Isidro", "provincia": "Buenos Aires", "direccion": "B. Irigoyen 2647", "lat": -34.4724, "lng": -58.5118},

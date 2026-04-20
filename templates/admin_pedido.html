@@ -20,6 +20,13 @@
         <div><span style="color: #6b7280;">Zona:</span> {% if es_amba %}<span class="badge" style="background: #dbeafe; color: #1d4ed8;">AMBA</span>{% else %}<span class="badge" style="background: #fef3c7; color: #b45309;">Interior</span>{% endif %}</div>
         <div><span style="color: #6b7280;">Fecha:</span> {{ ticket.creado[:10] }}</div>
     </div>
+    {% if ticket.retiro_proveedor %}
+    <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: #fef3c7; border: 1px solid #fcd34d;">
+        <strong style="color: #b45309;">Retira PROVEEDOR:</strong>
+        <span>{{ ticket.proveedor_nombre or '(sin especificar)' }}</span>
+        {% if ticket.proveedor_detalle %}<div style="margin-top: 4px; color: #6b7280; font-size: 13px;">{{ ticket.proveedor_detalle }}</div>{% endif %}
+    </div>
+    {% endif %}
     <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
         <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
     </div>

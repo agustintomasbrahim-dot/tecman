@@ -241,6 +241,31 @@ def next_ticket_id(tickets):
     return max(t["id"] for t in tickets) + 1
 
 
+def get_proveedores_para_sucursal(suc_num):
+    """Devuelve la lista de nombres de proveedores que cubren la sucursal.
+    Prioriza PROVEEDORES_SUCURSAL (override manual) y si no hay, deriva
+    del listado general PROVEEDORES segun el campo 'sucursales'."""
+    try:
+        from sucursales_data import PROVEEDORES_SUCURSAL
+    except ImportError:
+        PROVEEDORES_SUCURSAL = {}
+
+    suc_num = str(suc_num).strip()
+    override = PROVEEDORES_SUCURSAL.get(suc_num)
+    if override:
+        return list(override)
+
+    nombres = []
+    suc_num_sin_cero = suc_num.lstrip("0")
+    for p in PROVEEDORES:
+        for s in p.get("sucursales", []):
+            if suc_num and (suc_num in s or (suc_num_sin_cero and suc_num_sin_cero in s)):
+                if p["nombre"] not in nombres:
+                    nombres.append(p["nombre"])
+                break
+    return nombres
+
+
 def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
@@ -372,31 +397,50 @@ def nuevo_ticket():
                     fotos.append(fname)
 
         subcategoria = request.form.get("subcategoria", "")
+        categoria = request.form.get("categoria", "")
         ticket = {
             "id": tid,
             "sucursal": session.get("suc_nombre", request.form.get("sucursal", "")),
-            "categoria": request.form.get("categoria", ""),
+            "categoria": categoria,
             "subcategoria": subcategoria,
             "descripcion": request.form.get("descripcion", ""),
-            "prioridad": auto_priority(request.form.get("categoria", ""), subcategoria),
+            "prioridad": auto_priority(categoria, subcategoria),
             "estado": "Nuevo",
-            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", "")), request.form.get("categoria", "")),
+            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", "")), categoria),
             "fotos": fotos,
             "observaciones": "",
             "creado": datetime.datetime.now().isoformat(),
             "actualizado": datetime.datetime.now().isoformat(),
         }
+
+        # Retiro por proveedor en solicitud de materiales
+        if categoria == "Materiales":
+            retira = request.form.get("retira", "Sucursal")
+            if retira == "Proveedor":
+                prov_seleccionado = request.form.get("proveedor_nombre", "").strip()
+                if prov_seleccionado == "__otro__":
+                    prov_seleccionado = request.form.get("proveedor_otro_nombre", "").strip()
+                ticket["retiro_proveedor"] = True
+                ticket["proveedor_nombre"] = prov_seleccionado
+                ticket["proveedor_detalle"] = request.form.get("proveedor_detalle", "").strip()
+            else:
+                ticket["retiro_proveedor"] = False
+
         tickets.append(ticket)
         save_tickets(tickets)
         return render_template("ticket_creado.html", ticket=ticket)
 
     sucursal = request.args.get("sucursal", "")
+    suc_nombre = session.get("suc_nombre", "") or sucursal
+    suc_num = suc_nombre.replace("Sucursal ", "").strip()
+    proveedores_sucursal = get_proveedores_para_sucursal(suc_num) if suc_num else []
     return render_template(
         "nuevo_ticket.html",
         sucursales=SUCURSALES,
         categorias=CATEGORIAS,
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
+        proveedores_sucursal=proveedores_sucursal,
     )
 
 

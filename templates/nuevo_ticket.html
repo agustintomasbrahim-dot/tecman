@@ -45,6 +45,44 @@
             </select>
         </div>
 
+        <!-- Retiro por proveedor (solo visible cuando categoria=Materiales) -->
+        <div id="retiro-group" style="display: none; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; background: #fafafa;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #6b7280;">&iquest;Qui&eacute;n retira el material?</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+                <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                    <input type="radio" name="retira" value="Sucursal" checked>
+                    <span><strong>Sucursal</strong></span>
+                </label>
+                <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                    <input type="radio" name="retira" value="Proveedor">
+                    <span><strong>Proveedor</strong></span>
+                </label>
+            </div>
+
+            <div id="proveedor-group" style="display: none;">
+                <div class="form-group">
+                    <label>Proveedor</label>
+                    <select name="proveedor_nombre" id="proveedor_select">
+                        <option value="">Seleccionar proveedor...</option>
+                        {% for p in proveedores_sucursal %}
+                        <option value="{{ p }}">{{ p }}</option>
+                        {% endfor %}
+                        <option value="__otro__">Otro...</option>
+                    </select>
+                </div>
+                <div id="proveedor-otro-group" style="display: none;">
+                    <div class="form-group">
+                        <label>Nombre del proveedor</label>
+                        <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
+                    </div>
+                    <div class="form-group">
+                        <label>Detalle (contacto, telefono, etc.)</label>
+                        <input type="text" name="proveedor_detalle" placeholder="Opcional">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="form-group">
             <label>Descripcion del problema *</label>
             <textarea name="descripcion" required placeholder="Describa el problema con el mayor detalle posible..."></textarea>
@@ -67,14 +105,17 @@ var categorias = {{ categorias | tojson }};
 document.getElementById('categoria').addEventListener('change', function() {
     var sub = document.getElementById('subcategoria');
     var subGroup = document.getElementById('subcategoria-group');
+    var retiroGroup = document.getElementById('retiro-group');
     if (this.value === 'Materiales') {
         subGroup.style.display = 'none';
         sub.removeAttribute('required');
         sub.innerHTML = '<option value="Solicitud de materiales" selected>Solicitud de materiales</option>';
+        retiroGroup.style.display = 'block';
     } else {
         subGroup.style.display = 'block';
         sub.setAttribute('required', 'required');
         sub.innerHTML = '<option value="">Seleccionar...</option>';
+        retiroGroup.style.display = 'none';
     }
     var subs = categorias[this.value] || [];
     if (this.value !== 'Materiales') {
@@ -86,5 +127,22 @@ document.getElementById('categoria').addEventListener('change', function() {
     });
     }
 });
+
+// Toggle bloque "Proveedor"
+document.querySelectorAll('input[name="retira"]').forEach(function(r) {
+    r.addEventListener('change', function() {
+        var provGroup = document.getElementById('proveedor-group');
+        provGroup.style.display = (this.value === 'Proveedor') ? 'block' : 'none';
+    });
+});
+
+// Toggle campos "Otro"
+var provSelect = document.getElementById('proveedor_select');
+if (provSelect) {
+    provSelect.addEventListener('change', function() {
+        var otroGroup = document.getElementById('proveedor-otro-group');
+        otroGroup.style.display = (this.value === '__otro__') ? 'block' : 'none';
+    });
+}
 </script>
 {% endblock %}
