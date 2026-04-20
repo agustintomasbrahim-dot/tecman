@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Comprobantes{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Comprobantes</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <h2>Comprobantes contables</h2>
+    <a href="{{ url_for('admin_comprobantes_reporte', tipo=filtro_tipo, proveedor=filtro_proveedor, desde=filtro_desde, hasta=filtro_hasta) }}" class="btn btn-outline">&#128190; Descargar reporte CSV</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ comprobantes | length }}</div>
+        <div class="label">Comprobantes</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #1d4ed8;">{{ total_facturas }}</div>
+        <div class="label">Facturas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #6d28d9;">{{ total_remitos }}</div>
+        <div class="label">Remitos</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">$ {{ '{:,.2f}'.format(total_monto) }}</div>
+        <div class="label">Monto total</div>
+    </div>
+</div>
+
+<!-- Formulario de carga -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Cargar nuevo comprobante</h3>
+    <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Tipo *</label>
+                <select name="tipo" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="factura">Factura</option>
+                    <option value="remito">Remito</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Numero *</label>
+                <input type="text" name="numero" required placeholder="Ej: 0001-00001234">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Fecha *</label>
+                <input type="date" name="fecha" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Proveedor *</label>
+                <input type="text" name="proveedor" required placeholder="Razon social" list="proveedores-list">
+                <datalist id="proveedores-list">
+                    {% for p in proveedores_unicos %}
+                    <option value="{{ p }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Monto</label>
+                <input type="number" name="monto" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Tickets asociados</label>
+                <input type="text" name="ticket_ids" value="{{ ticket_pre }}" placeholder="Ej: 12, 34">
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 12px;">
+            <label>Descripcion</label>
+            <input type="text" name="descripcion" placeholder="Detalle / concepto">
+        </div>
+        <div class="form-group">
+            <label>Archivo (PDF, JPG, PNG)</label>
+            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar comprobante</button>
+    </form>
+</div>
+
+<!-- Filtros -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Filtros</h3>
+    <form method="GET" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Tipo</label>
+            <select name="tipo" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                <option value="">Todos</option>
+                <option value="factura" {% if filtro_tipo == 'factura' %}selected{% endif %}>Factura</option>
+                <option value="remito" {% if filtro_tipo == 'remito' %}selected{% endif %}>Remito</option>
+            </select>
+        </div>
+        <div style="flex: 2; min-width: 180px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Proveedor</label>
+            <input type="text" name="proveedor" value="{{ filtro_proveedor }}" placeholder="Buscar..." style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Desde</label>
+            <input type="date" name="desde" value="{{ filtro_desde }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Hasta</label>
+            <input type="date" name="hasta" value="{{ filtro_hasta }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="height: 42px;">Filtrar</button>
+        <a href="{{ url_for('admin_comprobantes') }}" class="btn btn-outline" style="height: 42px; line-height: 22px;">Limpiar</a>
+    </form>
+</div>
+
+<!-- Listado -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Listado</h3>
+    {% if comprobantes %}
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Nro</th>
+                <th>Proveedor</th>
+                <th style="text-align: right;">Monto</th>
+                <th>Tickets</th>
+                <th>Archivo</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in comprobantes %}
+            <tr>
+                <td style="color: #6b7280; white-space: nowrap;">{{ c.fecha }}</td>
+                <td>
+                    {% if c.tipo == 'factura' %}
+                    <span class="badge" style="background: #dbeafe; color: #1d4ed8;">Factura</span>
+                    {% else %}
+                    <span class="badge" style="background: #ede9fe; color: #6d28d9;">Remito</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight: 600;">{{ c.numero }}</td>
+                <td>{{ c.proveedor }}</td>
+                <td style="text-align: right; font-weight: 700; color: #059669;">$ {{ '{:,.2f}'.format(c.monto | float) }}</td>
+                <td style="font-size: 12px; color: #6b7280;">
+                    {% for tid in c.ticket_ids %}
+                    <a href="{{ url_for('admin_ticket', ticket_id=tid) }}" style="color: #e63946; text-decoration: none;">#{{ tid }}</a>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </td>
+                <td>
+                    {% if c.archivo %}
+                    <a href="{{ url_for('static', filename='uploads/comprobantes/' + c.archivo) }}" target="_blank" style="color: #1d4ed8; font-size: 12px; text-decoration: none;">&#128206; Ver</a>
+                    {% else %}
+                    <span style="color: #9ca3af; font-size: 12px;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('admin_comprobantes_eliminar', cid=c.id) }}" style="display: inline;" onsubmit="return confirm('Eliminar este comprobante?');">
+                        <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            {% if c.descripcion %}
+            <tr>
+                <td colspan="8" style="color: #6b7280; font-size: 12px; padding-top: 0;">&nbsp;&nbsp;{{ c.descripcion }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Sin comprobantes registrados</p>
+    {% endif %}
+</div>
+
+{% endblock %}

@@ -19,8 +19,11 @@ DATA_DIR.mkdir(exist_ok=True)
 TICKETS_FILE = DATA_DIR / "tickets.json"
 STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
+COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
 UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+COMPROBANTES_DIR = UPLOADS_DIR / "comprobantes"
+COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -116,6 +119,14 @@ def load_transfers():
 
 def save_transfers(data):
     TRANSFERS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_comprobantes():
+    if COMPROBANTES_FILE.exists():
+        return json.loads(COMPROBANTES_FILE.read_text())
+    return {"comprobantes": []}
+
+def save_comprobantes(data):
+    COMPROBANTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 # Sucursal login: each sucursal has a unique password
 SUCURSAL_USERS = {}
@@ -413,34 +424,23 @@ def nuevo_ticket():
             "actualizado": datetime.datetime.now().isoformat(),
         }
 
-        # Retiro por proveedor en solicitud de materiales
         if categoria == "Materiales":
-            retira = request.form.get("retira", "Sucursal")
-            if retira == "Proveedor":
-                prov_seleccionado = request.form.get("proveedor_nombre", "").strip()
-                if prov_seleccionado == "__otro__":
-                    prov_seleccionado = request.form.get("proveedor_otro_nombre", "").strip()
-                ticket["retiro_proveedor"] = True
-                ticket["proveedor_nombre"] = prov_seleccionado
-                ticket["proveedor_detalle"] = request.form.get("proveedor_detalle", "").strip()
-            else:
-                ticket["retiro_proveedor"] = False
+            ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
+            ticket["subitem_mat"] = request.form.get("subitem_mat", "").strip()
 
         tickets.append(ticket)
         save_tickets(tickets)
         return render_template("ticket_creado.html", ticket=ticket)
 
+    from categories_data import MATERIAL_CATEGORIAS
     sucursal = request.args.get("sucursal", "")
-    suc_nombre = session.get("suc_nombre", "") or sucursal
-    suc_num = suc_nombre.replace("Sucursal ", "").strip()
-    proveedores_sucursal = get_proveedores_para_sucursal(suc_num) if suc_num else []
     return render_template(
         "nuevo_ticket.html",
         sucursales=SUCURSALES,
         categorias=CATEGORIAS,
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
-        proveedores_sucursal=proveedores_sucursal,
+        material_categorias=MATERIAL_CATEGORIAS,
     )
 
 
@@ -1468,12 +1468,41 @@ def admin_pedido(ticket_id):
     # Check if sucursal is AMBA
     suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
     es_amba = suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN
+    proveedores_sucursal = get_proveedores_para_sucursal(suc_num)
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
 
         if "notas" not in ticket:
             ticket["notas"] = []
+
+        if accion == "gestion_retiro":
+            retiro_tipo = request.form.get("retiro_tipo", "envio")
+            ticket["retiro_tipo"] = retiro_tipo
+            if retiro_tipo == "proveedor":
+                prov = request.form.get("proveedor_nombre", "").strip()
+                if prov == "__otro__":
+                    prov = request.form.get("proveedor_otro_nombre", "").strip()
+                ticket["proveedor_nombre"] = prov
+                ticket["proveedor_detalle"] = request.form.get("proveedor_detalle", "").strip()
+                ticket["retiro_proveedor"] = True
+                nota_txt = f"Retiro definido: PROVEEDOR - {prov}"
+                if ticket["proveedor_detalle"]:
+                    nota_txt += f" ({ticket['proveedor_detalle']})"
+            else:
+                ticket["retiro_proveedor"] = False
+                ticket["proveedor_nombre"] = ""
+                ticket["proveedor_detalle"] = ""
+                nota_txt = "Retiro definido: ENVIO a sucursal"
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": nota_txt,
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Retiro actualizado")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         if accion == "cuento_material":
             metodo_envio = request.form.get("metodo_envio", "")
@@ -1523,6 +1552,7 @@ def admin_pedido(ticket_id):
         central=central,
         es_amba=es_amba,
         prioridades=PRIORIDADES,
+        proveedores_sucursal=proveedores_sucursal,
     )
 
 
@@ -1628,6 +1658,175 @@ def stock_transfer():
         flash(f"Transferido: {cantidad}x {item} → {destino}")
 
     return redirect(url_for("admin_stock"))
+
+
+# --- Routes: Comprobantes (facturas / remitos) ---
+
+COMPROBANTE_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
+
+
+@app.route("/admin/comprobantes")
+@login_required
+def admin_comprobantes():
+    data = load_comprobantes()
+    comprobantes = data.get("comprobantes", [])
+
+    filtro_tipo = request.args.get("tipo", "").strip()
+    filtro_proveedor = request.args.get("proveedor", "").strip().lower()
+    filtro_desde = request.args.get("desde", "").strip()
+    filtro_hasta = request.args.get("hasta", "").strip()
+    ticket_pre = request.args.get("ticket_id", "").strip()
+
+    filtrados = comprobantes
+    if filtro_tipo:
+        filtrados = [c for c in filtrados if c.get("tipo") == filtro_tipo]
+    if filtro_proveedor:
+        filtrados = [c for c in filtrados if filtro_proveedor in c.get("proveedor", "").lower()]
+    if filtro_desde:
+        filtrados = [c for c in filtrados if c.get("fecha", "") >= filtro_desde]
+    if filtro_hasta:
+        filtrados = [c for c in filtrados if c.get("fecha", "") <= filtro_hasta]
+
+    filtrados.sort(key=lambda c: c.get("fecha", ""), reverse=True)
+
+    total_monto = sum(float(c.get("monto", 0) or 0) for c in filtrados)
+    total_facturas = sum(1 for c in filtrados if c.get("tipo") == "factura")
+    total_remitos = sum(1 for c in filtrados if c.get("tipo") == "remito")
+
+    proveedores_unicos = sorted(set(c.get("proveedor", "") for c in comprobantes if c.get("proveedor")))
+
+    return render_template(
+        "admin_comprobantes.html",
+        comprobantes=filtrados,
+        filtro_tipo=filtro_tipo,
+        filtro_proveedor=filtro_proveedor,
+        filtro_desde=filtro_desde,
+        filtro_hasta=filtro_hasta,
+        total_monto=total_monto,
+        total_facturas=total_facturas,
+        total_remitos=total_remitos,
+        proveedores_unicos=proveedores_unicos,
+        ticket_pre=ticket_pre,
+    )
+
+
+@app.route("/admin/comprobantes/nuevo", methods=["POST"])
+@login_required
+def admin_comprobantes_nuevo():
+    data = load_comprobantes()
+    tipo = request.form.get("tipo", "").strip()
+    numero = request.form.get("numero", "").strip()
+    fecha = request.form.get("fecha", "").strip()
+    proveedor = request.form.get("proveedor", "").strip()
+    monto_raw = request.form.get("monto", "").strip().replace(",", ".")
+    descripcion = request.form.get("descripcion", "").strip()
+    ticket_ids_raw = request.form.get("ticket_ids", "").strip()
+
+    try:
+        monto = float(monto_raw) if monto_raw else 0.0
+    except ValueError:
+        monto = 0.0
+
+    ticket_ids = []
+    for part in ticket_ids_raw.replace(";", ",").split(","):
+        part = part.strip()
+        if part.isdigit():
+            ticket_ids.append(int(part))
+
+    archivo = ""
+    f = request.files.get("archivo")
+    if f and f.filename:
+        ext = Path(f.filename).suffix.lower()
+        if ext in COMPROBANTE_EXTENSIONES:
+            fname = f"{tipo or 'comp'}_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(COMPROBANTES_DIR / fname))
+            archivo = fname
+        else:
+            flash("Formato de archivo no permitido (solo PDF, JPG, PNG)")
+            return redirect(url_for("admin_comprobantes"))
+
+    if not tipo or not numero or not fecha or not proveedor:
+        flash("Complete tipo, numero, fecha y proveedor")
+        return redirect(url_for("admin_comprobantes"))
+
+    comprobante = {
+        "id": uuid.uuid4().hex[:12],
+        "tipo": tipo,
+        "numero": numero,
+        "fecha": fecha,
+        "proveedor": proveedor,
+        "monto": monto,
+        "descripcion": descripcion,
+        "ticket_ids": ticket_ids,
+        "archivo": archivo,
+        "created_at": datetime.datetime.now().isoformat(),
+        "cargado_por": session.get("nombre", ""),
+    }
+    data.setdefault("comprobantes", []).append(comprobante)
+    save_comprobantes(data)
+    flash(f"Comprobante registrado: {tipo} #{numero}")
+    return redirect(url_for("admin_comprobantes"))
+
+
+@app.route("/admin/comprobantes/eliminar/<cid>", methods=["POST"])
+@login_required
+def admin_comprobantes_eliminar(cid):
+    data = load_comprobantes()
+    antes = len(data.get("comprobantes", []))
+    data["comprobantes"] = [c for c in data.get("comprobantes", []) if c.get("id") != cid]
+    if len(data["comprobantes"]) < antes:
+        save_comprobantes(data)
+        flash("Comprobante eliminado")
+    return redirect(url_for("admin_comprobantes"))
+
+
+@app.route("/admin/comprobantes/reporte")
+@login_required
+def admin_comprobantes_reporte():
+    import csv
+    import io
+    from flask import Response
+
+    data = load_comprobantes()
+    comprobantes = data.get("comprobantes", [])
+
+    filtro_tipo = request.args.get("tipo", "").strip()
+    filtro_proveedor = request.args.get("proveedor", "").strip().lower()
+    filtro_desde = request.args.get("desde", "").strip()
+    filtro_hasta = request.args.get("hasta", "").strip()
+
+    if filtro_tipo:
+        comprobantes = [c for c in comprobantes if c.get("tipo") == filtro_tipo]
+    if filtro_proveedor:
+        comprobantes = [c for c in comprobantes if filtro_proveedor in c.get("proveedor", "").lower()]
+    if filtro_desde:
+        comprobantes = [c for c in comprobantes if c.get("fecha", "") >= filtro_desde]
+    if filtro_hasta:
+        comprobantes = [c for c in comprobantes if c.get("fecha", "") <= filtro_hasta]
+
+    comprobantes.sort(key=lambda c: c.get("fecha", ""))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Fecha", "Tipo", "Numero", "Proveedor", "Monto", "Descripcion", "Tickets asociados", "Archivo"])
+    for c in comprobantes:
+        writer.writerow([
+            c.get("fecha", ""),
+            c.get("tipo", ""),
+            c.get("numero", ""),
+            c.get("proveedor", ""),
+            c.get("monto", 0),
+            c.get("descripcion", ""),
+            ", ".join(str(x) for x in c.get("ticket_ids", [])),
+            c.get("archivo", ""),
+        ])
+    output.seek(0)
+    nombre = datetime.datetime.now().strftime("tecman_comprobantes_%Y%m%d.csv")
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={nombre}"},
+    )
 
 
 # --- API ---

@@ -45,41 +45,26 @@
             </select>
         </div>
 
-        <!-- Retiro por proveedor (solo visible cuando categoria=Materiales) -->
-        <div id="retiro-group" style="display: none; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; background: #fafafa;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 13px; color: #6b7280;">&iquest;Qui&eacute;n retira el material?</label>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-                <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="retira" value="Sucursal" checked>
-                    <span><strong>Sucursal</strong></span>
-                </label>
-                <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="retira" value="Proveedor">
-                    <span><strong>Proveedor</strong></span>
-                </label>
+        <!-- Selector de tipo de material (solo visible cuando categoria=Materiales) -->
+        <div id="mat-group" style="display: none; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; background: #fafafa;">
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label>Tipo de material *</label>
+                <select name="categoria_mat" id="cat-mat-select">
+                    <option value="">Seleccionar tipo...</option>
+                    {% for cat in material_categorias %}
+                    <option value="{{ cat.nombre }}" data-has-items="{{ '1' if cat.items else '0' }}" data-guia-archivo="{{ cat.guia.archivo if cat.guia else '' }}" data-guia-titulo="{{ cat.guia.titulo if cat.guia else '' }}">{{ cat.nombre }}</option>
+                    {% endfor %}
+                </select>
             </div>
-
-            <div id="proveedor-group" style="display: none;">
-                <div class="form-group">
-                    <label>Proveedor</label>
-                    <select name="proveedor_nombre" id="proveedor_select">
-                        <option value="">Seleccionar proveedor...</option>
-                        {% for p in proveedores_sucursal %}
-                        <option value="{{ p }}">{{ p }}</option>
-                        {% endfor %}
-                        <option value="__otro__">Otro...</option>
-                    </select>
-                </div>
-                <div id="proveedor-otro-group" style="display: none;">
-                    <div class="form-group">
-                        <label>Nombre del proveedor</label>
-                        <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
-                    </div>
-                    <div class="form-group">
-                        <label>Detalle (contacto, telefono, etc.)</label>
-                        <input type="text" name="proveedor_detalle" placeholder="Opcional">
-                    </div>
-                </div>
+            <div class="form-group" id="subitem-wrap" style="display: none; margin-bottom: 0;">
+                <label>Sub-item</label>
+                <select name="subitem_mat" id="subitem-select">
+                    <option value="">Seleccionar...</option>
+                </select>
+            </div>
+            <!-- Guia visible al elegir Luminaria -->
+            <div id="guia-box" style="display: none; margin-top: 10px; padding: 10px 12px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 8px; font-size: 13px; color: #92400e;">
+                <span id="guia-content"></span>
             </div>
         </div>
 
@@ -102,47 +87,74 @@
 
 <script>
 var categorias = {{ categorias | tojson }};
+var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
+
 document.getElementById('categoria').addEventListener('change', function() {
     var sub = document.getElementById('subcategoria');
     var subGroup = document.getElementById('subcategoria-group');
-    var retiroGroup = document.getElementById('retiro-group');
+    var matGroup = document.getElementById('mat-group');
     if (this.value === 'Materiales') {
         subGroup.style.display = 'none';
         sub.removeAttribute('required');
         sub.innerHTML = '<option value="Solicitud de materiales" selected>Solicitud de materiales</option>';
-        retiroGroup.style.display = 'block';
+        matGroup.style.display = 'block';
     } else {
         subGroup.style.display = 'block';
         sub.setAttribute('required', 'required');
         sub.innerHTML = '<option value="">Seleccionar...</option>';
-        retiroGroup.style.display = 'none';
+        matGroup.style.display = 'none';
     }
     var subs = categorias[this.value] || [];
     if (this.value !== 'Materiales') {
-    subs.forEach(function(s) {
-        var opt = document.createElement('option');
-        opt.value = s;
-        opt.textContent = s;
-        sub.appendChild(opt);
-    });
+        subs.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            sub.appendChild(opt);
+        });
     }
 });
 
-// Toggle bloque "Proveedor"
-document.querySelectorAll('input[name="retira"]').forEach(function(r) {
-    r.addEventListener('change', function() {
-        var provGroup = document.getElementById('proveedor-group');
-        provGroup.style.display = (this.value === 'Proveedor') ? 'block' : 'none';
-    });
-});
+(function() {
+    var catSel = document.getElementById('cat-mat-select');
+    var subWrap = document.getElementById('subitem-wrap');
+    var subSel = document.getElementById('subitem-select');
+    var guiaBox = document.getElementById('guia-box');
+    var guiaContent = document.getElementById('guia-content');
 
-// Toggle campos "Otro"
-var provSelect = document.getElementById('proveedor_select');
-if (provSelect) {
-    provSelect.addEventListener('change', function() {
-        var otroGroup = document.getElementById('proveedor-otro-group');
-        otroGroup.style.display = (this.value === '__otro__') ? 'block' : 'none';
+    catSel.addEventListener('change', function() {
+        var opt = this.options[this.selectedIndex];
+        var hasItems = opt.getAttribute('data-has-items') === '1';
+        var guiaArchivo = opt.getAttribute('data-guia-archivo') || '';
+        var guiaTitulo = opt.getAttribute('data-guia-titulo') || '';
+
+        subSel.innerHTML = '<option value="">Seleccionar...</option>';
+        if (this.value && hasItems) {
+            var cat = MATERIAL_CATEGORIAS.find(function(c) { return c.nombre === catSel.value; });
+            if (cat) {
+                cat.items.forEach(function(it) {
+                    var o = document.createElement('option');
+                    o.value = it;
+                    o.textContent = it;
+                    subSel.appendChild(o);
+                });
+            }
+            subWrap.style.display = 'block';
+        } else {
+            subWrap.style.display = 'none';
+        }
+
+        if (this.value && guiaTitulo) {
+            if (guiaArchivo) {
+                guiaContent.innerHTML = '&#128206; <a href="/static/' + guiaArchivo + '" target="_blank" style="color: #92400e; font-weight: 700; text-decoration: underline;">' + guiaTitulo + '</a>';
+            } else {
+                guiaContent.innerHTML = '&#128206; ' + guiaTitulo + ' <em>(proximamente)</em>';
+            }
+            guiaBox.style.display = 'block';
+        } else {
+            guiaBox.style.display = 'none';
+        }
     });
-}
+})();
 </script>
 {% endblock %}

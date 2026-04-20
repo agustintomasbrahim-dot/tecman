@@ -4,15 +4,19 @@
 <div class="nav">
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
 {% block content %}
 
 <div class="card" style="border-left: 4px solid #e63946;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
         <h2>Pedido #{{ ticket.id }}</h2>
-        <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <a href="{{ url_for('admin_comprobantes', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline">&#129534; Cargar comprobante</a>
+            <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+        </div>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
         <div><span style="color: #6b7280;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
@@ -20,17 +24,84 @@
         <div><span style="color: #6b7280;">Zona:</span> {% if es_amba %}<span class="badge" style="background: #dbeafe; color: #1d4ed8;">AMBA</span>{% else %}<span class="badge" style="background: #fef3c7; color: #b45309;">Interior</span>{% endif %}</div>
         <div><span style="color: #6b7280;">Fecha:</span> {{ ticket.creado[:10] }}</div>
     </div>
-    {% if ticket.retiro_proveedor %}
+    {% if ticket.categoria_mat %}
+    <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #ede9fe; border: 1px solid #ddd6fe;">
+        <strong style="color: #6d28d9;">Tipo:</strong> {{ ticket.categoria_mat }}{% if ticket.subitem_mat %} &rsaquo; {{ ticket.subitem_mat }}{% endif %}
+    </div>
+    {% endif %}
+    {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}
     <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: #fef3c7; border: 1px solid #fcd34d;">
         <strong style="color: #b45309;">Retira PROVEEDOR:</strong>
         <span>{{ ticket.proveedor_nombre or '(sin especificar)' }}</span>
         {% if ticket.proveedor_detalle %}<div style="margin-top: 4px; color: #6b7280; font-size: 13px;">{{ ticket.proveedor_detalle }}</div>{% endif %}
+    </div>
+    {% elif ticket.retiro_tipo == 'envio' %}
+    <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #dbeafe; border: 1px solid #bfdbfe;">
+        <strong style="color: #1d4ed8;">Envio a sucursal</strong>
     </div>
     {% endif %}
     <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
         <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
     </div>
 </div>
+
+<!-- Gestion de retiro / envio -->
+{% if ticket.estado not in ('Resuelto', 'Cerrado') %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Retiro / Envio del material</h3>
+    <form method="POST">
+        <input type="hidden" name="accion" value="gestion_retiro">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
+                <span><strong>Envio a sucursal</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
+                <span><strong>Retira proveedor</strong></span>
+            </label>
+        </div>
+        <div id="prov-group" style="display: {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}block{% else %}none{% endif %};">
+            <div class="form-group">
+                <label>Proveedor</label>
+                <select name="proveedor_nombre" id="prov-select">
+                    <option value="">Seleccionar proveedor...</option>
+                    {% for p in proveedores_sucursal %}
+                    <option value="{{ p }}" {% if ticket.proveedor_nombre == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                    <option value="__otro__">Otro...</option>
+                </select>
+            </div>
+            <div id="prov-otro-group" style="display: none;">
+                <div class="form-group">
+                    <label>Nombre del proveedor</label>
+                    <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Detalle (contacto, telefono, observaciones)</label>
+                <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar retiro</button>
+    </form>
+</div>
+<script>
+(function() {
+    document.querySelectorAll('input[name="retiro_tipo"]').forEach(function(r) {
+        r.addEventListener('change', function() {
+            document.getElementById('prov-group').style.display = (this.value === 'proveedor') ? 'block' : 'none';
+        });
+    });
+    var sel = document.getElementById('prov-select');
+    if (sel) {
+        sel.addEventListener('change', function() {
+            document.getElementById('prov-otro-group').style.display = (this.value === '__otro__') ? 'block' : 'none';
+        });
+    }
+})();
+</script>
+{% endif %}
 
 <!-- Stock disponible -->
 <div class="card">

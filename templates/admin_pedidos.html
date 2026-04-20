@@ -6,6 +6,7 @@
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
     <a href="{{ url_for('admin_pedidos') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
     <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
@@ -72,10 +73,13 @@
 {% if resueltos %}
 <h3 style="margin: 16px 0 8px; color: #059669;">Enviados</h3>
 {% for t in resueltos %}
-<div class="card" style="padding: 14px; border-left: 4px solid #059669; opacity: 0.7;">
-    <span style="font-weight: 700; color: #059669;">#{{ t.id }}</span>
-    <span style="color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
-    <span style="color: #6b7280; margin-left: 8px; font-size: 12px;">{{ t.subcategoria }}</span>
+<div class="card" style="padding: 14px; border-left: 4px solid #059669; opacity: 0.85; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <div>
+        <span style="font-weight: 700; color: #059669;">#{{ t.id }}</span>
+        <span style="color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
+        <span style="color: #6b7280; margin-left: 8px; font-size: 12px;">{{ t.subcategoria }}</span>
+    </div>
+    <a href="{{ url_for('admin_comprobantes', ticket_id=t.id) }}" class="btn btn-sm btn-outline">&#129534; Cargar comprobante</a>
 </div>
 {% endfor %}
 {% endif %}
