@@ -465,10 +465,23 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
 
 
 def login_required(f):
+    """Permite acceso a cualquier usuario logueado (admin o tecnico)."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user" not in session:
             return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    """Solo permite acceso a usuarios con rol 'admin'."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for("admin_login"))
+        if session.get("rol") != "admin":
+            return render_template("error.html", mensaje="Acceso restringido. Solo administradores."), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -748,6 +761,9 @@ def admin_logout():
 @app.route("/admin")
 @login_required
 def admin_panel():
+    # Jonathan (tecnico) va directo a sus pedidos
+    if session.get("rol") == "tecnico":
+        return redirect(url_for("admin_pedidos"))
     tickets = load_tickets()
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
@@ -861,7 +877,7 @@ def admin_ticket(ticket_id):
 # --- Routes: Proveedores ---
 
 @app.route("/admin/proveedores")
-@login_required
+@admin_required
 def admin_proveedores():
     vista = request.args.get("vista", "zona")
     buscar_suc = request.args.get("sucursal", "").replace("Sucursal ", "")
@@ -906,7 +922,7 @@ def admin_proveedores():
 # --- Routes: Inventario ---
 
 @app.route("/admin/inventario")
-@login_required
+@admin_required
 def admin_inventario():
     if IS_CLOUD:
         return render_template("admin_inventario.html", inventario=[], total_ge=0, total_respondieron=0, total_sucursales=0, total_persianas=0, total_aires=0)
@@ -1201,7 +1217,7 @@ def prov_ticket(ticket_id):
 # --- Routes: Ficha Sucursal ---
 
 @app.route("/admin/sucursal/<suc_num>")
-@login_required
+@admin_required
 def admin_sucursal(suc_num):
     from sucursales_data import SUCURSALES_INFO
 
@@ -1263,7 +1279,7 @@ def admin_sucursal(suc_num):
 # --- Routes: Mapa ---
 
 @app.route("/admin/mapa")
-@login_required
+@admin_required
 def admin_mapa():
     from sucursales_data import SUCURSALES_INFO
     tickets = load_tickets()
@@ -1292,7 +1308,7 @@ def admin_mapa():
 # --- Routes: Reporte semanal ---
 
 @app.route("/admin/reporte", methods=["POST"])
-@login_required
+@admin_required
 def admin_reporte():
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
@@ -1401,7 +1417,7 @@ def admin_reporte():
 # --- Routes: Buscador ---
 
 @app.route("/admin/buscar")
-@login_required
+@admin_required
 def admin_buscar():
     q = request.args.get("q", "").strip().lower()
     tickets = load_tickets()
@@ -1422,7 +1438,7 @@ def admin_buscar():
 # --- Routes: Exportar ---
 
 @app.route("/admin/exportar")
-@login_required
+@admin_required
 def admin_exportar():
     import csv
     import io
@@ -1573,7 +1589,7 @@ def syh_edit(suc_num):
 # --- Routes: S&H Admin (duplicate for admin access) ---
 
 @app.route("/admin/syh")
-@login_required
+@admin_required
 def admin_syh():
     from sucursales_data import SUCURSALES_INFO
     syh_data = load_syh()
@@ -1612,7 +1628,7 @@ def admin_syh():
 
 
 @app.route("/admin/syh/<suc_num>", methods=["GET", "POST"])
-@login_required
+@admin_required
 def admin_syh_edit(suc_num):
     from sucursales_data import SUCURSALES_INFO
     info = SUCURSALES_INFO.get(suc_num, {})
@@ -1901,7 +1917,7 @@ def admin_stock():
 
 
 @app.route("/admin/stock/add", methods=["POST"])
-@login_required
+@admin_required
 def stock_add():
     stock = load_stock()
     # El item puede venir armado desde categoria + subitem o como texto libre.
@@ -1942,7 +1958,7 @@ def stock_add():
 
 
 @app.route("/admin/stock/transfer", methods=["POST"])
-@login_required
+@admin_required
 def stock_transfer():
     stock = load_stock()
     transfers = load_transfers()
@@ -2001,7 +2017,7 @@ def stock_transfer():
 
 
 @app.route("/admin/stock/precio", methods=["POST"])
-@login_required
+@admin_required
 def stock_precio():
     stock = load_stock()
     item = request.form.get("item", "").strip()
@@ -2145,7 +2161,7 @@ COMPROBANTE_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
 
 
 @app.route("/admin/comprobantes")
-@login_required
+@admin_required
 def admin_comprobantes():
     data = load_comprobantes()
     comprobantes = data.get("comprobantes", [])
@@ -2194,7 +2210,7 @@ def admin_comprobantes():
 
 
 @app.route("/admin/comprobantes/nuevo", methods=["POST"])
-@login_required
+@admin_required
 def admin_comprobantes_nuevo():
     data = load_comprobantes()
     tipo = request.form.get("tipo", "").strip()
@@ -2293,7 +2309,7 @@ def admin_comprobantes_nuevo():
 
 
 @app.route("/admin/comprobantes/eliminar/<cid>", methods=["POST"])
-@login_required
+@admin_required
 def admin_comprobantes_eliminar(cid):
     data = load_comprobantes()
     antes = len(data.get("comprobantes", []))
@@ -2325,7 +2341,7 @@ def _tickets_imputados(tickets, desde="", hasta="", sucursal=""):
 
 
 @app.route("/admin/contable/reporte")
-@login_required
+@admin_required
 def admin_contable_reporte():
     tickets = load_tickets()
     desde = request.args.get("desde", "").strip()
@@ -2397,7 +2413,7 @@ def admin_contable_reporte():
 
 
 @app.route("/admin/comprobantes/reporte")
-@login_required
+@admin_required
 def admin_comprobantes_reporte():
     import csv
     import io

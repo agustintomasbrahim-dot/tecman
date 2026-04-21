@@ -4,10 +4,10 @@
 <div class="nav">
     <a href="{{ url_for('admin_panel') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
-    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_proveedores') }}">Proveedores</a>{% endif %}
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
-    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
-    <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>{% endif %}
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
     <a href="{{ url_for('admin_syh') }}">S&H</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
