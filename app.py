@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
@@ -37,6 +37,8 @@ else:
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 COMPROBANTES_DIR = UPLOADS_DIR / "comprobantes"
 COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
+GUIAS_DIR = UPLOADS_DIR / "guias"
+GUIAS_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -1755,6 +1757,33 @@ def admin_pedido(ticket_id):
         if "notas" not in ticket:
             ticket["notas"] = []
 
+        if accion == "subir_guia":
+            archivo = request.files.get("guia_archivo")
+            numero = request.form.get("guia_numero", "").strip()
+            if archivo and archivo.filename:
+                ext = archivo.filename.rsplit(".", 1)[-1].lower()
+                fname = f"guia_{ticket_id}_{uuid.uuid4().hex[:8]}.{ext}"
+                archivo.save(str(GUIAS_DIR / fname))
+                ticket["guia_transporte"] = fname
+                ticket["guia_transporte_numero"] = numero
+                ticket["notas"].append({
+                    "autor": session.get("nombre", "Admin"),
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Guía de transporte cargada: {numero or fname}",
+                })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Guía cargada correctamente")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
+        elif accion == "quitar_guia":
+            ticket.pop("guia_transporte", None)
+            ticket.pop("guia_transporte_numero", None)
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Guía eliminada")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
         if accion == "gestion_retiro":
             retiro_tipo = request.form.get("retiro_tipo", "envio")
             ticket["retiro_tipo"] = retiro_tipo
@@ -2492,6 +2521,11 @@ def api_categorias():
 @app.route("/guia-luminaria")
 def guia_luminaria():
     return render_template("guia_luminaria.html")
+
+
+@app.route("/static/uploads/guias/<filename>")
+def serve_guia(filename):
+    return send_from_directory(str(GUIAS_DIR), filename)
 
 
 if __name__ == "__main__":
