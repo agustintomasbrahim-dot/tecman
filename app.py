@@ -28,6 +28,7 @@ STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
 STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
+GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -209,6 +210,36 @@ def load_movimientos():
 
 def save_movimientos(data):
     STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def _load_guias_counter():
+    if GUIAS_COUNTER_FILE.exists():
+        try:
+            return json.loads(GUIAS_COUNTER_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"ultimo": 87889}
+
+def _save_guias_counter(data):
+    GUIAS_COUNTER_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def _next_guia_numero():
+    data = _load_guias_counter()
+    try:
+        ultimo = int(data.get("ultimo", 87889))
+    except (TypeError, ValueError):
+        ultimo = 87889
+    ultimo += 1
+    data["ultimo"] = ultimo
+    _save_guias_counter(data)
+    return ultimo
+
+def _formatear_guia_numero(n):
+    """Formato de guia interna: 9902-XXXXXXXX (8 digitos)."""
+    try:
+        return f"9902-{int(n):08d}"
+    except (TypeError, ValueError):
+        s = str(n or "").strip()
+        return s or "9902-00000000"
 
 def _get_precio_historico(item_key, hasta=None):
     """Retorna el precio unitario del ultimo ingreso de un item antes de 'hasta'.
@@ -1927,6 +1958,77 @@ def admin_pedido(ticket_id):
         stock_relevante=stock_relevante,
         stock_similares=stock_similares,
         es_ceyh=es_ceyh,
+    )
+
+
+@app.route("/admin/pedido/<int:ticket_id>/guia")
+@login_required
+def admin_pedido_guia(ticket_id):
+    """Genera una Guia Interna de Transporte para el pedido, lista para imprimir."""
+    from sucursales_data import SUCURSALES_INFO
+
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    # Numero de guia: si el ticket ya tiene uno, lo reutilizamos.
+    existing = ticket.get("guia_transporte_numero")
+    if existing:
+        existing_str = str(existing).strip()
+        if "-" in existing_str:
+            guia_num_fmt = existing_str
+        else:
+            guia_num_fmt = _formatear_guia_numero(existing_str)
+    else:
+        n = _next_guia_numero()
+        guia_num_fmt = _formatear_guia_numero(n)
+        ticket["guia_transporte_numero"] = guia_num_fmt
+        ticket["actualizado"] = datetime.datetime.now().isoformat()
+        save_tickets(tickets)
+
+    # Datos de la sucursal destino.
+    suc_raw = ticket.get("sucursal", "") or ""
+    suc_num = suc_raw.replace("Sucursal ", "").strip()
+    info = SUCURSALES_INFO.get(suc_num, {})
+    partes_dir = []
+    if info.get("direccion"):
+        partes_dir.append(info["direccion"])
+    if info.get("ciudad"):
+        partes_dir.append(info["ciudad"])
+    if info.get("provincia"):
+        partes_dir.append(info["provincia"])
+    sucursal_direccion = ", ".join(partes_dir)
+
+    # Quien retira: CEYH si la sucursal lo tiene; sino el proveedor cargado.
+    if es_sucursal_ceyh(suc_num):
+        retira = "RETIRA CEYH"
+    elif ticket.get("retiro_tipo") == "proveedor" and ticket.get("proveedor_nombre"):
+        retira = ticket.get("proveedor_nombre", "")
+    else:
+        retira = ""
+
+    # Items del pedido.
+    cat = ticket.get("categoria_mat", "") or ""
+    subitem = ticket.get("subitem_mat", "") or ""
+    try:
+        cantidad = int(ticket.get("cantidad_mat") or 1)
+    except (TypeError, ValueError):
+        cantidad = 1
+    detalle = f"{cat} - {subitem}" if (cat and subitem) else (cat or subitem or ticket.get("subcategoria", ""))
+    items = []
+    if detalle:
+        items.append({"cantidad": cantidad, "detalle": detalle})
+
+    return render_template(
+        "guia_transporte.html",
+        ticket=ticket,
+        guia_numero=guia_num_fmt,
+        fecha_hoy=datetime.date.today().strftime("%d/%m/%Y"),
+        sucursal_nombre=suc_raw,
+        sucursal_direccion=sucursal_direccion,
+        retira=retira,
+        items=items,
     )
 
 

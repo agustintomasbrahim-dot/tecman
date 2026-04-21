@@ -232,6 +232,13 @@
     </script>
 
     <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 4px;">
+        <!-- Generar guia interna de transporte -->
+        <a href="{{ url_for('admin_pedido_guia', ticket_id=ticket.id) }}" target="_blank"
+           class="btn btn-block"
+           style="background: #1a1a2e; color: #fff; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            🖨️ Generar guía de transporte
+        </a>
+
         <!-- Subir guia de transporte (obligatorio antes de marcar enviado) -->
         {% if not ticket.guia_transporte %}
         <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
