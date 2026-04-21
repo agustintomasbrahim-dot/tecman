@@ -424,6 +424,19 @@ def get_proveedor_abono_sucursal(suc_num):
     return None
 
 
+def es_sucursal_ceyh(suc_num):
+    """Retorna True si la sucursal tiene CEYH como proveedor fijo."""
+    suc_num = str(suc_num).strip()
+    suc_num_sin_cero = suc_num.lstrip("0")
+    for p in PROVEEDORES:
+        if p.get("nombre") != "CEYH" or not p.get("fijo"):
+            continue
+        for s in p.get("sucursales", []):
+            if suc_num == s or suc_num_sin_cero == s.lstrip("0"):
+                return True
+    return False
+
+
 def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
@@ -1682,6 +1695,7 @@ def admin_pedido(ticket_id):
     suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
     es_amba = suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN
     proveedores_sucursal = get_proveedores_para_sucursal(suc_num)
+    es_ceyh = es_sucursal_ceyh(suc_num)
 
     # Stock relevante al pedido
     cat = ticket.get("categoria_mat", "").lower()
@@ -1847,6 +1861,7 @@ def admin_pedido(ticket_id):
         trabajo_prov_ticket=trabajo_prov_ticket,
         stock_relevante=stock_relevante,
         stock_similares=stock_similares,
+        es_ceyh=es_ceyh,
     )
 
 
