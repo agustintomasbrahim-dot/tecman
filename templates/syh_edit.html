@@ -8,6 +8,8 @@
 {% endblock %}
 {% block content %}
 
+<a href="{{ url_for('syh_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Panel</a>
+
 <div class="card" style="border-left: 3px solid #059669;">
     <h2>Sucursal {{ suc_num }}</h2>
     {% if info %}

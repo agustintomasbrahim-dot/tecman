@@ -10,6 +10,7 @@
 </div>
 {% endblock %}
 {% block content %}
+<a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Tickets</a>
 <div class="card" style="border-left: 4px solid {% if ticket.prioridad == 1 %}#ef4444{% elif ticket.prioridad == 2 %}#f59e0b{% elif ticket.prioridad == 3 %}#e63946{% else %}#64748b{% endif %};">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>Ticket #{{ ticket.id }}</h2>

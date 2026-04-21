@@ -15,7 +15,10 @@
 {% block content %}
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-    <h2>Comprobantes contables</h2>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Inicio</a>
+        <h2 style="margin: 0;">Comprobantes contables</h2>
+    </div>
     <a href="{{ url_for('admin_comprobantes_reporte', tipo=filtro_tipo, proveedor=filtro_proveedor, desde=filtro_desde, hasta=filtro_hasta) }}" class="btn btn-outline">&#128190; Descargar reporte CSV</a>
 </div>
 

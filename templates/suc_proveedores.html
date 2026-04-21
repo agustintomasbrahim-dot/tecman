@@ -11,6 +11,8 @@
 {% endblock %}
 {% block content %}
 
+<a href="{{ url_for('suc_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Inicio</a>
+
 <h2 style="margin-bottom: 6px;">Proveedores</h2>
 <p style="color: #6b7280; margin-bottom: 16px;">Proveedores asignados a {{ session.suc_nombre }}</p>
 

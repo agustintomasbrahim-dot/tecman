@@ -10,6 +10,9 @@
 {% endif %}
 {% endblock %}
 {% block content %}
+{% if session.suc_user is defined %}
+<a href="{{ url_for('suc_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Mis tickets</a>
+{% endif %}
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>Ticket #{{ ticket.id }}</h2>
