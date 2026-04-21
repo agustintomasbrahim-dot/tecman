@@ -51,7 +51,8 @@
                 <select name="tipo" required>
                     <option value="">Seleccionar...</option>
                     <option value="factura">Factura</option>
-                    <option value="remito">Remito</option>
+                    <option value="remito_proveedor">Remito de proveedor</option>
+                    <option value="remito_interno">Remito / Guía interna suc</option>
                 </select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -158,7 +159,8 @@ agregarItemFactura();
             <select name="tipo" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;">
                 <option value="">Todos</option>
                 <option value="factura" {% if filtro_tipo == 'factura' %}selected{% endif %}>Factura</option>
-                <option value="remito" {% if filtro_tipo == 'remito' %}selected{% endif %}>Remito</option>
+                <option value="remito_proveedor" {% if filtro_tipo == 'remito_proveedor' %}selected{% endif %}>Remito de proveedor</option>
+                <option value="remito_interno" {% if filtro_tipo == 'remito_interno' %}selected{% endif %}>Remito / Guía interna suc</option>
             </select>
         </div>
         <div style="flex: 2; min-width: 180px;">
@@ -202,8 +204,12 @@ agregarItemFactura();
                 <td>
                     {% if c.tipo == 'factura' %}
                     <span class="badge" style="background: #dbeafe; color: #1d4ed8;">Factura</span>
+                    {% elif c.tipo == 'remito_proveedor' %}
+                    <span class="badge" style="background: #ede9fe; color: #6d28d9;">Remito prov.</span>
+                    {% elif c.tipo == 'remito_interno' %}
+                    <span class="badge" style="background: #dcfce7; color: #166534;">Guía interna</span>
                     {% else %}
-                    <span class="badge" style="background: #ede9fe; color: #6d28d9;">Remito</span>
+                    <span class="badge" style="background: #ede9fe; color: #6d28d9;">{{ c.tipo }}</span>
                     {% endif %}
                 </td>
                 <td style="font-weight: 600;">{{ c.numero }}</td>

@@ -2337,7 +2337,7 @@ def admin_comprobantes():
 
     total_monto = sum(float(c.get("monto", 0) or 0) for c in filtrados)
     total_facturas = sum(1 for c in filtrados if c.get("tipo") == "factura")
-    total_remitos = sum(1 for c in filtrados if c.get("tipo") == "remito")
+    total_remitos = sum(1 for c in filtrados if c.get("tipo") in ("remito", "remito_proveedor", "remito_interno"))
 
     proveedores_unicos = sorted(set(c.get("proveedor", "") for c in comprobantes if c.get("proveedor")))
 
