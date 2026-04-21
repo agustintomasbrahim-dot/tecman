@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Habilitaciones Municipales{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('admin_syh') }}">S&amp;H</a>
+    <a href="{{ url_for('admin_habilitaciones') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Habilitaciones</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">&larr; Inicio</a>
+        <h2 style="margin: 0;">Habilitaciones Municipales</h2>
+    </div>
+    <a href="{{ url_for('admin_habilitaciones_reporte') }}" class="btn btn-outline">&#128190; Descargar CSV</a>
+</div>
+
+<!-- Stats cards -->
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ stats.total }}</div>
+        <div class="label">Sucursales con habilitación</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid #10b981;">
+        <div class="number" style="color: #059669;">{{ stats.vigentes }}</div>
+        <div class="label">Vigentes</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+        <div class="number" style="color: #d97706;">{{ stats.por_vencer }}</div>
+        <div class="label">Por vencer (90d)</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid #ef4444;">
+        <div class="number" style="color: #dc2626;">{{ stats.vencidas }}</div>
+        <div class="label">Vencidas</div>
+    </div>
+    <div class="stat-card" style="border-left: 4px solid #9ca3af;">
+        <div class="number" style="color: #6b7280;">{{ stats.sin_dato }}</div>
+        <div class="label">Sin dato</div>
+    </div>
+</div>
+
+<!-- Formulario de carga colapsable -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleHabForm()">
+        <h3 style="margin: 0;">Cargar nueva habilitación</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="hab-toggle-btn">+ Mostrar</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_habilitaciones_nuevo') }}" enctype="multipart/form-data" id="hab-form" style="display: none; margin-top: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Sucursal *</label>
+                <select name="sucursal" required>
+                    <option value="">Seleccionar...</option>
+                    {% for s in sucursales %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Municipio</label>
+                <input type="text" name="municipio" placeholder="Ej: CABA, Santa Fe">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Dirección</label>
+                <input type="text" name="direccion" placeholder="Calle y número">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>N° Certificado</label>
+                <input type="text" name="numero_cert" placeholder="Ej: 074094">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Fecha habilitación</label>
+                <input type="date" name="fecha_habilitacion" id="hab-fecha-hab" onchange="calcVencimiento()">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Vigencia (años)</label>
+                <input type="number" name="vigencia_anios" id="hab-anios" min="1" max="20" placeholder="Ej: 2" onchange="calcVencimiento()">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Fecha vencimiento</label>
+                <input type="date" name="fecha_vencimiento" id="hab-fecha-venc">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Rubro</label>
+                <input type="text" name="rubro" placeholder="Ej: Indumentaria deportiva">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Superficie m²</label>
+                <input type="number" step="0.01" name="superficie_m2" placeholder="Ej: 320">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>Archivo (PDF / JPG / PNG)</label>
+                <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png">
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 12px;">
+            <label>Observaciones</label>
+            <textarea name="observaciones" placeholder="Notas, vencimientos, gestiones en curso..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar habilitación</button>
+    </form>
+</div>
+
+<!-- Filtros -->
+<div class="card">
+    <form method="GET" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 160px;">
+            <label>Estado</label>
+            <select name="estado">
+                <option value="">Todos</option>
+                <option value="vigente" {% if filtro_estado == 'vigente' %}selected{% endif %}>Vigente</option>
+                <option value="por_vencer" {% if filtro_estado == 'por_vencer' %}selected{% endif %}>Por vencer</option>
+                <option value="vencida" {% if filtro_estado == 'vencida' %}selected{% endif %}>Vencida</option>
+                <option value="sin_dato" {% if filtro_estado == 'sin_dato' %}selected{% endif %}>Sin dato</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+            <label>Sucursal</label>
+            <select name="sucursal">
+                <option value="">Todas</option>
+                {% for s in sucursales_con_hab %}<option value="{{ s }}" {% if filtro_sucursal == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+            <label>Búsqueda</label>
+            <input type="text" name="q" value="{{ filtro_q }}" placeholder="N° cert, municipio, dirección, rubro...">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+        <a href="{{ url_for('admin_habilitaciones') }}" class="btn btn-outline btn-sm">Limpiar</a>
+    </form>
+</div>
+
+<!-- Tabla -->
+<div class="card" style="padding: 0; overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Sucursal</th>
+                <th>Municipio</th>
+                <th>N° Cert</th>
+                <th>Fecha hab.</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th>Archivo</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for h in habilitaciones %}
+            <tr>
+                <td style="font-weight: 700;">{{ h.sucursal }}</td>
+                <td style="color: #6b7280;">{{ h.municipio or '-' }}</td>
+                <td style="font-family: monospace; font-size: 12px;">{{ h.numero_cert or '-' }}</td>
+                <td style="color: #6b7280;">{{ h.fecha_habilitacion or '-' }}</td>
+                <td style="color: #6b7280;">{{ h.fecha_vencimiento or '-' }}</td>
+                <td>
+                    {% if h.estado == 'vigente' %}<span class="badge" style="background: #d1fae5; color: #065f46;">Vigente</span>
+                    {% elif h.estado == 'por_vencer' %}<span class="badge" style="background: #fef3c7; color: #b45309;">Por vencer</span>
+                    {% elif h.estado == 'vencida' %}<span class="badge" style="background: #fee2e2; color: #dc2626;">Vencida</span>
+                    {% else %}<span class="badge" style="background: #f3f4f6; color: #6b7280;">Sin dato</span>{% endif %}
+                </td>
+                <td>
+                    {% if h.archivo %}
+                    <a href="{{ url_for('serve_habilitacion', filename=h.archivo) }}" target="_blank" style="color: #0ea5e9; text-decoration: none;">&#128206; Ver</a>
+                    {% else %}<span style="color: #9ca3af;">-</span>{% endif %}
+                </td>
+                <td style="white-space: nowrap;">
+                    <button type="button" class="btn btn-sm btn-outline" onclick="editarHab('{{ h.id }}')">Editar</button>
+                    <form method="POST" action="{{ url_for('admin_habilitaciones_eliminar', hid=h.id) }}" style="display: inline;" onsubmit="return confirm('¿Eliminar esta habilitación?');">
+                        <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            <tr id="edit-row-{{ h.id }}" style="display: none; background: #fafafa;">
+                <td colspan="8" style="padding: 16px;">
+                    <form method="POST" action="{{ url_for('admin_habilitaciones_editar', hid=h.id) }}" enctype="multipart/form-data">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Sucursal</label>
+                                <select name="sucursal">
+                                    {% for s in sucursales %}<option value="{{ s }}" {% if s == h.sucursal %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Municipio</label><input type="text" name="municipio" value="{{ h.municipio or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Dirección</label><input type="text" name="direccion" value="{{ h.direccion or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>N° Certificado</label><input type="text" name="numero_cert" value="{{ h.numero_cert or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Fecha habilitación</label><input type="date" name="fecha_habilitacion" value="{{ h.fecha_habilitacion or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Vigencia (años)</label><input type="number" name="vigencia_anios" value="{{ h.vigencia_anios or '' }}" min="1" max="20"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Vencimiento</label><input type="date" name="fecha_vencimiento" value="{{ h.fecha_vencimiento or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Rubro</label><input type="text" name="rubro" value="{{ h.rubro or '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Superficie m²</label><input type="number" step="0.01" name="superficie_m2" value="{{ h.superficie_m2 if h.superficie_m2 is not none else '' }}"></div>
+                            <div class="form-group" style="margin-bottom: 0;"><label>Reemplazar archivo</label><input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png"></div>
+                        </div>
+                        <div class="form-group" style="margin-top: 8px;"><label>Observaciones</label><textarea name="observaciones">{{ h.observaciones or '' }}</textarea></div>
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar cambios</button>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="editarHab('{{ h.id }}')">Cancelar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not habilitaciones %}
+            <tr><td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af;">Sin habilitaciones cargadas</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function toggleHabForm() {
+    var f = document.getElementById('hab-form');
+    var b = document.getElementById('hab-toggle-btn');
+    var visible = f.style.display !== 'none';
+    f.style.display = visible ? 'none' : 'block';
+    b.textContent = visible ? '+ Mostrar' : '- Ocultar';
+}
+function calcVencimiento() {
+    var fh = document.getElementById('hab-fecha-hab').value;
+    var an = parseInt(document.getElementById('hab-anios').value, 10);
+    var fv = document.getElementById('hab-fecha-venc');
+    if (!fh || !an || fv.value) return;
+    var d = new Date(fh);
+    if (isNaN(d.getTime())) return;
+    d.setFullYear(d.getFullYear() + an);
+    var iso = d.toISOString().slice(0, 10);
+    fv.value = iso;
+}
+function editarHab(id) {
+    var row = document.getElementById('edit-row-' + id);
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+</script>
+
+{% endblock %}

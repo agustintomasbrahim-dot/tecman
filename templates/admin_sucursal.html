@@ -7,6 +7,7 @@
     <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('admin_inventario') }}">Inventario</a>
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_habilitaciones') }}">Habilitaciones</a>{% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}

@@ -29,6 +29,7 @@ TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
 STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
+HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -40,6 +41,8 @@ COMPROBANTES_DIR = UPLOADS_DIR / "comprobantes"
 COMPROBANTES_DIR.mkdir(parents=True, exist_ok=True)
 GUIAS_DIR = UPLOADS_DIR / "guias"
 GUIAS_DIR.mkdir(parents=True, exist_ok=True)
+HABILITACIONES_DIR = UPLOADS_DIR / "habilitaciones"
+HABILITACIONES_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -222,6 +225,42 @@ def _load_guias_counter():
 def _save_guias_counter(data):
     GUIAS_COUNTER_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+def load_habilitaciones():
+    if HABILITACIONES_FILE.exists():
+        try:
+            return json.loads(HABILITACIONES_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"habilitaciones": []}
+
+def save_habilitaciones(data):
+    HABILITACIONES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+HABILITACION_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
+
+def _calc_estado_habilitacion(fecha_vencimiento, hoy=None):
+    """Calcula el estado segun la fecha de vencimiento (formato YYYY-MM-DD)."""
+    if not fecha_vencimiento:
+        return "sin_dato"
+    try:
+        venc = datetime.date.fromisoformat(fecha_vencimiento[:10])
+    except (ValueError, TypeError):
+        return "sin_dato"
+    hoy = hoy or datetime.date.today()
+    if venc < hoy:
+        return "vencida"
+    if (venc - hoy).days <= 90:
+        return "por_vencer"
+    return "vigente"
+
+def _enrich_habilitacion(h):
+    """Agrega estado calculado al dict de habilitacion (no muta el original)."""
+    out = dict(h)
+    out["estado"] = _calc_estado_habilitacion(h.get("fecha_vencimiento", ""))
+    return out
+
+ESTADO_HAB_ORDEN = {"vencida": 0, "por_vencer": 1, "vigente": 2, "sin_dato": 3}
+
 def _next_guia_numero():
     data = _load_guias_counter()
     try:
@@ -393,7 +432,7 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 def _seed_data_dir():
     """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
     repo_data = Path(__file__).parent / "data"
-    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json"]:
+    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json", "habilitaciones.json"]:
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
@@ -2622,6 +2661,271 @@ def admin_comprobantes_reporte():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename={nombre}"},
     )
+
+
+# --- Routes: Habilitaciones Municipales ---
+
+def _parse_int_or_none(val):
+    val = (val or "").strip()
+    if not val:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_float_or_none(val):
+    val = (val or "").strip().replace(",", ".")
+    if not val:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _calc_vencimiento(fecha_hab, anios):
+    """Si tenemos fecha de habilitacion + anios, devolvemos vencimiento ISO."""
+    if not fecha_hab or not anios:
+        return ""
+    try:
+        base = datetime.date.fromisoformat(fecha_hab[:10])
+        return base.replace(year=base.year + int(anios)).isoformat()
+    except (ValueError, TypeError):
+        return ""
+
+
+@app.route("/admin/habilitaciones")
+@admin_required
+def admin_habilitaciones():
+    data = load_habilitaciones()
+    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", [])]
+
+    filtro_estado = request.args.get("estado", "").strip()
+    filtro_sucursal = request.args.get("sucursal", "").strip()
+    filtro_q = request.args.get("q", "").strip().lower()
+
+    filtrados = items
+    if filtro_estado:
+        filtrados = [h for h in filtrados if h["estado"] == filtro_estado]
+    if filtro_sucursal:
+        filtrados = [h for h in filtrados if h.get("sucursal") == filtro_sucursal]
+    if filtro_q:
+        def _match(h):
+            campos = [
+                h.get("sucursal", ""),
+                h.get("municipio", ""),
+                h.get("direccion", ""),
+                h.get("numero_cert", ""),
+                h.get("rubro", ""),
+                h.get("observaciones", ""),
+            ]
+            return any(filtro_q in (c or "").lower() for c in campos)
+        filtrados = [h for h in filtrados if _match(h)]
+
+    filtrados.sort(key=lambda h: (
+        ESTADO_HAB_ORDEN.get(h["estado"], 99),
+        h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99",
+        h.get("sucursal", ""),
+    ))
+
+    stats = {
+        "total": len(items),
+        "vigentes": sum(1 for h in items if h["estado"] == "vigente"),
+        "por_vencer": sum(1 for h in items if h["estado"] == "por_vencer"),
+        "vencidas": sum(1 for h in items if h["estado"] == "vencida"),
+        "sin_dato": sum(1 for h in items if h["estado"] == "sin_dato"),
+    }
+
+    sucursales_con_hab = sorted(set(h.get("sucursal", "") for h in items if h.get("sucursal")))
+
+    return render_template(
+        "admin_habilitaciones.html",
+        habilitaciones=filtrados,
+        stats=stats,
+        sucursales=SUCURSALES,
+        sucursales_con_hab=sucursales_con_hab,
+        filtro_estado=filtro_estado,
+        filtro_sucursal=filtro_sucursal,
+        filtro_q=filtro_q,
+    )
+
+
+@app.route("/admin/habilitaciones/nuevo", methods=["POST"])
+@admin_required
+def admin_habilitaciones_nuevo():
+    data = load_habilitaciones()
+    sucursal = request.form.get("sucursal", "").strip()
+    if not sucursal:
+        flash("Seleccione una sucursal")
+        return redirect(url_for("admin_habilitaciones"))
+
+    suc_num = sucursal.replace("Sucursal ", "").strip()
+    fecha_hab = request.form.get("fecha_habilitacion", "").strip()
+    fecha_venc = request.form.get("fecha_vencimiento", "").strip()
+    anios = _parse_int_or_none(request.form.get("vigencia_anios", ""))
+    if not fecha_venc and fecha_hab and anios:
+        fecha_venc = _calc_vencimiento(fecha_hab, anios)
+
+    archivo = ""
+    f = request.files.get("archivo")
+    if f and f.filename:
+        ext = Path(f.filename).suffix.lower()
+        if ext in HABILITACION_EXTENSIONES:
+            fname = f"hab_{suc_num or 'x'}_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(HABILITACIONES_DIR / fname))
+            archivo = fname
+        else:
+            flash("Formato de archivo no permitido (solo PDF, JPG, PNG)")
+            return redirect(url_for("admin_habilitaciones"))
+
+    nueva = {
+        "id": uuid.uuid4().hex[:12],
+        "sucursal": sucursal,
+        "sucursal_num": suc_num,
+        "municipio": request.form.get("municipio", "").strip(),
+        "direccion": request.form.get("direccion", "").strip(),
+        "numero_cert": request.form.get("numero_cert", "").strip(),
+        "fecha_habilitacion": fecha_hab,
+        "fecha_vencimiento": fecha_venc,
+        "vigencia_anios": anios,
+        "rubro": request.form.get("rubro", "").strip(),
+        "superficie_m2": _parse_float_or_none(request.form.get("superficie_m2", "")),
+        "archivo": archivo,
+        "observaciones": request.form.get("observaciones", "").strip(),
+        "created_at": datetime.datetime.now().isoformat(),
+        "cargado_por": session.get("nombre", ""),
+    }
+    data.setdefault("habilitaciones", []).append(nueva)
+    save_habilitaciones(data)
+    flash(f"Habilitación cargada para {sucursal}")
+    return redirect(url_for("admin_habilitaciones"))
+
+
+@app.route("/admin/habilitaciones/<hid>")
+@admin_required
+def admin_habilitaciones_detalle(hid):
+    data = load_habilitaciones()
+    h = next((x for x in data.get("habilitaciones", []) if x.get("id") == hid), None)
+    if not h:
+        return render_template("error.html", mensaje="Habilitación no encontrada"), 404
+    return render_template(
+        "admin_habilitaciones.html",
+        habilitaciones=[_enrich_habilitacion(h)],
+        detalle=_enrich_habilitacion(h),
+        stats={"total": 1, "vigentes": 0, "por_vencer": 0, "vencidas": 0, "sin_dato": 0},
+        sucursales=SUCURSALES,
+        sucursales_con_hab=[],
+        filtro_estado="",
+        filtro_sucursal="",
+        filtro_q="",
+    )
+
+
+@app.route("/admin/habilitaciones/<hid>/editar", methods=["POST"])
+@admin_required
+def admin_habilitaciones_editar(hid):
+    data = load_habilitaciones()
+    h = next((x for x in data.get("habilitaciones", []) if x.get("id") == hid), None)
+    if not h:
+        return render_template("error.html", mensaje="Habilitación no encontrada"), 404
+
+    sucursal = request.form.get("sucursal", "").strip() or h.get("sucursal", "")
+    suc_num = sucursal.replace("Sucursal ", "").strip()
+    fecha_hab = request.form.get("fecha_habilitacion", "").strip()
+    fecha_venc = request.form.get("fecha_vencimiento", "").strip()
+    anios = _parse_int_or_none(request.form.get("vigencia_anios", ""))
+    if not fecha_venc and fecha_hab and anios:
+        fecha_venc = _calc_vencimiento(fecha_hab, anios)
+
+    h["sucursal"] = sucursal
+    h["sucursal_num"] = suc_num
+    h["municipio"] = request.form.get("municipio", "").strip()
+    h["direccion"] = request.form.get("direccion", "").strip()
+    h["numero_cert"] = request.form.get("numero_cert", "").strip()
+    h["fecha_habilitacion"] = fecha_hab
+    h["fecha_vencimiento"] = fecha_venc
+    h["vigencia_anios"] = anios
+    h["rubro"] = request.form.get("rubro", "").strip()
+    h["superficie_m2"] = _parse_float_or_none(request.form.get("superficie_m2", ""))
+    h["observaciones"] = request.form.get("observaciones", "").strip()
+    h["actualizado_por"] = session.get("nombre", "")
+    h["actualizado"] = datetime.datetime.now().isoformat()
+
+    f = request.files.get("archivo")
+    if f and f.filename:
+        ext = Path(f.filename).suffix.lower()
+        if ext in HABILITACION_EXTENSIONES:
+            fname = f"hab_{suc_num or 'x'}_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(HABILITACIONES_DIR / fname))
+            h["archivo"] = fname
+
+    save_habilitaciones(data)
+    flash("Habilitación actualizada")
+    return redirect(url_for("admin_habilitaciones"))
+
+
+@app.route("/admin/habilitaciones/<hid>/eliminar", methods=["POST"])
+@admin_required
+def admin_habilitaciones_eliminar(hid):
+    data = load_habilitaciones()
+    antes = len(data.get("habilitaciones", []))
+    data["habilitaciones"] = [x for x in data.get("habilitaciones", []) if x.get("id") != hid]
+    if len(data["habilitaciones"]) < antes:
+        save_habilitaciones(data)
+        flash("Habilitación eliminada")
+    return redirect(url_for("admin_habilitaciones"))
+
+
+@app.route("/admin/habilitaciones/reporte")
+@admin_required
+def admin_habilitaciones_reporte():
+    import csv
+    import io
+    from flask import Response
+
+    data = load_habilitaciones()
+    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", [])]
+    items.sort(key=lambda h: (
+        ESTADO_HAB_ORDEN.get(h["estado"], 99),
+        h.get("fecha_vencimiento", "") or "",
+        h.get("sucursal", ""),
+    ))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Sucursal", "Municipio", "Dirección", "N° Certificado",
+        "Fecha habilitación", "Fecha vencimiento", "Vigencia (años)",
+        "Rubro", "Superficie m²", "Estado", "Archivo", "Observaciones",
+    ])
+    for h in items:
+        writer.writerow([
+            h.get("sucursal", ""),
+            h.get("municipio", ""),
+            h.get("direccion", ""),
+            h.get("numero_cert", ""),
+            h.get("fecha_habilitacion", ""),
+            h.get("fecha_vencimiento", ""),
+            h.get("vigencia_anios", "") or "",
+            h.get("rubro", ""),
+            h.get("superficie_m2", "") or "",
+            h.get("estado", ""),
+            h.get("archivo", ""),
+            h.get("observaciones", ""),
+        ])
+    nombre = datetime.datetime.now().strftime("tecman_habilitaciones_%Y%m%d.csv")
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={nombre}"},
+    )
+
+
+@app.route("/uploads/habilitaciones/<filename>")
+def serve_habilitacion(filename):
+    return send_from_directory(str(HABILITACIONES_DIR), filename)
 
 
 # --- API ---
