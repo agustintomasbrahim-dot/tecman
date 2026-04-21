@@ -2344,6 +2344,11 @@ def admin_comprobantes():
     stock = load_stock()
     stock_items = sorted(stock.get("central", {}).keys())
 
+    # Lista de sucursales para reingreso/devolucion
+    sucursales_lista = sorted(set(
+        t.get("sucursal", "") for t in load_tickets() if t.get("sucursal")
+    ))
+
     return render_template(
         "admin_comprobantes.html",
         comprobantes=filtrados,
@@ -2357,6 +2362,7 @@ def admin_comprobantes():
         proveedores_unicos=proveedores_unicos,
         stock_items=stock_items,
         ticket_pre=ticket_pre,
+        sucursales_lista=sucursales_lista,
     )
 
 
@@ -2367,7 +2373,13 @@ def admin_comprobantes_nuevo():
     tipo = request.form.get("tipo", "").strip()
     numero = request.form.get("numero", "").strip()
     fecha = request.form.get("fecha", "").strip()
-    proveedor = request.form.get("proveedor", "").strip()
+    origen_tipo = request.form.get("origen_tipo", "proveedor")
+    if origen_tipo == "sucursal":
+        proveedor = f"Reingreso — {request.form.get('sucursal_origen', '').strip()}"
+    elif origen_tipo == "obra":
+        proveedor = f"Obra — {request.form.get('obra_origen', '').strip()}"
+    else:
+        proveedor = request.form.get("proveedor", "").strip()
     monto_raw = request.form.get("monto", "").strip().replace(",", ".")
     descripcion = request.form.get("descripcion", "").strip()
     ticket_ids_raw = request.form.get("ticket_ids", "").strip()

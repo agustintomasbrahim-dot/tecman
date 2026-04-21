@@ -63,14 +63,40 @@
                 <input type="date" name="fecha" required>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-                <label>Proveedor *</label>
-                <input type="text" name="proveedor" required placeholder="Razon social" list="proveedores-list">
+                <label>Origen *</label>
+                <select name="origen_tipo" id="origen-tipo" onchange="toggleOrigenDetalle()" style="margin-bottom: 6px;">
+                    <option value="proveedor">Proveedor externo</option>
+                    <option value="sucursal">Sucursal (reingreso / devolución)</option>
+                    <option value="obra">Obra</option>
+                </select>
+                <input type="text" name="proveedor" id="proveedor-input" required placeholder="Razón social del proveedor" list="proveedores-list">
+                <select name="sucursal_origen" id="sucursal-input" style="display:none;">
+                    <option value="">Seleccionar sucursal...</option>
+                    {% for suc in sucursales_lista %}
+                    <option value="{{ suc }}">{{ suc }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="obra_origen" id="obra-input" style="display:none;" placeholder="Nombre / descripción de la obra">
                 <datalist id="proveedores-list">
                     {% for p in proveedores_unicos %}
                     <option value="{{ p }}">
                     {% endfor %}
                 </datalist>
             </div>
+            <script>
+            function toggleOrigenDetalle() {
+                var tipo = document.getElementById('origen-tipo').value;
+                var prov = document.getElementById('proveedor-input');
+                var suc = document.getElementById('sucursal-input');
+                var obra = document.getElementById('obra-input');
+                prov.style.display = tipo === 'proveedor' ? 'block' : 'none';
+                prov.required = tipo === 'proveedor';
+                suc.style.display = tipo === 'sucursal' ? 'block' : 'none';
+                suc.required = tipo === 'sucursal';
+                obra.style.display = tipo === 'obra' ? 'block' : 'none';
+                obra.required = tipo === 'obra';
+            }
+            </script>
             <div class="form-group" style="margin-bottom: 0;">
                 <label>Monto</label>
                 <input type="number" name="monto" step="0.01" min="0" placeholder="0.00">
