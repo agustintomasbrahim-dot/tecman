@@ -329,7 +329,27 @@ PROVEEDORES = [
     {"nombre": "Conex", "zona": "Neuquen", "tipo": "General", "tel": "54 9 2995 57-5495", "contacto": "Rodrigo", "fijo": False, "sucursales": ["160","233","133","134","231"]},
     {"nombre": "Atila Generaciones", "zona": "AMBA", "tipo": "Grupos electrogenos", "tel": "115318-3306", "contacto": "Waldo", "fijo": True, "sucursales": ["195","208","211","Garin"]},
     {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
-    {"nombre": "Ingam Fumigaciones", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": True, "sucursales": ["AMBA"]},
+    # --- Proveedores de fumigacion por sucursal ---
+    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","190","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"]},
+    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["065","077","080","082","083","142","173","188","191","194","195","209","211","216","230"]},
+    {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
+    {"nombre": "RC Mansilla SA (El Gallo)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["011","058","222"]},
+    {"nombre": "Gerardo Osvaldo Gonzalez", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["052","167","187"]},
+    {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["126","139","193"]},
+    {"nombre": "Lassna SRL", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["051","171"]},
+    {"nombre": "Sindel Siscobio", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["146","158"]},
+    {"nombre": "Contreras Mauricio Sergio", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["159","172"]},
+    {"nombre": "Manggini Pablo y Ulises", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["043","204"]},
+    {"nombre": "Municipalidad de Moreno", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["023","232"]},
+    {"nombre": "Jorge Alejandro Gardel", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["120","212"]},
+    {"nombre": "Imhoff Fernando Alberto", "zona": "Litoral", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["114","226"]},
+    {"nombre": "Felix Raul Millan", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["145"]},
+    {"nombre": "Nazareno Marchilli", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["116"]},
+    {"nombre": "Comservar SRL", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["207"]},
+    {"nombre": "Rabincho SRL", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["220"]},
+    {"nombre": "Perez Bobadilla Nicolas", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["224"]},
+    {"nombre": "Marcelo Domingo Pedregal", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["229"]},
+    {"nombre": "ULT SRL", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["235"]},
 ]
 
 ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
