@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Guía Interna de Transporte - {{ guia_numero }}{% endblock %}
+{% block title %}Remito de Mantenimiento - {{ guia_numero }}{% endblock %}
 {% block nav %}
 <div class="nav no-print">
     <a href="{{ url_for('admin_pedido', ticket_id=ticket.id) }}">← Volver al pedido</a>
@@ -209,7 +209,7 @@
             <div class="sub"><strong>CUIT:</strong> 30-63848573-3</div>
         </div>
         <div class="doc">
-            <div class="titulo">Guía Interna<br>de Transporte</div>
+            <div class="titulo">Remito de<br>Mantenimiento</div>
             <div class="numero">N° {{ guia_numero }}</div>
         </div>
     </div>
