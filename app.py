@@ -3119,6 +3119,10 @@ def admin_comprobantes_nuevo():
         comprobante["destino_direccion"] = destino_direccion
         comprobante["retiro_tipo"] = retiro_tipo
         comprobante["retiro_detalle"] = retiro_detalle
+    if tipo == "remito_proveedor":
+        comprobante["parcial"] = request.form.get("remito_parcial") == "1"
+        comprobante["factura_asociada"] = request.form.get("factura_asociada", "").strip()
+        comprobante["entrega"] = request.form.get("remito_entrega", "").strip()
     data.setdefault("comprobantes", []).append(comprobante)
     save_comprobantes(data)
     flash(f"Comprobante registrado: {tipo} #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))

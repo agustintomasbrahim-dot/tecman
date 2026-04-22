@@ -118,9 +118,12 @@
             function toggleTipoComprobante() {
                 var tipo = document.getElementById('tipo-select').value;
                 var esRemitoInterno = tipo === 'remito_interno';
+                var esRemitoProveedor = tipo === 'remito_proveedor';
                 document.getElementById('origen-group').style.display = esRemitoInterno ? 'none' : 'block';
                 document.getElementById('destino-group').style.display = esRemitoInterno ? 'block' : 'none';
                 document.getElementById('retiro-group').style.display = esRemitoInterno ? 'block' : 'none';
+                var bloqueParcial = document.getElementById('remito-parcial-block');
+                if (bloqueParcial) bloqueParcial.style.display = esRemitoProveedor ? 'block' : 'none';
 
                 var destinoSel = document.getElementById('destino-select');
                 destinoSel.required = esRemitoInterno;
@@ -189,6 +192,25 @@
         <div class="form-group">
             <label>Archivo (PDF, JPG, PNG)</label>
             <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
+        </div>
+
+        <!-- Remito parcial + factura asociada (solo para remito_proveedor) -->
+        <div id="remito-parcial-block" style="display: none; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #92400e;">
+                <input type="checkbox" name="remito_parcial" id="remito-parcial-check" value="1">
+                📦 Remito parcial (enviaron solo una parte de la mercadería)
+            </label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 12px;">Factura asociada (opcional)</label>
+                    <input type="text" name="factura_asociada" placeholder="N° de factura de la compra total">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 12px;">N° de entrega (opcional)</label>
+                    <input type="text" name="remito_entrega" placeholder="Ej: 1 de 3">
+                </div>
+            </div>
+            <p style="font-size: 11px; color: #92400e; margin-top: 8px;">Solo se suma al stock lo que figure en este remito. Cuando lleguen las entregas restantes, cargar un nuevo remito con el mismo N° de factura asociada.</p>
         </div>
 
         <!-- Items de factura -->
@@ -281,6 +303,8 @@ agregarItemFactura();
                     <span class="badge" style="background: #dbeafe; color: #1d4ed8;">Factura</span>
                     {% elif c.tipo == 'remito_proveedor' %}
                     <span class="badge" style="background: #ede9fe; color: #6d28d9;">Remito prov.</span>
+                    {% if c.parcial %}<span class="badge" style="background: #fef3c7; color: #92400e; margin-left: 4px;">📦 Parcial{% if c.entrega %} ({{ c.entrega }}){% endif %}</span>{% endif %}
+                    {% if c.factura_asociada %}<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">FC asociada: {{ c.factura_asociada }}</div>{% endif %}
                     {% elif c.tipo == 'remito_interno' %}
                     <span class="badge" style="background: #dcfce7; color: #166534;">Guía interna</span>
                     {% else %}
