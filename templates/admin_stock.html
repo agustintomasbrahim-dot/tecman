@@ -6,7 +6,7 @@
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_proveedores') }}">Proveedores</a>{% endif %}
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>{% endif %}
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>{% endif %}
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
     <a href="{{ url_for('admin_syh') }}">S&H</a>
@@ -39,7 +39,8 @@
     </div>
 </div>
 
-<!-- Agregar item -->
+{% if session.rol == 'admin' %}
+<!-- Agregar item (SOLO ADMIN - Jonathan no lo ve) -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Agregar al stock</h3>
     <form method="POST" action="{{ url_for('stock_add') }}" id="stock-add-form">
@@ -136,7 +137,10 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 })();
 </script>
 
-<!-- Transferencia -->
+{% endif %}
+
+{% if session.rol == 'admin' %}
+<!-- Transferencia (SOLO ADMIN) -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Transferir de Central a Sucursal</h3>
     <form method="POST" action="{{ url_for('stock_transfer') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
@@ -165,6 +169,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
         <button type="submit" class="btn btn-primary" style="height: 42px;">Transferir</button>
     </form>
 </div>
+{% endif %}
 
 <!-- Stock Central -->
 <div class="card">
@@ -180,12 +185,16 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
                 </td>
                 <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% elif cant <= 5 %}#b45309{% else %}#1a1a2e{% endif %};">{{ cant }}</td>
                 <td style="text-align: right;">
+                    {% if session.rol == 'admin' %}
                     <form method="POST" action="{{ url_for('stock_precio') }}" style="display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end;">
                         <input type="hidden" name="item" value="{{ item }}">
                         <span style="color: #6b7280;">$</span>
                         <input type="number" name="precio_unitario" step="0.01" min="0" value="{{ '%.2f'|format(precio) }}" style="width: 110px; padding: 4px 6px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; text-align: right;">
                         <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; padding: 4px 8px;">OK</button>
                     </form>
+                    {% else %}
+                    <span style="color: #374151;">$ {{ '{:,.2f}'.format(precio) }}</span>
+                    {% endif %}
                 </td>
                 <td style="text-align: right; color: #059669; font-weight: 600;">$ {{ '{:,.0f}'.format(cant * precio) }}</td>
                 <td style="text-align: right;"><a href="{{ url_for('admin_stock_item', item=item) }}" style="color: #9ca3af; text-decoration: none;">&#128269;</a></td>
@@ -194,9 +203,17 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
         </tbody>
     </table>
     {% else %}
-    <p style="color: #9ca3af; text-align: center; padding: 24px;">Stock vacio - Agregue items arriba</p>
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Stock vacío {% if session.rol == 'admin' %}- Agregue items arriba{% else %}- El stock se carga desde Contabilidad al registrar remitos de proveedor{% endif %}</p>
     {% endif %}
 </div>
+
+{% if session.rol != 'admin' %}
+<div class="card" style="background: #eff6ff; border-left: 4px solid #3b82f6;">
+    <p style="color: #1e40af; font-size: 13px; margin: 0;">
+        <strong>ℹ️ Nota:</strong> el stock se actualiza automáticamente cuando desde <strong>Contabilidad</strong> se carga un remito de proveedor. Los egresos se registran al marcar pedidos como enviados.
+    </p>
+</div>
+{% endif %}
 
 <!-- Stock por Sucursal -->
 {% if sucursales_stock %}

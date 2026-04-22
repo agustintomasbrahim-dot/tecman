@@ -6,7 +6,7 @@
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
     <a href="{{ url_for('admin_pedidos') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Comprobantes</a>{% endif %}
+    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>{% endif %}
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_proveedores') }}">Proveedores</a>{% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
