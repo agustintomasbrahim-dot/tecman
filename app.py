@@ -607,9 +607,12 @@ def compras_login_required(f):
 
 
 def _es_insumo_compras(item_key):
-    """True si el item del stock pertenece a las categorias de Compras."""
-    from categories_data import INSUMOS_COMPRAS_PREFIX
-    return bool(item_key) and str(item_key).startswith(INSUMOS_COMPRAS_PREFIX)
+    """True si el item del stock pertenece a las categorias de Compras (Laura)."""
+    from categories_data import INSUMOS_COMPRAS_CATEGORIAS
+    if not item_key:
+        return False
+    item_str = str(item_key)
+    return any(item_str.startswith(cat) for cat in INSUMOS_COMPRAS_CATEGORIAS)
 
 
 def filtrar_stock_laura(stock):
