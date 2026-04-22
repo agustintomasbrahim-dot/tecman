@@ -7,7 +7,7 @@
     <p style="color: #9ca3af; margin-top: 6px; font-size: 15px;">Sistema de gestion de mantenimiento</p>
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; max-width: 720px; margin: 40px auto 0;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; max-width: 900px; margin: 40px auto 0;">
     <a href="{{ url_for('suc_login') }}" class="card" style="text-decoration: none; text-align: center; padding: 28px 16px; transition: all 0.2s; cursor: pointer;" onmouseover="this.style.borderColor='#e63946'" onmouseout="this.style.borderColor='#e5e7eb'">
         <div style="font-size: 32px; margin-bottom: 12px;">&#127978;</div>
         <h3 style="color: #e63946; font-size: 15px; margin-bottom: 4px;">Sucursal</h3>
@@ -27,6 +27,11 @@
         <div style="font-size: 32px; margin-bottom: 12px;">&#128737;</div>
         <h3 style="color: #059669; font-size: 15px; margin-bottom: 4px;">S&amp;H</h3>
         <p style="color: #9ca3af; font-size: 12px;">Seguridad e Higiene</p>
+    </a>
+    <a href="{{ url_for('compras_login') }}" class="card" style="text-decoration: none; text-align: center; padding: 28px 16px; transition: all 0.2s; cursor: pointer;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#e5e7eb'">
+        <div style="font-size: 32px; margin-bottom: 12px;">&#128722;</div>
+        <h3 style="color: #7c3aed; font-size: 15px; margin-bottom: 4px;">Compras</h3>
+        <p style="color: #9ca3af; font-size: 12px;">Insumos y envios</p>
     </a>
 </div>
 

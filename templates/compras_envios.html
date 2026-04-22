@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Envios Compras{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('compras_panel') }}">Dashboard</a>
+    <a href="{{ url_for('compras_stock') }}">Stock</a>
+    <a href="{{ url_for('compras_envio_nuevo') }}">Nuevo envio</a>
+    <a href="{{ url_for('compras_envios') }}" style="color: #7c3aed; border-bottom: 2px solid #7c3aed;">Envios</a>
+    <a href="{{ url_for('compras_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('compras_logout') }}" style="margin-left: auto;">Salir ({{ session.compras_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <h2>Envios a sucursales</h2>
+    <a href="{{ url_for('compras_envio_nuevo') }}" class="btn" style="background: #7c3aed; color: #fff;">+ Registrar envio</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ total_envios }}</div>
+        <div class="label">Envios (filtrados)</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">$ {{ '{:,.0f}'.format(total_valor or 0) }}</div>
+        <div class="label">Valor total</div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card">
+    <form method="GET" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex: 1; min-width: 180px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Sucursal</label>
+            <select name="sucursal" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                <option value="">Todas</option>
+                {% for s in sucursales %}
+                <option value="{{ s }}" {% if s == filtro_suc %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Desde</label>
+            <input type="date" name="desde" value="{{ filtro_desde }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Hasta</label>
+            <input type="date" name="hasta" value="{{ filtro_hasta }}" style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+        </div>
+        <button type="submit" class="btn" style="background: #7c3aed; color: #fff; height: 42px;">Filtrar</button>
+        <a href="{{ url_for('compras_envios') }}" class="btn btn-outline" style="height: 42px;">Limpiar</a>
+    </form>
+</div>
+
+<!-- Listado de envios -->
+<div class="card">
+    {% if envios %}
+    {% for e in envios %}
+    <div style="padding: 14px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+            <div>
+                <strong style="color: #1a1a2e;">{{ e.sucursal }}</strong>
+                <span style="color: #6b7280; font-size: 12px; margin-left: 8px;">{{ e.fecha[:10] }}</span>
+            </div>
+            <div style="color: #059669; font-weight: 700;">$ {{ '{:,.2f}'.format(e.total or 0) }}</div>
+        </div>
+        <table style="margin-top: 4px;">
+            <thead><tr><th>Insumo</th><th style="text-align: right;">Cant.</th><th style="text-align: right;">Precio unit.</th><th style="text-align: right;">Subtotal</th></tr></thead>
+            <tbody>
+                {% for it in e.lineas %}
+                <tr>
+                    <td style="font-size: 13px;">{{ it.item }}</td>
+                    <td style="text-align: right; font-weight: 600;">{{ it.cantidad }}</td>
+                    <td style="text-align: right; color: #6b7280; font-size: 12px;">$ {{ '{:,.2f}'.format(it.precio_unitario or 0) }}</td>
+                    <td style="text-align: right; color: #059669; font-weight: 600;">$ {{ '{:,.2f}'.format(it.monto_imputado or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">No hay envios que coincidan con los filtros.</p>
+    {% endif %}
+</div>
+
+{% endblock %}

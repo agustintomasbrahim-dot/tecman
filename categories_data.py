@@ -75,4 +75,21 @@ MATERIAL_CATEGORIAS = [
             "Rollo de manta / venda",
         ],
     },
+    {
+        "nombre": "Insumos de Compras",
+        "items": [
+            "Papel higiénico",
+            "Toallas de papel",
+            "Jabón líquido",
+            "Lavandina / desinfectantes",
+            "Trapos / esponjas",
+            "Abrochadoras / broches",
+            "Cinta / pegamento / tijera",
+            "Resmas de papel",
+            "Bolsas de residuos",
+        ],
+    },
 ]
+
+# Prefijo usado por el portal de Compras (Laura) para filtrar su stock.
+INSUMOS_COMPRAS_PREFIX = "Insumos de Compras"

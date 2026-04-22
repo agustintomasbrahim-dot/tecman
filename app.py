@@ -105,6 +105,11 @@ ADMINS = {
     "rita": {"password": "tecman2026", "nombre": "Rita", "rol": "admin"},
 }
 
+# Portal de Compras (Laura). Portal separado del de admin.
+COMPRAS_USERS = {
+    "laura": {"password": "compras2026", "nombre": "Laura", "rol": "compras"},
+}
+
 SYH_FILE = DATA_DIR / "syh.json"
 
 SYH_ESTADOS = {
@@ -299,7 +304,7 @@ def _get_precio_historico(item_key, hasta=None):
     return float(ingresos[0].get("precio_unitario", 0))
 
 
-def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None):
+def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None, area=None, envio_id=None):
     """Registra un movimiento de stock (ingreso o egreso)."""
     if not item or not tipo or not cantidad:
         return
@@ -318,6 +323,10 @@ def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota
         mov["monto_imputado"] = float(monto_imputado)
     if precio_unitario is not None:
         mov["precio_unitario"] = float(precio_unitario)
+    if area:
+        mov["area"] = area
+    if envio_id:
+        mov["envio_id"] = envio_id
     data.setdefault("movimientos", []).append(mov)
     save_movimientos(data)
 
@@ -585,6 +594,29 @@ def suc_login_required(f):
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
     return decorated
+
+
+def compras_login_required(f):
+    """Permite acceso solo a usuarios del portal de Compras (Laura)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "compras_user" not in session:
+            return redirect(url_for("compras_login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _es_insumo_compras(item_key):
+    """True si el item del stock pertenece a las categorias de Compras."""
+    from categories_data import INSUMOS_COMPRAS_PREFIX
+    return bool(item_key) and str(item_key).startswith(INSUMOS_COMPRAS_PREFIX)
+
+
+def filtrar_stock_laura(stock):
+    """Retorna dict {item: {cantidad, precio_unitario}} del stock central
+    solo con los insumos que maneja Compras (Laura)."""
+    central = (stock or {}).get("central", {}) or {}
+    return {k: v for k, v in central.items() if _es_insumo_compras(k)}
 
 
 # --- Routes: Sucursal login ---
@@ -1304,6 +1336,464 @@ def prov_ticket(ticket_id):
         return redirect(url_for("prov_ticket", ticket_id=ticket_id))
 
     return render_template("prov_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
+
+
+# --- Routes: Portal de Compras (Laura) ---
+
+@app.route("/compras/login", methods=["GET", "POST"])
+def compras_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        if user in COMPRAS_USERS and COMPRAS_USERS[user]["password"] == pwd:
+            session["compras_user"] = user
+            session["compras_nombre"] = COMPRAS_USERS[user]["nombre"]
+            return redirect(url_for("compras_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("compras_login.html")
+
+
+@app.route("/compras/logout")
+def compras_logout():
+    session.pop("compras_user", None)
+    session.pop("compras_nombre", None)
+    return redirect(url_for("compras_login"))
+
+
+def _compras_envios_agrupados():
+    """Arma la lista de envios de Compras agrupando movimientos por envio_id."""
+    movs = load_movimientos().get("movimientos", [])
+    envios = {}
+    for m in movs:
+        if m.get("area") != "compras" or m.get("tipo") != "egreso":
+            continue
+        eid = m.get("envio_id") or m.get("id")
+        envio = envios.setdefault(eid, {
+            "envio_id": eid,
+            "fecha": m.get("fecha", ""),
+            "sucursal": m.get("sucursal", ""),
+            "usuario": m.get("nota", ""),
+            "lineas": [],
+            "total": 0.0,
+            "total_unidades": 0,
+        })
+        envio["lineas"].append({
+            "item": m.get("item", ""),
+            "cantidad": int(m.get("cantidad", 0) or 0),
+            "precio_unitario": float(m.get("precio_unitario", 0) or 0),
+            "monto_imputado": float(m.get("monto_imputado", 0) or 0),
+        })
+        envio["total"] += float(m.get("monto_imputado", 0) or 0)
+        envio["total_unidades"] += int(m.get("cantidad", 0) or 0)
+    out = list(envios.values())
+    out.sort(key=lambda e: e.get("fecha", ""), reverse=True)
+    return out
+
+
+@app.route("/compras")
+@compras_login_required
+def compras_panel():
+    stock = load_stock()
+    mi_stock = filtrar_stock_laura(stock)
+    items = sorted(
+        ((k, v.get("cantidad", 0), v.get("precio_unitario", 0.0)) for k, v in mi_stock.items()),
+        key=lambda x: x[0],
+    )
+    total_unidades = sum(c for _, c, _ in items)
+    valor_stock = sum(c * p for _, c, p in items)
+
+    envios = _compras_envios_agrupados()
+    mes_actual = datetime.datetime.now().strftime("%Y-%m")
+    envios_mes = [e for e in envios if e.get("fecha", "").startswith(mes_actual)]
+    sucursales_atendidas = len({e.get("sucursal", "") for e in envios if e.get("sucursal")})
+
+    ultimos_envios = envios[:10]
+
+    return render_template(
+        "compras_panel.html",
+        items=items,
+        total_items=len(items),
+        total_unidades=total_unidades,
+        valor_stock=valor_stock,
+        envios_mes_count=len(envios_mes),
+        sucursales_atendidas=sucursales_atendidas,
+        ultimos_envios=ultimos_envios,
+    )
+
+
+@app.route("/compras/stock")
+@compras_login_required
+def compras_stock():
+    from categories_data import MATERIAL_CATEGORIAS, INSUMOS_COMPRAS_PREFIX
+
+    stock = load_stock()
+    mi_stock = filtrar_stock_laura(stock)
+    items = sorted(
+        ((k, v.get("cantidad", 0), v.get("precio_unitario", 0.0)) for k, v in mi_stock.items()),
+        key=lambda x: x[0],
+    )
+    total_unidades = sum(c for _, c, _ in items)
+    valor_stock = sum(c * p for _, c, p in items)
+
+    # Subitems de la categoria de insumos de compras para el selector.
+    sub_items = []
+    for cat in MATERIAL_CATEGORIAS:
+        if cat.get("nombre") == INSUMOS_COMPRAS_PREFIX:
+            sub_items = list(cat.get("items", []))
+            break
+
+    # Stock por sucursal filtrado a insumos de compras
+    stock_sucursales = {}
+    for suc, items_suc in (stock.get("sucursales", {}) or {}).items():
+        filtrados = {k: v for k, v in (items_suc or {}).items() if _es_insumo_compras(k)}
+        if filtrados:
+            stock_sucursales[suc] = filtrados
+
+    return render_template(
+        "compras_stock.html",
+        items=items,
+        total_items=len(items),
+        total_unidades=total_unidades,
+        valor_stock=valor_stock,
+        sub_items=sub_items,
+        prefix=INSUMOS_COMPRAS_PREFIX,
+        stock_sucursales=stock_sucursales,
+    )
+
+
+@app.route("/compras/stock/add", methods=["POST"])
+@compras_login_required
+def compras_stock_add():
+    from categories_data import INSUMOS_COMPRAS_PREFIX
+
+    stock = load_stock()
+    subitem = request.form.get("subitem", "").strip()
+    item_libre = request.form.get("item_libre", "").strip()
+    try:
+        cantidad = int(request.form.get("cantidad", 0))
+    except (ValueError, TypeError):
+        cantidad = 0
+    precio_raw = request.form.get("precio_unitario", "").strip().replace(",", ".")
+    try:
+        precio = float(precio_raw) if precio_raw else None
+    except ValueError:
+        precio = None
+
+    nombre = subitem or item_libre
+    if not nombre:
+        flash("Seleccione o ingrese un insumo")
+        return redirect(url_for("compras_stock"))
+    item_key = f"{INSUMOS_COMPRAS_PREFIX} > {nombre}"
+
+    if cantidad <= 0:
+        flash("Cantidad invalida")
+        return redirect(url_for("compras_stock"))
+
+    actual = get_central_qty(stock, item_key)
+    set_central_qty(stock, item_key, actual + cantidad, precio=precio)
+    save_stock(stock)
+    registrar_movimiento(
+        item=item_key,
+        tipo="ingreso",
+        cantidad=cantidad,
+        sucursal="Central Dabra",
+        nota=f"Ingreso manual (Compras) por {session.get('compras_nombre', 'Laura')}",
+        precio_unitario=precio,
+        area="compras",
+    )
+    flash(f"Agregado: {cantidad}x {nombre}" + (f" a ${precio:,.2f}" if precio else ""))
+    return redirect(url_for("compras_stock"))
+
+
+@app.route("/compras/stock/precio", methods=["POST"])
+@compras_login_required
+def compras_stock_precio():
+    stock = load_stock()
+    item = request.form.get("item", "").strip()
+    if not item or not _es_insumo_compras(item):
+        flash("Item no valido")
+        return redirect(url_for("compras_stock"))
+    precio_raw = request.form.get("precio_unitario", "").strip().replace(",", ".")
+    try:
+        precio = float(precio_raw) if precio_raw else 0.0
+    except ValueError:
+        flash("Precio invalido")
+        return redirect(url_for("compras_stock"))
+    set_central_precio(stock, item, precio)
+    save_stock(stock)
+    flash(f"Precio actualizado: {item} → ${precio:,.2f}")
+    return redirect(url_for("compras_stock"))
+
+
+@app.route("/compras/envios")
+@compras_login_required
+def compras_envios():
+    envios = _compras_envios_agrupados()
+    filtro_suc = request.args.get("sucursal", "").strip()
+    filtro_desde = request.args.get("desde", "").strip()
+    filtro_hasta = request.args.get("hasta", "").strip()
+
+    filtrados = envios
+    if filtro_suc:
+        filtrados = [e for e in filtrados if e.get("sucursal") == filtro_suc]
+    if filtro_desde:
+        filtrados = [e for e in filtrados if e.get("fecha", "")[:10] >= filtro_desde]
+    if filtro_hasta:
+        filtrados = [e for e in filtrados if e.get("fecha", "")[:10] <= filtro_hasta]
+
+    sucursales_con_envios = sorted({e.get("sucursal", "") for e in envios if e.get("sucursal")})
+    total_valor = sum(e.get("total", 0) for e in filtrados)
+
+    return render_template(
+        "compras_envios.html",
+        envios=filtrados,
+        total_envios=len(filtrados),
+        total_valor=total_valor,
+        sucursales=sucursales_con_envios,
+        filtro_suc=filtro_suc,
+        filtro_desde=filtro_desde,
+        filtro_hasta=filtro_hasta,
+    )
+
+
+@app.route("/compras/envio", methods=["GET", "POST"])
+@compras_login_required
+def compras_envio_nuevo():
+    stock = load_stock()
+    mi_stock = filtrar_stock_laura(stock)
+
+    if request.method == "POST":
+        sucursal = request.form.get("sucursal", "").strip()
+        if not sucursal:
+            flash("Seleccione una sucursal destino")
+            return redirect(url_for("compras_envio_nuevo"))
+
+        item_keys = request.form.getlist("item_key[]")
+        item_cants = request.form.getlist("item_cantidad[]")
+
+        # Construir lineas validas (item + cantidad > 0)
+        lineas = []
+        for idx, k in enumerate(item_keys):
+            k = (k or "").strip()
+            if not k or not _es_insumo_compras(k):
+                continue
+            try:
+                cant = int(item_cants[idx]) if idx < len(item_cants) and item_cants[idx] else 0
+            except (ValueError, IndexError):
+                cant = 0
+            if cant <= 0:
+                continue
+            lineas.append((k, cant))
+
+        if not lineas:
+            flash("Agregue al menos un item con cantidad > 0")
+            return redirect(url_for("compras_envio_nuevo"))
+
+        # Validar stock disponible antes de hacer cambios
+        for k, cant in lineas:
+            disponible = get_central_qty(stock, k)
+            if cant > disponible:
+                flash(f"Stock insuficiente para '{k}': hay {disponible}, pide {cant}")
+                return redirect(url_for("compras_envio_nuevo"))
+
+        envio_id = uuid.uuid4().hex[:12]
+        usuario = session.get("compras_nombre", "Laura")
+
+        # Asegurar slot en sucursales
+        suc_store = stock.setdefault("sucursales", {}).setdefault(sucursal, {})
+
+        total_valor = 0.0
+        resumen = []
+        for k, cant in lineas:
+            precio_unit = _get_precio_historico(k) or get_central_precio(stock, k)
+            # Descontar central
+            disponible = get_central_qty(stock, k)
+            set_central_qty(stock, k, disponible - cant)
+            # Sumar en sucursal (int simple)
+            suc_store[k] = int(suc_store.get(k, 0) or 0) + cant
+
+            monto = round(cant * precio_unit, 2)
+            total_valor += monto
+            resumen.append(f"{cant}x {k}")
+
+            registrar_movimiento(
+                item=k,
+                tipo="egreso",
+                cantidad=cant,
+                sucursal=sucursal,
+                nota=f"Envio de Compras #{envio_id} a {sucursal} por {usuario}",
+                monto_imputado=monto,
+                precio_unitario=precio_unit,
+                area="compras",
+                envio_id=envio_id,
+            )
+            registrar_movimiento(
+                item=k,
+                tipo="ingreso",
+                cantidad=cant,
+                sucursal=sucursal,
+                nota=f"Recepcion envio Compras #{envio_id} desde Central",
+                monto_imputado=monto,
+                precio_unitario=precio_unit,
+                area="compras",
+                envio_id=envio_id,
+            )
+
+        save_stock(stock)
+        flash(f"Envio registrado a {sucursal} - {len(lineas)} items - ${total_valor:,.2f}")
+        return redirect(url_for("compras_envios"))
+
+    # GET: lista de items con stock > 0
+    items_disponibles = sorted(
+        (
+            (k, v.get("cantidad", 0), v.get("precio_unitario", 0.0))
+            for k, v in mi_stock.items()
+            if v.get("cantidad", 0) > 0
+        ),
+        key=lambda x: x[0],
+    )
+    return render_template(
+        "compras_envio_nuevo.html",
+        items=items_disponibles,
+        sucursales=SUCURSALES,
+    )
+
+
+@app.route("/compras/comprobantes")
+@compras_login_required
+def compras_comprobantes():
+    data = load_comprobantes()
+    comprobantes = [
+        c for c in data.get("comprobantes", []) if c.get("area") == "compras"
+    ]
+    filtro_desde = request.args.get("desde", "").strip()
+    filtro_hasta = request.args.get("hasta", "").strip()
+    filtro_proveedor = request.args.get("proveedor", "").strip().lower()
+
+    filtrados = comprobantes
+    if filtro_desde:
+        filtrados = [c for c in filtrados if c.get("fecha", "") >= filtro_desde]
+    if filtro_hasta:
+        filtrados = [c for c in filtrados if c.get("fecha", "") <= filtro_hasta]
+    if filtro_proveedor:
+        filtrados = [c for c in filtrados if filtro_proveedor in (c.get("proveedor", "") or "").lower()]
+
+    filtrados.sort(key=lambda c: c.get("fecha", ""), reverse=True)
+
+    total_monto = sum(float(c.get("monto", 0) or 0) for c in filtrados)
+    proveedores_unicos = sorted({c.get("proveedor", "") for c in comprobantes if c.get("proveedor")})
+
+    # Subitems para cargar asociando items a la factura
+    from categories_data import MATERIAL_CATEGORIAS, INSUMOS_COMPRAS_PREFIX
+    sub_items = []
+    for cat in MATERIAL_CATEGORIAS:
+        if cat.get("nombre") == INSUMOS_COMPRAS_PREFIX:
+            sub_items = list(cat.get("items", []))
+            break
+
+    return render_template(
+        "compras_comprobantes.html",
+        comprobantes=filtrados,
+        total_monto=total_monto,
+        proveedores_unicos=proveedores_unicos,
+        filtro_desde=filtro_desde,
+        filtro_hasta=filtro_hasta,
+        filtro_proveedor=request.args.get("proveedor", "").strip(),
+        sub_items=sub_items,
+        prefix=INSUMOS_COMPRAS_PREFIX,
+    )
+
+
+@app.route("/compras/comprobantes/nuevo", methods=["POST"])
+@compras_login_required
+def compras_comprobantes_nuevo():
+    from categories_data import INSUMOS_COMPRAS_PREFIX
+
+    data = load_comprobantes()
+    numero = request.form.get("numero", "").strip()
+    fecha = request.form.get("fecha", "").strip()
+    proveedor = request.form.get("proveedor", "").strip()
+    monto_raw = request.form.get("monto", "").strip().replace(",", ".")
+    descripcion = request.form.get("descripcion", "").strip()
+
+    if not numero or not fecha or not proveedor:
+        flash("Complete numero, fecha y proveedor")
+        return redirect(url_for("compras_comprobantes"))
+
+    try:
+        monto = float(monto_raw) if monto_raw else 0.0
+    except ValueError:
+        monto = 0.0
+
+    archivo = ""
+    f = request.files.get("archivo")
+    if f and f.filename:
+        ext = Path(f.filename).suffix.lower()
+        if ext in COMPROBANTE_EXTENSIONES:
+            fname = f"compras_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(COMPROBANTES_DIR / fname))
+            archivo = fname
+        else:
+            flash("Formato no permitido (solo PDF, JPG, PNG)")
+            return redirect(url_for("compras_comprobantes"))
+
+    # Items asociados (opcional): suman al stock e impactan precio.
+    items_factura = []
+    item_names = request.form.getlist("item_nombre[]")
+    item_cants = request.form.getlist("item_cantidad[]")
+    item_precios = request.form.getlist("item_precio[]")
+    stock_data = None
+    for idx, nombre in enumerate(item_names):
+        nombre = (nombre or "").strip()
+        if not nombre:
+            continue
+        try:
+            cant = int(item_cants[idx]) if idx < len(item_cants) and item_cants[idx] else 0
+        except (ValueError, IndexError):
+            cant = 0
+        try:
+            precio = float((item_precios[idx] if idx < len(item_precios) else "0").replace(",", ".")) if idx < len(item_precios) and item_precios[idx] else 0.0
+        except (ValueError, IndexError):
+            precio = 0.0
+        if cant <= 0 and precio <= 0:
+            continue
+        item_key = f"{INSUMOS_COMPRAS_PREFIX} > {nombre}"
+        items_factura.append({"item": item_key, "cantidad": cant, "precio_unitario": precio})
+        if cant > 0:
+            if stock_data is None:
+                stock_data = load_stock()
+            actual = get_central_qty(stock_data, item_key)
+            set_central_qty(stock_data, item_key, actual + cant, precio=precio if precio > 0 else None)
+            registrar_movimiento(
+                item=item_key,
+                tipo="ingreso",
+                cantidad=cant,
+                sucursal="Central Dabra",
+                nota=f"Ingreso por factura Compras {numero} ({proveedor})",
+                precio_unitario=precio if precio > 0 else None,
+                area="compras",
+            )
+    if stock_data is not None:
+        save_stock(stock_data)
+
+    comprobante = {
+        "id": uuid.uuid4().hex[:12],
+        "tipo": "factura",
+        "area": "compras",
+        "numero": numero,
+        "fecha": fecha,
+        "proveedor": proveedor,
+        "monto": monto,
+        "descripcion": descripcion,
+        "archivo": archivo,
+        "items_factura": items_factura,
+        "created_at": datetime.datetime.now().isoformat(),
+        "cargado_por": session.get("compras_nombre", "Laura"),
+    }
+    data.setdefault("comprobantes", []).append(comprobante)
+    save_comprobantes(data)
+    flash(f"Factura registrada: #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))
+    return redirect(url_for("compras_comprobantes"))
 
 
 # --- Routes: Ficha Sucursal ---
