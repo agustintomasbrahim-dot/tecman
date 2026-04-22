@@ -83,6 +83,36 @@
     </form>
 </div>
 
+<!-- Respuesta rapida a sucursal -->
+<div class="card" style="border-left: 4px solid #2563eb;">
+    <h3 style="margin-bottom: 12px; font-size: 15px;">💬 Responder a la sucursal</h3>
+    {% if ticket.estado_respuesta %}
+    <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Última respuesta: <strong>{{ ticket.estado_respuesta }}</strong></p>
+    {% endif %}
+    <form method="POST">
+        <input type="hidden" name="accion" value="responder_suc">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="motivo" value="esperando_proveedor" required>
+                <span><strong>Esperando proveedor</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="motivo" value="esperando_materiales">
+                <span><strong>Esperando materiales</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="motivo" value="otra">
+                <span><strong>Otra</strong></span>
+            </label>
+        </div>
+        <div class="form-group" style="margin-bottom: 10px;">
+            <label style="font-size: 12px;">Detalle (opcional, obligatorio si elige "Otra")</label>
+            <input type="text" name="motivo_detalle" placeholder="Ej: Coordinado con el proveedor X, visita el viernes">
+        </div>
+        <button type="submit" class="btn btn-primary">Enviar respuesta a la sucursal</button>
+    </form>
+</div>
+
 <!-- Gestionar ticket -->
 <div class="card">
     <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Gestionar ticket</h3>

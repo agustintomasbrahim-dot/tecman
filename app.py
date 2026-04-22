@@ -988,6 +988,42 @@ def admin_ticket(ticket_id):
         return "Ticket no encontrado", 404
 
     if request.method == "POST":
+        accion = request.form.get("accion", "")
+        # Accion rapida: responder a la sucursal con una de las 3 opciones
+        if accion == "responder_suc":
+            motivo = request.form.get("motivo", "").strip()
+            detalle = request.form.get("motivo_detalle", "").strip()
+            labels = {
+                "esperando_proveedor": "Esperando proveedor",
+                "esperando_materiales": "Esperando materiales",
+                "otra": "Otra",
+            }
+            label = labels.get(motivo, motivo)
+            mensaje = label if motivo != "otra" else (detalle or label)
+            if detalle and motivo != "otra":
+                mensaje += f" - {detalle}"
+            if "notas" not in ticket:
+                ticket["notas"] = []
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Respuesta a sucursal: {mensaje}",
+            })
+            if "notificaciones" not in ticket:
+                ticket["notificaciones"] = []
+            ticket["notificaciones"].append({
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": mensaje,
+                "leida": False,
+            })
+            ticket["estado_respuesta"] = label
+            if ticket["estado"] in ("Nuevo", "Abierto"):
+                ticket["estado"] = "Pendiente"
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Respuesta enviada a la sucursal")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         # Check if it's a note or an update
         nueva_nota = request.form.get("nueva_nota", "").strip()
         if nueva_nota:
