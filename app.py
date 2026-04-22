@@ -3074,7 +3074,8 @@ def admin_comprobantes_nuevo():
             continue
         items_factura.append({"item": nombre, "cantidad": cant, "precio_unitario": precio})
         # En facturas: sumar al stock central e impactar el precio_unitario del item
-        if tipo == "factura":
+        if tipo == "remito_proveedor":
+            # El remito de proveedor es el ingreso fisico real al deposito
             if stock_data is None:
                 stock_data = load_stock()
             actual = get_central_qty(stock_data, nombre)
@@ -3086,9 +3087,16 @@ def admin_comprobantes_nuevo():
                     tipo="ingreso",
                     cantidad=cant,
                     sucursal="Central Dabra",
-                    nota=f"Ingreso por factura {numero} ({proveedor})",
+                    nota=f"Ingreso por remito {numero} ({proveedor})",
                     precio_unitario=precio if precio > 0 else None,
                 )
+        elif tipo == "factura":
+            # La factura solo actualiza el precio unitario (registro contable)
+            # No suma al stock porque eso lo hace el remito
+            if stock_data is None:
+                stock_data = load_stock()
+            if precio > 0:
+                set_central_precio(stock_data, nombre, precio)
     if stock_data is not None:
         save_stock(stock_data)
 

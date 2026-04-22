@@ -195,7 +195,7 @@
         <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5e7eb;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <label style="font-weight: 600; color: #374151; font-size: 14px; margin: 0;">Items del comprobante</label>
-                <span style="font-size: 12px; color: #9ca3af;">En facturas: suma al stock central y actualiza el precio unitario del item</span>
+                <span style="font-size: 12px; color: #9ca3af;">Remitos de proveedor: suman al stock central. Facturas: actualizan precio unitario (no afectan stock).</span>
             </div>
             <datalist id="items-stock-list">
                 {% for it in stock_items %}
