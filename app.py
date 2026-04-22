@@ -674,7 +674,22 @@ def suc_panel():
             notificaciones.append({"ticket_id": t["id"], **n})
     notificaciones.sort(key=lambda x: x.get("fecha", ""), reverse=True)
 
-    return render_template("suc_panel.html", tickets=mis_tickets, prioridades=PRIORIDADES, mis_proveedores=mis_proveedores, notificaciones=notificaciones)
+    # Stock recibido por esta sucursal
+    stock = load_stock()
+    mi_stock = stock.get("sucursales", {}).get(session["suc_nombre"], {}) or {}
+    # Separar por tipo (insumos de compras vs mantenimiento)
+    mi_stock_insumos = {k: v for k, v in mi_stock.items() if _es_insumo_compras(k)}
+    mi_stock_manten = {k: v for k, v in mi_stock.items() if not _es_insumo_compras(k)}
+
+    return render_template(
+        "suc_panel.html",
+        tickets=mis_tickets,
+        prioridades=PRIORIDADES,
+        mis_proveedores=mis_proveedores,
+        notificaciones=notificaciones,
+        mi_stock_insumos=mi_stock_insumos,
+        mi_stock_manten=mi_stock_manten,
+    )
 
 
 @app.route("/mis-proveedores")
