@@ -6,7 +6,7 @@
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_proveedores') }}">Proveedores</a>{% endif %}
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>{% endif %}
+    <a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
     <a href="{{ url_for('admin_syh') }}">S&H</a>
@@ -208,7 +208,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 {% if session.rol != 'admin' %}
 <div class="card" style="background: #eff6ff; border-left: 4px solid #3b82f6;">
     <p style="color: #1e40af; font-size: 13px; margin: 0;">
-        <strong>ℹ️ Nota:</strong> el stock se actualiza automáticamente cuando desde <strong>Contabilidad</strong> se carga un remito de proveedor. Los egresos se registran al marcar pedidos como enviados.
+        <strong>ℹ️ Nota:</strong> para cargar stock al depósito ir a <a href="{{ url_for('admin_comprobantes') }}" style="color: #1d4ed8; font-weight: 600;">Contabilidad</a> y registrar la factura o remito de proveedor. Los egresos se registran automáticamente al marcar pedidos como enviados.
     </p>
 </div>
 {% endif %}

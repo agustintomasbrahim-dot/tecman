@@ -2934,7 +2934,7 @@ def _direccion_para_destino(destino):
 
 
 @app.route("/admin/comprobantes")
-@admin_required
+@login_required
 def admin_comprobantes():
     data = load_comprobantes()
     comprobantes = data.get("comprobantes", [])
@@ -2993,7 +2993,7 @@ def admin_comprobantes():
 
 
 @app.route("/admin/comprobantes/nuevo", methods=["POST"])
-@admin_required
+@login_required
 def admin_comprobantes_nuevo():
     data = load_comprobantes()
     tipo = request.form.get("tipo", "").strip()
@@ -3164,7 +3164,7 @@ def api_destino_direccion():
 
 
 @app.route("/admin/comprobantes/<cid>/imprimir")
-@admin_required
+@login_required
 def admin_comprobantes_imprimir(cid):
     data = load_comprobantes()
     comp = next((c for c in data.get("comprobantes", []) if c.get("id") == cid), None)

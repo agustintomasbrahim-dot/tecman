@@ -4,7 +4,7 @@
 <div class="nav">
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>{% endif %}
+    <a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
