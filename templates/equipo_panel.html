@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Equipo Central{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('equipo_panel') }}" style="color: #ea580c; border-bottom: 2px solid #ea580c;">Dashboard</a>
+    <a href="{{ url_for('equipo_stock') }}">Stock central</a>
+    <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h2 style="color: #ea580c;">Equipo de Mantenimiento Central</h2>
+        <p style="color: #64748b; font-size: 13px;">Hector y Jose &bull; Trabajos asignados</p>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #b45309;">{{ pendientes | length }}</div>
+        <div class="label">Pendientes</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #ea580c;">{{ en_progreso | length }}</div>
+        <div class="label">En progreso</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">{{ terminados_mes | length }}</div>
+        <div class="label">Terminados este mes</div>
+    </div>
+</div>
+
+{% if pendientes %}
+<h3 style="color: #b45309; margin: 16px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">&#9888; Pendientes</h3>
+<div style="display: grid; gap: 10px;">
+    {% for t in pendientes %}
+    <a href="{{ url_for('equipo_ticket', ticket_id=t.id) }}" style="text-decoration: none;">
+        <div class="card" style="padding: 14px; border-left: 4px solid {% if t.prioridad == 1 %}#ef4444{% elif t.prioridad == 2 %}#f59e0b{% elif t.prioridad == 3 %}#ea580c{% else %}#64748b{% endif %}; margin: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
+                <span style="color: #ea580c; font-weight: 700;">#{{ t.id }}</span>
+            </div>
+            <h3 style="font-size: 15px; color: #1a1a2e;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}...{% endif %}</h3>
+            <div style="color: #64748b; font-size: 12px; margin-top: 6px;">
+                {{ t.sucursal }} &bull; {{ t.categoria }}{% if t.subcategoria %} &raquo; {{ t.subcategoria }}{% endif %} &bull; {{ t.creado[:10] }}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if en_progreso %}
+<h3 style="color: #ea580c; margin: 20px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">&#128296; En progreso</h3>
+<div style="display: grid; gap: 10px;">
+    {% for t in en_progreso %}
+    {% set etapa = t.get('etapa_equipo', 'asignado') %}
+    <a href="{{ url_for('equipo_ticket', ticket_id=t.id) }}" style="text-decoration: none;">
+        <div class="card" style="padding: 14px; border-left: 4px solid #ea580c; margin: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
+                <span class="badge" style="background: rgba(234,88,12,0.15); color: #ea580c;">
+                    {% if etapa == 'en_camino' %}&#128666; En camino{% elif etapa == 'iniciado' %}&#128296; Iniciado{% else %}{{ etapa }}{% endif %}
+                </span>
+                <span style="color: #ea580c; font-weight: 700;">#{{ t.id }}</span>
+            </div>
+            <h3 style="font-size: 15px; color: #1a1a2e;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}...{% endif %}</h3>
+            <div style="color: #64748b; font-size: 12px; margin-top: 6px;">
+                {{ t.sucursal }} &bull; {{ t.creado[:10] }}
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not pendientes and not en_progreso %}
+<div class="card" style="text-align: center; padding: 48px;">
+    <div style="font-size: 48px; margin-bottom: 12px;">&#9989;</div>
+    <h3 style="color: #059669;">Sin trabajos pendientes</h3>
+    <p style="color: #64748b; margin-top: 4px;">Todos los trabajos asignados fueron completados</p>
+</div>
+{% endif %}
+
+{% if terminados_mes %}
+<h3 style="color: #059669; margin: 20px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">&#10004; Terminados este mes</h3>
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr><th>#</th><th>Sucursal</th><th>Descripcion</th><th>Fecha</th></tr>
+        </thead>
+        <tbody>
+            {% for t in terminados_mes %}
+            <tr style="opacity: 0.8;">
+                <td><a href="{{ url_for('equipo_ticket', ticket_id=t.id) }}" style="color: #ea580c; font-weight: 600;">{{ t.id }}</a></td>
+                <td>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</td>
+                <td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.descripcion[:80] }}</td>
+                <td style="color: #64748b; font-size: 12px;">{{ t.actualizado[:10] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}

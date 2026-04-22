@@ -44,6 +44,8 @@ GUIAS_DIR = UPLOADS_DIR / "guias"
 GUIAS_DIR.mkdir(parents=True, exist_ok=True)
 HABILITACIONES_DIR = UPLOADS_DIR / "habilitaciones"
 HABILITACIONES_DIR.mkdir(parents=True, exist_ok=True)
+TRABAJOS_DIR = UPLOADS_DIR / "trabajos"
+TRABAJOS_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -109,6 +111,11 @@ ADMINS = {
 # Portal de Compras (Laura). Portal separado del de admin.
 COMPRAS_USERS = {
     "laura": {"password": "compras2026", "nombre": "Laura", "rol": "compras"},
+}
+
+# Portal Equipo de Mantenimiento Central (Hector y Jose)
+EQUIPO_USERS = {
+    "equipo": {"password": "central2026", "nombre": "Equipo Central", "rol": "equipo_central"},
 }
 
 SYH_FILE = DATA_DIR / "syh.json"
@@ -635,6 +642,20 @@ def compras_login_required(f):
     return decorated
 
 
+def equipo_login_required(f):
+    """Permite acceso al portal del Equipo Central.
+    Acepta sesion de equipo (equipo_user) o admin con rol equipo_central
+    o usuario 'equipo'."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "equipo_user" in session:
+            return f(*args, **kwargs)
+        if session.get("user") == "equipo" or session.get("rol") == "equipo_central":
+            return f(*args, **kwargs)
+        return redirect(url_for("equipo_login"))
+    return decorated
+
+
 def _es_insumo_compras(item_key):
     """True si el item del stock pertenece a las categorias de Compras (Laura)."""
     from categories_data import INSUMOS_COMPRAS_CATEGORIAS
@@ -853,6 +874,19 @@ def confirmar_recepcion(ticket_id):
         "fecha": datetime.datetime.now().isoformat(),
         "texto": f"Siguiente paso: {paso_texto}",
     })
+
+    # Si va a Personal de Mantenimiento Central, asignar al equipo y avisar al admin
+    if siguiente_paso == "personal_mantenimiento":
+        ticket["asignado_equipo"] = "Equipo Central"
+        if not ticket.get("etapa_equipo"):
+            ticket["etapa_equipo"] = "asignado"
+        agregar_notif_admin(
+            titulo=f"Equipo Central - Trabajo asignado #{ticket_id}",
+            detalle=f"{ticket['sucursal']} confirmo recepcion. El equipo de Mantenimiento Central debe ejecutar el trabajo.",
+            tipo="equipo_central",
+            autor=session.get("suc_nombre", "Sucursal"),
+            link=url_for("admin_ticket", ticket_id=ticket_id),
+        )
 
     # Notify provider
     if "notificaciones_prov" not in ticket:
@@ -1883,6 +1917,226 @@ def compras_comprobantes_nuevo():
     save_comprobantes(data)
     flash(f"Factura registrada: #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))
     return redirect(url_for("compras_comprobantes"))
+
+
+# --- Routes: Portal Equipo de Mantenimiento Central (Hector y Jose) ---
+
+def _tickets_equipo(tickets):
+    """Filtra tickets que deben ejecutar el Equipo Central."""
+    return [
+        t for t in tickets
+        if t.get("siguiente_paso") == "personal_mantenimiento"
+        and t.get("estado") != "Cerrado"
+    ]
+
+
+@app.route("/equipo/login", methods=["GET", "POST"])
+def equipo_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        if user in EQUIPO_USERS and EQUIPO_USERS[user]["password"] == pwd:
+            session["equipo_user"] = user
+            session["equipo_nombre"] = EQUIPO_USERS[user]["nombre"]
+            return redirect(url_for("equipo_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template("equipo_login.html")
+
+
+@app.route("/equipo/logout")
+def equipo_logout():
+    session.pop("equipo_user", None)
+    session.pop("equipo_nombre", None)
+    return redirect(url_for("equipo_login"))
+
+
+@app.route("/equipo")
+@equipo_login_required
+def equipo_panel():
+    tickets = load_tickets()
+    mis = _tickets_equipo(tickets)
+
+    etapa_default = {"pendiente": [], "en_progreso": [], "terminados": []}
+    etapa_default["pendiente"] = [
+        t for t in mis if t.get("etapa_equipo", "asignado") in ("asignado", "")
+    ]
+    etapa_default["en_progreso"] = [
+        t for t in mis if t.get("etapa_equipo") in ("en_camino", "iniciado")
+    ]
+    mes_actual = datetime.datetime.now().strftime("%Y-%m")
+    etapa_default["terminados"] = [
+        t for t in tickets
+        if t.get("siguiente_paso") == "personal_mantenimiento"
+        and t.get("etapa_equipo") == "terminado"
+        and (t.get("actualizado", "")[:7] == mes_actual)
+    ]
+
+    # Ordenar pendientes por prioridad y fecha
+    pendientes = sorted(
+        etapa_default["pendiente"],
+        key=lambda t: (t.get("prioridad", 4), t.get("creado", "")),
+    )
+    en_progreso = sorted(
+        etapa_default["en_progreso"],
+        key=lambda t: (t.get("prioridad", 4), t.get("creado", "")),
+    )
+    terminados_mes = sorted(
+        etapa_default["terminados"],
+        key=lambda t: t.get("actualizado", ""),
+        reverse=True,
+    )
+
+    return render_template(
+        "equipo_panel.html",
+        pendientes=pendientes,
+        en_progreso=en_progreso,
+        terminados_mes=terminados_mes,
+        prioridades=PRIORIDADES,
+    )
+
+
+def _get_ticket_equipo(ticket_id, tickets):
+    """Busca un ticket que pertenezca al equipo. Devuelve None si no aplica."""
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return None
+    if ticket.get("siguiente_paso") != "personal_mantenimiento":
+        return None
+    return ticket
+
+
+@app.route("/equipo/ticket/<int:ticket_id>")
+@equipo_login_required
+def equipo_ticket(ticket_id):
+    tickets = load_tickets()
+    ticket = _get_ticket_equipo(ticket_id, tickets)
+    if not ticket:
+        return render_template("error.html", mensaje="Ticket no disponible para el equipo."), 404
+    return render_template(
+        "equipo_ticket.html",
+        ticket=ticket,
+        prioridades=PRIORIDADES,
+    )
+
+
+@app.route("/equipo/ticket/<int:ticket_id>/etapa", methods=["POST"])
+@equipo_login_required
+def equipo_ticket_etapa(ticket_id):
+    tickets = load_tickets()
+    ticket = _get_ticket_equipo(ticket_id, tickets)
+    if not ticket:
+        return render_template("error.html", mensaje="Ticket no disponible para el equipo."), 404
+
+    nueva = request.form.get("etapa", "").strip()
+    etapas_validas = {"asignado", "en_camino", "iniciado", "terminado"}
+    if nueva not in etapas_validas:
+        flash("Etapa invalida")
+        return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+    autor = session.get("equipo_nombre") or session.get("nombre") or "Equipo Central"
+    labels = {
+        "asignado": ("Asignado", "Abierto"),
+        "en_camino": ("En camino", "En progreso"),
+        "iniciado": ("Trabajo iniciado", "En progreso"),
+        "terminado": ("Trabajo terminado", "Resuelto"),
+    }
+    label, estado = labels[nueva]
+    ticket["etapa_equipo"] = nueva
+    ticket["estado"] = estado
+    ticket.setdefault("notas", []).append({
+        "autor": autor,
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": f"Etapa equipo: {label}",
+    })
+    ticket["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    flash(f"Etapa actualizada: {label}")
+    return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+
+@app.route("/equipo/ticket/<int:ticket_id>/foto", methods=["POST"])
+@equipo_login_required
+def equipo_ticket_foto(ticket_id):
+    tickets = load_tickets()
+    ticket = _get_ticket_equipo(ticket_id, tickets)
+    if not ticket:
+        return render_template("error.html", mensaje="Ticket no disponible para el equipo."), 404
+
+    autor = session.get("equipo_nombre") or session.get("nombre") or "Equipo Central"
+    f = request.files.get("foto")
+    if not f or not f.filename:
+        flash("Sin foto")
+        return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+    ext = Path(f.filename).suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        flash("Formato no soportado")
+        return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+    fname = f"{ticket_id}_trabajo_{uuid.uuid4().hex[:8]}{ext}"
+    f.save(str(TRABAJOS_DIR / fname))
+    rel = f"trabajos/{fname}"
+    ticket.setdefault("fotos_trabajo", []).append(rel)
+    ticket.setdefault("notas", []).append({
+        "autor": autor,
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": "Subio foto del trabajo",
+        "fotos": [rel],
+    })
+    ticket["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    flash("Foto subida")
+    return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+
+@app.route("/equipo/ticket/<int:ticket_id>/nota", methods=["POST"])
+@equipo_login_required
+def equipo_ticket_nota(ticket_id):
+    tickets = load_tickets()
+    ticket = _get_ticket_equipo(ticket_id, tickets)
+    if not ticket:
+        return render_template("error.html", mensaje="Ticket no disponible para el equipo."), 404
+
+    autor = session.get("equipo_nombre") or session.get("nombre") or "Equipo Central"
+    texto = request.form.get("nota", "").strip()
+    if not texto:
+        flash("Nota vacia")
+        return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+    ticket.setdefault("notas", []).append({
+        "autor": autor,
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": texto,
+    })
+    ticket["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    flash("Nota agregada")
+    return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
+
+
+@app.route("/equipo/stock")
+@equipo_login_required
+def equipo_stock():
+    stock = load_stock()
+    central = stock.get("central", {}) or {}
+    items = sorted(
+        ((k, v.get("cantidad", 0), v.get("precio_unitario", 0.0)) for k, v in central.items()),
+        key=lambda x: x[0],
+    )
+    total_unidades = sum(c for _, c, _ in items)
+    valor_stock = sum(c * p for _, c, p in items)
+    return render_template(
+        "equipo_stock.html",
+        items=items,
+        total_items=len(items),
+        total_unidades=total_unidades,
+        valor_stock=valor_stock,
+    )
+
+
+@app.route("/uploads/trabajos/<filename>")
+def serve_trabajo(filename):
+    return send_from_directory(str(TRABAJOS_DIR), filename)
 
 
 # --- Routes: Ficha Sucursal ---

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Stock Central (Equipo){% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('equipo_panel') }}">Dashboard</a>
+    <a href="{{ url_for('equipo_stock') }}" style="color: #ea580c; border-bottom: 2px solid #ea580c;">Stock central</a>
+    <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<h2 style="margin-bottom: 6px;">Stock central</h2>
+<p style="color: #64748b; font-size: 13px; margin-bottom: 16px;">Consulta de solo lectura del stock en deposito central</p>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ total_items }}</div>
+        <div class="label">Items distintos</div>
+    </div>
+    <div class="stat-card">
+        <div class="number">{{ total_unidades }}</div>
+        <div class="label">Unidades totales</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">$ {{ '{:,.0f}'.format(valor_stock or 0) }}</div>
+        <div class="label">Valor stock</div>
+    </div>
+</div>
+
+<div class="card">
+    {% if items %}
+    <table>
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th style="text-align: right;">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item, cant, _precio in items %}
+            <tr>
+                <td style="font-weight: 600;">{{ item }}</td>
+                <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% elif cant <= 5 %}#b45309{% else %}#1a1a2e{% endif %};">{{ cant }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Sin items en stock central.</p>
+    {% endif %}
+</div>
+
+<p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 12px;">Vista de solo lectura. Para movimientos de stock contactar al admin.</p>
+
+{% endblock %}

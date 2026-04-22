@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket #{{ ticket.id }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('equipo_panel') }}">Dashboard</a>
+    <a href="{{ url_for('equipo_stock') }}">Stock central</a>
+    <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('equipo_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">&larr; Mis trabajos</a>
+
+{% set etapa = ticket.get('etapa_equipo', 'asignado') %}
+{% set etapas_orden = [('asignado','Asignado','#64748b'), ('en_camino','En camino','#0ea5e9'), ('iniciado','Iniciado','#ea580c'), ('terminado','Terminado','#059669')] %}
+
+<!-- Progress bar -->
+<div class="card" style="padding: 18px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2 style="font-size: 20px;">Ticket #{{ ticket.id }}</h2>
+        <span class="badge badge-p{{ ticket.prioridad }}" style="font-size: 12px; padding: 5px 14px;">{{ prioridades[ticket.prioridad] }}</span>
+    </div>
+    <div style="display: flex; gap: 6px;">
+        {% set found = [false] %}
+        {% for key, label, color in etapas_orden %}
+        {% set is_current = (key == etapa) %}
+        {% set is_done = not found[0] and not is_current %}
+        {% if is_current %}{% set _ = found.__setitem__(0, true) %}{% endif %}
+        <div style="flex: 1; text-align: center;">
+            <div style="height: 8px; border-radius: 4px; background: {% if is_done or is_current %}{{ color }}{% else %}#e5e7eb{% endif %}; margin-bottom: 6px;"></div>
+            <div style="font-size: 11px; color: {% if is_current %}{{ color }}{% elif is_done %}#94a3b8{% else %}#9ca3af{% endif %}; font-weight: {% if is_current %}800{% else %}500{% endif %};">{{ label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Info del ticket -->
+<div class="card">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px;">
+        <div><span style="color: #64748b;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
+        <div><span style="color: #64748b;">Categoria:</span> {{ ticket.categoria }}{% if ticket.subcategoria %} &raquo; {{ ticket.subcategoria }}{% endif %}</div>
+        <div><span style="color: #64748b;">Creado:</span> {{ ticket.creado[:10] }}</div>
+        <div><span style="color: #64748b;">Actualizado:</span> {{ ticket.actualizado[:10] }}</div>
+    </div>
+    <div style="margin-top: 14px; background: #f9fafb; padding: 14px; border-radius: 8px; font-size: 15px; line-height: 1.5;">
+        {{ ticket.descripcion }}
+    </div>
+    {% if ticket.observaciones %}
+    <div style="margin-top: 10px; background: rgba(234,88,12,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #ea580c; font-size: 13px; color: #7c2d12;">
+        <strong>Admin:</strong> {{ ticket.observaciones }}
+    </div>
+    {% endif %}
+    {% if ticket.categoria_mat or ticket.subitem_mat %}
+    <div style="margin-top: 10px; background: #fef3c7; padding: 12px; border-radius: 8px; font-size: 13px; color: #78350f;">
+        <strong>Materiales solicitados:</strong>
+        {% if ticket.categoria_mat %}{{ ticket.categoria_mat }}{% endif %}
+        {% if ticket.subitem_mat %} &raquo; {{ ticket.subitem_mat }}{% endif %}
+        {% if ticket.cantidad_mat %} &bull; Cantidad: {{ ticket.cantidad_mat }}{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Fotos iniciales del ticket -->
+{% if ticket.fotos %}
+<div class="card" style="padding: 14px;">
+    <h4 style="color: #ea580c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos de la sucursal</h4>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        {% for foto in ticket.fotos %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 96px; height: 96px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb;"></a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Fotos del trabajo realizado -->
+{% if ticket.fotos_trabajo %}
+<div class="card" style="padding: 14px;">
+    <h4 style="color: #059669; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos del trabajo</h4>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        {% for foto in ticket.fotos_trabajo %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 96px; height: 96px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb;"></a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Botones de cambio de etapa -->
+{% if etapa != 'terminado' %}
+<div class="card">
+    <h3 style="margin-bottom: 10px;">Cambiar etapa</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+        <form method="POST" action="{{ url_for('equipo_ticket_etapa', ticket_id=ticket.id) }}">
+            <input type="hidden" name="etapa" value="en_camino">
+            <button type="submit" class="btn btn-block" style="background: {% if etapa == 'en_camino' %}#0ea5e9{% else %}#1a1a2e{% endif %}; color: white; padding: 12px;">&#128666; En camino</button>
+        </form>
+        <form method="POST" action="{{ url_for('equipo_ticket_etapa', ticket_id=ticket.id) }}">
+            <input type="hidden" name="etapa" value="iniciado">
+            <button type="submit" class="btn btn-block" style="background: {% if etapa == 'iniciado' %}#ea580c{% else %}#1a1a2e{% endif %}; color: white; padding: 12px;">&#128296; Iniciar trabajo</button>
+        </form>
+        <form method="POST" action="{{ url_for('equipo_ticket_etapa', ticket_id=ticket.id) }}" onsubmit="return confirm('Confirmar trabajo TERMINADO?');">
+            <input type="hidden" name="etapa" value="terminado">
+            <button type="submit" class="btn btn-block" style="background: #059669; color: white; padding: 12px;">&#10004; Terminado</button>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 28px; border: 2px solid #059669;">
+    <div style="font-size: 48px; margin-bottom: 6px;">&#10004;</div>
+    <p style="color: #059669; font-weight: 700; font-size: 18px;">Trabajo terminado</p>
+    <p style="color: #64748b; font-size: 13px;">{{ ticket.actualizado[:16].replace('T', ' ') }}</p>
+</div>
+{% endif %}
+
+<!-- Subir foto del trabajo -->
+<div class="card">
+    <h3 style="margin-bottom: 10px;">&#128247; Subir foto del trabajo</h3>
+    <form method="POST" action="{{ url_for('equipo_ticket_foto', ticket_id=ticket.id) }}" enctype="multipart/form-data">
+        <input type="file" name="foto" accept="image/*" capture="environment" required style="padding: 8px; width: 100%; margin-bottom: 8px;">
+        <button type="submit" class="btn btn-block" style="background: #ea580c; color: white;">Subir foto</button>
+    </form>
+</div>
+
+<!-- Agregar nota -->
+<div class="card">
+    <h3 style="margin-bottom: 10px;">&#128172; Agregar nota</h3>
+    <form method="POST" action="{{ url_for('equipo_ticket_nota', ticket_id=ticket.id) }}">
+        <textarea name="nota" placeholder="Escribir observacion..." required style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; height: 80px; font-size: 14px; font-family: inherit; resize: vertical;"></textarea>
+        <button type="submit" class="btn" style="background: #1a1a2e; color: white; margin-top: 8px;">Enviar nota</button>
+    </form>
+</div>
+
+<!-- Historial -->
+{% if ticket.notas %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Historial</h3>
+    {% for nota in ticket.notas | reverse %}
+    <div style="display: flex; gap: 10px; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="width: 4px; min-height: 100%; border-radius: 2px; background: {% if 'terminado' in nota.texto.lower() %}#059669{% elif 'iniciado' in nota.texto.lower() or 'en camino' in nota.texto.lower() %}#ea580c{% else %}#cbd5e1{% endif %};"></div>
+        <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                <span style="color: #64748b; font-weight: 600;">{{ nota.autor }}</span>
+                <span style="color: #9ca3af;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+            </div>
+            <p style="color: #1a1a2e; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>
+            {% if nota.fotos is defined %}
+            <div style="margin-top: 6px; display: flex; gap: 4px;">
+                {% for foto in nota.fotos %}
+                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
