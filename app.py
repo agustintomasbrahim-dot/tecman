@@ -3022,7 +3022,8 @@ def admin_comprobantes_nuevo():
         else:
             proveedor = request.form.get("proveedor", "").strip()
     monto_raw = request.form.get("monto", "").strip().replace(",", ".")
-    descripcion = request.form.get("descripcion", "").strip()
+    # "comentario" es el alias nuevo de "descripcion" (UX simplificada)
+    descripcion = (request.form.get("comentario") or request.form.get("descripcion") or "").strip()
     ticket_ids_raw = request.form.get("ticket_ids", "").strip()
 
     try:
@@ -3048,8 +3049,22 @@ def admin_comprobantes_nuevo():
             flash("Formato de archivo no permitido (solo PDF, JPG, PNG)")
             return redirect(url_for("admin_comprobantes"))
 
-    if not tipo or not numero or not fecha or not proveedor:
-        flash("Complete tipo, numero, fecha y proveedor")
+    # Fecha por defecto: hoy (la factura simple puede no traerla)
+    if not fecha:
+        fecha = datetime.date.today().isoformat()
+
+    # Auto-generar número si es factura y no se cargó
+    if tipo == "factura" and not numero:
+        numero = f"AUTO-{fecha}-{uuid.uuid4().hex[:6].upper()}"
+
+    if not tipo or not fecha:
+        flash("Seleccioná el tipo y la fecha del comprobante")
+        return redirect(url_for("admin_comprobantes"))
+
+    # Facturas: proveedor y número son opcionales (UX simple).
+    # Remitos: mantienen la validación estricta.
+    if tipo != "factura" and (not numero or not proveedor):
+        flash("Complete número y proveedor del remito")
         return redirect(url_for("admin_comprobantes"))
 
     # Items asociados (items_factura): listas paralelas item_nombre[], item_cantidad[], item_precio[]

@@ -41,210 +41,386 @@
     </div>
 </div>
 
-<!-- Formulario de carga -->
-<div class="card">
-    <h3 style="margin-bottom: 12px;">Cargar nuevo comprobante</h3>
-    <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
-            <div class="form-group" style="margin-bottom: 0;">
-                <label>Tipo *</label>
-                <select name="tipo" id="tipo-select" required onchange="toggleTipoComprobante()">
-                    <option value="">Seleccionar...</option>
-                    <option value="factura">Factura</option>
-                    <option value="remito_proveedor">Remito de proveedor</option>
-                    <option value="remito_interno">Remito / Guía interna suc</option>
-                </select>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label>Numero *</label>
-                <input type="text" name="numero" required placeholder="Ej: 0001-00001234">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label>Fecha *</label>
-                <input type="date" name="fecha" required>
-            </div>
-            <div class="form-group" id="origen-group" style="margin-bottom: 0;">
-                <label>Origen *</label>
-                <select name="origen_tipo" id="origen-tipo" onchange="toggleOrigenDetalle()" style="margin-bottom: 6px;">
-                    <option value="proveedor">Proveedor externo</option>
-                    <option value="sucursal">Sucursal (reingreso / devolución)</option>
-                    <option value="obra">Obra</option>
-                </select>
-                <input type="text" name="proveedor" id="proveedor-input" placeholder="Razón social del proveedor" list="proveedores-list">
-                <select name="sucursal_origen" id="sucursal-input" style="display:none;">
-                    <option value="">Seleccionar sucursal...</option>
-                    {% for suc in sucursales_lista %}
-                    <option value="{{ suc }}">{{ suc }}</option>
-                    {% endfor %}
-                </select>
-                <input type="text" name="obra_origen" id="obra-input" style="display:none;" placeholder="Nombre / descripción de la obra">
-                <datalist id="proveedores-list">
-                    {% for p in proveedores_unicos %}
-                    <option value="{{ p }}">
-                    {% endfor %}
-                </datalist>
-            </div>
-
-            <div class="form-group" id="destino-group" style="margin-bottom: 0; display:none;">
-                <label>Destino *</label>
-                <select name="destino" id="destino-select" onchange="onDestinoChange()" style="margin-bottom: 6px;">
-                    <option value="">Seleccionar destino...</option>
-                    <optgroup label="Destinos fijos">
-                        {% for d in destinos_fijos %}
-                        <option value="{{ d }}">{{ d }}</option>
-                        {% endfor %}
-                    </optgroup>
-                    <optgroup label="Sucursales">
-                        {% for d in destinos_sucursales %}
-                        <option value="{{ d.label }}" data-direccion="{{ d.direccion }}">{{ d.label }}</option>
-                        {% endfor %}
-                    </optgroup>
-                </select>
-                <input type="text" name="destino_direccion" id="destino-direccion" placeholder="Dirección" style="font-size:12px;">
-            </div>
-
-            <div class="form-group" id="retiro-group" style="margin-bottom: 0; display:none;">
-                <label>Tipo de retiro / envío</label>
-                <select name="retiro_tipo" id="retiro-tipo" onchange="onRetiroTipoChange()" style="margin-bottom: 6px;">
-                    <option value="">Seleccionar...</option>
-                    <option value="proveedor">Proveedor</option>
-                    <option value="logistica">Logística</option>
-                    <option value="personal">Personal propio</option>
-                </select>
-                <input type="text" name="retiro_detalle" id="retiro-detalle" placeholder="Detalle (nombre proveedor / transporte / etc.)" style="font-size:12px;">
-            </div>
-
-            <script>
-            function toggleTipoComprobante() {
-                var tipo = document.getElementById('tipo-select').value;
-                var esRemitoInterno = tipo === 'remito_interno';
-                var esRemitoProveedor = tipo === 'remito_proveedor';
-                document.getElementById('origen-group').style.display = esRemitoInterno ? 'none' : 'block';
-                document.getElementById('destino-group').style.display = esRemitoInterno ? 'block' : 'none';
-                document.getElementById('retiro-group').style.display = esRemitoInterno ? 'block' : 'none';
-                var bloqueParcial = document.getElementById('remito-parcial-block');
-                if (bloqueParcial) bloqueParcial.style.display = esRemitoProveedor ? 'block' : 'none';
-
-                var destinoSel = document.getElementById('destino-select');
-                destinoSel.required = esRemitoInterno;
-
-                if (esRemitoInterno) {
-                    document.getElementById('proveedor-input').required = false;
-                    document.getElementById('sucursal-input').required = false;
-                    document.getElementById('obra-input').required = false;
-                } else {
-                    toggleOrigenDetalle();
-                }
-            }
-            function toggleOrigenDetalle() {
-                var tipo = document.getElementById('origen-tipo').value;
-                var prov = document.getElementById('proveedor-input');
-                var suc = document.getElementById('sucursal-input');
-                var obra = document.getElementById('obra-input');
-                prov.style.display = tipo === 'proveedor' ? 'block' : 'none';
-                prov.required = tipo === 'proveedor';
-                suc.style.display = tipo === 'sucursal' ? 'block' : 'none';
-                suc.required = tipo === 'sucursal';
-                obra.style.display = tipo === 'obra' ? 'block' : 'none';
-                obra.required = tipo === 'obra';
-            }
-            function onDestinoChange() {
-                var sel = document.getElementById('destino-select');
-                var destino = sel.value;
-                var dirInput = document.getElementById('destino-direccion');
-                if (!destino) { dirInput.value = ''; return; }
-                var opt = sel.options[sel.selectedIndex];
-                var preset = opt.getAttribute('data-direccion');
-                if (preset) {
-                    dirInput.value = preset;
-                    return;
-                }
-                fetch('{{ url_for("api_destino_direccion") }}?destino=' + encodeURIComponent(destino))
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) { dirInput.value = d.direccion || ''; })
-                    .catch(function() { /* silencioso */ });
-            }
-            function onRetiroTipoChange() {
-                var t = document.getElementById('retiro-tipo').value;
-                var det = document.getElementById('retiro-detalle');
-                var placeholders = {
-                    'proveedor': 'Nombre del proveedor que retira',
-                    'logistica': 'Empresa de logística (CEYH, otro transporte, etc.)',
-                    'personal': 'Nombre del personal (opcional)'
-                };
-                det.placeholder = placeholders[t] || 'Detalle';
-            }
-            toggleTipoComprobante();
-            </script>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label>Monto</label>
-                <input type="number" name="monto" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label>Tickets asociados</label>
-                <input type="text" name="ticket_ids" value="{{ ticket_pre }}" placeholder="Ej: 12, 34">
-            </div>
-        </div>
-        <div class="form-group" style="margin-top: 12px;">
-            <label>Descripcion</label>
-            <input type="text" name="descripcion" placeholder="Detalle / concepto">
-        </div>
-        <div class="form-group">
-            <label>Archivo (PDF, JPG, PNG)</label>
-            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
-        </div>
-
-        <!-- Remito parcial + factura asociada (solo para remito_proveedor) -->
-        <div id="remito-parcial-block" style="display: none; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a;">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #92400e;">
-                <input type="checkbox" name="remito_parcial" id="remito-parcial-check" value="1">
-                📦 Remito parcial (enviaron solo una parte de la mercadería)
-            </label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 12px;">Factura asociada (opcional)</label>
-                    <input type="text" name="factura_asociada" placeholder="N° de factura de la compra total">
-                </div>
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="font-size: 12px;">N° de entrega (opcional)</label>
-                    <input type="text" name="remito_entrega" placeholder="Ej: 1 de 3">
-                </div>
-            </div>
-            <p style="font-size: 11px; color: #92400e; margin-top: 8px;">Solo se suma al stock lo que figure en este remito. Cuando lleguen las entregas restantes, cargar un nuevo remito con el mismo N° de factura asociada.</p>
-        </div>
-
-        <!-- Items de factura -->
-        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5e7eb;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <label style="font-weight: 600; color: #374151; font-size: 14px; margin: 0;">Items del comprobante</label>
-                <span style="font-size: 12px; color: #9ca3af;">Remitos de proveedor: suman al stock central. Facturas: actualizan precio unitario (no afectan stock).</span>
-            </div>
-            <datalist id="items-stock-list">
-                {% for it in stock_items %}
-                <option value="{{ it }}">
-                {% endfor %}
-            </datalist>
-            <div id="items-factura-container"></div>
-            <button type="button" onclick="agregarItemFactura()" class="btn btn-outline" style="margin-top: 8px;">+ Agregar item</button>
-        </div>
-
-        <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Guardar comprobante</button>
-    </form>
+{% macro items_block(key) %}
+<div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed #e5e7eb;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <label style="font-weight: 600; color: #374151; font-size: 14px; margin: 0;">Ítems del comprobante</label>
+        <span style="font-size: 11px; color: #9ca3af;">Se suman al stock central.</span>
+    </div>
+    <div class="items-container" data-key="{{ key }}"></div>
+    <button type="button" class="btn btn-outline" onclick="agregarItemFactura(this)" style="margin-top: 8px;">+ Agregar ítem</button>
 </div>
+{% endmacro %}
+
+<!-- Datalists compartidos -->
+<datalist id="proveedores-list">
+    {% for p in proveedores_unicos %}
+    <option value="{{ p }}">
+    {% endfor %}
+</datalist>
+<datalist id="items-stock-list">
+    {% for it in stock_items %}
+    <option value="{{ it }}">
+    {% endfor %}
+</datalist>
+
+<style>
+.comp-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.comp-card {
+    background: #fff;
+    border: 2px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 22px 18px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    user-select: none;
+}
+.comp-card:hover {
+    border-color: #e63946;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(230,57,70,0.12);
+}
+.comp-card .icon { font-size: 38px; display: block; margin-bottom: 8px; }
+.comp-card .title { font-weight: 700; color: #1a1a2e; font-size: 15px; }
+.comp-card .desc { font-size: 11px; color: #9ca3af; margin-top: 4px; line-height: 1.3; }
+.comp-card.dim { opacity: 0.35; pointer-events: none; }
+.comp-card.active { border-color: #e63946; background: #fef2f2; }
+
+.comp-panel { display: none; margin-top: 14px; }
+.comp-panel.open { display: block; }
+
+.dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #f9fafb;
+    color: #6b7280;
+}
+.dropzone:hover, .dropzone.drag {
+    border-color: #1d4ed8;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+.dropzone.has-file {
+    border-style: solid;
+    border-color: #059669;
+    background: #ecfdf5;
+    color: #065f46;
+}
+.dropzone .dz-icon { font-size: 32px; }
+.dropzone .dz-main { font-weight: 600; font-size: 14px; }
+.dropzone .dz-sub { font-size: 12px; color: #9ca3af; }
+.dropzone.has-file .dz-sub { color: #047857; }
+</style>
+
+<div class="card" id="comp-carga-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h3 style="margin: 0;">Cargar nuevo comprobante</h3>
+        <button type="button" id="comp-volver" onclick="compVolver()" style="display:none; background:none; border:none; color:#6b7280; font-size:13px; font-weight:600; cursor:pointer;">← Volver</button>
+    </div>
+
+    <div class="comp-cards" id="comp-cards">
+        <div class="comp-card" data-panel="factura" onclick="compSeleccionar('factura')">
+            <span class="icon">📄</span>
+            <div class="title">Factura</div>
+            <div class="desc">Solo archivo + comentario</div>
+        </div>
+        <div class="comp-card" data-panel="remito-total" onclick="compSeleccionar('remito-total')">
+            <span class="icon">📦</span>
+            <div class="title">Remito total</div>
+            <div class="desc">Proveedor · suma al stock</div>
+        </div>
+        <div class="comp-card" data-panel="remito-parcial" onclick="compSeleccionar('remito-parcial')">
+            <span class="icon">📦</span>
+            <div class="title">Remito parcial</div>
+            <div class="desc">Con factura asociada y N° de entrega</div>
+        </div>
+        <div class="comp-card" data-panel="remito-interno" onclick="compSeleccionar('remito-interno')">
+            <span class="icon">🚚</span>
+            <div class="title">Remito interno</div>
+            <div class="desc">Envío/retiro a sucursal u obra</div>
+        </div>
+    </div>
+
+    <!-- PANEL FACTURA -->
+    <div class="comp-panel" id="panel-factura">
+        <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
+            <input type="hidden" name="tipo" value="factura">
+            <div class="dropzone" data-dz="fact">
+                <span class="dz-icon">📄</span>
+                <div class="dz-main">Arrastrá la factura aquí o hacé click</div>
+                <div class="dz-sub">PDF, JPG o PNG</div>
+                <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            </div>
+            <div class="form-group" style="margin-top: 14px;">
+                <label>Comentario (opcional)</label>
+                <textarea name="comentario" placeholder="Anotaciones, detalle, concepto..." style="height: 90px;"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar factura</button>
+        </form>
+    </div>
+
+    <!-- PANEL REMITO TOTAL -->
+    <div class="comp-panel" id="panel-remito-total">
+        <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
+            <input type="hidden" name="tipo" value="remito_proveedor">
+            <input type="hidden" name="remito_parcial" value="0">
+            <div class="dropzone" data-dz="rtot">
+                <span class="dz-icon">📦</span>
+                <div class="dz-main">Arrastrá la foto del remito aquí o hacé click</div>
+                <div class="dz-sub">PDF, JPG o PNG</div>
+                <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Proveedor *</label>
+                    <input type="text" name="proveedor" list="proveedores-list" placeholder="Razón social" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Número *</label>
+                    <input type="text" name="numero" placeholder="Ej: 0001-00001234" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Fecha *</label>
+                    <input type="date" name="fecha" required>
+                </div>
+            </div>
+            {{ items_block('rtot') }}
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Comentario (opcional)</label>
+                <input type="text" name="comentario" placeholder="Observaciones">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar remito total</button>
+        </form>
+    </div>
+
+    <!-- PANEL REMITO PARCIAL -->
+    <div class="comp-panel" id="panel-remito-parcial">
+        <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
+            <input type="hidden" name="tipo" value="remito_proveedor">
+            <input type="hidden" name="remito_parcial" value="1">
+            <div style="padding: 10px 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: 13px; margin-bottom: 14px;">
+                ⚠️ <strong>Solo se suma al stock lo que figure en este remito.</strong> Cuando lleguen las entregas restantes, cargar un nuevo remito con el mismo N° de factura asociada.
+            </div>
+            <div class="dropzone" data-dz="rparc">
+                <span class="dz-icon">📦</span>
+                <div class="dz-main">Arrastrá la foto del remito aquí o hacé click</div>
+                <div class="dz-sub">PDF, JPG o PNG</div>
+                <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Proveedor *</label>
+                    <input type="text" name="proveedor" list="proveedores-list" placeholder="Razón social" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Número *</label>
+                    <input type="text" name="numero" placeholder="Ej: 0001-00001234" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Fecha *</label>
+                    <input type="date" name="fecha" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Factura asociada *</label>
+                    <input type="text" name="factura_asociada" placeholder="N° de factura total" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>N° de entrega *</label>
+                    <input type="text" name="remito_entrega" placeholder="Ej: 1 de 3" required>
+                </div>
+            </div>
+            {{ items_block('rparc') }}
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Comentario (opcional)</label>
+                <input type="text" name="comentario" placeholder="Observaciones">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar remito parcial</button>
+        </form>
+    </div>
+
+    <!-- PANEL REMITO INTERNO -->
+    <div class="comp-panel" id="panel-remito-interno">
+        <form method="POST" action="{{ url_for('admin_comprobantes_nuevo') }}" enctype="multipart/form-data">
+            <input type="hidden" name="tipo" value="remito_interno">
+            <div class="dropzone" data-dz="rint">
+                <span class="dz-icon">🚚</span>
+                <div class="dz-main">Arrastrá el archivo aquí o hacé click (opcional)</div>
+                <div class="dz-sub">PDF, JPG o PNG</div>
+                <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 14px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Número *</label>
+                    <input type="text" name="numero" placeholder="Ej: GT-000123" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Fecha *</label>
+                    <input type="date" name="fecha" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Destino *</label>
+                    <select name="destino" id="rint-destino-select" onchange="onRintDestinoChange()" required>
+                        <option value="">Seleccionar...</option>
+                        <optgroup label="Destinos fijos">
+                            {% for d in destinos_fijos %}
+                            <option value="{{ d }}">{{ d }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Sucursales">
+                            {% for d in destinos_sucursales %}
+                            <option value="{{ d.label }}" data-direccion="{{ d.direccion }}">{{ d.label }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Dirección</label>
+                    <input type="text" name="destino_direccion" id="rint-destino-direccion" placeholder="Dirección">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Tipo de retiro / envío</label>
+                    <select name="retiro_tipo" id="rint-retiro-tipo" onchange="onRintRetiroTipoChange()">
+                        <option value="">Seleccionar...</option>
+                        <option value="proveedor">Proveedor</option>
+                        <option value="logistica">Logística</option>
+                        <option value="personal">Personal propio</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Detalle retiro / envío</label>
+                    <input type="text" name="retiro_detalle" id="rint-retiro-detalle" placeholder="Detalle">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Tickets asociados</label>
+                    <input type="text" name="ticket_ids" value="{{ ticket_pre }}" placeholder="Ej: 12, 34">
+                </div>
+            </div>
+            {{ items_block('rint') }}
+            <div class="form-group" style="margin-top: 12px;">
+                <label>Comentario (opcional)</label>
+                <input type="text" name="comentario" placeholder="Observaciones">
+            </div>
+            <button type="submit" class="btn btn-primary">Guardar remito interno</button>
+        </form>
+    </div>
+</div>
+
 <script>
-function agregarItemFactura() {
-    var cont = document.getElementById('items-factura-container');
+function compSeleccionar(panel) {
+    var cards = document.querySelectorAll('.comp-card');
+    cards.forEach(function(c) {
+        if (c.getAttribute('data-panel') === panel) {
+            c.classList.add('active');
+        } else {
+            c.classList.add('dim');
+        }
+    });
+    document.querySelectorAll('.comp-panel').forEach(function(p) { p.classList.remove('open'); });
+    var target = document.getElementById('panel-' + panel);
+    if (target) target.classList.add('open');
+    document.getElementById('comp-volver').style.display = 'inline-block';
+    var fecha = target && target.querySelector('input[name="fecha"]');
+    if (fecha && !fecha.value) fecha.value = new Date().toISOString().slice(0, 10);
+}
+
+function compVolver() {
+    document.querySelectorAll('.comp-card').forEach(function(c) {
+        c.classList.remove('active');
+        c.classList.remove('dim');
+    });
+    document.querySelectorAll('.comp-panel').forEach(function(p) { p.classList.remove('open'); });
+    document.getElementById('comp-volver').style.display = 'none';
+}
+
+function agregarItemFactura(btn) {
+    var wrap = btn.previousElementSibling;
     var row = document.createElement('div');
     row.style.cssText = 'display: grid; grid-template-columns: 2fr 0.6fr 0.8fr 40px; gap: 8px; margin-bottom: 6px; align-items: center;';
     row.innerHTML = ''
-      + '<input type="text" name="item_nombre[]" list="items-stock-list" placeholder="Item (ej: Luminaria > Tubos LED)" style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
+      + '<input type="text" name="item_nombre[]" list="items-stock-list" placeholder="Ítem (ej: Luminaria > Tubos LED)" style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
       + '<input type="number" name="item_cantidad[]" min="0" step="1" placeholder="Cant." style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
       + '<input type="number" name="item_precio[]" min="0" step="0.01" placeholder="$ precio unit." style="padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">'
       + '<button type="button" onclick="this.parentNode.remove()" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">X</button>';
-    cont.appendChild(row);
+    wrap.appendChild(row);
 }
-// Arranca con una fila vacia lista para usar
-agregarItemFactura();
+
+// Drag & drop para todos los dropzones
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+function renderFile(dz, file) {
+    dz.classList.add('has-file');
+    dz.querySelector('.dz-icon').textContent = '✅';
+    dz.querySelector('.dz-main').textContent = file.name;
+    dz.querySelector('.dz-sub').textContent = formatSize(file.size) + ' — click para reemplazar';
+}
+document.querySelectorAll('.dropzone').forEach(function(dz) {
+    var input = dz.querySelector('input[type="file"]');
+    dz.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'INPUT') input.click();
+    });
+    dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('drag'); });
+    dz.addEventListener('dragleave', function() { dz.classList.remove('drag'); });
+    dz.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dz.classList.remove('drag');
+        if (e.dataTransfer.files && e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            renderFile(dz, e.dataTransfer.files[0]);
+        }
+    });
+    input.addEventListener('change', function() {
+        if (input.files && input.files.length) renderFile(dz, input.files[0]);
+    });
+});
+
+function onRintDestinoChange() {
+    var sel = document.getElementById('rint-destino-select');
+    var destino = sel.value;
+    var dir = document.getElementById('rint-destino-direccion');
+    if (!destino) { dir.value = ''; return; }
+    var opt = sel.options[sel.selectedIndex];
+    var preset = opt.getAttribute('data-direccion');
+    if (preset) { dir.value = preset; return; }
+    fetch('{{ url_for("api_destino_direccion") }}?destino=' + encodeURIComponent(destino))
+        .then(function(r) { return r.json(); })
+        .then(function(d) { dir.value = d.direccion || ''; })
+        .catch(function() {});
+}
+function onRintRetiroTipoChange() {
+    var t = document.getElementById('rint-retiro-tipo').value;
+    var det = document.getElementById('rint-retiro-detalle');
+    var placeholders = {
+        'proveedor': 'Nombre del proveedor que retira',
+        'logistica': 'Empresa de logística (CEYH, otro transporte, etc.)',
+        'personal': 'Nombre del personal (opcional)'
+    };
+    det.placeholder = placeholders[t] || 'Detalle';
+}
+
+// Fila inicial en cada bloque de ítems
+document.querySelectorAll('.items-container').forEach(function(c) {
+    var btn = c.nextElementSibling;
+    if (btn) agregarItemFactura(btn);
+});
 </script>
 
 <!-- Filtros -->
