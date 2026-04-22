@@ -2697,7 +2697,7 @@ def stock_add():
 
 
 @app.route("/admin/stock/transfer", methods=["POST"])
-@admin_required
+@login_required
 def stock_transfer():
     stock = load_stock()
     transfers = load_transfers()

@@ -139,8 +139,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 
 {% endif %}
 
-{% if session.rol == 'admin' %}
-<!-- Transferencia (SOLO ADMIN) -->
+<!-- Transferencia (admin + tecnico) -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Transferir de Central a Sucursal</h3>
     <form method="POST" action="{{ url_for('stock_transfer') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
@@ -169,7 +168,6 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
         <button type="submit" class="btn btn-primary" style="height: 42px;">Transferir</button>
     </form>
 </div>
-{% endif %}
 
 <!-- Stock Central -->
 <div class="card">
