@@ -2349,6 +2349,40 @@ def admin_stock_movimientos():
 
 COMPROBANTE_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
 
+DESTINOS_FIJOS = {
+    "Dabra Central": "Colectora Panamericana KM 25.6, Don Torcuato, Buenos Aires",
+    "Directorio": "Directorio (Av. Directorio) - CABA",
+    "CD Garín": "CD Garín - Av. Mozart s/n, Garín",
+    "Testai": "Testai - Av. General Paz y Ruta 8, San Martín",
+}
+
+
+def _destinos_sucursales():
+    from sucursales_data import SUCURSALES_INFO
+    items = []
+    for num in sorted(SUCURSALES_INFO.keys()):
+        info = SUCURSALES_INFO[num]
+        tienda = info.get("tienda", "").strip()
+        label = f"Suc {num} - {tienda}" if tienda else f"Suc {num}"
+        partes = [p for p in (info.get("direccion", ""), info.get("ciudad", ""), info.get("provincia", "")) if p]
+        items.append({"label": label, "direccion": ", ".join(partes)})
+    return items
+
+
+def _direccion_para_destino(destino):
+    destino = (destino or "").strip()
+    if not destino:
+        return ""
+    if destino in DESTINOS_FIJOS:
+        return DESTINOS_FIJOS[destino]
+    if destino.startswith("Suc "):
+        from sucursales_data import SUCURSALES_INFO
+        num = destino[4:].split("-", 1)[0].strip()
+        info = SUCURSALES_INFO.get(num, {})
+        partes = [p for p in (info.get("direccion", ""), info.get("ciudad", ""), info.get("provincia", "")) if p]
+        return ", ".join(partes)
+    return ""
+
 
 @app.route("/admin/comprobantes")
 @admin_required
@@ -2388,6 +2422,8 @@ def admin_comprobantes():
         t.get("sucursal", "") for t in load_tickets() if t.get("sucursal")
     ))
 
+    destinos_sucursales = _destinos_sucursales()
+
     return render_template(
         "admin_comprobantes.html",
         comprobantes=filtrados,
@@ -2402,6 +2438,8 @@ def admin_comprobantes():
         stock_items=stock_items,
         ticket_pre=ticket_pre,
         sucursales_lista=sucursales_lista,
+        destinos_sucursales=destinos_sucursales,
+        destinos_fijos=list(DESTINOS_FIJOS.keys()),
     )
 
 
@@ -2412,13 +2450,28 @@ def admin_comprobantes_nuevo():
     tipo = request.form.get("tipo", "").strip()
     numero = request.form.get("numero", "").strip()
     fecha = request.form.get("fecha", "").strip()
-    origen_tipo = request.form.get("origen_tipo", "proveedor")
-    if origen_tipo == "sucursal":
-        proveedor = f"Reingreso — {request.form.get('sucursal_origen', '').strip()}"
-    elif origen_tipo == "obra":
-        proveedor = f"Obra — {request.form.get('obra_origen', '').strip()}"
+
+    destino = ""
+    destino_direccion = ""
+    retiro_tipo = ""
+    retiro_detalle = ""
+
+    if tipo == "remito_interno":
+        destino = request.form.get("destino", "").strip()
+        destino_direccion = request.form.get("destino_direccion", "").strip()
+        if not destino_direccion:
+            destino_direccion = _direccion_para_destino(destino)
+        proveedor = destino or "Remito interno"
+        retiro_tipo = request.form.get("retiro_tipo", "").strip()
+        retiro_detalle = request.form.get("retiro_detalle", "").strip()
     else:
-        proveedor = request.form.get("proveedor", "").strip()
+        origen_tipo = request.form.get("origen_tipo", "proveedor")
+        if origen_tipo == "sucursal":
+            proveedor = f"Reingreso — {request.form.get('sucursal_origen', '').strip()}"
+        elif origen_tipo == "obra":
+            proveedor = f"Obra — {request.form.get('obra_origen', '').strip()}"
+        else:
+            proveedor = request.form.get("proveedor", "").strip()
     monto_raw = request.form.get("monto", "").strip().replace(",", ".")
     descripcion = request.form.get("descripcion", "").strip()
     ticket_ids_raw = request.form.get("ticket_ids", "").strip()
@@ -2504,6 +2557,11 @@ def admin_comprobantes_nuevo():
         "created_at": datetime.datetime.now().isoformat(),
         "cargado_por": session.get("nombre", ""),
     }
+    if tipo == "remito_interno":
+        comprobante["destino"] = destino
+        comprobante["destino_direccion"] = destino_direccion
+        comprobante["retiro_tipo"] = retiro_tipo
+        comprobante["retiro_detalle"] = retiro_detalle
     data.setdefault("comprobantes", []).append(comprobante)
     save_comprobantes(data)
     flash(f"Comprobante registrado: {tipo} #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))
@@ -2520,6 +2578,31 @@ def admin_comprobantes_eliminar(cid):
         save_comprobantes(data)
         flash("Comprobante eliminado")
     return redirect(url_for("admin_comprobantes"))
+
+
+@app.route("/api/destino-direccion")
+@admin_required
+def api_destino_direccion():
+    destino = request.args.get("destino", "").strip()
+    return jsonify({"direccion": _direccion_para_destino(destino)})
+
+
+@app.route("/admin/comprobantes/<cid>/imprimir")
+@admin_required
+def admin_comprobantes_imprimir(cid):
+    data = load_comprobantes()
+    comp = next((c for c in data.get("comprobantes", []) if c.get("id") == cid), None)
+    if not comp:
+        return "Comprobante no encontrado", 404
+    try:
+        fecha_fmt = datetime.datetime.strptime(comp.get("fecha", ""), "%Y-%m-%d").strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        fecha_fmt = comp.get("fecha", "")
+    return render_template(
+        "comprobante_imprimir.html",
+        c=comp,
+        fecha_fmt=fecha_fmt,
+    )
 
 
 # --- Routes: Contable (imputacion por sucursal) ---

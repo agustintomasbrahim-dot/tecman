@@ -48,7 +48,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
                 <label>Tipo *</label>
-                <select name="tipo" required>
+                <select name="tipo" id="tipo-select" required onchange="toggleTipoComprobante()">
                     <option value="">Seleccionar...</option>
                     <option value="factura">Factura</option>
                     <option value="remito_proveedor">Remito de proveedor</option>
@@ -63,14 +63,14 @@
                 <label>Fecha *</label>
                 <input type="date" name="fecha" required>
             </div>
-            <div class="form-group" style="margin-bottom: 0;">
+            <div class="form-group" id="origen-group" style="margin-bottom: 0;">
                 <label>Origen *</label>
                 <select name="origen_tipo" id="origen-tipo" onchange="toggleOrigenDetalle()" style="margin-bottom: 6px;">
                     <option value="proveedor">Proveedor externo</option>
                     <option value="sucursal">Sucursal (reingreso / devolución)</option>
                     <option value="obra">Obra</option>
                 </select>
-                <input type="text" name="proveedor" id="proveedor-input" required placeholder="Razón social del proveedor" list="proveedores-list">
+                <input type="text" name="proveedor" id="proveedor-input" placeholder="Razón social del proveedor" list="proveedores-list">
                 <select name="sucursal_origen" id="sucursal-input" style="display:none;">
                     <option value="">Seleccionar sucursal...</option>
                     {% for suc in sucursales_lista %}
@@ -84,7 +84,55 @@
                     {% endfor %}
                 </datalist>
             </div>
+
+            <div class="form-group" id="destino-group" style="margin-bottom: 0; display:none;">
+                <label>Destino *</label>
+                <select name="destino" id="destino-select" onchange="onDestinoChange()" style="margin-bottom: 6px;">
+                    <option value="">Seleccionar destino...</option>
+                    <optgroup label="Destinos fijos">
+                        {% for d in destinos_fijos %}
+                        <option value="{{ d }}">{{ d }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Sucursales">
+                        {% for d in destinos_sucursales %}
+                        <option value="{{ d.label }}" data-direccion="{{ d.direccion }}">{{ d.label }}</option>
+                        {% endfor %}
+                    </optgroup>
+                </select>
+                <input type="text" name="destino_direccion" id="destino-direccion" placeholder="Dirección" style="font-size:12px;">
+            </div>
+
+            <div class="form-group" id="retiro-group" style="margin-bottom: 0; display:none;">
+                <label>Tipo de retiro / envío</label>
+                <select name="retiro_tipo" id="retiro-tipo" onchange="onRetiroTipoChange()" style="margin-bottom: 6px;">
+                    <option value="">Seleccionar...</option>
+                    <option value="proveedor">Proveedor</option>
+                    <option value="logistica">Logística</option>
+                    <option value="personal">Personal propio</option>
+                </select>
+                <input type="text" name="retiro_detalle" id="retiro-detalle" placeholder="Detalle (nombre proveedor / transporte / etc.)" style="font-size:12px;">
+            </div>
+
             <script>
+            function toggleTipoComprobante() {
+                var tipo = document.getElementById('tipo-select').value;
+                var esRemitoInterno = tipo === 'remito_interno';
+                document.getElementById('origen-group').style.display = esRemitoInterno ? 'none' : 'block';
+                document.getElementById('destino-group').style.display = esRemitoInterno ? 'block' : 'none';
+                document.getElementById('retiro-group').style.display = esRemitoInterno ? 'block' : 'none';
+
+                var destinoSel = document.getElementById('destino-select');
+                destinoSel.required = esRemitoInterno;
+
+                if (esRemitoInterno) {
+                    document.getElementById('proveedor-input').required = false;
+                    document.getElementById('sucursal-input').required = false;
+                    document.getElementById('obra-input').required = false;
+                } else {
+                    toggleOrigenDetalle();
+                }
+            }
             function toggleOrigenDetalle() {
                 var tipo = document.getElementById('origen-tipo').value;
                 var prov = document.getElementById('proveedor-input');
@@ -97,6 +145,33 @@
                 obra.style.display = tipo === 'obra' ? 'block' : 'none';
                 obra.required = tipo === 'obra';
             }
+            function onDestinoChange() {
+                var sel = document.getElementById('destino-select');
+                var destino = sel.value;
+                var dirInput = document.getElementById('destino-direccion');
+                if (!destino) { dirInput.value = ''; return; }
+                var opt = sel.options[sel.selectedIndex];
+                var preset = opt.getAttribute('data-direccion');
+                if (preset) {
+                    dirInput.value = preset;
+                    return;
+                }
+                fetch('{{ url_for("api_destino_direccion") }}?destino=' + encodeURIComponent(destino))
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { dirInput.value = d.direccion || ''; })
+                    .catch(function() { /* silencioso */ });
+            }
+            function onRetiroTipoChange() {
+                var t = document.getElementById('retiro-tipo').value;
+                var det = document.getElementById('retiro-detalle');
+                var placeholders = {
+                    'proveedor': 'Nombre del proveedor que retira',
+                    'logistica': 'Empresa de logística (CEYH, otro transporte, etc.)',
+                    'personal': 'Nombre del personal (opcional)'
+                };
+                det.placeholder = placeholders[t] || 'Detalle';
+            }
+            toggleTipoComprobante();
             </script>
             <div class="form-group" style="margin-bottom: 0;">
                 <label>Monto</label>
@@ -228,11 +303,22 @@ agregarItemFactura();
                     {% endif %}
                 </td>
                 <td>
+                    {% if c.tipo == 'remito_interno' %}
+                    <a href="{{ url_for('admin_comprobantes_imprimir', cid=c.id) }}" target="_blank" class="btn btn-sm" style="background: #dbeafe; color: #1d4ed8; text-decoration: none; margin-right: 4px;">🖨️ Imprimir</a>
+                    {% endif %}
                     <form method="POST" action="{{ url_for('admin_comprobantes_eliminar', cid=c.id) }}" style="display: inline;" onsubmit="return confirm('Eliminar este comprobante?');">
                         <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">Eliminar</button>
                     </form>
                 </td>
             </tr>
+            {% if c.tipo == 'remito_interno' and (c.destino or c.retiro_tipo) %}
+            <tr>
+                <td colspan="8" style="color: #374151; font-size: 12px; padding-top: 0;">
+                    {% if c.destino %}&nbsp;&nbsp;<strong>Destino:</strong> {{ c.destino }}{% if c.destino_direccion %} — <span style="color:#6b7280;">{{ c.destino_direccion }}</span>{% endif %}{% endif %}
+                    {% if c.retiro_tipo %} &nbsp;|&nbsp; <strong>Retiro/Envío:</strong> {{ c.retiro_tipo }}{% if c.retiro_detalle %} ({{ c.retiro_detalle }}){% endif %}{% endif %}
+                </td>
+            </tr>
+            {% endif %}
             {% if c.descripcion %}
             <tr>
                 <td colspan="8" style="color: #6b7280; font-size: 12px; padding-top: 0;">&nbsp;&nbsp;{{ c.descripcion }}</td>
