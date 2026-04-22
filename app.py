@@ -2414,6 +2414,11 @@ def admin_pedido(ticket_id):
                 nota_txt = f"Retiro definido: PROVEEDOR - {prov}"
                 if ticket["proveedor_detalle"]:
                     nota_txt += f" ({ticket['proveedor_detalle']})"
+            elif retiro_tipo == "personal_propio":
+                ticket["retiro_proveedor"] = False
+                ticket["proveedor_nombre"] = ""
+                ticket["proveedor_detalle"] = ""
+                nota_txt = "Retiro definido: PERSONAL PROPIO"
             else:
                 ticket["retiro_proveedor"] = False
                 ticket["proveedor_nombre"] = ""

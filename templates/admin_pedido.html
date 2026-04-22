@@ -43,6 +43,10 @@
     <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #dbeafe; border: 1px solid #bfdbfe;">
         <strong style="color: #1d4ed8;">Envio a sucursal</strong>
     </div>
+    {% elif ticket.retiro_tipo == 'personal_propio' %}
+    <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #dcfce7; border: 1px solid #bbf7d0;">
+        <strong style="color: #166534;">Retira personal propio</strong>
+    </div>
     {% endif %}
     <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
         <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
@@ -174,13 +178,17 @@
         </div>
         {% else %}
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
                 <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio2" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
                 <span><strong>Envío a sucursal</strong></span>
             </label>
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
                 <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov2" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
                 <span><strong>Retira proveedor</strong></span>
+            </label>
+            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+                <input type="radio" name="retiro_tipo" value="personal_propio" id="retiro-propio2" {% if ticket.retiro_tipo == 'personal_propio' %}checked{% endif %}>
+                <span><strong>Retira personal propio</strong></span>
             </label>
         </div>
         {% endif %}
