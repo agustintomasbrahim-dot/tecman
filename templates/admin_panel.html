@@ -21,6 +21,35 @@
 {% endblock %}
 {% block content %}
 
+{% if notif_admin %}
+<!-- Notificaciones para admins -->
+<div class="card" style="border-left: 4px solid #2563eb; margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }})</h3>
+        <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin: 0;">
+            <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; font-size: 12px;">Marcar todas como leídas</button>
+        </form>
+    </div>
+    {% for n in notif_admin %}
+    <div style="padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
+            <div style="flex: 1; min-width: 0;">
+                <p style="font-weight: 600; color: #1e40af; font-size: 14px; margin-bottom: 4px;">{{ n.titulo }}</p>
+                <p style="color: #374151; font-size: 13px; white-space: pre-line; margin-bottom: 6px;">{{ n.detalle }}</p>
+                <span style="font-size: 11px; color: #6b7280;">{{ n.autor }} — {{ n.fecha[:16].replace('T', ' ') }}</span>
+            </div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                {% if n.link %}<a href="{{ n.link }}" class="btn btn-sm" style="background: #dbeafe; color: #1e40af; font-size: 11px;">Ver</a>{% endif %}
+                <form method="POST" action="{{ url_for('admin_notif_leer', nid=n.id) }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #6b7280; font-size: 11px;">✓</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Quick access bar like InvGate -->
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
     <a href="{{ url_for('admin_panel', vista='tarjetas', estado='Nuevo') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">

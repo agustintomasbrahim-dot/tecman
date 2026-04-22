@@ -27,6 +27,7 @@ TICKETS_FILE = DATA_DIR / "tickets.json"
 STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
+NOTIF_ADMIN_FILE = DATA_DIR / "notif_admin.json"
 STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
@@ -210,6 +211,34 @@ def load_comprobantes():
 
 def save_comprobantes(data):
     COMPROBANTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def load_notif_admin():
+    if NOTIF_ADMIN_FILE.exists():
+        return json.loads(NOTIF_ADMIN_FILE.read_text())
+    return {"notificaciones": []}
+
+
+def save_notif_admin(data):
+    NOTIF_ADMIN_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
+    """Agrega una notificacion al buzon de admins (Agustin / Carolina)."""
+    data = load_notif_admin()
+    data.setdefault("notificaciones", []).insert(0, {
+        "id": uuid.uuid4().hex[:10],
+        "tipo": tipo,
+        "titulo": titulo,
+        "detalle": detalle,
+        "autor": autor,
+        "link": link,
+        "fecha": datetime.datetime.now().isoformat(),
+        "leida": False,
+    })
+    # Mantener solo las ultimas 200
+    data["notificaciones"] = data["notificaciones"][:200]
+    save_notif_admin(data)
 
 def load_movimientos():
     if STOCK_MOV_FILE.exists():
@@ -958,6 +987,10 @@ def admin_panel():
 
     vista = request.args.get("vista", "dashboard")
 
+    # Notificaciones admin (stock / facturas cargadas)
+    notif_data = load_notif_admin()
+    notif_admin = [n for n in notif_data.get("notificaciones", []) if not n.get("leida")][:10]
+
     return render_template(
         "admin_panel.html",
         tickets=filtered,
@@ -976,6 +1009,7 @@ def admin_panel():
         sin_asignar_count=len(sin_asignar),
         vista=vista,
         alertas=alertas,
+        notif_admin=notif_admin,
     )
 
 
@@ -3140,8 +3174,53 @@ def admin_comprobantes_nuevo():
         comprobante["entrega"] = request.form.get("remito_entrega", "").strip()
     data.setdefault("comprobantes", []).append(comprobante)
     save_comprobantes(data)
+
+    # Notificar a admins cuando hay ingreso de stock (remito de proveedor)
+    if tipo == "remito_proveedor" and items_factura:
+        autor = session.get("nombre", "?")
+        total_unid = sum(int(it.get("cantidad", 0)) for it in items_factura)
+        items_resumen = "\n".join(
+            f"  • {it['item']}: {it['cantidad']} u." + (f" @ ${it['precio_unitario']:,.0f}" if it.get('precio_unitario') else "")
+            for it in items_factura if it.get("cantidad", 0) > 0
+        )
+        parcial_tag = " (PARCIAL)" if comprobante.get("parcial") else ""
+        titulo = f"📦 Ingreso de stock: remito {numero}{parcial_tag}"
+        detalle = f"Proveedor: {proveedor}\nTotal unidades: {total_unid}\n\n{items_resumen}"
+        if comprobante.get("factura_asociada"):
+            detalle += f"\n\nFactura asociada: {comprobante['factura_asociada']}"
+        agregar_notif_admin(titulo, detalle, tipo="stock_ingreso", autor=autor, link=url_for("admin_comprobantes"))
+    elif tipo == "factura":
+        autor = session.get("nombre", "?")
+        agregar_notif_admin(
+            f"📄 Factura cargada: {numero}",
+            f"Proveedor: {proveedor}" + (f"\nMonto: ${monto:,.2f}" if monto else "") + (f"\nComentario: {descripcion}" if descripcion else ""),
+            tipo="factura", autor=autor, link=url_for("admin_comprobantes")
+        )
+
     flash(f"Comprobante registrado: {tipo} #{numero}" + (f" - {len(items_factura)} items" if items_factura else ""))
     return redirect(url_for("admin_comprobantes"))
+
+
+@app.route("/admin/notif/<nid>/leer", methods=["POST"])
+@login_required
+def admin_notif_leer(nid):
+    data = load_notif_admin()
+    for n in data.get("notificaciones", []):
+        if n.get("id") == nid:
+            n["leida"] = True
+            break
+    save_notif_admin(data)
+    return redirect(request.referrer or url_for("admin_panel"))
+
+
+@app.route("/admin/notif/leer-todas", methods=["POST"])
+@login_required
+def admin_notif_leer_todas():
+    data = load_notif_admin()
+    for n in data.get("notificaciones", []):
+        n["leida"] = True
+    save_notif_admin(data)
+    return redirect(request.referrer or url_for("admin_panel"))
 
 
 @app.route("/admin/comprobantes/eliminar/<cid>", methods=["POST"])
