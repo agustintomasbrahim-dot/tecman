@@ -839,9 +839,10 @@ def confirmar_recepcion(ticket_id):
     # Handle next step
     siguiente_paso = request.form.get("siguiente_paso", "sucursal")
     pasos = {
-        "sucursal": ("Cerrado", "Trabajo a realizar por personal de sucursal"),
-        "proveedor_abono": ("En progreso", "Coordinar con proveedor del abono"),
+        "personal_mantenimiento": ("En progreso", "Trabajo a realizar con personal de Mantenimiento Central"),
+        "proveedor_abono": ("En progreso", "Coordinar con proveedor del abono mensual"),
         "proveedor_eventual": ("En progreso", "Coordinar con proveedor eventual"),
+        "sucursal": ("Cerrado", "Trabajo a realizar con personal propio de sucursal"),
     }
     estado, paso_texto = pasos.get(siguiente_paso, ("Cerrado", ""))
 
