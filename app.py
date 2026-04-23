@@ -809,16 +809,13 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
         if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
             return "CEYH"
 
-    # By zone
+    # By zone / abono fijo
     if suc_num in SUCS_CORDOBA:
         return "Gustavo Avellaneda"
     if suc_num in SUCS_NOA:
         return "Julio Fuga (JRF)"
-    if suc_num in SUCS_MENDOZA:
-        return "Ismael Allende (JRF)"
-    if suc_num in SUCS_SANJUAN:
-        return "Oscar San Juan"
-
+    # Sucursales sin abono fijo principal (no CEYH / Fuga / Avellaneda)
+    # quedan para seguimiento interno en el panel admin.
     return ASIGNACION_DEFAULT
 
 
@@ -1230,8 +1227,18 @@ def admin_panel():
 
     # My work counts
     user_nombre = session.get("nombre", "")
-    mis_esperando = [t for t in tickets if t.get("asignado") == user_nombre and t["estado"] in ("Nuevo", "Abierto")]
-    mis_asignados = [t for t in tickets if t.get("asignado") == user_nombre and t["estado"] not in ("Resuelto", "Cerrado")]
+    def _es_ticket_para_seguimiento_admin(t):
+        suc = (t.get("sucursal") or "")
+        suc_num = suc.replace("Sucursal ", "").strip()
+        asignado = t.get("asignado") or ""
+        return (
+            suc_num
+            and not get_proveedor_abono_sucursal(suc_num)
+            and asignado in (user_nombre, ASIGNACION_DEFAULT, "", None)
+        )
+
+    mis_esperando = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
+    mis_asignados = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
     sin_asignar = [t for t in tickets if not t.get("asignado") or t.get("asignado") == ""]
 
     # Alertas: tickets > 150 dias (5 meses)
