@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Tecman - CEYH{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_ceyh') }}" style="color: #ea580c; border-bottom: 2px solid #ea580c;">CEYH</a>
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <div>
+        <h2 style="color:#ea580c;">CEYH</h2>
+        <p style="color:#64748b;font-size:13px;">Control operativo de tickets CEYH y derivados a personal propio</p>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card"><div class="number" style="color:#b45309;">{{ activos|length }}</div><div class="label">Activos CEYH</div></div>
+    <div class="stat-card"><div class="number" style="color:#ea580c;">{{ derivados|length }}</div><div class="label">Derivados a personal propio</div></div>
+    <div class="stat-card"><div class="number" style="color:#059669;">{{ terminados|length }}</div><div class="label">Terminados</div></div>
+</div>
+
+{% if activos %}
+<h3 style="margin:18px 0 10px;font-size:13px;text-transform:uppercase;color:#9a3412;">Activos CEYH</h3>
+<div style="display:grid;gap:10px;">
+{% for t in activos %}
+<a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="text-decoration:none;">
+    <div class="card" style="margin:0;border-left:4px solid #ea580c;">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <strong style="color:#ea580c;">#{{ t.id }}</strong>
+            <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
+        </div>
+        <div style="margin-top:6px;color:#1a1a2e;font-weight:600;">{{ t.sucursal }}</div>
+        <div style="margin-top:4px;color:#64748b;font-size:13px;">{{ t.categoria }}{% if t.subcategoria %} » {{ t.subcategoria }}{% endif %}</div>
+        <div style="margin-top:4px;color:#64748b;font-size:12px;">{{ t.descripcion[:110] }}{% if t.descripcion|length > 110 %}...{% endif %}</div>
+    </div>
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if derivados %}
+<h3 style="margin:20px 0 10px;font-size:13px;text-transform:uppercase;color:#ea580c;">Derivados a personal propio</h3>
+<div class="card" style="padding:0;overflow:hidden;">
+    <table>
+        <thead><tr><th>#</th><th>Sucursal</th><th>Estado</th><th>Actualizado</th></tr></thead>
+        <tbody>
+        {% for t in derivados %}
+            <tr>
+                <td><a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="color:#ea580c;font-weight:600;">{{ t.id }}</a></td>
+                <td>{{ t.sucursal }}</td>
+                <td>{{ t.estado }}</td>
+                <td>{{ t.actualizado[:16].replace('T', ' ') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if terminados %}
+<h3 style="margin:20px 0 10px;font-size:13px;text-transform:uppercase;color:#059669;">Terminados</h3>
+<div class="card" style="padding:0;overflow:hidden;">
+    <table>
+        <thead><tr><th>#</th><th>Sucursal</th><th>Asignado</th><th>Fecha</th></tr></thead>
+        <tbody>
+        {% for t in terminados[:50] %}
+            <tr>
+                <td><a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="color:#059669;font-weight:600;">{{ t.id }}</a></td>
+                <td>{{ t.sucursal }}</td>
+                <td>{{ t.asignado }}</td>
+                <td>{{ t.actualizado[:10] }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

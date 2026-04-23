@@ -1139,6 +1139,28 @@ def admin_panel():
     )
 
 
+@app.route("/admin/ceyh")
+@admin_required
+def admin_ceyh():
+    tickets = load_tickets()
+    ceyh = [t for t in tickets if t.get("asignado") == "CEYH" or t.get("asignado_proveedor") == "CEYH" or t.get("proveedor_nombre") == "CEYH" or t.get("derivado_desde") == "CEYH"]
+    activos = [t for t in ceyh if t.get("estado") not in ("Resuelto", "Cerrado")]
+    derivados = [t for t in ceyh if t.get("derivado_desde") == "CEYH" and t.get("asignado") == "Equipo Central"]
+    terminados = [t for t in ceyh if t.get("estado") in ("Resuelto", "Cerrado")]
+
+    activos.sort(key=lambda t: (t.get("prioridad", 4), t.get("creado", "")))
+    derivados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
+    terminados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
+
+    return render_template(
+        "admin_ceyh.html",
+        activos=activos,
+        derivados=derivados,
+        terminados=terminados,
+        prioridades=PRIORIDADES,
+    )
+
+
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_ticket(ticket_id):
@@ -1184,6 +1206,23 @@ def admin_ticket(ticket_id):
             flash("Respuesta enviada a la sucursal")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
+        if accion == "derivar_equipo_desde_ceyh":
+            ticket["derivado_desde"] = "CEYH"
+            ticket["asignado"] = "Equipo Central"
+            ticket["siguiente_paso"] = "personal_mantenimiento"
+            ticket["asignado_equipo"] = "Equipo Central"
+            ticket["etapa_equipo"] = "asignado"
+            ticket["estado"] = "Abierto" if ticket.get("estado") == "Nuevo" else ticket.get("estado", "Abierto")
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": "Derivado por admin desde CEYH a Equipo Central",
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Ticket derivado a Equipo Central")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         # Check if it's a note or an update
         nueva_nota = request.form.get("nueva_nota", "").strip()
         if nueva_nota:
@@ -1209,6 +1248,7 @@ def admin_ticket(ticket_id):
         ticket=ticket,
         estados=ESTADOS,
         prioridades=PRIORIDADES,
+        puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",
     )
 
 

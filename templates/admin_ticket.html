@@ -55,6 +55,17 @@
     {% endif %}
 </div>
 
+{% if puede_derivar_ceyh %}
+<div class="card" style="border-left: 4px solid #ea580c;">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">CEYH</h3>
+    <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Este ticket está en el circuito de CEYH. Si querés, podés pasarlo al equipo propio.</p>
+    <form method="POST" onsubmit="return confirm('¿Enviar este ticket a personal propio?');">
+        <input type="hidden" name="accion" value="derivar_equipo_desde_ceyh">
+        <button type="submit" class="btn" style="background: #ea580c; color: white;">Enviar a personal propio</button>
+    </form>
+</div>
+{% endif %}
+
 <!-- Notas / Comentarios -->
 <div class="card">
     <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Notas y comentarios</h3>
