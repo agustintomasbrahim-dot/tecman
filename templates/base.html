@@ -59,6 +59,16 @@
         .btn-block { display: block; width: 100%; }
         .btn-outline { background: #fff; border: 1px solid #e5e7eb; color: #6b7280; }
         .btn-outline:hover { border-color: #e63946; color: #e63946; }
+        .btn.is-saving {
+            background: #2563eb !important;
+            color: white !important;
+            opacity: 0.95;
+        }
+        .btn.is-saved {
+            background: #059669 !important;
+            color: white !important;
+            opacity: 1;
+        }
 
         /* Forms */
         .form-group { margin-bottom: 16px; }
@@ -176,5 +186,38 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </div>
+    <script>
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            var btn = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (!btn) return;
+            var texto = (btn.innerText || btn.value || '').trim().toLowerCase();
+            var etiquetas = ['guardar', 'enviar', 'registrar', 'actualizar'];
+            var aplica = etiquetas.some(function(t) { return texto.indexOf(t) !== -1; }) || btn.classList.contains('save-feedback-btn');
+            if (!aplica) return;
+
+            var guardando = btn.getAttribute('data-saving') || 'Guardando...';
+            var guardado = btn.getAttribute('data-saved') || 'Guardado ✓';
+
+            if (btn.tagName === 'INPUT') {
+                btn.dataset.originalValue = btn.value;
+                btn.value = guardando;
+            } else {
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = guardando;
+            }
+            btn.classList.remove('is-saved');
+            btn.classList.add('is-saving');
+            btn.disabled = true;
+
+            setTimeout(function() {
+                if (btn.tagName === 'INPUT') btn.value = guardado;
+                else btn.innerHTML = guardado;
+                btn.classList.remove('is-saving');
+                btn.classList.add('is-saved');
+            }, 300);
+        });
+    });
+    </script>
 </body>
 </html>
