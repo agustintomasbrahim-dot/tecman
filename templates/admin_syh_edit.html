@@ -63,6 +63,14 @@
                 <input type="date" name="matafuegos_vencimiento" value="{{ estado.get('matafuegos_vencimiento', '') }}">
             </div>
             <div class="form-group">
+                <label>Red de incendio</label>
+                <select name="red_incendio">
+                    {% for opt in syh_estados.red_incendio %}
+                    <option value="{{ opt }}" {% if estado.get('red_incendio') == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Plano de evacuacion</label>
                 <select name="plano_evacuacion">
                     {% for opt in syh_estados.plano_evacuacion %}

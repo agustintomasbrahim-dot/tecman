@@ -126,6 +126,7 @@ SYH_ESTADOS = {
     "habilitacion": ["Vigente", "Vencida", "En tramite", "Sin habilitacion"],
     "bomberos": ["Aprobado", "Pendiente", "Vencido", "Sin tramitar"],
     "matafuegos": ["Al dia", "Proximo a vencer", "Vencidos", "Sin datos"],
+    "red_incendio": ["Si", "No", "Parcial", "Sin datos"],
     "plano_evacuacion": ["Tiene", "No tiene"],
     "senalizacion": ["Completa", "Incompleta", "Sin datos"],
 }
@@ -2724,6 +2725,7 @@ def admin_syh():
             "habilitacion": estado.get("habilitacion", "Sin datos"),
             "bomberos": estado.get("bomberos", "Sin datos"),
             "matafuegos": estado.get("matafuegos", "Sin datos"),
+            "red_incendio": estado.get("red_incendio", "Sin datos"),
             "plano_evacuacion": estado.get("plano_evacuacion", "Sin datos"),
             "senalizacion": estado.get("senalizacion", "Sin datos"),
         })
@@ -2857,6 +2859,7 @@ def admin_syh_edit(suc_num):
             "matafuegos": request.form.get("matafuegos", ""),
             "matafuegos_cantidad": request.form.get("matafuegos_cantidad", ""),
             "matafuegos_vencimiento": request.form.get("matafuegos_vencimiento", ""),
+            "red_incendio": request.form.get("red_incendio", ""),
             "plano_evacuacion": request.form.get("plano_evacuacion", ""),
             "senalizacion": request.form.get("senalizacion", ""),
             "observaciones": request.form.get("observaciones", ""),

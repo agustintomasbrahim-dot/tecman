@@ -60,6 +60,7 @@
                 <th>Habilitacion</th>
                 <th>Bomberos</th>
                 <th>Matafuegos</th>
+                <th>Red incendio</th>
                 <th>Detalle</th>
                 <th>Plano evac.</th>
                 <th>Senalizacion</th>
@@ -89,6 +90,12 @@
                     {% if s.matafuegos == 'Al dia' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">OK</span>
                     {% elif s.matafuegos == 'Proximo a vencer' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">Prox. venc.</span>
                     {% elif s.matafuegos == 'Vencidos' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencidos</span>
+                    {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
+                </td>
+                <td>
+                    {% if s.red_incendio == 'Si' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Sí</span>
+                    {% elif s.red_incendio == 'Parcial' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">Parcial</span>
+                    {% elif s.red_incendio == 'No' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">No</span>
                     {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
                 </td>
                 <td><span style="color: #475569; font-size: 12px;">{{ s.matafuegos_detalle }} cargado{{ 's' if s.matafuegos_detalle != 1 }}</span></td>
