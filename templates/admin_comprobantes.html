@@ -126,6 +126,17 @@
 .dropzone .dz-main { font-weight: 600; font-size: 14px; }
 .dropzone .dz-sub { font-size: 12px; color: #9ca3af; }
 .dropzone.has-file .dz-sub { color: #047857; }
+
+.save-feedback-btn.is-saving {
+    background: #2563eb !important;
+    color: white !important;
+    opacity: 0.95;
+}
+.save-feedback-btn.is-saved {
+    background: #059669 !important;
+    color: white !important;
+    opacity: 1;
+}
 </style>
 
 <div class="card" id="comp-carga-card">
@@ -171,7 +182,7 @@
                 <label>Comentario (opcional)</label>
                 <textarea name="comentario" placeholder="Anotaciones, detalle, concepto..." style="height: 90px;"></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">Guardar factura</button>
+            <button type="submit" class="btn btn-primary save-feedback-btn" data-saving="Guardando factura..." data-saved="Factura guardada ✓">Guardar factura</button>
         </form>
     </div>
 
@@ -205,7 +216,7 @@
                 <label>Comentario (opcional)</label>
                 <input type="text" name="comentario" placeholder="Observaciones">
             </div>
-            <button type="submit" class="btn btn-primary">Guardar remito total</button>
+            <button type="submit" class="btn btn-primary save-feedback-btn" data-saving="Guardando remito total..." data-saved="Remito total guardado ✓">Guardar remito total</button>
         </form>
     </div>
 
@@ -250,7 +261,7 @@
                 <label>Comentario (opcional)</label>
                 <input type="text" name="comentario" placeholder="Observaciones">
             </div>
-            <button type="submit" class="btn btn-primary">Guardar remito parcial</button>
+            <button type="submit" class="btn btn-primary save-feedback-btn" data-saving="Guardando remito parcial..." data-saved="Remito parcial guardado ✓">Guardar remito parcial</button>
         </form>
     </div>
 
@@ -316,7 +327,7 @@
                 <label>Comentario (opcional)</label>
                 <input type="text" name="comentario" placeholder="Observaciones">
             </div>
-            <button type="submit" class="btn btn-primary">Guardar remito interno</button>
+            <button type="submit" class="btn btn-primary save-feedback-btn" data-saving="Guardando remito interno..." data-saved="Remito interno guardado ✓">Guardar remito interno</button>
         </form>
     </div>
 </div>
@@ -420,6 +431,23 @@ function onRintRetiroTipoChange() {
 document.querySelectorAll('.items-container').forEach(function(c) {
     var btn = c.nextElementSibling;
     if (btn) agregarItemFactura(btn);
+});
+
+document.querySelectorAll('#comp-carga-card form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        var btn = form.querySelector('.save-feedback-btn');
+        if (!btn) return;
+        btn.dataset.originalText = btn.innerHTML;
+        btn.innerHTML = btn.dataset.saving || 'Guardando...';
+        btn.classList.remove('is-saved');
+        btn.classList.add('is-saving');
+        btn.disabled = true;
+        setTimeout(function() {
+            btn.innerHTML = btn.dataset.saved || 'Guardado ✓';
+            btn.classList.remove('is-saving');
+            btn.classList.add('is-saved');
+        }, 350);
+    });
 });
 </script>
 
