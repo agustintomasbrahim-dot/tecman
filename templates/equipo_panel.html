@@ -4,6 +4,7 @@
 <div class="nav">
     <a href="{{ url_for('equipo_panel') }}" style="color: #ea580c; border-bottom: 2px solid #ea580c;">Dashboard</a>
     <a href="{{ url_for('equipo_stock') }}">Stock central</a>
+    <a href="{{ url_for('equipo_vehiculos') }}">Vehículos</a>
     <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
 </div>
 {% endblock %}
@@ -28,6 +29,10 @@
     <div class="stat-card">
         <div class="number" style="color: #059669;">{{ terminados_mes | length }}</div>
         <div class="label">Terminados este mes</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color: #0f766e;">{{ vehiculos | length }}</div>
+        <div class="label">Vehículos</div>
     </div>
 </div>
 

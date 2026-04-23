@@ -32,6 +32,7 @@ STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
+VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -320,6 +321,37 @@ def _stats_matafuegos(items):
         "vencido": sum(1 for i in items if i["estado_calc"] == "vencido"),
         "rechazado": sum(1 for i in items if i["estado_calc"] == "rechazado"),
     }
+
+def load_vehiculos_equipo():
+    if VEHICULOS_FILE.exists():
+        try:
+            return json.loads(VEHICULOS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"vehiculos": []}
+
+def save_vehiculos_equipo(data):
+    VEHICULOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def _estado_doc_vehiculo(fecha):
+    if not fecha:
+        return "sin_dato"
+    try:
+        venc = datetime.date.fromisoformat(str(fecha)[:10])
+    except (TypeError, ValueError):
+        return "sin_dato"
+    hoy = datetime.date.today()
+    if venc < hoy:
+        return "vencido"
+    if venc <= hoy + datetime.timedelta(days=30):
+        return "proximo"
+    return "ok"
+
+def _enrich_vehiculo(v):
+    x = dict(v)
+    x["estado_seguro"] = _estado_doc_vehiculo(x.get("seguro_vencimiento"))
+    x["estado_vtv"] = _estado_doc_vehiculo(x.get("vtv_vencimiento"))
+    return x
 
 HABILITACION_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
 
@@ -621,6 +653,14 @@ def es_sucursal_ceyh(suc_num):
 def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
+
+    subcat_l = (subcategoria or "").lower()
+    categoria_l = (categoria or "").lower()
+    es_grupo_electrogeno = any(k in subcat_l for k in ["grupo elect", "grupos elect", "electrogen", "generador"]) or any(k in categoria_l for k in ["grupo elect", "electrogen", "generador"])
+    excluidos_equipo_ge = {"211", "196", "208", "garin"}
+    es_amba = suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN
+    if es_grupo_electrogeno and es_amba and suc_num.lower() not in excluidos_equipo_ge:
+        return "Equipo Central"
 
     # By category
     if subcategoria == "Luminarias":
@@ -1976,7 +2016,7 @@ def _tickets_equipo(tickets):
     """Filtra tickets que deben ejecutar el Equipo Central."""
     return [
         t for t in tickets
-        if t.get("siguiente_paso") == "personal_mantenimiento"
+        if (t.get("siguiente_paso") == "personal_mantenimiento" or t.get("asignado") == "Equipo Central")
         and t.get("estado") != "Cerrado"
     ]
 
@@ -2006,6 +2046,7 @@ def equipo_logout():
 def equipo_panel():
     tickets = load_tickets()
     mis = _tickets_equipo(tickets)
+    vehiculos = [_enrich_vehiculo(v) for v in load_vehiculos_equipo().get("vehiculos", [])]
 
     etapa_default = {"pendiente": [], "en_progreso": [], "terminados": []}
     etapa_default["pendiente"] = [
@@ -2043,6 +2084,7 @@ def equipo_panel():
         en_progreso=en_progreso,
         terminados_mes=terminados_mes,
         prioridades=PRIORIDADES,
+        vehiculos=vehiculos,
     )
 
 
@@ -2183,6 +2225,66 @@ def equipo_stock():
         total_unidades=total_unidades,
         valor_stock=valor_stock,
     )
+
+
+@app.route("/equipo/vehiculos", methods=["GET", "POST"])
+@equipo_login_required
+def equipo_vehiculos():
+    data = load_vehiculos_equipo()
+    if request.method == "POST":
+        patente = request.form.get("patente", "").strip().upper()
+        if not patente:
+            flash("Ingrese patente")
+            return redirect(url_for("equipo_vehiculos"))
+        nuevo = {
+            "id": uuid.uuid4().hex[:12],
+            "patente": patente,
+            "marca": request.form.get("marca", "").strip(),
+            "modelo": request.form.get("modelo", "").strip(),
+            "anio": request.form.get("anio", "").strip(),
+            "seguro_vencimiento": request.form.get("seguro_vencimiento", "").strip(),
+            "vtv_vencimiento": request.form.get("vtv_vencimiento", "").strip(),
+            "observaciones": request.form.get("observaciones", "").strip(),
+            "informes": [],
+            "created_at": datetime.datetime.now().isoformat(),
+            "cargado_por": session.get("equipo_nombre") or session.get("nombre") or "Equipo Central",
+        }
+        data.setdefault("vehiculos", []).append(nuevo)
+        save_vehiculos_equipo(data)
+        flash("Vehículo cargado")
+        return redirect(url_for("equipo_vehiculos"))
+
+    items = [_enrich_vehiculo(v) for v in data.get("vehiculos", [])]
+    items.sort(key=lambda x: (x.get("estado_seguro") == "vencido" or x.get("estado_vtv") == "vencido", x.get("patente", "")), reverse=True)
+    return render_template("equipo_vehiculos.html", vehiculos=items)
+
+
+@app.route("/equipo/vehiculos/<vid>/informe", methods=["POST"])
+@equipo_login_required
+def equipo_vehiculo_informe(vid):
+    data = load_vehiculos_equipo()
+    vehiculo = next((v for v in data.get("vehiculos", []) if v.get("id") == vid), None)
+    if not vehiculo:
+        return render_template("error.html", mensaje="Vehículo no encontrado"), 404
+    f = request.files.get("archivo")
+    if not f or not f.filename:
+        flash("Sin archivo")
+        return redirect(url_for("equipo_vehiculos"))
+    ext = Path(f.filename).suffix.lower()
+    if ext not in (".pdf", ".jpg", ".jpeg", ".png", ".webp"):
+        flash("Formato no soportado")
+        return redirect(url_for("equipo_vehiculos"))
+    fname = f"vehiculo_{vehiculo['patente']}_{uuid.uuid4().hex[:8]}{ext}"
+    f.save(str(TRABAJOS_DIR / fname))
+    vehiculo.setdefault("informes", []).append({
+        "archivo": fname,
+        "nombre": f.filename,
+        "fecha": datetime.datetime.now().isoformat(),
+        "detalle": request.form.get("detalle", "").strip(),
+    })
+    save_vehiculos_equipo(data)
+    flash("Informe adjuntado")
+    return redirect(url_for("equipo_vehiculos"))
 
 
 @app.route("/uploads/trabajos/<filename>")

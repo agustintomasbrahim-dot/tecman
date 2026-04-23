@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Vehículos{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('equipo_panel') }}">Dashboard</a>
+    <a href="{{ url_for('equipo_stock') }}">Stock central</a>
+    <a href="{{ url_for('equipo_vehiculos') }}" style="color: #ea580c; border-bottom: 2px solid #ea580c;">Vehículos</a>
+    <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <div>
+        <h2 style="color:#ea580c;">Vehículos del equipo</h2>
+        <p style="color:#64748b;font-size:13px;">Seguros, VTV, informes y observaciones</p>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-bottom:10px;">Cargar vehículo</h3>
+    <form method="POST">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <div class="form-group" style="margin-bottom:0;"><label>Patente</label><input type="text" name="patente" required></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Marca</label><input type="text" name="marca"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Modelo</label><input type="text" name="modelo"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Año</label><input type="text" name="anio"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Venc. Seguro</label><input type="date" name="seguro_vencimiento"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Venc. VTV</label><input type="date" name="vtv_vencimiento"></div>
+        </div>
+        <div class="form-group" style="margin-top:10px;"><label>Observaciones</label><textarea name="observaciones"></textarea></div>
+        <button type="submit" class="btn btn-primary">Guardar vehículo</button>
+    </form>
+</div>
+
+<div style="display:grid;gap:12px;">
+{% for v in vehiculos %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+            <h3 style="margin:0;color:#1a1a2e;">{{ v.patente }}</h3>
+            <p style="color:#64748b;font-size:13px;margin-top:4px;">{{ v.marca or '-' }} {{ v.modelo or '' }}{% if v.anio %} · {{ v.anio }}{% endif %}</p>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="badge" style="background:{% if v.estado_seguro == 'ok' %}#d1fae5;color:#065f46{% elif v.estado_seguro == 'proximo' %}#fef3c7;color:#92400e{% elif v.estado_seguro == 'vencido' %}#fee2e2;color:#991b1b{% else %}#f3f4f6;color:#6b7280{% endif %};">Seguro: {{ v.estado_seguro }}</span>
+            <span class="badge" style="background:{% if v.estado_vtv == 'ok' %}#d1fae5;color:#065f46{% elif v.estado_vtv == 'proximo' %}#fef3c7;color:#92400e{% elif v.estado_vtv == 'vencido' %}#fee2e2;color:#991b1b{% else %}#f3f4f6;color:#6b7280{% endif %};">VTV: {{ v.estado_vtv }}</span>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px;font-size:13px;">
+        <div><strong>Seguro vence:</strong> {{ v.seguro_vencimiento or '-' }}</div>
+        <div><strong>VTV vence:</strong> {{ v.vtv_vencimiento or '-' }}</div>
+    </div>
+    {% if v.observaciones %}<div style="margin-top:10px;background:#f9fafb;padding:10px;border-radius:8px;font-size:13px;">{{ v.observaciones }}</div>{% endif %}
+
+    <div style="margin-top:12px;">
+        <form method="POST" action="{{ url_for('equipo_vehiculo_informe', vid=v.id) }}" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="file" name="archivo" required>
+            <input type="text" name="detalle" placeholder="Detalle del informe / seguro / póliza" style="min-width:220px;flex:1;">
+            <button type="submit" class="btn btn-outline btn-sm">Adjuntar informe</button>
+        </form>
+    </div>
+
+    {% if v.informes %}
+    <div style="margin-top:12px;">
+        <p style="font-size:12px;color:#6b7280;font-weight:600;margin-bottom:6px;">Informes adjuntos</p>
+        {% for doc in v.informes|reverse %}
+        <div style="padding:6px 0;border-top:1px solid #f3f4f6;font-size:13px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <div>
+                <a href="{{ url_for('serve_trabajo', filename=doc.archivo) }}" target="_blank">{{ doc.nombre }}</a>
+                {% if doc.detalle %}<span style="color:#64748b;">· {{ doc.detalle }}</span>{% endif %}
+            </div>
+            <span style="color:#9ca3af;">{{ doc.fecha[:10] }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:40px;color:#6b7280;">Sin vehículos cargados</div>
+{% endfor %}
+</div>
+{% endblock %}

@@ -4,6 +4,7 @@
 <div class="nav">
     <a href="{{ url_for('equipo_panel') }}">Dashboard</a>
     <a href="{{ url_for('equipo_stock') }}">Stock central</a>
+    <a href="{{ url_for('equipo_vehiculos') }}">Vehículos</a>
     <a href="{{ url_for('equipo_logout') }}" style="margin-left: auto;">Salir ({{ session.equipo_nombre or session.nombre or 'Equipo' }})</a>
 </div>
 {% endblock %}
