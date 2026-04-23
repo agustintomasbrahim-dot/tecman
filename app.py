@@ -34,6 +34,7 @@ GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
+PERMISOS_FILE = DATA_DIR / "permisos.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -49,6 +50,8 @@ HABILITACIONES_DIR = UPLOADS_DIR / "habilitaciones"
 HABILITACIONES_DIR.mkdir(parents=True, exist_ok=True)
 TRABAJOS_DIR = UPLOADS_DIR / "trabajos"
 TRABAJOS_DIR.mkdir(parents=True, exist_ok=True)
+PERMISOS_DIR = UPLOADS_DIR / "permisos"
+PERMISOS_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -461,6 +464,17 @@ def load_vehiculos_equipo():
 
 def save_vehiculos_equipo(data):
     VEHICULOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_permisos():
+    if PERMISOS_FILE.exists():
+        try:
+            return json.loads(PERMISOS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"permisos": []}
+
+def save_permisos(data):
+    PERMISOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 def _estado_doc_vehiculo(fecha):
     if not fecha:
@@ -953,6 +967,8 @@ def suc_panel():
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
     matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
+    permisos = [p for p in load_permisos().get("permisos", []) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
 
     return render_template(
         "suc_panel.html",
@@ -964,6 +980,7 @@ def suc_panel():
         mi_stock_manten=mi_stock_manten,
         habilitaciones_suc=habs,
         matafuegos_suc=matafuegos,
+        permisos_suc=permisos,
     )
 
 
@@ -1316,6 +1333,64 @@ def admin_ceyh():
         terminados=terminados,
         prioridades=PRIORIDADES,
     )
+
+
+@app.route("/admin/permisos", methods=["GET", "POST"])
+@admin_required
+def admin_permisos():
+    data = load_permisos()
+
+    if request.method == "POST":
+        sucursal = request.form.get("sucursal", "").strip()
+        proveedor = request.form.get("proveedor", "").strip()
+        if not sucursal:
+            flash("Seleccione una sucursal")
+            return redirect(url_for("admin_permisos"))
+
+        archivo = ""
+        f = request.files.get("archivo")
+        if f and f.filename:
+            ext = Path(f.filename).suffix.lower()
+            if ext not in (".pdf", ".jpg", ".jpeg", ".png"):
+                flash("Formato no permitido (solo PDF, JPG, PNG)")
+                return redirect(url_for("admin_permisos"))
+            fname = f"perm_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(PERMISOS_DIR / fname))
+            archivo = fname
+        else:
+            flash("Adjuntá un archivo")
+            return redirect(url_for("admin_permisos"))
+
+        suc_num = sucursal.replace("Sucursal ", "").strip()
+        data.setdefault("permisos", []).append({
+            "id": uuid.uuid4().hex[:12],
+            "sucursal": sucursal,
+            "sucursal_num": suc_num,
+            "proveedor": proveedor,
+            "tipo_documento": request.form.get("tipo_documento", "Nómina / Permiso de ingreso").strip(),
+            "vigencia_desde": request.form.get("vigencia_desde", "").strip(),
+            "vigencia_hasta": request.form.get("vigencia_hasta", "").strip(),
+            "comentario": request.form.get("comentario", "").strip(),
+            "archivo": archivo,
+            "archivo_nombre": f.filename,
+            "cargado_por": session.get("nombre", ""),
+            "created_at": datetime.datetime.now().isoformat(),
+        })
+        save_permisos(data)
+        flash("Permiso cargado")
+        return redirect(url_for("admin_permisos"))
+
+    permisos = list(data.get("permisos", []))
+    filtro_suc = request.args.get("sucursal", "").strip()
+    if filtro_suc:
+        permisos = [p for p in permisos if p.get("sucursal") == filtro_suc]
+    permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
+    return render_template("admin_permisos.html", permisos=permisos, sucursales=SUCURSALES, filtro_suc=filtro_suc)
+
+
+@app.route("/uploads/permisos/<filename>")
+def serve_permiso(filename):
+    return send_from_directory(str(PERMISOS_DIR), filename)
 
 
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])

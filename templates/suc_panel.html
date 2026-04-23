@@ -19,6 +19,24 @@
     + Crear nuevo ticket
 </a>
 
+{% if permisos_suc %}
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #7c3aed;">
+    <h3 style="margin-bottom: 12px; font-size: 15px;">📋 Permisos</h3>
+    {% for p in permisos_suc[:5] %}
+    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+            <div>
+                <div style="font-weight:600;color:#1a1a2e;">{{ p.tipo_documento or 'Permiso' }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ p.proveedor or 'Sin proveedor' }}{% if p.vigencia_hasta %} · Vigencia hasta {{ p.vigencia_hasta }}{% endif %}</div>
+                {% if p.comentario %}<div style="font-size:12px;color:#6b7280;margin-top:2px;">{{ p.comentario }}</div>{% endif %}
+            </div>
+            <a href="{{ url_for('serve_permiso', filename=p.archivo) }}" target="_blank" class="btn btn-outline btn-sm">Ver</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% if habilitaciones_suc or matafuegos_suc %}
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #0ea5e9;">
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
