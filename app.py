@@ -1213,8 +1213,6 @@ def admin_panel():
     if filtro_prioridad:
         filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
 
-    filtered.sort(key=lambda t: t["creado"], reverse=True)
-
     stats = {
         "total": len(tickets),
         "nuevos": sum(1 for t in tickets if t["estado"] == "Nuevo"),
@@ -1246,6 +1244,18 @@ def admin_panel():
     mis_asignados = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
     sin_asignar = [t for t in tickets if not t.get("asignado") or t.get("asignado") == ""]
 
+    vista = request.args.get("vista", "dashboard")
+    if vista == "tarjetas":
+        filtered = list(mis_asignados)
+        if filtro_estado:
+            filtered = [t for t in filtered if t["estado"] == filtro_estado]
+        if filtro_suc:
+            filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
+        if filtro_prioridad:
+            filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
+
+    filtered.sort(key=lambda t: t["creado"], reverse=True)
+
     # Alertas: tickets > 150 dias (5 meses)
     alertas = []
     for t in tickets:
@@ -1259,8 +1269,6 @@ def admin_panel():
             except:
                 pass
     alertas.sort(key=lambda t: t.get("dias", 0), reverse=True)
-
-    vista = request.args.get("vista", "dashboard")
 
     # Notificaciones admin (stock / facturas cargadas)
     notif_data = load_notif_admin()
