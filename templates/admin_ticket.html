@@ -23,6 +23,7 @@
     <table>
         <tr><td style="width: 140px; font-weight: 600; color: #94a3b8;">Sucursal</td><td><a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a></td></tr>
         <tr><td style="font-weight: 600; color: #94a3b8;">Categoria</td><td>{{ ticket.categoria }} &raquo; {{ ticket.subcategoria }}</td></tr>
+        <tr><td style="font-weight: 600; color: #94a3b8;">Solicitante</td><td>{{ ticket.solicitante or '-' }}</td></tr>
         <tr><td style="font-weight: 600; color: #94a3b8;">Asignado</td><td>{{ ticket.asignado }}</td></tr>
         <tr><td style="font-weight: 600; color: #94a3b8;">Creado</td><td>{{ ticket.creado[:16].replace('T', ' ') }}</td></tr>
         <tr><td style="font-weight: 600; color: #94a3b8;">Actualizado</td><td>{{ ticket.actualizado[:16].replace('T', ' ') }}</td></tr>

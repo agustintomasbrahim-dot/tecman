@@ -999,12 +999,17 @@ def nuevo_ticket():
 
         subcategoria = request.form.get("subcategoria", "")
         categoria = request.form.get("categoria", "")
+        solicitante_nombre = request.form.get("solicitante_nombre", "").strip()
+        solicitante_apellido = request.form.get("solicitante_apellido", "").strip()
         ticket = {
             "id": tid,
             "sucursal": session.get("suc_nombre", request.form.get("sucursal", "")),
             "categoria": categoria,
             "subcategoria": subcategoria,
             "descripcion": request.form.get("descripcion", ""),
+            "solicitante_nombre": solicitante_nombre,
+            "solicitante_apellido": solicitante_apellido,
+            "solicitante": f"{solicitante_nombre} {solicitante_apellido}".strip(),
             "prioridad": auto_priority(categoria, subcategoria),
             "estado": "Nuevo",
             "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", "")), categoria),

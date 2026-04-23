@@ -15,6 +15,7 @@
     <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: left;">
         <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Sucursal:</span> {{ ticket.sucursal }}</p>
         <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Categoría:</span> {{ ticket.categoria }}{% if ticket.subcategoria %} — {{ ticket.subcategoria }}{% endif %}</p>
+        <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Solicitante:</span> {{ ticket.solicitante or '-' }}</p>
         <p style="color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Asignado a:</span> {{ ticket.asignado }}</p>
     </div>
     <p style="color: #475569; font-size: 13px; margin-bottom: 24px;">
