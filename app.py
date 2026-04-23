@@ -31,6 +31,7 @@ NOTIF_ADMIN_FILE = DATA_DIR / "notif_admin.json"
 STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
+MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -276,6 +277,49 @@ def load_habilitaciones():
 
 def save_habilitaciones(data):
     HABILITACIONES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_matafuegos():
+    if MATAFUEGOS_FILE.exists():
+        try:
+            return json.loads(MATAFUEGOS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"matafuegos": []}
+
+def save_matafuegos(data):
+    MATAFUEGOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def _estado_matafuego(fecha_vencimiento, estado_manual=""):
+    estado_manual = (estado_manual or "").strip().lower()
+    if estado_manual == "rechazado":
+        return "rechazado"
+    if not fecha_vencimiento:
+        return "sin_dato"
+    try:
+        venc = datetime.date.fromisoformat(str(fecha_vencimiento)[:10])
+    except (ValueError, TypeError):
+        return "sin_dato"
+    hoy = datetime.date.today()
+    if venc < hoy:
+        return "vencido"
+    if venc <= hoy + datetime.timedelta(days=60):
+        return "proximo"
+    return "al_dia"
+
+def _enrich_matafuego(m):
+    x = dict(m)
+    x["estado_calc"] = _estado_matafuego(x.get("fecha_vencimiento"), x.get("estado_manual", ""))
+    return x
+
+def _stats_matafuegos(items):
+    items = [_enrich_matafuego(i) for i in items]
+    return {
+        "total": len(items),
+        "al_dia": sum(1 for i in items if i["estado_calc"] == "al_dia"),
+        "proximo": sum(1 for i in items if i["estado_calc"] == "proximo"),
+        "vencido": sum(1 for i in items if i["estado_calc"] == "vencido"),
+        "rechazado": sum(1 for i in items if i["estado_calc"] == "rechazado"),
+    }
 
 HABILITACION_EXTENSIONES = {".pdf", ".jpg", ".jpeg", ".png"}
 
@@ -731,6 +775,11 @@ def suc_panel():
     mi_stock_insumos = {k: v for k, v in mi_stock.items() if _es_insumo_compras(k)}
     mi_stock_manten = {k: v for k, v in mi_stock.items() if not _es_insumo_compras(k)}
 
+    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
+
     return render_template(
         "suc_panel.html",
         tickets=mis_tickets,
@@ -739,6 +788,8 @@ def suc_panel():
         notificaciones=notificaciones,
         mi_stock_insumos=mi_stock_insumos,
         mi_stock_manten=mi_stock_manten,
+        habilitaciones_suc=habs,
+        matafuegos_suc=matafuegos,
     )
 
 
@@ -2541,6 +2592,10 @@ def admin_syh():
     bomberos_ok = sum(1 for s in sucursales_syh if s["bomberos"] == "Aprobado")
     sin_datos = sum(1 for s in sucursales_syh if s["habilitacion"] == "Sin datos")
 
+    matafuegos_data = load_matafuegos().get("matafuegos", [])
+    for s in sucursales_syh:
+        s["matafuegos_detalle"] = len([m for m in matafuegos_data if m.get("sucursal_num") == s["num"] or m.get("sucursal") == f"Sucursal {s['num']}"])
+
     return render_template(
         "admin_syh.html",
         sucursales=sucursales_syh,
@@ -2549,7 +2604,100 @@ def admin_syh():
         bomberos_ok=bomberos_ok,
         sin_datos=sin_datos,
         syh_estados=SYH_ESTADOS,
+        matafuegos_stats=_stats_matafuegos(matafuegos_data),
     )
+
+
+@app.route("/admin/syh/matafuegos", methods=["GET", "POST"])
+@admin_required
+def admin_syh_matafuegos():
+    data = load_matafuegos()
+    items = [_enrich_matafuego(x) for x in data.get("matafuegos", [])]
+
+    if request.method == "POST":
+        sucursal = request.form.get("sucursal", "").strip()
+        if not sucursal:
+            flash("Seleccione una sucursal")
+            return redirect(url_for("admin_syh_matafuegos"))
+        suc_num = sucursal.replace("Sucursal ", "").strip()
+        nuevo = {
+            "id": uuid.uuid4().hex[:12],
+            "sucursal": sucursal,
+            "sucursal_num": suc_num,
+            "tipo": request.form.get("tipo", "").strip(),
+            "cantidad": _parse_int_or_none(request.form.get("cantidad", "")) or 1,
+            "ubicacion": request.form.get("ubicacion", "").strip(),
+            "fecha_carga": request.form.get("fecha_carga", "").strip(),
+            "fecha_vencimiento": request.form.get("fecha_vencimiento", "").strip(),
+            "estado_manual": request.form.get("estado_manual", "").strip(),
+            "observaciones": request.form.get("observaciones", "").strip(),
+            "created_at": datetime.datetime.now().isoformat(),
+            "cargado_por": session.get("nombre", ""),
+        }
+        data.setdefault("matafuegos", []).append(nuevo)
+        save_matafuegos(data)
+        flash("Matafuego cargado")
+        return redirect(url_for("admin_syh_matafuegos"))
+
+    filtro_sucursal = request.args.get("sucursal", "").strip()
+    if filtro_sucursal:
+        items = [m for m in items if m.get("sucursal") == filtro_sucursal]
+    items.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99", m.get("sucursal", "")))
+    return render_template(
+        "admin_matafuegos.html",
+        matafuegos=items,
+        stats=_stats_matafuegos(data.get("matafuegos", [])),
+        sucursales=SUCURSALES,
+        filtro_sucursal=filtro_sucursal,
+    )
+
+
+@app.route("/admin/syh/matafuegos/<mid>/eliminar", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_eliminar(mid):
+    data = load_matafuegos()
+    antes = len(data.get("matafuegos", []))
+    data["matafuegos"] = [x for x in data.get("matafuegos", []) if x.get("id") != mid]
+    if len(data["matafuegos"]) < antes:
+        save_matafuegos(data)
+        flash("Matafuego eliminado")
+    return redirect(url_for("admin_syh_matafuegos"))
+
+
+@app.route("/suc/syh/asistencia", methods=["POST"])
+@suc_login_required
+def suc_syh_asistencia():
+    tickets = load_tickets()
+    new_id = next_ticket_id(tickets)
+    motivo = request.form.get("motivo", "").strip() or "Asistencia S&H"
+    comentario = request.form.get("comentario", "").strip()
+    now_iso = datetime.datetime.now().isoformat()
+    nuevo = {
+        "id": new_id,
+        "tipo": "syh_asistencia",
+        "sucursal": session.get("suc_nombre", ""),
+        "descripcion": comentario or motivo,
+        "estado": "Nuevo",
+        "asignado": "Patricia",
+        "prioridad": 2,
+        "creado": now_iso,
+        "actualizado": now_iso,
+        "categoria": "Seguridad e Higiene",
+        "subcategoria": motivo,
+        "fotos": [],
+        "notas": [{"autor": session.get("suc_nombre", "Sucursal"), "fecha": now_iso, "texto": f"Solicitud de asistencia S&H: {motivo}" + (f" - {comentario}" if comentario else "")}],
+    }
+    tickets.append(nuevo)
+    save_tickets(tickets)
+    agregar_notif_admin(
+        titulo=f"🧯 Asistencia S&H solicitada #{new_id}",
+        detalle=f"{session.get('suc_nombre', 'Sucursal')} solicitó asistencia. Motivo: {motivo}" + (f"\nDetalle: {comentario}" if comentario else ""),
+        tipo="syh",
+        autor=session.get("suc_nombre", "Sucursal"),
+        link=url_for("admin_ticket", ticket_id=new_id),
+    )
+    flash("Solicitud de asistencia enviada")
+    return redirect(url_for("suc_panel"))
 
 
 @app.route("/admin/syh/<suc_num>", methods=["GET", "POST"])

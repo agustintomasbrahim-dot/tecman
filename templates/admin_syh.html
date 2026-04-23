@@ -18,7 +18,11 @@
         <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Inicio</a>
         <h2 style="margin: 0;">Seguridad e Higiene</h2>
     </div>
-    <span style="color: #64748b; font-size: 13px;">Patricia - Control de habilitaciones</span>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <a href="{{ url_for('admin_habilitaciones') }}" class="btn btn-outline btn-sm">Habilitaciones</a>
+        <a href="{{ url_for('admin_syh_matafuegos') }}" class="btn btn-primary btn-sm">Matafuegos</a>
+        <span style="color: #64748b; font-size: 13px;">Patricia - Control de habilitaciones</span>
+    </div>
 </div>
 
 <!-- Stats -->
@@ -39,6 +43,10 @@
         <div class="number" style="color: #f59e0b;">{{ sin_datos }}</div>
         <div class="label">Sin datos</div>
     </div>
+    <div class="stat-card" style="border-left: 4px solid #ef4444;">
+        <div class="number" style="color: #dc2626;">{{ matafuegos_stats.vencido + matafuegos_stats.rechazado }}</div>
+        <div class="label">Matafuegos críticos</div>
+    </div>
 </div>
 
 <!-- Table -->
@@ -52,6 +60,7 @@
                 <th>Habilitacion</th>
                 <th>Bomberos</th>
                 <th>Matafuegos</th>
+                <th>Detalle</th>
                 <th>Plano evac.</th>
                 <th>Senalizacion</th>
                 <th></th>
@@ -82,6 +91,7 @@
                     {% elif s.matafuegos == 'Vencidos' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencidos</span>
                     {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
                 </td>
+                <td><span style="color: #475569; font-size: 12px;">{{ s.matafuegos_detalle }} cargado{{ 's' if s.matafuegos_detalle != 1 }}</span></td>
                 <td>
                     {% if s.plano_evacuacion == 'Tiene' %}<span style="color: #34d399;">&#10004;</span>
                     {% elif s.plano_evacuacion == 'No tiene' %}<span style="color: #f87171;">&#10008;</span>

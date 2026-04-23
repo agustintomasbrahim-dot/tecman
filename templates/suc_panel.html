@@ -19,6 +19,63 @@
     + Crear nuevo ticket
 </a>
 
+{% if habilitaciones_suc or matafuegos_suc %}
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #0ea5e9;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 15px;">🛡️ Seguridad e Higiene</h3>
+        <form method="POST" action="{{ url_for('suc_syh_asistencia') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <select name="motivo" style="min-width: 180px;">
+                <option value="Matafuego rechazado">Matafuego rechazado</option>
+                <option value="Consulta de habilitación">Consulta de habilitación</option>
+                <option value="Asistencia S&H">Otra asistencia S&amp;H</option>
+            </select>
+            <input type="text" name="comentario" placeholder="Detalle breve" style="min-width: 180px;">
+            <button type="submit" class="btn btn-outline btn-sm">Solicitar asistencia</button>
+        </form>
+    </div>
+
+    {% if habilitaciones_suc %}
+    <div style="margin-bottom: 14px;">
+        <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 6px;">Habilitaciones</p>
+        <table style="width: 100%; font-size: 13px;"><tbody>
+            {% for h in habilitaciones_suc %}
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 6px 0;">
+                    <div style="font-weight: 600;">{{ h.numero_cert or 'Sin número' }}</div>
+                    <div style="font-size: 12px; color: #6b7280;">{{ h.municipio or '-' }}{% if h.archivo %} · <a href="{{ url_for('serve_habilitacion', filename=h.archivo) }}" target="_blank">ver archivo</a>{% endif %}</div>
+                </td>
+                <td style="text-align: right; padding: 6px 0;">
+                    <div style="font-weight: 700; color: {% if h.estado == 'vigente' %}#059669{% elif h.estado == 'por_vencer' %}#d97706{% elif h.estado == 'vencida' %}#dc2626{% else %}#6b7280{% endif %};">{{ h.fecha_vencimiento or 'Sin fecha' }}</div>
+                    <div style="font-size: 12px; color: #6b7280;">{{ h.estado.replace('_', ' ') }}</div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody></table>
+    </div>
+    {% endif %}
+
+    {% if matafuegos_suc %}
+    <div>
+        <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 6px;">Matafuegos</p>
+        <table style="width: 100%; font-size: 13px;"><tbody>
+            {% for m in matafuegos_suc %}
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+                <td style="padding: 6px 0;">
+                    <div style="font-weight: 600;">{{ m.tipo or 'Matafuego' }} × {{ m.cantidad or 1 }}</div>
+                    <div style="font-size: 12px; color: #6b7280;">{{ m.ubicacion or 'Sin ubicación' }}</div>
+                </td>
+                <td style="text-align: right; padding: 6px 0;">
+                    <div style="font-weight: 700; color: {% if m.estado_calc == 'al_dia' %}#059669{% elif m.estado_calc == 'proximo' %}#d97706{% elif m.estado_calc in ('vencido','rechazado') %}#dc2626{% else %}#6b7280{% endif %};">{{ m.fecha_vencimiento or 'Sin fecha' }}</div>
+                    <div style="font-size: 12px; color: #6b7280;">{{ m.estado_calc.replace('_', ' ') }}</div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody></table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if mi_stock_insumos or mi_stock_manten %}
 <div class="card" style="margin-bottom: 16px;">
     <h3 style="margin-bottom: 12px; font-size: 15px;">📦 Mi stock recibido</h3>
