@@ -29,6 +29,7 @@ TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
 NOTIF_ADMIN_FILE = DATA_DIR / "notif_admin.json"
 STOCK_MOV_FILE = DATA_DIR / "stock_movimientos.json"
+STOCK_LOTES_FILE = DATA_DIR / "stock_lotes.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
@@ -258,6 +259,133 @@ def load_movimientos():
 def save_movimientos(data):
     STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+
+# --- FIFO por lotes ---
+# Cada lote representa un ingreso fisico real (remito de proveedor) con su
+# cantidad y precio unitario. Los egresos a sucursal consumen lotes en orden
+# FIFO (fecha_origen asc, luego created_at asc) para imputar el costo real.
+
+def load_lotes_fifo():
+    if STOCK_LOTES_FILE.exists():
+        try:
+            return json.loads(STOCK_LOTES_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"lotes": []}
+
+
+def save_lotes_fifo(data):
+    STOCK_LOTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def crear_lote_fifo(item, cantidad, precio_unitario, tipo_origen="remito_proveedor",
+                    comprobante_id=None, numero_comprobante="", proveedor="",
+                    fecha_origen=None):
+    """Crea un lote FIFO por un ingreso fisico de stock. Devuelve el lote creado."""
+    try:
+        cantidad = int(cantidad)
+    except (TypeError, ValueError):
+        return None
+    if not item or cantidad <= 0:
+        return None
+    try:
+        precio_unitario = float(precio_unitario or 0)
+    except (TypeError, ValueError):
+        precio_unitario = 0.0
+    data = load_lotes_fifo()
+    lote = {
+        "id": uuid.uuid4().hex[:12],
+        "item": item,
+        "cantidad_original": cantidad,
+        "cantidad_disponible": cantidad,
+        "precio_unitario": precio_unitario,
+        "tipo_origen": tipo_origen or "remito_proveedor",
+        "comprobante_id": comprobante_id or "",
+        "numero_comprobante": numero_comprobante or "",
+        "proveedor": proveedor or "",
+        "fecha_origen": (fecha_origen or datetime.date.today().isoformat())[:10],
+        "created_at": datetime.datetime.now().isoformat(),
+    }
+    data.setdefault("lotes", []).append(lote)
+    save_lotes_fifo(data)
+    return lote
+
+
+def _lote_sort_key(lote):
+    # FIFO: fecha_origen asc, luego created_at asc
+    return (lote.get("fecha_origen", "") or "", lote.get("created_at", "") or "")
+
+
+def consumir_lotes_fifo(item, cantidad):
+    """Consume 'cantidad' del item de los lotes FIFO disponibles.
+
+    Devuelve dict con:
+      - consumido: int (cantidad efectivamente consumida de lotes)
+      - faltante: int (lo que no alcanzo a cubrirse con lotes)
+      - breakdown: lista de {lote_id, cantidad, precio_unitario,
+                             numero_comprobante, proveedor, fecha_origen,
+                             comprobante_id, tipo_origen}
+      - precio_promedio: float (promedio ponderado de lo consumido, 0 si nada)
+      - monto_total: float (subtotal real consumido de lotes)
+    """
+    try:
+        cantidad = int(cantidad)
+    except (TypeError, ValueError):
+        cantidad = 0
+    result = {
+        "consumido": 0,
+        "faltante": max(0, cantidad),
+        "breakdown": [],
+        "precio_promedio": 0.0,
+        "monto_total": 0.0,
+    }
+    if not item or cantidad <= 0:
+        return result
+
+    data = load_lotes_fifo()
+    lotes = data.get("lotes", [])
+    disponibles = [l for l in lotes if l.get("item") == item and int(l.get("cantidad_disponible", 0) or 0) > 0]
+    disponibles.sort(key=_lote_sort_key)
+
+    restante = cantidad
+    monto_total = 0.0
+    changed = False
+    for lote in disponibles:
+        if restante <= 0:
+            break
+        disp = int(lote.get("cantidad_disponible", 0) or 0)
+        if disp <= 0:
+            continue
+        tomar = min(disp, restante)
+        lote["cantidad_disponible"] = disp - tomar
+        precio = float(lote.get("precio_unitario", 0) or 0)
+        subtotal = round(tomar * precio, 2)
+        monto_total += subtotal
+        result["breakdown"].append({
+            "lote_id": lote.get("id", ""),
+            "cantidad": tomar,
+            "precio_unitario": precio,
+            "numero_comprobante": lote.get("numero_comprobante", ""),
+            "proveedor": lote.get("proveedor", ""),
+            "fecha_origen": lote.get("fecha_origen", ""),
+            "comprobante_id": lote.get("comprobante_id", ""),
+            "tipo_origen": lote.get("tipo_origen", ""),
+        })
+        restante -= tomar
+        changed = True
+
+    consumido = cantidad - restante
+    result["consumido"] = consumido
+    result["faltante"] = restante
+    result["monto_total"] = round(monto_total, 2)
+    if consumido > 0:
+        result["precio_promedio"] = round(monto_total / consumido, 4)
+
+    if changed:
+        save_lotes_fifo(data)
+    return result
+
+
 def _load_guias_counter():
     if GUIAS_COUNTER_FILE.exists():
         try:
@@ -417,7 +545,7 @@ def _get_precio_historico(item_key, hasta=None):
     return float(ingresos[0].get("precio_unitario", 0))
 
 
-def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None, area=None, envio_id=None):
+def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota="", monto_imputado=None, precio_unitario=None, area=None, envio_id=None, lotes_origen=None, numero_comprobante_origen=None, proveedor_origen=None, sin_trazabilidad_fifo=None):
     """Registra un movimiento de stock (ingreso o egreso)."""
     if not item or not tipo or not cantidad:
         return
@@ -440,6 +568,14 @@ def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota
         mov["area"] = area
     if envio_id:
         mov["envio_id"] = envio_id
+    if lotes_origen:
+        mov["lotes_origen"] = lotes_origen
+    if numero_comprobante_origen:
+        mov["numero_comprobante_origen"] = numero_comprobante_origen
+    if proveedor_origen:
+        mov["proveedor_origen"] = proveedor_origen
+    if sin_trazabilidad_fifo:
+        mov["sin_trazabilidad_fifo"] = True
     data.setdefault("movimientos", []).append(mov)
     save_movimientos(data)
 
@@ -3053,9 +3189,6 @@ def admin_pedido(ticket_id):
             imputacion_txt = ""
             if item_key:
                 stock_data = load_stock()
-                # Usar precio del ultimo ingreso historico (fecha de compra)
-                # para respetar el valor unitario vigente al momento de la compra
-                precio_unit = _get_precio_historico(item_key) or get_central_precio(stock_data, item_key)
                 disponible = get_central_qty(stock_data, item_key)
                 nuevo = max(0, disponible - cantidad_env)
                 if nuevo == 0 and item_key in stock_data.get("central", {}):
@@ -3065,12 +3198,35 @@ def admin_pedido(ticket_id):
                     stock_data["central"][item_key]["cantidad"] = nuevo
                 save_stock(stock_data)
 
-                imputacion_monto = round(cantidad_env * precio_unit, 2)
+                # FIFO real: consumir lotes para imputar el costo contra la
+                # factura/remito de origen. Fallback al precio historico si el
+                # item todavia no tiene lotes (datos viejos de prueba).
+                fifo = consumir_lotes_fifo(item_key, cantidad_env)
+                sin_trazabilidad = False
+                lotes_breakdown = fifo["breakdown"]
+
+                if fifo["consumido"] >= cantidad_env and fifo["consumido"] > 0:
+                    precio_unit = fifo["precio_promedio"]
+                    imputacion_monto = fifo["monto_total"]
+                else:
+                    # No alcanzan los lotes: usar fallback para lo faltante
+                    faltante = cantidad_env - fifo["consumido"]
+                    precio_fallback = _get_precio_historico(item_key) or get_central_precio(stock_data, item_key) or 0.0
+                    monto_fallback = round(faltante * precio_fallback, 2)
+                    total_monto = round(fifo["monto_total"] + monto_fallback, 2)
+                    imputacion_monto = total_monto
+                    precio_unit = round(total_monto / cantidad_env, 4) if cantidad_env > 0 else precio_fallback
+                    if faltante > 0:
+                        sin_trazabilidad = True
+
                 ticket["imputacion_item"] = item_key
                 ticket["imputacion_cantidad"] = cantidad_env
                 ticket["imputacion_precio_unitario"] = precio_unit
                 ticket["imputacion_monto"] = imputacion_monto
                 ticket["imputacion_fecha"] = datetime.datetime.now().isoformat()
+                ticket["imputacion_lotes"] = lotes_breakdown
+                if sin_trazabilidad:
+                    ticket["imputacion_sin_trazabilidad_fifo"] = True
 
                 descuento_txt = f" | Stock descontado: '{item_key}' -{cantidad_env} (quedaron {nuevo})"
                 if precio_unit > 0:
@@ -3081,6 +3237,21 @@ def admin_pedido(ticket_id):
                 nota_mov = f"Enviado por ticket #{ticket.get('id')}"
                 if metodo:
                     nota_mov += f" ({metodo})"
+
+                # Resumen de trazabilidad al movimiento
+                if lotes_breakdown:
+                    if len(lotes_breakdown) == 1:
+                        numero_origen = lotes_breakdown[0].get("numero_comprobante", "") or None
+                        proveedor_origen = lotes_breakdown[0].get("proveedor", "") or None
+                    else:
+                        nums = [l.get("numero_comprobante", "") for l in lotes_breakdown if l.get("numero_comprobante")]
+                        provs = [l.get("proveedor", "") for l in lotes_breakdown if l.get("proveedor")]
+                        numero_origen = ", ".join(dict.fromkeys(nums)) or None
+                        proveedor_origen = ", ".join(dict.fromkeys(provs)) or None
+                else:
+                    numero_origen = None
+                    proveedor_origen = None
+
                 registrar_movimiento(
                     item=item_key,
                     tipo="egreso",
@@ -3090,6 +3261,10 @@ def admin_pedido(ticket_id):
                     nota=nota_mov,
                     monto_imputado=imputacion_monto,
                     precio_unitario=precio_unit,
+                    lotes_origen=lotes_breakdown or None,
+                    numero_comprobante_origen=numero_origen,
+                    proveedor_origen=proveedor_origen,
+                    sin_trazabilidad_fifo=sin_trazabilidad or None,
                 )
             ticket["notas"].append({
                 "autor": session.get("nombre", "Jonathan"),
@@ -3655,6 +3830,8 @@ def admin_comprobantes_nuevo():
     item_cants = request.form.getlist("item_cantidad[]")
     item_precios = request.form.getlist("item_precio[]")
     stock_data = None
+    # Pre-generamos el id del comprobante para poder referenciarlo en los lotes FIFO
+    comprobante_id = uuid.uuid4().hex[:12]
     for idx, nombre in enumerate(item_names):
         nombre = (nombre or "").strip()
         if not nombre:
@@ -3679,6 +3856,17 @@ def admin_comprobantes_nuevo():
             nueva_cant = actual + cant if cant > 0 else actual
             set_central_qty(stock_data, nombre, nueva_cant, precio=precio if precio > 0 else None)
             if cant > 0:
+                # Crear lote FIFO real atado al remito (trazabilidad contra factura/remito)
+                crear_lote_fifo(
+                    item=nombre,
+                    cantidad=cant,
+                    precio_unitario=precio,
+                    tipo_origen="remito_proveedor",
+                    comprobante_id=comprobante_id,
+                    numero_comprobante=numero,
+                    proveedor=proveedor,
+                    fecha_origen=fecha,
+                )
                 registrar_movimiento(
                     item=nombre,
                     tipo="ingreso",
@@ -3686,6 +3874,8 @@ def admin_comprobantes_nuevo():
                     sucursal="Central Dabra",
                     nota=f"Ingreso por remito {numero} ({proveedor})",
                     precio_unitario=precio if precio > 0 else None,
+                    numero_comprobante_origen=numero,
+                    proveedor_origen=proveedor,
                 )
         elif tipo == "factura":
             # La factura solo actualiza el precio unitario (registro contable)
@@ -3698,7 +3888,7 @@ def admin_comprobantes_nuevo():
         save_stock(stock_data)
 
     comprobante = {
-        "id": uuid.uuid4().hex[:12],
+        "id": comprobante_id,
         "tipo": tipo,
         "numero": numero,
         "fecha": fecha,
@@ -3839,23 +4029,81 @@ def admin_contable_reporte():
 
     imputados = _tickets_imputados(tickets, desde=desde, hasta=hasta, sucursal=sucursal)
 
-    # Agrupar por sucursal
+    # Agrupar por sucursal. Cada ticket puede expandirse a varias filas si su
+    # imputacion consumio multiples lotes FIFO (una fila por lote consumido,
+    # con subtotal parcial). Si el ticket no tiene trazabilidad FIFO (datos
+    # viejos) se emite una fila unica marcada como sin trazabilidad.
     por_suc = {}
     for t in imputados:
         suc = t.get("sucursal", "Sin sucursal")
         fecha_imp = (t.get("imputacion_fecha") or t.get("actualizado") or t.get("creado") or "")[:10]
-        fila = {
-            "ticket_id": t.get("id"),
-            "item": t.get("imputacion_item", ""),
-            "cantidad": t.get("imputacion_cantidad", 0),
-            "precio_unitario": float(t.get("imputacion_precio_unitario", 0) or 0),
-            "subtotal": float(t.get("imputacion_monto", 0) or 0),
-            "fecha": fecha_imp,
-        }
+        item = t.get("imputacion_item", "")
+        lotes = t.get("imputacion_lotes") or []
+        sin_traza_ticket = bool(t.get("imputacion_sin_trazabilidad_fifo"))
+        filas_ticket = []
+        if lotes:
+            for lote in lotes:
+                cant = int(lote.get("cantidad", 0) or 0)
+                precio = float(lote.get("precio_unitario", 0) or 0)
+                filas_ticket.append({
+                    "ticket_id": t.get("id"),
+                    "item": item,
+                    "cantidad": cant,
+                    "precio_unitario": precio,
+                    "subtotal": round(cant * precio, 2),
+                    "fecha": fecha_imp,
+                    "numero_comprobante_origen": lote.get("numero_comprobante", "") or "",
+                    "proveedor_origen": lote.get("proveedor", "") or "",
+                    "fecha_origen": lote.get("fecha_origen", "") or "",
+                    "trazabilidad_fifo_ok": True,
+                    "detalle_lotes": [lote],
+                })
+            if sin_traza_ticket:
+                # Quedo un resto sin cubrir por lotes -> fila separada
+                cant_lotes = sum(int(l.get("cantidad", 0) or 0) for l in lotes)
+                monto_lotes = sum(
+                    round(int(l.get("cantidad", 0) or 0) * float(l.get("precio_unitario", 0) or 0), 2)
+                    for l in lotes
+                )
+                cant_total = int(t.get("imputacion_cantidad", 0) or 0)
+                monto_total = float(t.get("imputacion_monto", 0) or 0)
+                cant_resto = max(0, cant_total - cant_lotes)
+                monto_resto = round(monto_total - monto_lotes, 2)
+                if cant_resto > 0 or monto_resto > 0:
+                    precio_resto = round(monto_resto / cant_resto, 4) if cant_resto > 0 else 0.0
+                    filas_ticket.append({
+                        "ticket_id": t.get("id"),
+                        "item": item,
+                        "cantidad": cant_resto,
+                        "precio_unitario": precio_resto,
+                        "subtotal": monto_resto,
+                        "fecha": fecha_imp,
+                        "numero_comprobante_origen": "",
+                        "proveedor_origen": "",
+                        "fecha_origen": "",
+                        "trazabilidad_fifo_ok": False,
+                        "detalle_lotes": [],
+                    })
+        else:
+            filas_ticket.append({
+                "ticket_id": t.get("id"),
+                "item": item,
+                "cantidad": int(t.get("imputacion_cantidad", 0) or 0),
+                "precio_unitario": float(t.get("imputacion_precio_unitario", 0) or 0),
+                "subtotal": float(t.get("imputacion_monto", 0) or 0),
+                "fecha": fecha_imp,
+                "numero_comprobante_origen": "",
+                "proveedor_origen": "",
+                "fecha_origen": "",
+                "trazabilidad_fifo_ok": False,
+                "detalle_lotes": [],
+            })
+
         grupo = por_suc.setdefault(suc, {"items": [], "total": 0.0, "cantidad_items": 0})
-        grupo["items"].append(fila)
-        grupo["total"] += fila["subtotal"]
-        grupo["cantidad_items"] += int(fila["cantidad"] or 0)
+        for fila in filas_ticket:
+            grupo["items"].append(fila)
+            grupo["total"] += fila["subtotal"]
+            grupo["cantidad_items"] += int(fila["cantidad"] or 0)
 
     # Ordenar: sucursales por total desc, filas por fecha desc
     for g in por_suc.values():
@@ -3870,17 +4118,26 @@ def admin_contable_reporte():
         from flask import Response
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["Sucursal", "Item", "Cantidad", "Precio Unit.", "Subtotal", "Fecha", "Ticket#"])
+        writer.writerow([
+            "Sucursal", "Fecha imputacion", "Ticket#", "Item",
+            "Cantidad", "Precio Unit.", "Subtotal",
+            "Factura/Remito origen", "Proveedor origen", "Fecha origen",
+            "Trazabilidad FIFO",
+        ])
         for suc_nom, grupo in reporte:
             for fila in grupo["items"]:
                 writer.writerow([
                     suc_nom,
+                    fila["fecha"],
+                    fila["ticket_id"],
                     fila["item"],
                     fila["cantidad"],
                     f"{fila['precio_unitario']:.2f}",
                     f"{fila['subtotal']:.2f}",
-                    fila["fecha"],
-                    fila["ticket_id"],
+                    fila.get("numero_comprobante_origen", ""),
+                    fila.get("proveedor_origen", ""),
+                    fila.get("fecha_origen", ""),
+                    "OK" if fila.get("trazabilidad_fifo_ok") else "Sin trazabilidad historica",
                 ])
         nombre = datetime.datetime.now().strftime("tecman_contable_%Y%m%d.csv")
         return Response(
