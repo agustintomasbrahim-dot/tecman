@@ -11,7 +11,16 @@
 {% endblock %}
 {% block content %}
 
-<div class="card" style="border-left: 4px solid #e63946;">
+<style>
+.pedido-grid-top { display:grid; grid-template-columns: 1.2fr 0.8fr; gap:16px; }
+.pedido-mini-card { border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff; }
+.pedido-label { font-size:11px; color:#6b7280; font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+.pedido-value { font-size:14px; color:#111827; font-weight:600; }
+@media (max-width: 900px) { .pedido-grid-top { grid-template-columns: 1fr; } }
+</style>
+
+<div class="pedido-grid-top" style="margin-bottom: 16px;">
+<div class="card" style="border-left: 4px solid #e63946; margin-bottom: 0;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <a href="{{ url_for('admin_pedidos') }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Pedidos</a>
@@ -51,6 +60,27 @@
     <div style="margin-top: 12px; background: #f9fafb; padding: 12px; border-radius: 8px;">
         <p style="color: #1a1a2e;">{{ ticket.descripcion }}</p>
     </div>
+</div>
+
+<div class="card" style="margin-bottom: 0;">
+    <h3 style="margin-bottom: 12px;">Resumen rápido</h3>
+    <div class="pedido-mini-card" style="margin-bottom:10px;">
+        <div class="pedido-label">Pedido original</div>
+        <div class="pedido-value">{{ ticket.categoria_mat or ticket.subcategoria }}{% if ticket.subitem_mat %} › {{ ticket.subitem_mat }}{% endif %}{% if ticket.cantidad_mat %} x{{ ticket.cantidad_mat }}{% endif %}</div>
+    </div>
+    <div class="pedido-mini-card" style="margin-bottom:10px;">
+        <div class="pedido-label">Agregado por mantenimiento</div>
+        <div class="pedido-value">{{ ticket.materiales_agregados|length if ticket.materiales_agregados else 0 }} ítem{{ '' if (ticket.materiales_agregados|length if ticket.materiales_agregados else 0) == 1 else 's' }}</div>
+    </div>
+    <div class="pedido-mini-card" style="margin-bottom:10px;">
+        <div class="pedido-label">Pendiente de compras</div>
+        <div class="pedido-value">{{ ticket.materiales_a_comprar|length if ticket.materiales_a_comprar else 0 }} ítem{{ '' if (ticket.materiales_a_comprar|length if ticket.materiales_a_comprar else 0) == 1 else 's' }}</div>
+    </div>
+    <div class="pedido-mini-card">
+        <div class="pedido-label">Siguiente paso</div>
+        <div class="pedido-value">{% if ticket.estado in ('Nuevo', 'Abierto') %}Definir si hay stock{% elif ticket.estado == 'Pendiente' %}Esperar Compras{% elif ticket.estado == 'En progreso' %}Coordinar envío{% elif ticket.estado == 'Resuelto' %}Esperar recepción{% else %}Revisar pedido{% endif %}</div>
+    </div>
+</div>
 </div>
 
 <div class="card">
@@ -389,68 +419,12 @@
 </div>
 {% endif %}
 
-<!-- Gestion de retiro / envio -->
-{% if ticket.estado not in ('Nuevo', 'Abierto', 'Resuelto', 'Cerrado') %}
-<div class="card">
-    <h3 style="margin-bottom: 12px;">Retiro / Envio del material</h3>
-    <form method="POST">
-        <input type="hidden" name="accion" value="gestion_retiro">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                <input type="radio" name="retiro_tipo" value="envio" id="retiro-envio" {% if not ticket.retiro_tipo or ticket.retiro_tipo == 'envio' %}checked{% endif %}>
-                <span><strong>Envio a sucursal</strong></span>
-            </label>
-            <label style="flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                <input type="radio" name="retiro_tipo" value="proveedor" id="retiro-prov" {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}checked{% endif %}>
-                <span><strong>Retira proveedor</strong></span>
-            </label>
-        </div>
-        <div id="prov-group" style="display: {% if ticket.retiro_tipo == 'proveedor' or ticket.retiro_proveedor %}block{% else %}none{% endif %};">
-            <div class="form-group">
-                <label>Proveedor</label>
-                <select name="proveedor_nombre" id="prov-select">
-                    <option value="">Seleccionar proveedor...</option>
-                    {% for p in proveedores_sucursal %}
-                    <option value="{{ p }}" {% if ticket.proveedor_nombre == p %}selected{% endif %}>{{ p }}</option>
-                    {% endfor %}
-                    <option value="__otro__">Otro...</option>
-                </select>
-            </div>
-            <div id="prov-otro-group" style="display: none;">
-                <div class="form-group">
-                    <label>Nombre del proveedor</label>
-                    <input type="text" name="proveedor_otro_nombre" placeholder="Nombre / empresa">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Detalle (contacto, telefono, observaciones)</label>
-                <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">Guardar retiro</button>
-    </form>
-</div>
-<script>
-(function() {
-    document.querySelectorAll('input[name="retiro_tipo"]').forEach(function(r) {
-        r.addEventListener('change', function() {
-            document.getElementById('prov-group').style.display = (this.value === 'proveedor') ? 'block' : 'none';
-        });
-    });
-    var sel = document.getElementById('prov-select');
-    if (sel) {
-        sel.addEventListener('change', function() {
-            document.getElementById('prov-otro-group').style.display = (this.value === '__otro__') ? 'block' : 'none';
-        });
-    }
-})();
-</script>
-{% endif %}
-
 <!-- Historial -->
 {% if ticket.notas is defined and ticket.notas %}
 <div class="card">
-    <h3 style="margin-bottom: 12px;">Historial</h3>
+    <details>
+    <summary style="cursor:pointer; font-weight:700; color:#374151;">Historial del pedido ({{ ticket.notas|length }})</summary>
+    <div style="margin-top: 12px;">
     {% for nota in ticket.notas | reverse %}
     <div style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
         <div style="display: flex; justify-content: space-between; font-size: 12px;">
@@ -460,6 +434,8 @@
         <p style="color: #374151; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>
     </div>
     {% endfor %}
+    </div>
+    </details>
 </div>
 {% endif %}
 
