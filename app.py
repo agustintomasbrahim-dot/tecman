@@ -554,6 +554,25 @@ def load_permisos():
 def save_permisos(data):
     PERMISOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+def _expand_permisos_para_sucursales(items):
+    expanded = []
+    for p in items:
+        destinos = p.get("sucursales") or []
+        if destinos:
+            for d in destinos:
+                x = dict(p)
+                x["sucursal"] = d.get("sucursal", "")
+                x["sucursal_num"] = d.get("sucursal_num", "")
+                x["fao_estado"] = d.get("fao_estado", p.get("fao_estado", "Pendiente"))
+                x["fao_fecha"] = d.get("fao_fecha", "")
+                x["destino_id"] = d.get("id", "")
+                expanded.append(x)
+        else:
+            x = dict(p)
+            x.setdefault("fao_estado", p.get("fao_estado", "Pendiente"))
+            expanded.append(x)
+    return expanded
+
 def load_alertas_syh():
     if ALERTAS_SYH_FILE.exists():
         try:
@@ -1056,7 +1075,7 @@ def suc_panel():
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
     matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
-    permisos = [p for p in load_permisos().get("permisos", []) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
 
     return render_template(
@@ -1071,6 +1090,31 @@ def suc_panel():
         matafuegos_suc=matafuegos,
         permisos_suc=permisos,
     )
+
+
+@app.route("/suc/permisos/<permiso_id>/fao", methods=["POST"])
+@suc_login_required
+def suc_permiso_fao(permiso_id):
+    suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
+    data = load_permisos()
+    updated = False
+    for p in data.get("permisos", []):
+        if p.get("id") != permiso_id:
+            continue
+        if p.get("sucursales"):
+            for d in p.get("sucursales", []):
+                if d.get("sucursal_num") == suc_num:
+                    d["fao_estado"] = "Contamos FAO"
+                    d["fao_fecha"] = datetime.datetime.now().isoformat()
+                    updated = True
+        elif p.get("sucursal_num") == suc_num:
+            p["fao_estado"] = "Contamos FAO"
+            p["fao_fecha"] = datetime.datetime.now().isoformat()
+            updated = True
+    if updated:
+        save_permisos(data)
+        flash("FAO confirmado")
+    return redirect(url_for("suc_panel"))
 
 
 @app.route("/mis-proveedores")
@@ -1432,9 +1476,11 @@ def admin_permisos():
 
     if request.method == "POST":
         sucursal = request.form.get("sucursal", "").strip()
+        sucursales_multi = request.form.getlist("sucursales")
         proveedor = request.form.get("proveedor", "").strip()
-        if not sucursal:
-            flash("Seleccione una sucursal")
+        destinos_raw = sucursales_multi or ([sucursal] if sucursal else [])
+        if not destinos_raw:
+            flash("Seleccione al menos una sucursal")
             return redirect(url_for("admin_permisos"))
 
         archivo = ""
@@ -1451,13 +1497,27 @@ def admin_permisos():
             flash("Adjuntá un archivo")
             return redirect(url_for("admin_permisos"))
 
-        suc_num = sucursal.replace("Sucursal ", "").strip()
+        destinos = []
+        for suc in destinos_raw:
+            suc = (suc or "").strip()
+            if not suc:
+                continue
+            destinos.append({
+                "id": uuid.uuid4().hex[:8],
+                "sucursal": suc,
+                "sucursal_num": suc.replace("Sucursal ", "").strip(),
+                "fao_estado": "Pendiente",
+                "fao_fecha": "",
+            })
+
         data.setdefault("permisos", []).append({
             "id": uuid.uuid4().hex[:12],
-            "sucursal": sucursal,
-            "sucursal_num": suc_num,
+            "sucursal": destinos[0]["sucursal"] if len(destinos) == 1 else "",
+            "sucursal_num": destinos[0]["sucursal_num"] if len(destinos) == 1 else "",
+            "sucursales": destinos,
             "proveedor": proveedor,
             "tipo_documento": request.form.get("tipo_documento", "Nómina / Permiso de ingreso").strip(),
+            "periodo": request.form.get("periodo", "").strip(),
             "vigencia_desde": request.form.get("vigencia_desde", "").strip(),
             "vigencia_hasta": request.form.get("vigencia_hasta", "").strip(),
             "comentario": request.form.get("comentario", "").strip(),
@@ -1470,7 +1530,7 @@ def admin_permisos():
         flash("Permiso cargado")
         return redirect(url_for("admin_permisos"))
 
-    permisos = list(data.get("permisos", []))
+    permisos = _expand_permisos_para_sucursales(list(data.get("permisos", [])))
     filtro_suc = request.args.get("sucursal", "").strip()
     if filtro_suc:
         permisos = [p for p in permisos if p.get("sucursal") == filtro_suc]
