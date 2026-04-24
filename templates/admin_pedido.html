@@ -83,8 +83,56 @@
 </div>
 </div>
 
+<!-- Stock relevante al pedido -->
 <div class="card">
-    <h3 style="margin-bottom: 12px;">Materiales del ticket</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div>
+            <h3 style="margin: 0;">1. Revisar stock</h3>
+            <p style="font-size: 12px; color: #6b7280; margin-top: 4px;">Primero mirá qué hay disponible para resolver el pedido.</p>
+        </div>
+        <a href="/admin/stock" style="font-size: 12px; color: #6d28d9; text-decoration: none; font-weight: 600;">📦 Ver stock completo →</a>
+    </div>
+
+    {% if stock_relevante %}
+    <table style="margin-bottom: 0;">
+        <thead><tr><th>Item</th><th style="text-align: right;">Disponible</th></tr></thead>
+        <tbody>
+            {% for item, cant in stock_relevante.items() %}
+            <tr style="background: {% if cant <= 2 %}#fef2f2{% else %}#f0fdf4{% endif %};">
+                <td style="font-weight: 600;">{{ item }}</td>
+                <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% else %}#16a34a{% endif %};">{{ cant }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding: 10px 0; color: #b45309; font-weight: 600; font-size: 13px;">⚠️ No se encontró stock para este ítem</div>
+    {% endif %}
+
+    {% if stock_similares %}
+    <div style="margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 10px;">
+        <p style="font-size: 12px; color: #6b7280; margin-bottom: 6px; font-weight: 600;">Ítems similares disponibles:</p>
+        <table style="margin-bottom: 0;">
+            <tbody>
+                {% for item, cant in stock_similares.items() %}
+                <tr>
+                    <td style="font-size: 13px; color: #374151;">{{ item }}</td>
+                    <td style="text-align: right; font-weight: 600; color: {% if cant <= 2 %}#dc2626{% else %}#1a1a2e{% endif %}; font-size: 13px;">{{ cant }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if not stock_relevante and not stock_similares %}
+    <a href="/admin/stock" class="btn btn-block" style="background: #6d28d9; color: white; margin-top: 8px; font-size: 13px;">📦 Ir al stock central a cargar el ítem</a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 12px;">2. Resolver el pedido</h3>
+    <p style="font-size: 12px; color: #6b7280; margin-bottom: 12px;">Acá definís qué sale desde stock, qué va a Compras y qué materiales complementarios necesitás sumar.</p>
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px;">
         <div>
             <p style="font-size: 12px; color: #6b7280; font-weight: 700; margin-bottom: 8px;">Solicitado por sucursal</p>
@@ -170,54 +218,10 @@
 </div>
 {% endif %}
 
-<!-- Stock relevante al pedido -->
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="margin: 0;">Stock relacionado al pedido</h3>
-        <a href="/admin/stock" style="font-size: 12px; color: #6d28d9; text-decoration: none; font-weight: 600;">📦 Ver stock completo →</a>
-    </div>
-
-    {% if stock_relevante %}
-    <table style="margin-bottom: 0;">
-        <thead><tr><th>Item</th><th style="text-align: right;">Disponible</th></tr></thead>
-        <tbody>
-            {% for item, cant in stock_relevante.items() %}
-            <tr style="background: {% if cant <= 2 %}#fef2f2{% else %}#f0fdf4{% endif %};">
-                <td style="font-weight: 600;">{{ item }}</td>
-                <td style="text-align: right; font-weight: 700; color: {% if cant <= 2 %}#dc2626{% else %}#16a34a{% endif %};">{{ cant }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div style="padding: 10px 0; color: #b45309; font-weight: 600; font-size: 13px;">⚠️ No se encontró stock para este ítem</div>
-    {% endif %}
-
-    {% if stock_similares %}
-    <div style="margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 10px;">
-        <p style="font-size: 12px; color: #6b7280; margin-bottom: 6px; font-weight: 600;">Ítems similares disponibles:</p>
-        <table style="margin-bottom: 0;">
-            <tbody>
-                {% for item, cant in stock_similares.items() %}
-                <tr>
-                    <td style="font-size: 13px; color: #374151;">{{ item }}</td>
-                    <td style="text-align: right; font-weight: 600; color: {% if cant <= 2 %}#dc2626{% else %}#1a1a2e{% endif %}; font-size: 13px;">{{ cant }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-
-    {% if not stock_relevante and not stock_similares %}
-    <a href="/admin/stock" class="btn btn-block" style="background: #6d28d9; color: white; margin-top: 8px; font-size: 13px;">📦 Ir al stock central a cargar el ítem</a>
-    {% endif %}
-</div>
-
 <!-- Acciones -->
 {% if ticket.estado in ('Nuevo', 'Abierto') %}
 <div class="card">
-    <h3 style="margin-bottom: 16px;">Gestion del pedido</h3>
+    <h3 style="margin-bottom: 16px;">3. Definir cómo sigue</h3>
 
     <!-- Cuento con material -->
     <form method="POST" style="margin-bottom: 16px;">
@@ -258,6 +262,7 @@
 
 {% elif ticket.estado == 'En progreso' %}
 <div class="card">
+    <h3 style="margin-bottom: 12px;">3. Envío</h3>
     <p style="margin-bottom: 12px;"><strong>Metodo de envio:</strong> {{ ticket.metodo_envio }}</p>
 
     <!-- Retiro / Envio con fecha -->
@@ -394,6 +399,7 @@
 
 {% elif ticket.estado == 'Pendiente' %}
 <div class="card" style="border-left: 4px solid #b45309;">
+    <h3 style="margin-bottom: 12px;">3. Esperando compras</h3>
     <p style="color: #b45309; font-weight: 600;">Esperando material de Compras</p>
     <form method="POST" style="margin-top: 12px;">
         <input type="hidden" name="accion" value="cuento_material">
