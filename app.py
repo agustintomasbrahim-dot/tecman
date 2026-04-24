@@ -109,7 +109,7 @@ ESTADOS = ["Nuevo", "Abierto", "En progreso", "Pendiente", "Resuelto", "Cerrado"
 ADMINS = {
     "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
     "carolina": {"password": "tecman2026", "nombre": "Carolina", "rol": "admin"},
-    "jonathan": {"password": "tecman2026", "nombre": "Jonathan", "rol": "tecnico"},
+    "jonathan": {"password": "tecman2026", "nombre": "Jonatan", "rol": "tecnico"},
     "patricia": {"password": "tecman2026", "nombre": "Patricia", "rol": "syh"},
     "rita": {"password": "tecman2026", "nombre": "Rita", "rol": "admin"},
 }
@@ -815,9 +815,9 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
 
     # By category
     if subcategoria == "Luminarias":
-        return "Jonathan"
+        return "Jonatan"
     if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
-        return "Jonathan"
+        return "Jonatan"
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
         # AA in AMBA goes to CEYH
         if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
@@ -3254,7 +3254,7 @@ def admin_pedido(ticket_id):
             ticket["estado"] = "En progreso"
             ticket["metodo_envio"] = metodo_envio
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonathan"),
+                "autor": session.get("nombre", "Jonatan"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Cuento con material. Envio: {metodo_envio}",
             })
@@ -3264,7 +3264,7 @@ def admin_pedido(ticket_id):
             ticket["estado"] = "Pendiente"
             ticket["detalle_compras"] = detalle  # internal only
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonathan"),
+                "autor": session.get("nombre", "Jonatan"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": "Pedido realizado a compras",
             })
@@ -3362,7 +3362,7 @@ def admin_pedido(ticket_id):
                     sin_trazabilidad_fifo=sin_trazabilidad or None,
                 )
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonathan"),
+                "autor": session.get("nombre", "Jonatan"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}{imputacion_txt}",
             })
