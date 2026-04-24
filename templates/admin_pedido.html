@@ -81,7 +81,7 @@
         <form method="POST" style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
             <input type="hidden" name="accion" value="agregar_material_stock">
             <h4 style="margin-bottom:10px;">➕ Agregar desde stock</h4>
-            <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys.items()|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
+            <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
             <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
                 <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1"></div>
                 <div class="form-group"><label>Detalle</label><input type="text" name="detalle_stock" placeholder="Ej: complemento para instalación"></div>
