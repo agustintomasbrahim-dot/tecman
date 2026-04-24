@@ -17,8 +17,22 @@
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
     <h2>Stock / Deposito</h2>
-    <a href="{{ url_for('admin_stock_movimientos') }}" class="btn" style="background: #f3f4f6; color: #374151;">Ver historial de movimientos</a>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('admin_stock_movimientos') }}" class="btn" style="background: #f3f4f6; color: #374151;">Ver historial de movimientos</a>
+        {% if session.rol != 'admin' %}<a href="{{ url_for('admin_pedidos') }}" class="btn" style="background: #dbeafe; color: #1d4ed8;">Ir a Pedidos</a>{% endif %}
+    </div>
 </div>
+
+{% if session.rol != 'admin' %}
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #3b82f6; background: #eff6ff;">
+    <h3 style="margin-bottom: 10px; font-size: 15px; color: #1d4ed8;">Uso de stock para Jonatan</h3>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 13px;">
+        <div><strong>1.</strong> Revisar stock disponible</div>
+        <div><strong>2.</strong> Transferir a sucursal si ya está definido</div>
+        <div><strong>3.</strong> Si falta material, seguir por <strong>Pedidos</strong> o <strong>Contabilidad</strong></div>
+    </div>
+</div>
+{% endif %}
 
 <div class="stats">
     <div class="stat-card">
@@ -142,6 +156,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 <!-- Transferencia (admin + tecnico) -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Transferir de Central a Sucursal</h3>
+    {% if session.rol != 'admin' %}<p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Usá esta sección solo para enviar stock disponible desde Central a una sucursal.</p>{% endif %}
     <form method="POST" action="{{ url_for('stock_transfer') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
         <div style="flex: 2; min-width: 200px;">
             <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Item</label>
