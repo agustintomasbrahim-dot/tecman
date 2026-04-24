@@ -35,6 +35,7 @@ HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
+ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -482,6 +483,47 @@ def _resumen_matafuegos_sucursal(items):
         "stats": stats,
     }
 
+def sync_alertas_matafuegos():
+    data = load_alertas_syh()
+    prev_map = {a.get("id"): a for a in data.get("alertas", [])}
+    mats = load_matafuegos().get("matafuegos", [])
+    por_sucursal = {}
+    for m in mats:
+        suc = m.get("sucursal_num") or (m.get("sucursal", "").replace("Sucursal ", "").strip())
+        if suc:
+            por_sucursal.setdefault(suc, []).append(m)
+
+    nuevas_alertas = []
+    for suc_num, items in por_sucursal.items():
+        resumen = _resumen_matafuegos_sucursal(items)
+        if resumen["estado"] not in ("Vencidos", "Proximo a vencer"):
+            continue
+        aid = f"matafuegos:{suc_num}:{resumen['estado']}"
+        alerta = {
+            "id": aid,
+            "tipo": "matafuegos",
+            "sucursal_num": suc_num,
+            "estado": resumen["estado"],
+            "proximo_vto": resumen.get("proximo_vto", ""),
+            "tipos": resumen.get("tipos", ""),
+            "cantidad": resumen.get("cantidad", 0),
+            "destinatarios": ["Agustín", "Patricia", f"Sucursal {suc_num}"],
+            "updated_at": datetime.datetime.now().isoformat(),
+        }
+        if aid not in prev_map:
+            agregar_notif_admin(
+                f"🚨 Matafuegos {alerta['estado'].lower()} - Sucursal {suc_num}",
+                f"{alerta['cantidad']} cargado(s) · {alerta['tipos']} · Próximo vencimiento: {alerta['proximo_vto'] or '-'}\nAvisar a Patricia y sucursal.",
+                tipo="syh_matafuegos",
+                autor="Sistema",
+                link="/admin/syh",
+            )
+        nuevas_alertas.append(alerta)
+
+    data["alertas"] = nuevas_alertas
+    save_alertas_syh(data)
+    return nuevas_alertas
+
 def load_vehiculos_equipo():
     if VEHICULOS_FILE.exists():
         try:
@@ -503,6 +545,17 @@ def load_permisos():
 
 def save_permisos(data):
     PERMISOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_alertas_syh():
+    if ALERTAS_SYH_FILE.exists():
+        try:
+            return json.loads(ALERTAS_SYH_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"alertas": []}
+
+def save_alertas_syh(data):
+    ALERTAS_SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 def _estado_doc_vehiculo(fecha):
     if not fecha:
@@ -2971,6 +3024,7 @@ def syh_edit(suc_num):
 def admin_syh():
     from sucursales_data import SUCURSALES_INFO
     syh_data = load_syh()
+    alertas_syh = sync_alertas_matafuegos()
 
     sucursales_syh = []
     for num in sorted(SUCURSALES_INFO.keys()):
@@ -3013,6 +3067,7 @@ def admin_syh():
         sin_datos=sin_datos,
         syh_estados=SYH_ESTADOS,
         matafuegos_stats=_stats_matafuegos(matafuegos_data),
+        alertas_syh=alertas_syh,
     )
 
 

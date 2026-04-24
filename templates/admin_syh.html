@@ -25,6 +25,19 @@
     </div>
 </div>
 
+{% if alertas_syh %}
+<div class="card" style="border-left: 4px solid #ef4444; margin-bottom: 16px;">
+    <h3 style="margin-bottom: 10px; color: #dc2626;">🚨 Alertas matafuegos</h3>
+    {% for a in alertas_syh[:10] %}
+    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div style="font-weight: 700; color: #1f2937;">Sucursal {{ a.sucursal_num }} · {{ a.estado }}</div>
+        <div style="font-size: 12px; color: #6b7280;">{{ a.cantidad }} cargado(s) · {{ a.tipos }} · Próx. vencimiento: {{ a.proximo_vto or '-' }}</div>
+        <div style="font-size: 12px; color: #6b7280;">Avisar a: {{ a.destinatarios | join(', ') }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Stats -->
 <div class="stats">
     <div class="stat-card">

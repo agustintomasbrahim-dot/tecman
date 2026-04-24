@@ -1,0 +1,94 @@
+{
+  "alertas": [
+    {
+      "id": "matafuegos:078:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "078",
+      "estado": "Vencidos",
+      "proximo_vto": "2025-06-09",
+      "tipos": "ABC: 14, AGUA: 5, CO2: 1, HALOCLEAN: 1",
+      "cantidad": 21,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 078"
+      ],
+      "updated_at": "2026-04-24T08:58:01.205751"
+    },
+    {
+      "id": "matafuegos:139:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "139",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-03",
+      "tipos": "ABC: 12, CO2: 1",
+      "cantidad": 13,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 139"
+      ],
+      "updated_at": "2026-04-24T08:58:01.206219"
+    },
+    {
+      "id": "matafuegos:206:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "206",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-05-14",
+      "tipos": "ABC: 21, CO2: 2",
+      "cantidad": 23,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 206"
+      ],
+      "updated_at": "2026-04-24T08:58:01.206876"
+    },
+    {
+      "id": "matafuegos:235:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "235",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-05-13",
+      "tipos": "ABC: 13",
+      "cantidad": 13,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 235"
+      ],
+      "updated_at": "2026-04-24T08:58:01.207253"
+    },
+    {
+      "id": "matafuegos:215:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "215",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-12",
+      "tipos": "ABC: 4, CO2: 1, HCFC-123: 1",
+      "cantidad": 6,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 215"
+      ],
+      "updated_at": "2026-04-24T08:58:01.207703"
+    },
+    {
+      "id": "matafuegos:236:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "236",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-05-03",
+      "tipos": "ABC: 8, CO2: 1",
+      "cantidad": 9,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 236"
+      ],
+      "updated_at": "2026-04-24T08:58:01.207954"
+    }
+  ]
+}
