@@ -518,6 +518,14 @@ def sync_alertas_matafuegos():
                 autor="Sistema",
                 link="/admin/syh",
             )
+        elif prev_map[aid].get("proximo_vto") != alerta.get("proximo_vto") or prev_map[aid].get("tipos") != alerta.get("tipos"):
+            agregar_notif_admin(
+                f"🔄 Actualización matafuegos - Sucursal {suc_num}",
+                f"Estado: {alerta['estado']} · {alerta['cantidad']} cargado(s) · {alerta['tipos']} · Próximo vencimiento: {alerta['proximo_vto'] or '-'}",
+                tipo="syh_matafuegos",
+                autor="Sistema",
+                link="/admin/syh",
+            )
         nuevas_alertas.append(alerta)
 
     data["alertas"] = nuevas_alertas
@@ -1298,6 +1306,7 @@ def admin_panel():
     # Jonathan (tecnico) va directo a sus pedidos
     if session.get("rol") == "tecnico":
         return redirect(url_for("admin_pedidos"))
+    sync_alertas_matafuegos()
     tickets = load_tickets()
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
