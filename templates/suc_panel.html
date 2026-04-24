@@ -10,18 +10,42 @@
 </div>
 {% endblock %}
 {% block content %}
+<style>
+.suc-top-grid { display:grid; grid-template-columns: 1.1fr 0.9fr; gap:16px; margin-bottom:16px; }
+.suc-mini-card { border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff; }
+.suc-mini-label { font-size:11px; color:#6b7280; font-weight:700; text-transform:uppercase; margin-bottom:6px; }
+.suc-mini-value { font-size:15px; color:#111827; font-weight:700; }
+@media (max-width: 900px) { .suc-top-grid { grid-template-columns: 1fr; } }
+</style>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
     <h2>{{ session.suc_nombre }}</h2>
     <span style="color: #6b7280;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
 </div>
 
-<a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="margin-bottom: 20px; font-size: 16px; padding: 14px;">
-    + Crear nuevo ticket
-</a>
+<div class="suc-top-grid">
+    <div class="card" style="margin-bottom:0;">
+        <h3 style="margin-bottom: 10px;">¿Qué querés hacer?</h3>
+        <a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="font-size: 16px; padding: 14px; margin-bottom: 10px;">
+            + Crear nuevo ticket
+        </a>
+        <p style="font-size:12px; color:#6b7280; margin:0;">Usá este botón para reportar problemas, pedir materiales o cargar un nuevo reclamo.</p>
+    </div>
+    <div class="card" style="margin-bottom:0;">
+        <h3 style="margin-bottom: 10px;">Resumen rápido</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <div class="suc-mini-card"><div class="suc-mini-label">Tickets abiertos</div><div class="suc-mini-value">{{ tickets|length }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Permisos</div><div class="suc-mini-value">{{ permisos_suc|length if permisos_suc else 0 }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Matafuegos</div><div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Stock recibido</div><div class="suc-mini-value">{{ (mi_stock_insumos|length if mi_stock_insumos else 0) + (mi_stock_manten|length if mi_stock_manten else 0) }}</div></div>
+        </div>
+    </div>
+</div>
 
 {% if permisos_suc %}
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #7c3aed;">
-    <h3 style="margin-bottom: 12px; font-size: 15px;">📋 Permisos</h3>
+    <details open>
+    <summary style="cursor:pointer; font-weight:700; font-size:15px;">📋 Permisos</summary>
+    <div style="margin-top:12px;">
     {% for p in permisos_suc[:5] %}
     <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
@@ -34,6 +58,8 @@
         </div>
     </div>
     {% endfor %}
+    </div>
+    </details>
 </div>
 {% endif %}
 
@@ -96,7 +122,9 @@
 
 {% if mi_stock_insumos or mi_stock_manten %}
 <div class="card" style="margin-bottom: 16px;">
-    <h3 style="margin-bottom: 12px; font-size: 15px;">📦 Mi stock recibido</h3>
+    <details>
+    <summary style="cursor:pointer; font-weight:700; font-size:15px;">📦 Mi stock recibido</summary>
+    <div style="margin-top:12px;">
     {% if mi_stock_insumos %}
     <div style="margin-bottom: 14px;">
         <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 6px;">Insumos (Librería / Limpieza)</p>
@@ -127,12 +155,16 @@
         </table>
     </div>
     {% endif %}
+    </div>
+    </details>
 </div>
 {% endif %}
 
 {% if notificaciones %}
 <div class="card" style="border-left: 4px solid #e63946; margin-bottom: 16px;">
-    <h3 style="margin-bottom: 10px; font-size: 14px; color: #e63946;">&#128276; Notificaciones</h3>
+    <details>
+    <summary style="cursor:pointer; font-weight:700; font-size:14px; color:#e63946;">&#128276; Notificaciones</summary>
+    <div style="margin-top:10px;">
     {% for n in notificaciones[:5] %}
     <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -142,11 +174,14 @@
         <span style="color: #9ca3af; font-size: 11px;">Ticket #{{ n.ticket_id }}</span>
     </div>
     {% endfor %}
+    </div>
+    </details>
 </div>
 {% endif %}
 
 {% if tickets %}
 <div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 14px 14px 0 14px;"><h3 style="margin:0; font-size:15px;">Mis tickets</h3></div>
     <table>
         <thead>
             <tr>
