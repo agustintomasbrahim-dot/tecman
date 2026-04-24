@@ -454,6 +454,34 @@ def _stats_matafuegos(items):
         "rechazado": sum(1 for i in items if i["estado_calc"] == "rechazado"),
     }
 
+def _resumen_matafuegos_sucursal(items):
+    items = [_enrich_matafuego(i) for i in items]
+    tipos = {}
+    proximo_vto = ""
+    for i in items:
+        tipo = (i.get("tipo") or "Sin tipo").strip() or "Sin tipo"
+        tipos[tipo] = tipos.get(tipo, 0) + int(i.get("cantidad") or 1)
+        fv = (i.get("fecha_vencimiento") or "").strip()
+        if fv and (not proximo_vto or fv < proximo_vto):
+            proximo_vto = fv
+    tipos_txt = ", ".join(f"{k}: {v}" for k, v in sorted(tipos.items())) if tipos else "-"
+    stats = _stats_matafuegos(items)
+    if stats["vencido"] or stats["rechazado"]:
+        estado = "Vencidos"
+    elif stats["proximo"]:
+        estado = "Proximo a vencer"
+    elif items:
+        estado = "Al dia"
+    else:
+        estado = "Sin datos"
+    return {
+        "cantidad": len(items),
+        "tipos": tipos_txt,
+        "proximo_vto": proximo_vto,
+        "estado": estado,
+        "stats": stats,
+    }
+
 def load_vehiculos_equipo():
     if VEHICULOS_FILE.exists():
         try:
@@ -2969,7 +2997,12 @@ def admin_syh():
 
     matafuegos_data = load_matafuegos().get("matafuegos", [])
     for s in sucursales_syh:
-        s["matafuegos_detalle"] = len([m for m in matafuegos_data if m.get("sucursal_num") == s["num"] or m.get("sucursal") == f"Sucursal {s['num']}"])
+        mats = [m for m in matafuegos_data if m.get("sucursal_num") == s["num"] or m.get("sucursal") == f"Sucursal {s['num']}"]
+        resumen = _resumen_matafuegos_sucursal(mats)
+        s["matafuegos_detalle"] = resumen["cantidad"]
+        s["matafuegos"] = resumen["estado"]
+        s["matafuegos_tipos"] = resumen["tipos"]
+        s["matafuegos_proximo_vto"] = resumen["proximo_vto"]
 
     return render_template(
         "admin_syh.html",

@@ -62,6 +62,8 @@
                 <th>Matafuegos</th>
                 <th>Red incendio</th>
                 <th>Detalle</th>
+                <th>Tipos</th>
+                <th>Próx. vto</th>
                 <th>Plano evac.</th>
                 <th>Senalizacion</th>
                 <th></th>
@@ -99,6 +101,8 @@
                     {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
                 </td>
                 <td><span style="color: #475569; font-size: 12px;">{{ s.matafuegos_detalle }} cargado{{ 's' if s.matafuegos_detalle != 1 }}</span></td>
+                <td><span style="color: #475569; font-size: 12px;">{{ s.matafuegos_tipos or '-' }}</span></td>
+                <td><span style="color: {% if s.matafuegos == 'Vencidos' %}#f87171{% elif s.matafuegos == 'Proximo a vencer' %}#fbbf24{% else %}#475569{% endif %}; font-size: 12px;">{{ s.matafuegos_proximo_vto or '-' }}</span></td>
                 <td>
                     {% if s.plano_evacuacion == 'Tiene' %}<span style="color: #34d399;">&#10004;</span>
                     {% elif s.plano_evacuacion == 'No tiene' %}<span style="color: #f87171;">&#10008;</span>
