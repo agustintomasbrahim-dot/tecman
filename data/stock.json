@@ -63,7 +63,37 @@
     "Placas de Durlock": {
       "cantidad": 40,
       "precio_unitario": 0.0
+    },
+    "Electricidad > Tomas": {
+      "cantidad": 30,
+      "precio_unitario": 0
+    },
+    "Electricidad > Cable 2,5 mm": {
+      "cantidad": 100,
+      "precio_unitario": 0
+    },
+    "Iluminación > Luminaria LED 60 cm": {
+      "cantidad": 20,
+      "precio_unitario": 0
+    },
+    "Electricidad > Cinta aisladora": {
+      "cantidad": 50,
+      "precio_unitario": 0
+    },
+    "Tableros > Llave térmica 2x20": {
+      "cantidad": 10,
+      "precio_unitario": 0
     }
   },
-  "sucursales": {}
+  "sucursales": {
+    "Sucursal 014": {
+      "Iluminación > Lámparas LED": 6
+    },
+    "Sucursal 036": {
+      "Electricidad > Tomas": 3
+    },
+    "Sucursal 078": {
+      "Canalización > Cable canal": 8
+    }
+  }
 }
