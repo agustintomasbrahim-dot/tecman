@@ -2988,6 +2988,8 @@ def syh_matafuegos():
     from sucursales_data import SUCURSALES_INFO
 
     items = [_enrich_matafuego(x) for x in load_matafuegos().get("matafuegos", [])]
+    filtro_estado = request.args.get("estado", "").strip()
+    filtro_suc = request.args.get("sucursal", "").strip()
     por_sucursal = []
     for num in sorted(SUCURSALES_INFO.keys()):
         info = SUCURSALES_INFO[num]
@@ -2995,7 +2997,7 @@ def syh_matafuegos():
         resumen = _resumen_matafuegos_sucursal(mats)
         if resumen["cantidad"] <= 0:
             continue
-        por_sucursal.append({
+        row = {
             "num": num,
             "marca": info.get("marca", ""),
             "ciudad": info.get("ciudad", ""),
@@ -3004,7 +3006,12 @@ def syh_matafuegos():
             "proximo_vto": resumen.get("proximo_vto", ""),
             "estado": resumen.get("estado", "Sin datos"),
             "detalle": [m for m in mats[:6]],
-        })
+        }
+        if filtro_estado and row["estado"] != filtro_estado:
+            continue
+        if filtro_suc and row["num"] != filtro_suc:
+            continue
+        por_sucursal.append(row)
 
     stats = _stats_matafuegos(items)
     sin_datos = len(SUCURSALES_INFO) - len({p['num'] for p in por_sucursal})
@@ -3015,6 +3022,8 @@ def syh_matafuegos():
         sucursales=por_sucursal,
         stats=stats,
         sin_datos=sin_datos,
+        filtro_estado=filtro_estado,
+        filtro_suc=filtro_suc,
     )
 
 

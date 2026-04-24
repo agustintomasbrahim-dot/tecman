@@ -25,6 +25,39 @@
     <div class="stat-card"><div class="number" style="color:#64748b;">{{ sin_datos }}</div><div class="label">Suc. sin datos</div></div>
 </div>
 
+<div class="card" style="margin-bottom: 16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+            <h3 style="margin-bottom:4px;">Vista operativa</h3>
+            <p style="font-size:12px;color:#6b7280;">Urgencias primero. Filtrá para ver rápido lo que Patricia necesita accionar.</p>
+        </div>
+        <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select name="estado">
+                <option value="">Todos los estados</option>
+                {% for e in ['Vencidos','Proximo a vencer','Al dia'] %}
+                <option value="{{ e }}" {% if filtro_estado == e %}selected{% endif %}>{{ e }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="sucursal" value="{{ filtro_suc }}" placeholder="Sucursal (ej: 014)" style="max-width:150px;">
+            <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+            <a href="{{ url_for('syh_matafuegos') }}" class="btn btn-sm" style="background:#f3f4f6;color:#374151;">Limpiar</a>
+        </form>
+    </div>
+</div>
+
+{% if sucursales %}
+<div class="card" style="border-left: 4px solid #ef4444; margin-bottom: 16px;">
+    <h3 style="margin-bottom: 10px; color: #dc2626;">Prioridades</h3>
+    {% for s in sucursales[:5] %}
+        {% if s.estado in ['Vencidos', 'Proximo a vencer'] %}
+        <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+            <strong>Sucursal {{ s.num }}</strong> · {{ s.estado }} · {{ s.tipos }} · Próx. vto: {{ s.proximo_vto or '-' }}
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="card" style="padding:0;overflow-x:auto;">
     <table>
         <thead><tr><th>Suc</th><th>Marca</th><th>Ciudad</th><th>Cantidad</th><th>Tipos</th><th>Próx. vto</th><th>Estado</th><th>Detalle</th></tr></thead>
