@@ -53,6 +53,75 @@
     </div>
 </div>
 
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Materiales del ticket</h3>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div>
+            <p style="font-size: 12px; color: #6b7280; font-weight: 700; margin-bottom: 8px;">Solicitado por sucursal</p>
+            <div style="padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; font-size: 13px;">
+                {{ ticket.categoria_mat or ticket.subcategoria }}{% if ticket.subitem_mat %} › {{ ticket.subitem_mat }}{% endif %}
+                {% if ticket.cantidad_mat %}<strong style="margin-left: 6px;">x{{ ticket.cantidad_mat }}</strong>{% endif %}
+            </div>
+        </div>
+        <div>
+            <p style="font-size: 12px; color: #6b7280; font-weight: 700; margin-bottom: 8px;">Agregado por mantenimiento</p>
+            <div style="padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; min-height: 48px; font-size: 13px;">
+                {% if ticket.materiales_agregados %}
+                    {% for m in ticket.materiales_agregados %}
+                    <div {% if not loop.last %}style="margin-bottom: 6px;"{% endif %}><strong>{{ m.item }}</strong> x{{ m.cantidad }}{% if m.detalle %} — {{ m.detalle }}{% endif %}</div>
+                    {% endfor %}
+                {% else %}
+                    <span style="color: #94a3b8;">Sin agregados todavía</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
+        <form method="POST" style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+            <input type="hidden" name="accion" value="agregar_material_stock">
+            <h4 style="margin-bottom:10px;">➕ Agregar desde stock</h4>
+            <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys.items()|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
+            <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
+                <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1"></div>
+                <div class="form-group"><label>Detalle</label><input type="text" name="detalle_stock" placeholder="Ej: complemento para instalación"></div>
+            </div>
+            <button type="submit" class="btn btn-outline btn-block">Agregar al ticket</button>
+        </form>
+
+        <form method="POST" style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+            <input type="hidden" name="accion" value="derivar_a_compras">
+            <h4 style="margin-bottom:10px;">🛒 Derivar a Compras</h4>
+            <div class="form-group"><label>Material</label><input type="text" name="item_compra" placeholder="Ej: cable 2,5 mm" required></div>
+            <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
+                <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_compra" min="1" value="1"></div>
+                <div class="form-group"><label>N° requisición</label><input type="text" name="requisicion" placeholder="Obligatorio" required></div>
+            </div>
+            <div class="form-group"><label>Detalle</label><input type="text" name="detalle_compra_item" placeholder="Motivo / observación"></div>
+            <button type="submit" class="btn btn-block" style="background:#1a1a2e; color:white;">Enviar a Compras</button>
+        </form>
+    </div>
+
+    {% if ticket.materiales_a_comprar %}
+    <div style="margin-top: 14px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+        <p style="font-size: 12px; color: #6b7280; font-weight: 700; margin-bottom: 8px;">Pendiente de compras</p>
+        <table style="margin-bottom: 0;">
+            <thead><tr><th>Item</th><th>Cant.</th><th>Requisición</th><th>Estado</th></tr></thead>
+            <tbody>
+                {% for m in ticket.materiales_a_comprar %}
+                <tr>
+                    <td>{{ m.item }}{% if m.detalle %}<div style="font-size:12px;color:#6b7280;">{{ m.detalle }}</div>{% endif %}</td>
+                    <td>{{ m.cantidad }}</td>
+                    <td><strong>{{ m.requisicion }}</strong></td>
+                    <td>{{ m.estado }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
 {% if trabajo_prov_ticket %}
 {% set tp = trabajo_prov_ticket %}
 {% set etapa_tp = tp.get('etapa_prov', 'pendiente') %}

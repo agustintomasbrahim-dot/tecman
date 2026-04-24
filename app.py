@@ -3275,6 +3275,9 @@ def admin_pedido(ticket_id):
             if first_word and len(first_word) > 3 and first_word in k_lower:
                 stock_similares[k] = qty
 
+    ticket.setdefault("materiales_agregados", [])
+    ticket.setdefault("materiales_a_comprar", [])
+
     if request.method == "POST":
         accion = request.form.get("accion", "")
 
@@ -3365,6 +3368,71 @@ def admin_pedido(ticket_id):
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": "Pedido realizado a compras",
             })
+
+        elif accion == "agregar_material_stock":
+            item = request.form.get("item_stock", "").strip()
+            cantidad = _parse_int_or_none(request.form.get("cantidad_stock", "")) or 1
+            detalle_extra = request.form.get("detalle_stock", "").strip()
+            disponible = get_central_qty(load_stock(), item) if item else 0
+            if not item:
+                flash("Seleccioná un material de stock")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            if cantidad <= 0:
+                flash("La cantidad debe ser mayor a 0")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            if disponible < cantidad:
+                flash(f"Stock insuficiente para {item}. Disponible: {disponible}")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            ticket["materiales_agregados"].append({
+                "id": uuid.uuid4().hex[:10],
+                "item": item,
+                "cantidad": cantidad,
+                "detalle": detalle_extra,
+                "agregado_por": session.get("nombre", "Jonatan"),
+                "fecha": datetime.datetime.now().isoformat(),
+            })
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Jonatan"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Agregó material complementario desde stock: {item} x{cantidad}" + (f" ({detalle_extra})" if detalle_extra else ""),
+            })
+            ticket["estado"] = "En progreso"
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Material agregado al ticket")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
+        elif accion == "derivar_a_compras":
+            item = request.form.get("item_compra", "").strip()
+            cantidad = _parse_int_or_none(request.form.get("cantidad_compra", "")) or 1
+            requisicion = request.form.get("requisicion", "").strip()
+            detalle = request.form.get("detalle_compra_item", "").strip()
+            if not item:
+                flash("Indicá el material a comprar")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            if not requisicion:
+                flash("Indicá el número de requisición")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            ticket["materiales_a_comprar"].append({
+                "id": uuid.uuid4().hex[:10],
+                "item": item,
+                "cantidad": cantidad,
+                "requisicion": requisicion,
+                "detalle": detalle,
+                "pedido_por": session.get("nombre", "Jonatan"),
+                "estado": "Pendiente compras",
+                "fecha": datetime.datetime.now().isoformat(),
+            })
+            ticket["estado"] = "Pendiente"
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Jonatan"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Derivó a Compras: {item} x{cantidad} | Requisición: {requisicion}" + (f" ({detalle})" if detalle else ""),
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Pedido derivado a Compras")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         elif accion == "enviado":
             ticket["estado"] = "Resuelto"
@@ -3488,6 +3556,7 @@ def admin_pedido(ticket_id):
         "admin_pedido.html",
         ticket=ticket,
         central=central,
+        central_qtys=central_qtys,
         es_amba=es_amba,
         prioridades=PRIORIDADES,
         proveedores_sucursal=proveedores_sucursal,
