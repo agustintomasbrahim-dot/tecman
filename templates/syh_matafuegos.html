@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Matafuegos{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('syh_panel') }}">Panel S&amp;H</a>
+    <a href="{{ url_for('syh_matafuegos') }}" style="border-bottom-color: #dc2626; color: #dc2626;">Matafuegos</a>
+    <a href="{{ url_for('index') }}">Inicio</a>
+    <a href="{{ url_for('syh_logout') }}" style="margin-left: auto;">Salir ({{ session.get('syh_nombre', '') }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+    <div>
+        <h2 style="margin:0;">Matafuegos</h2>
+        <p style="color:#9ca3af;font-size:13px;margin-top:4px;">Vista operativa para revisar vencimientos y detalle por sucursal</p>
+    </div>
+    <a href="{{ url_for('syh_panel') }}" class="btn btn-outline btn-sm">← Volver a S&amp;H</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card"><div class="number">{{ stats.total }}</div><div class="label">Registros</div></div>
+    <div class="stat-card"><div class="number" style="color:#dc2626;">{{ stats.vencido + stats.rechazado }}</div><div class="label">Críticos</div></div>
+    <div class="stat-card"><div class="number" style="color:#d97706;">{{ stats.proximo }}</div><div class="label">Próx. a vencer</div></div>
+    <div class="stat-card"><div class="number" style="color:#059669;">{{ stats.al_dia }}</div><div class="label">Al día</div></div>
+    <div class="stat-card"><div class="number" style="color:#64748b;">{{ sin_datos }}</div><div class="label">Suc. sin datos</div></div>
+</div>
+
+<div class="card" style="padding:0;overflow-x:auto;">
+    <table>
+        <thead><tr><th>Suc</th><th>Marca</th><th>Ciudad</th><th>Cantidad</th><th>Tipos</th><th>Próx. vto</th><th>Estado</th><th>Detalle</th></tr></thead>
+        <tbody>
+            {% for s in sucursales %}
+            <tr>
+                <td style="font-weight:700;">{{ s.num }}</td>
+                <td>{{ s.marca }}</td>
+                <td style="color:#6b7280;font-size:12px;">{{ s.ciudad }}</td>
+                <td style="font-weight:700;">{{ s.cantidad }}</td>
+                <td style="font-size:12px;">{{ s.tipos }}</td>
+                <td style="font-weight:600;color:{% if s.estado == 'Vencidos' %}#dc2626{% elif s.estado == 'Proximo a vencer' %}#d97706{% else %}#374151{% endif %};">{{ s.proximo_vto or '-' }}</td>
+                <td>{% if s.estado == 'Al dia' %}<span class="badge" style="background:#d1fae5;color:#065f46;">Al día</span>{% elif s.estado == 'Proximo a vencer' %}<span class="badge" style="background:#fef3c7;color:#92400e;">Próximo</span>{% elif s.estado == 'Vencidos' %}<span class="badge" style="background:#fee2e2;color:#991b1b;">Vencidos</span>{% else %}<span class="badge">{{ s.estado }}</span>{% endif %}</td>
+                <td style="font-size:12px;color:#6b7280;max-width:280px;">{% for d in s.detalle %}<div{% if not loop.last %} style="margin-bottom:4px;"{% endif %}>{{ d.tipo or 'Sin tipo' }}{% if d.fecha_vencimiento %} · {{ d.fecha_vencimiento }}{% endif %}</div>{% endfor %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af;">Sin matafuegos cargados</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

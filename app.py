@@ -2982,6 +2982,42 @@ def syh_panel():
     )
 
 
+@app.route("/syh/matafuegos")
+@syh_login_required
+def syh_matafuegos():
+    from sucursales_data import SUCURSALES_INFO
+
+    items = [_enrich_matafuego(x) for x in load_matafuegos().get("matafuegos", [])]
+    por_sucursal = []
+    for num in sorted(SUCURSALES_INFO.keys()):
+        info = SUCURSALES_INFO[num]
+        mats = [m for m in items if m.get("sucursal_num") == num or m.get("sucursal") == f"Sucursal {num}"]
+        resumen = _resumen_matafuegos_sucursal(mats)
+        if resumen["cantidad"] <= 0:
+            continue
+        por_sucursal.append({
+            "num": num,
+            "marca": info.get("marca", ""),
+            "ciudad": info.get("ciudad", ""),
+            "cantidad": resumen.get("cantidad", 0),
+            "tipos": resumen.get("tipos", "-"),
+            "proximo_vto": resumen.get("proximo_vto", ""),
+            "estado": resumen.get("estado", "Sin datos"),
+            "detalle": [m for m in mats[:6]],
+        })
+
+    stats = _stats_matafuegos(items)
+    sin_datos = len(SUCURSALES_INFO) - len({p['num'] for p in por_sucursal})
+    por_sucursal.sort(key=lambda x: (0 if x["estado"] == "Vencidos" else 1 if x["estado"] == "Proximo a vencer" else 2, x.get("proximo_vto") or "9999-99-99", x["num"]))
+
+    return render_template(
+        "syh_matafuegos.html",
+        sucursales=por_sucursal,
+        stats=stats,
+        sin_datos=sin_datos,
+    )
+
+
 @app.route("/syh/sucursal/<suc_num>", methods=["GET", "POST"])
 @syh_login_required
 def syh_edit(suc_num):
