@@ -69,14 +69,20 @@
     <div style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:10px;background:#f8fafc;">
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
             <strong style="color:#1d4ed8;">{{ r.estado }}</strong>
-            {% if r.estado != 'Retirado por CEYH' %}
+            {% if r.estado == 'Listo para retirar' %}
             <form method="POST" style="margin:0;">
                 <input type="hidden" name="accion" value="confirmar_retiro_ceyh">
                 <input type="hidden" name="retiro_id" value="{{ r.id }}">
                 <button type="submit" class="btn btn-sm" style="background:#1d4ed8;color:white;" onclick="return confirm('¿Confirmar que CEYH retiró estos materiales en Dabra Central?')">Confirmar retiro</button>
             </form>
+            {% elif r.estado == 'Retirado por CEYH' %}
+            <form method="POST" style="margin:0;">
+                <input type="hidden" name="accion" value="material_aplicado_ceyh">
+                <input type="hidden" name="retiro_id" value="{{ r.id }}">
+                <button type="submit" class="btn btn-sm" style="background:#059669;color:white;" onclick="return confirm('¿Confirmar que estos materiales se usaron para ejecutar el ticket?')">Material aplicado al trabajo</button>
+            </form>
             {% else %}
-            <span class="badge" style="background:rgba(16,185,129,0.18);color:#059669;">Retiro confirmado</span>
+            <span class="badge" style="background:rgba(16,185,129,0.18);color:#059669;">{{ r.estado }}</span>
             {% endif %}
         </div>
         <div style="margin-top:8px;color:#374151;font-size:14px;">{{ r.materiales }}</div>

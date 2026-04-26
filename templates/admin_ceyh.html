@@ -31,7 +31,7 @@
     <form method="POST" action="{{ url_for('admin_ceyh_retiro') }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
             <div class="form-group" style="margin-bottom:0;"><label>Ticket CEYH</label><select name="ticket_id" required><option value="">Seleccionar...</option>{% for t in activos %}<option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal }} — {{ t.subcategoria }}</option>{% endfor %}</select></div>
-            <div class="form-group" style="margin-bottom:0;"><label>Estado</label><select name="estado"><option>Pendiente de preparación</option><option>Listo para retirar</option><option>Retirado por CEYH</option><option>Entregado en sucursal</option></select></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Estado</label><select name="estado"><option>Pendiente de preparación</option><option>Listo para retirar</option><option>Retirado por CEYH</option><option>Material aplicado al trabajo</option><option>Entregado en sucursal</option></select></div>
             <div class="form-group" style="margin-bottom:0;"><label>Preparado por</label><input type="text" name="preparado_por"></div>
             <div class="form-group" style="margin-bottom:0;"><label>Retirado por</label><input type="text" name="retirado_por"></div>
             <div class="form-group" style="margin-bottom:0;"><label>Fecha preparado</label><input type="date" name="fecha_preparado"></div>
