@@ -14,19 +14,30 @@
 <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Inicio</a>
 
 <div class="card">
-    <h2 style="margin-bottom: 16px;">Buscar</h2>
-    <form action="{{ url_for('admin_buscar') }}" method="GET" style="display: flex; gap: 8px;">
-        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por N de ticket, sucursal, descripcion, categoria, asignado..." style="flex: 1; padding: 14px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; font-size: 16px;">
+    <h2 style="margin-bottom: 16px;">Buscar en Tecman</h2>
+    <form action="{{ url_for('admin_buscar') }}" method="GET" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <input type="text" name="q" value="{{ q }}" placeholder="Sucursal, ticket, proveedor, CEYH, materiales, permiso, matafuego, comprobante..." style="flex: 1; min-width: 260px; padding: 14px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; font-size: 16px;">
+        <select name="modulo" style="padding: 14px; border-radius: 8px;">
+            <option value="todo" {% if modulo == 'todo' %}selected{% endif %}>Todo</option>
+            <option value="tickets" {% if modulo == 'tickets' %}selected{% endif %}>Tickets</option>
+            <option value="presupuestos" {% if modulo == 'presupuestos' %}selected{% endif %}>Presupuestos</option>
+            <option value="ceyh" {% if modulo == 'ceyh' %}selected{% endif %}>CEYH</option>
+            <option value="permisos" {% if modulo == 'permisos' %}selected{% endif %}>Permisos</option>
+            <option value="habilitaciones" {% if modulo == 'habilitaciones' %}selected{% endif %}>Habilitaciones</option>
+            <option value="matafuegos" {% if modulo == 'matafuegos' %}selected{% endif %}>Matafuegos</option>
+            <option value="comprobantes" {% if modulo == 'comprobantes' %}selected{% endif %}>Comprobantes</option>
+        </select>
         <button type="submit" class="btn btn-primary" style="padding: 14px 28px;">Buscar</button>
     </form>
 </div>
 
 {% if q %}
 <div style="margin: 16px 0; color: #94a3b8;">
-    {{ resultados | length }} resultado{{ 's' if resultados | length != 1 }} para "{{ q }}"
+    Resultados para "{{ q }}"
 </div>
 
 {% if resultados %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Tickets ({{ resultados|length }})</h3>
 <div class="card" style="padding: 0; overflow: hidden;">
     <table>
         <thead>
@@ -47,7 +58,39 @@
         </tbody>
     </table>
 </div>
-{% else %}
+{% endif %}
+
+{% if resultados_presupuestos %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Presupuestos ({{ resultados_presupuestos|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Sucursal</th><th>Proveedor</th><th>Monto</th><th>Categoría</th><th>Ticket</th></tr></thead><tbody>{% for p in resultados_presupuestos %}<tr><td>{{ p.sucursal }}</td><td>{{ p.proveedor or '-' }}</td><td>{{ p.moneda or 'ARS' }} {{ p.monto or '-' }}</td><td>{{ p.categoria or '-' }}</td><td>{% if p.ticket_id %}#{{ p.ticket_id }}{% else %}-{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if resultados_ceyh %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">CEYH ({{ resultados_ceyh|length }})</h3>
+<div style="display:grid;gap:10px;">{% for r in resultados_ceyh %}<div class="card" style="margin:0;"><div style="font-size:12px;text-transform:uppercase;color:#9ca3af;">{{ r.tipo }}</div><div style="margin-top:6px;font-weight:700;color:#ea580c;">{% if r.tipo == 'ticket' %}#{{ r.id }} — {{ r.sucursal }}{% elif r.tipo == 'retiro' %}Retiro ticket #{{ r.ticket_id }} — {{ r.sucursal }}{% else %}Jornada {{ r.fecha }}{% endif %}</div><div style="margin-top:4px;font-size:13px;color:#6b7280;">{% if r.tipo == 'ticket' %}{{ r.subcategoria }} • {{ r.estado_operativo_ceyh }} • {{ r.proxima_accion or '-' }}{% elif r.tipo == 'retiro' %}{{ r.estado }} • {{ r.materiales[:120] }}{% else %}{{ r.camioneta or '-' }} / {{ r.cuadrilla or '-' }}{% endif %}</div></div>{% endfor %}</div>
+{% endif %}
+
+{% if resultados_permisos %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Permisos ({{ resultados_permisos|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Sucursal</th><th>Proveedor</th><th>Tipo</th><th>Período</th></tr></thead><tbody>{% for p in resultados_permisos %}<tr><td>{{ p.sucursal or (p.sucursales[0].sucursal if p.sucursales else '-') }}</td><td>{{ p.proveedor or '-' }}</td><td>{{ p.tipo_documento }}</td><td>{{ p.periodo or '-' }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if resultados_habilitaciones %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Habilitaciones ({{ resultados_habilitaciones|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Sucursal</th><th>Trámite</th><th>Estado</th><th>Archivo</th></tr></thead><tbody>{% for h in resultados_habilitaciones %}<tr><td>{{ h.sucursal or ('Sucursal ' ~ h.sucursal_num if h.sucursal_num else '-') }}</td><td>{{ h.tramite or '-' }}</td><td>{{ h.estado or '-' }}</td><td>{{ h.archivo_nombre or '-' }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if resultados_matafuegos %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Matafuegos ({{ resultados_matafuegos|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Sucursal</th><th>Tipo</th><th>Sector</th><th>Estado</th><th>Vencimiento</th></tr></thead><tbody>{% for m in resultados_matafuegos %}<tr><td>{{ m.sucursal or ('Sucursal ' ~ m.sucursal_num if m.sucursal_num else '-') }}</td><td>{{ m.tipo or '-' }}</td><td>{{ m.sector or '-' }}</td><td>{{ m.estado or '-' }}</td><td>{{ m.vencimiento or '-' }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if resultados_comprobantes %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #94a3b8;">Comprobantes ({{ resultados_comprobantes|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Tipo</th><th>Número</th><th>Proveedor</th><th>Sucursal</th></tr></thead><tbody>{% for c in resultados_comprobantes %}<tr><td>{{ c.tipo }}</td><td>{{ c.numero or '-' }}</td><td>{{ c.proveedor or '-' }}</td><td>{{ c.sucursal or '-' }}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+
+{% if not resultados and not resultados_presupuestos and not resultados_ceyh and not resultados_permisos and not resultados_habilitaciones and not resultados_matafuegos and not resultados_comprobantes %}
 <div class="card" style="text-align: center; padding: 40px; color: #475569;">
     No se encontraron resultados
 </div>

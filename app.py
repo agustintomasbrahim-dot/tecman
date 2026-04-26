@@ -3259,19 +3259,83 @@ def admin_reporte():
 @admin_required
 def admin_buscar():
     q = request.args.get("q", "").strip().lower()
+    modulo = request.args.get("modulo", "todo").strip().lower()
     tickets = load_tickets()
     resultados = []
+    resultados_presupuestos = []
+    resultados_ceyh = []
+    resultados_permisos = []
+    resultados_habilitaciones = []
+    resultados_matafuegos = []
+    resultados_comprobantes = []
+
+    def _match(*vals):
+        texto = " ".join(str(v or "") for v in vals).lower()
+        return q and q in texto
+
     if q:
-        for t in tickets:
-            if (q in str(t.get("id", "")) or
-                q in t.get("sucursal", "").lower() or
-                q in t.get("descripcion", "").lower() or
-                q in t.get("subcategoria", "").lower() or
-                q in t.get("categoria", "").lower() or
-                q in t.get("asignado", "").lower() or
-                q in t.get("observaciones", "").lower()):
-                resultados.append(t)
-    return render_template("admin_buscar.html", q=q, resultados=resultados, prioridades=PRIORIDADES)
+        if modulo in ("todo", "tickets"):
+            for t in tickets:
+                notas = " ".join((n.get("texto", "") for n in t.get("notas", [])))
+                if _match(t.get("id"), t.get("sucursal"), t.get("descripcion"), t.get("subcategoria"), t.get("categoria"), t.get("asignado"), t.get("observaciones"), t.get("solicitante"), notas):
+                    resultados.append(t)
+
+        if modulo in ("todo", "presupuestos"):
+            for p in load_presupuestos().get("presupuestos", []):
+                if _match(p.get("id"), p.get("ticket_id"), p.get("sucursal"), p.get("categoria"), p.get("subcategoria"), p.get("proveedor"), p.get("descripcion"), p.get("observacion_interna"), p.get("monto")):
+                    resultados_presupuestos.append(p)
+
+        if modulo in ("todo", "ceyh"):
+            for t in tickets:
+                if not es_ticket_ceyh(t):
+                    continue
+                t = _normalize_ceyh_ticket(t)
+                if _match(t.get("id"), t.get("sucursal"), t.get("subcategoria"), t.get("cuadrilla_ceyh"), t.get("camioneta_ceyh"), t.get("estado_operativo_ceyh"), t.get("estado_materiales"), t.get("estado_retiro"), t.get("proxima_accion"), t.get("ultima_novedad_operativa")):
+                    resultados_ceyh.append({"tipo": "ticket", **t})
+            for r in load_ceyh_retiros().get("retiros", []):
+                if _match(r.get("ticket_id"), r.get("sucursal"), r.get("materiales"), r.get("estado"), r.get("retirado_por"), r.get("observaciones")):
+                    resultados_ceyh.append({"tipo": "retiro", **r})
+            for j in load_ceyh_jornadas().get("jornadas", []):
+                planif = " ".join(f"{x.get('ticket_id')} {x.get('sucursal')} {x.get('tipo')}" for x in j.get("planificados", []))
+                urgs = " ".join(f"{x.get('ticket_id')} {x.get('sucursal')} {x.get('tipo')}" for x in j.get("urgencias", []))
+                if _match(j.get("fecha"), j.get("camioneta"), j.get("cuadrilla"), j.get("observaciones"), planif, urgs):
+                    resultados_ceyh.append({"tipo": "jornada", **j})
+
+        if modulo in ("todo", "permisos"):
+            for p in load_permisos().get("permisos", []):
+                sucursales_txt = " ".join((s.get("sucursal", "") for s in p.get("sucursales", [])))
+                if _match(p.get("id"), p.get("sucursal"), sucursales_txt, p.get("proveedor"), p.get("tipo_documento"), p.get("periodo"), p.get("comentario")):
+                    resultados_permisos.append(p)
+
+        if modulo in ("todo", "habilitaciones"):
+            for h in load_habilitaciones().get("habilitaciones", []):
+                if _match(h.get("id"), h.get("sucursal"), h.get("sucursal_num"), h.get("tramite"), h.get("estado"), h.get("comentario"), h.get("archivo_nombre")):
+                    resultados_habilitaciones.append(h)
+
+        if modulo in ("todo", "matafuegos"):
+            for m in load_matafuegos().get("matafuegos", []):
+                if _match(m.get("sucursal"), m.get("sucursal_num"), m.get("tipo"), m.get("sector"), m.get("estado"), m.get("vencimiento"), m.get("observaciones")):
+                    resultados_matafuegos.append(m)
+
+        if modulo in ("todo", "comprobantes"):
+            for c in load_comprobantes().get("comprobantes", []):
+                items_txt = " ".join(f"{i.get('item', '')} {i.get('cantidad', '')}" for i in c.get("items", []))
+                if _match(c.get("id"), c.get("tipo"), c.get("numero"), c.get("proveedor"), c.get("sucursal"), c.get("comentario"), items_txt):
+                    resultados_comprobantes.append(c)
+
+    return render_template(
+        "admin_buscar.html",
+        q=q,
+        modulo=modulo,
+        resultados=resultados,
+        resultados_presupuestos=resultados_presupuestos,
+        resultados_ceyh=resultados_ceyh,
+        resultados_permisos=resultados_permisos,
+        resultados_habilitaciones=resultados_habilitaciones,
+        resultados_matafuegos=resultados_matafuegos,
+        resultados_comprobantes=resultados_comprobantes,
+        prioridades=PRIORIDADES,
+    )
 
 
 # --- Routes: Exportar ---
