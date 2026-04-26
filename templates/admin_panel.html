@@ -55,23 +55,23 @@
 
 <!-- Quick access bar like InvGate -->
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-    <a href="{{ url_for('admin_panel', vista='tarjetas', estado='Nuevo') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Nuevo') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #dc2626;">{{ stats.nuevos }}</div>
         <div class="label">Nuevos</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tarjetas', estado='Abierto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Abierto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
         <div class="number" style="color: #b45309;">{{ stats.abiertos }}</div>
         <div class="label">Abiertos</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tarjetas', estado='En progreso') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='En progreso') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
         <div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div>
         <div class="label">En progreso</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tarjetas', estado='Pendiente') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Pendiente') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
         <div class="number" style="color: #d97706;">{{ stats.pendientes }}</div>
         <div class="label">Pendientes</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tarjetas', estado='Resuelto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Resuelto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #059669;">{{ stats.resueltos }}</div>
         <div class="label">Resueltos</div>
     </a>
