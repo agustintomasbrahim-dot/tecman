@@ -67,6 +67,28 @@
 </div>
 {% endif %}
 
+{% if es_ceyh %}
+<div class="card" style="border-left: 4px solid #ea580c;">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">Control operativo CEYH</h3>
+    <form method="POST">
+        <input type="hidden" name="accion" value="actualizar_ceyh">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <label style="display:flex;align-items:center;gap:8px;padding-top:28px;"><input type="checkbox" name="requiere_materiales" value="1" {% if ticket.requiere_materiales %}checked{% endif %}> Requiere materiales</label>
+            <div class="form-group" style="margin-bottom:0;"><label>Estado materiales</label><select name="estado_materiales"><option {% if ticket.estado_materiales == 'No requiere' %}selected{% endif %}>No requiere</option><option {% if ticket.estado_materiales == 'Pendiente' %}selected{% endif %}>Pendiente</option><option {% if ticket.estado_materiales == 'Listo' %}selected{% endif %}>Listo</option><option {% if ticket.estado_materiales == 'Retirado' %}selected{% endif %}>Retirado</option></select></div>
+            <label style="display:flex;align-items:center;gap:8px;padding-top:28px;"><input type="checkbox" name="requiere_retiro_central" value="1" {% if ticket.requiere_retiro_central %}checked{% endif %}> Requiere retiro en Dabra Central</label>
+            <div class="form-group" style="margin-bottom:0;"><label>Estado retiro</label><select name="estado_retiro"><option {% if ticket.estado_retiro == 'No requiere' %}selected{% endif %}>No requiere</option><option {% if ticket.estado_retiro == 'Pendiente de preparación' %}selected{% endif %}>Pendiente de preparación</option><option {% if ticket.estado_retiro == 'Listo para retirar' %}selected{% endif %}>Listo para retirar</option><option {% if ticket.estado_retiro == 'Retirado por CEYH' %}selected{% endif %}>Retirado por CEYH</option><option {% if ticket.estado_retiro == 'Entregado en sucursal' %}selected{% endif %}>Entregado en sucursal</option></select></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Estado operativo</label><select name="estado_operativo_ceyh"><option {% if ticket.estado_operativo_ceyh == 'Pendiente' %}selected{% endif %}>Pendiente</option><option {% if ticket.estado_operativo_ceyh == 'Planificado' %}selected{% endif %}>Planificado</option><option {% if ticket.estado_operativo_ceyh == 'En ruta' %}selected{% endif %}>En ruta</option><option {% if ticket.estado_operativo_ceyh == 'Visitado' %}selected{% endif %}>Visitado</option><option {% if ticket.estado_operativo_ceyh == 'Demorado' %}selected{% endif %}>Demorado</option><option {% if ticket.estado_operativo_ceyh == 'Terminado' %}selected{% endif %}>Terminado</option></select></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Cuadrilla</label><input type="text" name="cuadrilla_ceyh" value="{{ ticket.cuadrilla_ceyh }}"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label><input type="text" name="camioneta_ceyh" value="{{ ticket.camioneta_ceyh }}"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Fecha objetivo</label><input type="date" name="fecha_objetivo" value="{{ ticket.fecha_objetivo }}"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Próxima acción</label><input type="text" name="proxima_accion" value="{{ ticket.proxima_accion }}"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px;"><label>Última novedad operativa</label><textarea name="ultima_novedad_operativa">{{ ticket.ultima_novedad_operativa }}</textarea></div>
+        <button type="submit" class="btn" style="background:#ea580c;color:white;">Guardar control CEYH</button>
+    </form>
+</div>
+{% endif %}
+
 <!-- Notas / Comentarios -->
 <div class="card">
     <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Notas y comentarios</h3>

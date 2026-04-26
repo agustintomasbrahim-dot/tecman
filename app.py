@@ -37,6 +37,8 @@ VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
 ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
 ALERTAS_SYH_DISPATCH_FILE = DATA_DIR / "alertas_syh_dispatch.json"
+PRESUPUESTOS_FILE = DATA_DIR / "presupuestos.json"
+CEYH_RETIROS_FILE = DATA_DIR / "ceyh_retiros.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -54,6 +56,8 @@ TRABAJOS_DIR = UPLOADS_DIR / "trabajos"
 TRABAJOS_DIR.mkdir(parents=True, exist_ok=True)
 PERMISOS_DIR = UPLOADS_DIR / "permisos"
 PERMISOS_DIR.mkdir(parents=True, exist_ok=True)
+PRESUPUESTOS_DIR = UPLOADS_DIR / "presupuestos"
+PRESUPUESTOS_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -620,6 +624,44 @@ def load_permisos():
 
 def save_permisos(data):
     PERMISOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_presupuestos():
+    if PRESUPUESTOS_FILE.exists():
+        try:
+            return json.loads(PRESUPUESTOS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"presupuestos": []}
+
+def save_presupuestos(data):
+    PRESUPUESTOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_ceyh_retiros():
+    if CEYH_RETIROS_FILE.exists():
+        try:
+            return json.loads(CEYH_RETIROS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"retiros": []}
+
+def save_ceyh_retiros(data):
+    CEYH_RETIROS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def es_ticket_ceyh(ticket):
+    return ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH" or ticket.get("derivado_desde") == "CEYH"
+
+def _normalize_ceyh_ticket(ticket):
+    ticket.setdefault("requiere_materiales", False)
+    ticket.setdefault("estado_materiales", "No requiere")
+    ticket.setdefault("requiere_retiro_central", False)
+    ticket.setdefault("estado_retiro", "No requiere")
+    ticket.setdefault("cuadrilla_ceyh", "")
+    ticket.setdefault("camioneta_ceyh", "")
+    ticket.setdefault("ultima_novedad_operativa", "")
+    ticket.setdefault("proxima_accion", "")
+    ticket.setdefault("fecha_objetivo", "")
+    ticket.setdefault("estado_operativo_ceyh", "Pendiente")
+    return ticket
 
 def _expand_permisos_para_sucursales(items):
     expanded = []
@@ -1518,12 +1560,20 @@ def admin_panel():
 @admin_required
 def admin_ceyh():
     tickets = load_tickets()
-    ceyh = [t for t in tickets if t.get("asignado") == "CEYH" or t.get("asignado_proveedor") == "CEYH" or t.get("proveedor_nombre") == "CEYH" or t.get("derivado_desde") == "CEYH"]
+    retiros_data = load_ceyh_retiros()
+    ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t)]
     activos = [t for t in ceyh if t.get("estado") not in ("Resuelto", "Cerrado")]
     derivados = [t for t in ceyh if t.get("derivado_desde") == "CEYH" and t.get("asignado") == "Equipo Central"]
     terminados = [t for t in ceyh if t.get("estado") in ("Resuelto", "Cerrado")]
+    retiros = list(retiros_data.get("retiros", []))
+    retiros.sort(key=lambda r: r.get("created_at", ""), reverse=True)
 
-    activos.sort(key=lambda t: (t.get("prioridad", 4), t.get("creado", "")))
+    esperando_materiales = [t for t in activos if t.get("estado_materiales") == "Pendiente"]
+    listos_retiro = [t for t in activos if t.get("estado_retiro") == "Listo para retirar"]
+    en_ruta = [t for t in activos if t.get("estado_operativo_ceyh") == "En ruta"]
+    demorados = [t for t in activos if t.get("estado_operativo_ceyh") == "Demorado"]
+
+    activos.sort(key=lambda t: (t.get("prioridad", 4), t.get("fecha_objetivo", "9999-99-99"), t.get("creado", "")))
     derivados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
     terminados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
 
@@ -1532,8 +1582,58 @@ def admin_ceyh():
         activos=activos,
         derivados=derivados,
         terminados=terminados,
+        retiros=retiros,
+        esperando_materiales=esperando_materiales,
+        listos_retiro=listos_retiro,
+        en_ruta=en_ruta,
+        demorados=demorados,
         prioridades=PRIORIDADES,
     )
+
+
+@app.route("/admin/ceyh/retiro", methods=["POST"])
+@admin_required
+def admin_ceyh_retiro():
+    tickets = load_tickets()
+    ticket_id = request.form.get("ticket_id", "").strip()
+    ticket = next((t for t in tickets if str(t.get("id")) == ticket_id), None)
+    if not ticket:
+        flash("Ticket no encontrado")
+        return redirect(url_for("admin_ceyh"))
+
+    data = load_ceyh_retiros()
+    retiro = {
+        "id": uuid.uuid4().hex[:12],
+        "ticket_id": ticket.get("id"),
+        "sucursal": ticket.get("sucursal", ""),
+        "materiales": request.form.get("materiales", "").strip(),
+        "estado": request.form.get("estado", "Pendiente de preparación").strip(),
+        "preparado_por": request.form.get("preparado_por", "").strip(),
+        "retirado_por": request.form.get("retirado_por", "").strip(),
+        "fecha_preparado": request.form.get("fecha_preparado", "").strip(),
+        "fecha_retiro": request.form.get("fecha_retiro", "").strip(),
+        "fecha_entrega": request.form.get("fecha_entrega", "").strip(),
+        "observaciones": request.form.get("observaciones", "").strip(),
+        "created_at": datetime.datetime.now().isoformat(),
+        "creado_por": session.get("nombre", "Admin"),
+    }
+    data.setdefault("retiros", []).append(retiro)
+    save_ceyh_retiros(data)
+
+    ticket = _normalize_ceyh_ticket(ticket)
+    ticket["requiere_materiales"] = True
+    ticket["requiere_retiro_central"] = True
+    ticket["estado_materiales"] = "Pendiente" if retiro["estado"] == "Pendiente de preparación" else ticket.get("estado_materiales", "Pendiente")
+    ticket["estado_retiro"] = retiro["estado"]
+    ticket.setdefault("notas", []).append({
+        "autor": session.get("nombre", "Admin"),
+        "fecha": datetime.datetime.now().isoformat(),
+        "texto": f"Retiro CEYH creado: {retiro['estado']} - {retiro['materiales'][:120]}",
+    })
+    ticket["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    flash("Retiro CEYH registrado")
+    return redirect(url_for("admin_ceyh"))
 
 
 @app.route("/admin/permisos", methods=["GET", "POST"])
@@ -1610,6 +1710,64 @@ def serve_permiso(filename):
     return send_from_directory(str(PERMISOS_DIR), filename)
 
 
+@app.route("/admin/presupuestos", methods=["GET", "POST"])
+@login_required
+def admin_presupuestos():
+    data = load_presupuestos()
+    tickets = load_tickets()
+
+    if request.method == "POST":
+        archivo = ""
+        f = request.files.get("archivo")
+        if f and f.filename:
+            ext = Path(f.filename).suffix.lower()
+            if ext not in (".pdf", ".jpg", ".jpeg", ".png"):
+                flash("Formato no permitido")
+                return redirect(url_for("admin_presupuestos"))
+            fname = f"ppto_{uuid.uuid4().hex[:10]}{ext}"
+            f.save(str(PRESUPUESTOS_DIR / fname))
+            archivo = fname
+
+        nuevo = {
+            "id": uuid.uuid4().hex[:12],
+            "origen": request.form.get("origen", "sin_ticket").strip(),
+            "ticket_id": request.form.get("ticket_id", "").strip(),
+            "sucursal": request.form.get("sucursal", "").strip(),
+            "categoria": request.form.get("categoria", "").strip(),
+            "subcategoria": request.form.get("subcategoria", "").strip(),
+            "proveedor": request.form.get("proveedor", "").strip(),
+            "monto": request.form.get("monto", "").strip(),
+            "moneda": request.form.get("moneda", "ARS").strip(),
+            "descripcion": request.form.get("descripcion", "").strip(),
+            "archivo": archivo,
+            "archivo_nombre": f.filename if f and f.filename else "",
+            "estado": request.form.get("estado", "Pendiente").strip(),
+            "fecha_presupuesto": request.form.get("fecha_presupuesto", "").strip(),
+            "fecha_carga": datetime.datetime.now().isoformat(),
+            "cargado_por": session.get("nombre", ""),
+            "observacion_interna": request.form.get("observacion_interna", "").strip(),
+        }
+        data.setdefault("presupuestos", []).append(nuevo)
+        save_presupuestos(data)
+        flash("Presupuesto cargado")
+        return redirect(url_for("admin_presupuestos"))
+
+    presupuestos = list(data.get("presupuestos", []))
+    filtro_suc = request.args.get("sucursal", "").strip()
+    filtro_estado = request.args.get("estado", "").strip()
+    if filtro_suc:
+        presupuestos = [p for p in presupuestos if p.get("sucursal") == filtro_suc]
+    if filtro_estado:
+        presupuestos = [p for p in presupuestos if p.get("estado") == filtro_estado]
+    presupuestos.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
+    return render_template("admin_presupuestos.html", presupuestos=presupuestos, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado)
+
+
+@app.route("/uploads/presupuestos/<filename>")
+def serve_presupuesto(filename):
+    return send_from_directory(str(PRESUPUESTOS_DIR), filename)
+
+
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_ticket(ticket_id):
@@ -1617,6 +1775,7 @@ def admin_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    ticket = _normalize_ceyh_ticket(ticket)
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
@@ -1672,6 +1831,27 @@ def admin_ticket(ticket_id):
             flash("Ticket derivado a Equipo Central")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
+        if accion == "actualizar_ceyh":
+            ticket["requiere_materiales"] = bool(request.form.get("requiere_materiales"))
+            ticket["estado_materiales"] = request.form.get("estado_materiales", ticket.get("estado_materiales", "No requiere"))
+            ticket["requiere_retiro_central"] = bool(request.form.get("requiere_retiro_central"))
+            ticket["estado_retiro"] = request.form.get("estado_retiro", ticket.get("estado_retiro", "No requiere"))
+            ticket["cuadrilla_ceyh"] = request.form.get("cuadrilla_ceyh", "").strip()
+            ticket["camioneta_ceyh"] = request.form.get("camioneta_ceyh", "").strip()
+            ticket["ultima_novedad_operativa"] = request.form.get("ultima_novedad_operativa", "").strip()
+            ticket["proxima_accion"] = request.form.get("proxima_accion", "").strip()
+            ticket["fecha_objetivo"] = request.form.get("fecha_objetivo", "").strip()
+            ticket["estado_operativo_ceyh"] = request.form.get("estado_operativo_ceyh", ticket.get("estado_operativo_ceyh", "Pendiente"))
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Actualización CEYH: estado operativo {ticket['estado_operativo_ceyh']}, materiales {ticket['estado_materiales']}, retiro {ticket['estado_retiro']}",
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Control operativo CEYH actualizado")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         # Check if it's a note or an update
         nueva_nota = request.form.get("nueva_nota", "").strip()
         if nueva_nota:
@@ -1698,6 +1878,7 @@ def admin_ticket(ticket_id):
         estados=ESTADOS,
         prioridades=PRIORIDADES,
         puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",
+        es_ceyh=es_ticket_ceyh(ticket),
     )
 
 
@@ -2797,6 +2978,9 @@ def admin_sucursal(suc_num):
     suc_tickets = [t for t in tickets if t["sucursal"] == suc_name]
     activos = [t for t in suc_tickets if t["estado"] not in ("Resuelto", "Cerrado")]
     cerrados = [t for t in suc_tickets if t["estado"] in ("Resuelto", "Cerrado")]
+    presupuestos_data = load_presupuestos().get("presupuestos", [])
+    presupuestos_sucursal = [p for p in presupuestos_data if p.get("sucursal") == suc_name]
+    presupuestos_sucursal.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
 
     # Proveedores que cubren esta sucursal
     mis_proveedores = []
@@ -2837,6 +3021,7 @@ def admin_sucursal(suc_num):
         info=info,
         activos=activos,
         cerrados=cerrados,
+        presupuestos_sucursal=presupuestos_sucursal[:20],
         mis_proveedores=mis_proveedores,
         inventario=inventario,
         prioridades=PRIORIDADES,

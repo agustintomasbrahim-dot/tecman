@@ -15,6 +15,7 @@
     <a href="{{ url_for('admin_syh') }}">S&H</a>
     <a href="{{ url_for('admin_ceyh') }}">CEYH</a>
     <a href="{{ url_for('admin_permisos') }}">Permisos</a>
+    <a href="{{ url_for('admin_presupuestos') }}">Presupuestos</a>
     {% if session.rol == "admin" %}<a href="{{ url_for('admin_habilitaciones') }}">Habilitaciones</a>{% endif %}
     <a href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
     <a href="{{ url_for('admin_exportar') }}">&#128190; Exportar</a>

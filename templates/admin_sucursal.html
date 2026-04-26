@@ -137,4 +137,29 @@
 </div>
 {% endif %}
 
+{% if presupuestos_sucursal %}
+<div class="card">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
+        Presupuestos de la sucursal ({{ presupuestos_sucursal | length }})
+    </h3>
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>Proveedor</th><th>Categoría</th><th>Monto</th><th>Estado</th><th>Ticket</th></tr>
+        </thead>
+        <tbody>
+            {% for p in presupuestos_sucursal %}
+            <tr>
+                <td>{{ (p.fecha_presupuesto or p.fecha_carga)[:10] }}</td>
+                <td>{{ p.proveedor or '-' }}</td>
+                <td>{{ p.categoria or '-' }}</td>
+                <td>{{ p.moneda or 'ARS' }} {{ p.monto or '-' }}</td>
+                <td>{{ p.estado }}</td>
+                <td>{% if p.ticket_id %}#{{ p.ticket_id }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% endblock %}
