@@ -5,24 +5,21 @@
     <a href="{{ url_for('admin_panel', vista='dashboard') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
     <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
-    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
-    <a href="{{ url_for('admin_inventario') }}">Inventario</a>
-    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
-    <a href="{{ url_for('admin_stock') }}">Stock</a>
-    <a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>
-    <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
-    <a href="{{ url_for('admin_mapa') }}">Mapa</a>
-    <a href="{{ url_for('admin_syh') }}">S&H</a>
-    <a href="{{ url_for('admin_ceyh') }}">CEYH</a>
-    <a href="{{ url_for('admin_permisos') }}">Permisos</a>
-    <a href="{{ url_for('admin_presupuestos') }}">Presupuestos</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_habilitaciones') }}">Habilitaciones</a>{% endif %}
     <a href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
-    <a href="{{ url_for('admin_exportar') }}">&#128190; Exportar</a>
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
 {% block content %}
+<style>
+    .admin-groups { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0 20px; }
+    .admin-group-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(15,23,42,.04); }
+    .admin-group-title { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:10px; font-weight:700; }
+    .admin-group-links { display:grid; gap:8px; }
+    .admin-group-link { display:flex; justify-content:space-between; align-items:center; text-decoration:none; color:#0f172a; background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; font-size:14px; font-weight:600; }
+    .admin-group-link:hover { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+    .admin-dashboard-top { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .admin-dashboard-top p { color:#64748b; font-size:13px; margin-top:4px; }
+</style>
 
 {% if notif_admin %}
 <!-- Notificaciones para admins -->
@@ -179,6 +176,55 @@
 
 {% else %}
 <!-- DASHBOARD VIEW -->
+
+<div class="admin-dashboard-top">
+    <div>
+        <h2 style="margin:0;">Panel Admin</h2>
+        <p>Operación diaria, materiales, control y soporte en un solo lugar.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="{{ url_for('admin_buscar') }}" class="btn btn-sm" style="background:#dbeafe;color:#1d4ed8;">🔎 Buscar en Tecman</a>
+        <a href="{{ url_for('admin_panel', vista='tarjetas') }}" class="btn btn-sm" style="background:#f8fafc;color:#334155;border:1px solid #e5e7eb;">Ver mis tickets</a>
+    </div>
+</div>
+
+<div class="admin-groups">
+    <div class="admin-group-card">
+        <div class="admin-group-title">Operación diaria</div>
+        <div class="admin-group-links">
+            <a class="admin-group-link" href="{{ url_for('admin_panel', vista='dashboard') }}"><span>Dashboard</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_panel', vista='tarjetas') }}"><span>Mis tickets</span><span>{{ mis_asignados }}</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_ceyh') }}"><span>CEYH</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_presupuestos') }}"><span>Presupuestos</span><span>›</span></a>
+        </div>
+    </div>
+    <div class="admin-group-card">
+        <div class="admin-group-title">Logística y materiales</div>
+        <div class="admin-group-links">
+            <a class="admin-group-link" href="{{ url_for('admin_pedidos') }}"><span>Pedidos</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_stock') }}"><span>Stock</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_inventario') }}"><span>Inventario</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_comprobantes') }}"><span>Contabilidad</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_contable_reporte') }}"><span>Reporte contable</span><span>›</span></a>
+        </div>
+    </div>
+    <div class="admin-group-card">
+        <div class="admin-group-title">Control y cumplimiento</div>
+        <div class="admin-group-links">
+            <a class="admin-group-link" href="{{ url_for('admin_syh') }}"><span>S&H</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_permisos') }}"><span>Permisos</span><span>›</span></a>
+            {% if session.rol == "admin" %}<a class="admin-group-link" href="{{ url_for('admin_habilitaciones') }}"><span>Habilitaciones</span><span>›</span></a>{% endif %}
+            <a class="admin-group-link" href="{{ url_for('admin_proveedores') }}"><span>Proveedores</span><span>›</span></a>
+        </div>
+    </div>
+    <div class="admin-group-card">
+        <div class="admin-group-title">Soporte y análisis</div>
+        <div class="admin-group-links">
+            <a class="admin-group-link" href="{{ url_for('admin_mapa') }}"><span>Mapa</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_exportar') }}"><span>Exportar</span><span>›</span></a>
+        </div>
+    </div>
+</div>
 
 <!-- Reporte semanal button -->
 <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
