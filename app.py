@@ -2351,6 +2351,27 @@ def prov_ticket(ticket_id):
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": "Marcó materiales como aplicados al trabajo desde portal",
                 })
+        elif accion == "sobrante_ceyh":
+            data = load_ceyh_retiros()
+            rid = request.form.get("retiro_id", "").strip()
+            destino = request.form.get("destino_sobrante", "").strip() or "Sobrante en sucursal"
+            detalle = request.form.get("detalle_sobrante", "").strip()
+            retiro = next((r for r in data.get("retiros", []) if r.get("id") == rid and str(r.get("ticket_id")) == str(ticket_id)), None)
+            if retiro:
+                retiro["estado"] = destino
+                retiro["detalle_sobrante"] = detalle
+                retiro["updated_at"] = datetime.datetime.now().isoformat()
+                save_ceyh_retiros(data)
+
+                ticket = _normalize_ceyh_ticket(ticket)
+                ticket["estado_materiales"] = "Sobrante"
+                ticket["estado_retiro"] = destino
+                ticket["ultima_novedad_operativa"] = f"CEYH registró sobrante: {destino}"
+                ticket.setdefault("notas", []).append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Registró sobrante de materiales: {destino}" + (f" - {detalle}" if detalle else ""),
+                })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()
         save_tickets(tickets)

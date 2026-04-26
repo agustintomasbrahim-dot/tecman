@@ -81,6 +81,17 @@
                 <input type="hidden" name="retiro_id" value="{{ r.id }}">
                 <button type="submit" class="btn btn-sm" style="background:#059669;color:white;" onclick="return confirm('¿Confirmar que estos materiales se usaron para ejecutar el ticket?')">Material aplicado al trabajo</button>
             </form>
+            {% elif r.estado == 'Material aplicado al trabajo' %}
+            <form method="POST" style="margin:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                <input type="hidden" name="accion" value="sobrante_ceyh">
+                <input type="hidden" name="retiro_id" value="{{ r.id }}">
+                <select name="destino_sobrante" style="padding:8px;border-radius:6px;">
+                    <option value="Sobrante en sucursal">Sobrante en sucursal</option>
+                    <option value="Sobrante devuelto a Central">Sobrante devuelto a Central</option>
+                </select>
+                <input type="text" name="detalle_sobrante" placeholder="Detalle opcional" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;min-width:160px;">
+                <button type="submit" class="btn btn-sm" style="background:#b45309;color:white;">Registrar sobrante</button>
+            </form>
             {% else %}
             <span class="badge" style="background:rgba(16,185,129,0.18);color:#059669;">{{ r.estado }}</span>
             {% endif %}
