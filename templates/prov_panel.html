@@ -38,6 +38,27 @@
     </div>
 </div>
 
+{% if session.prov_nombre == 'CEYH' and retiros_ceyh %}
+<h3 style="color: #1d4ed8; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">&#128230; Retiros en Dabra Central</h3>
+<div style="display: grid; gap: 12px; margin-bottom: 24px;">
+    {% for r in retiros_ceyh %}
+    <div class="card" style="padding: 16px; border-left: 4px solid #1d4ed8;">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
+            <div>
+                <div style="font-weight:700;color:#1d4ed8;">Ticket #{{ r.ticket_id }} — {{ r.sucursal }}</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:4px;">{{ r.materiales[:140] }}{% if r.materiales|length > 140 %}...{% endif %}</div>
+            </div>
+            <span class="badge" style="background:{% if r.estado == 'Retirado por CEYH' %}rgba(16,185,129,0.18);color:#059669{% else %}rgba(29,78,216,0.15);color:#1d4ed8{% endif %};">{{ r.estado }}</span>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="font-size:12px;color:#6b7280;">Preparado por {{ r.preparado_por or '-' }} {% if r.fecha_preparado %}• {{ r.fecha_preparado }}{% endif %}</div>
+            <a href="{{ url_for('prov_ticket', ticket_id=r.ticket_id) }}" style="color:#1d4ed8;font-size:13px;font-weight:600;">Abrir ticket &rsaquo;</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Trabajos pendientes con materiales (vinculados a un pedido de materiales) -->
 {% if trabajos_materiales %}
 <h3 style="color: #0ea5e9; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">&#128230; Trabajos pendientes con materiales</h3>

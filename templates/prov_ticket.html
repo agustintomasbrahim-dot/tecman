@@ -62,6 +62,30 @@
     {% endif %}
 </div>
 
+{% if session.prov_nombre == 'CEYH' and retiros_ticket %}
+<div class="card" style="border-left:4px solid #1d4ed8;">
+    <h3 style="margin-bottom:12px;color:#1d4ed8;font-size:14px;">Retiros en Dabra Central</h3>
+    {% for r in retiros_ticket %}
+    <div style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:10px;background:#f8fafc;">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
+            <strong style="color:#1d4ed8;">{{ r.estado }}</strong>
+            {% if r.estado != 'Retirado por CEYH' %}
+            <form method="POST" style="margin:0;">
+                <input type="hidden" name="accion" value="confirmar_retiro_ceyh">
+                <input type="hidden" name="retiro_id" value="{{ r.id }}">
+                <button type="submit" class="btn btn-sm" style="background:#1d4ed8;color:white;" onclick="return confirm('¿Confirmar que CEYH retiró estos materiales en Dabra Central?')">Confirmar retiro</button>
+            </form>
+            {% else %}
+            <span class="badge" style="background:rgba(16,185,129,0.18);color:#059669;">Retiro confirmado</span>
+            {% endif %}
+        </div>
+        <div style="margin-top:8px;color:#374151;font-size:14px;">{{ r.materiales }}</div>
+        <div style="margin-top:6px;font-size:12px;color:#6b7280;">Preparado por {{ r.preparado_por or '-' }}{% if r.fecha_preparado %} • {{ r.fecha_preparado }}{% endif %}{% if r.retirado_por %} • Retirado por {{ r.retirado_por }}{% endif %}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Fotos antes / despues side by side -->
 {% set fotos_antes = ticket.get('fotos_antes', []) + ticket.get('fotos', []) %}
 {% set fotos_despues = ticket.get('fotos_despues', []) %}

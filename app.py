@@ -2121,6 +2121,14 @@ def prov_panel():
                 notif_prov.append({"ticket_id": t["id"], "sucursal": t["sucursal"], **n})
     notif_prov.sort(key=lambda x: x.get("fecha", ""), reverse=True)
 
+    retiros_ceyh = []
+    if prov_nombre == "CEYH":
+        retiros_data = load_ceyh_retiros().get("retiros", [])
+        for r in retiros_data:
+            if r.get("estado") in ("Listo para retirar", "Retirado por CEYH"):
+                retiros_ceyh.append(r)
+        retiros_ceyh.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
     return render_template(
         "prov_panel.html",
         pendientes=pendientes,
@@ -2128,6 +2136,7 @@ def prov_panel():
         resueltos=resueltos,
         prioridades=PRIORIDADES,
         notificaciones=notif_prov,
+        retiros_ceyh=retiros_ceyh,
     )
 
 
@@ -2300,13 +2309,41 @@ def prov_ticket(ticket_id):
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": f"Envio informe: {informe_texto[:80]}...",
                 })
+        elif accion == "confirmar_retiro_ceyh":
+            data = load_ceyh_retiros()
+            rid = request.form.get("retiro_id", "").strip()
+            retiro = next((r for r in data.get("retiros", []) if r.get("id") == rid and str(r.get("ticket_id")) == str(ticket_id)), None)
+            if retiro:
+                retiro["estado"] = "Retirado por CEYH"
+                retiro["retirado_por"] = prov_nombre
+                retiro["fecha_retiro"] = datetime.datetime.now().date().isoformat()
+                retiro["confirmado_por_portal"] = True
+                retiro["updated_at"] = datetime.datetime.now().isoformat()
+                save_ceyh_retiros(data)
+
+                ticket = _normalize_ceyh_ticket(ticket)
+                ticket["requiere_materiales"] = True
+                ticket["requiere_retiro_central"] = True
+                ticket["estado_materiales"] = "Retirado"
+                ticket["estado_retiro"] = "Retirado por CEYH"
+                ticket["ultima_novedad_operativa"] = "CEYH confirmó retiro de materiales desde portal"
+                ticket.setdefault("notas", []).append({
+                    "autor": prov_nombre,
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": "Confirmó retiro de materiales en Dabra Central desde portal",
+                })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()
         save_tickets(tickets)
         flash("Actualizado")
         return redirect(url_for("prov_ticket", ticket_id=ticket_id))
 
-    return render_template("prov_ticket.html", ticket=ticket, prioridades=PRIORIDADES)
+    retiros_ticket = []
+    if session.get("prov_nombre") == "CEYH":
+        retiros_ticket = [r for r in load_ceyh_retiros().get("retiros", []) if str(r.get("ticket_id")) == str(ticket_id)]
+        retiros_ticket.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+    return render_template("prov_ticket.html", ticket=ticket, prioridades=PRIORIDADES, retiros_ticket=retiros_ticket)
 
 
 # --- Routes: Portal de Compras (Laura) ---
