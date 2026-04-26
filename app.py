@@ -36,6 +36,7 @@ MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
 ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
+ALERTAS_SYH_DISPATCH_FILE = DATA_DIR / "alertas_syh_dispatch.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -531,6 +532,72 @@ def sync_alertas_matafuegos():
     data["alertas"] = nuevas_alertas
     save_alertas_syh(data)
     return nuevas_alertas
+
+def load_alertas_syh_dispatch():
+    if ALERTAS_SYH_DISPATCH_FILE.exists():
+        try:
+            return json.loads(ALERTAS_SYH_DISPATCH_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"sent": {}}
+
+def save_alertas_syh_dispatch(data):
+    ALERTAS_SYH_DISPATCH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def enviar_alertas_matafuegos_email(destino="abrahim@grupodexter.com.ar"):
+    alertas = load_alertas_syh().get("alertas", [])
+    if not alertas:
+        return {"sent": 0, "reason": "no_alertas"}
+
+    dispatch = load_alertas_syh_dispatch()
+    sent_map = dispatch.setdefault("sent", {})
+    pendientes = []
+    for a in alertas:
+        aid = a.get("id")
+        stamp = f"{a.get('estado')}|{a.get('proximo_vto')}|{a.get('cantidad')}|{a.get('tipos')}"
+        if sent_map.get(aid) == stamp:
+            continue
+        pendientes.append((a, stamp))
+
+    if not pendientes:
+        return {"sent": 0, "reason": "sin_cambios"}
+
+    try:
+        from gauth import gmail as get_gmail
+        import base64
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        filas = "".join(
+            f"<tr><td style='padding:8px;border-bottom:1px solid #eee;'>{a['sucursal_num']}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a['estado']}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('proximo_vto') or '-'}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('tipos') or '-'}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('cantidad') or 0}</td></tr>"
+            for a, _ in pendientes
+        )
+        html = f"""
+        <div style='font-family:Arial,sans-serif;max-width:700px;margin:0 auto;'>
+          <h2 style='color:#dc2626;'>Alerta de matafuegos - Tecman</h2>
+          <p>Se detectaron alertas nuevas o actualizadas para revisar.</p>
+          <table style='width:100%;border-collapse:collapse;'>
+            <tr><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Sucursal</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Estado</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Próx. vencimiento</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Tipos</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Cantidad</th></tr>
+            {filas}
+          </table>
+          <p style='margin-top:16px;color:#6b7280;'>Patricia y la sucursal deberían revisarlo según corresponda.</p>
+        </div>
+        """
+
+        service = get_gmail()
+        msg = MIMEMultipart("alternative")
+        msg["To"] = destino
+        msg["Subject"] = f"Tecman - Alertas de matafuegos ({len(pendientes)})"
+        msg.attach(MIMEText(html, "html"))
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+        for a, stamp in pendientes:
+            sent_map[a.get("id")] = stamp
+        save_alertas_syh_dispatch(dispatch)
+        return {"sent": len(pendientes), "reason": "ok"}
+    except Exception as e:
+        return {"sent": 0, "reason": f"error: {e}"}
 
 def load_vehiculos_equipo():
     if VEHICULOS_FILE.exists():
