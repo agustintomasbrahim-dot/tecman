@@ -10,9 +10,93 @@
 </div>
 {% endblock %}
 {% block content %}
+<style>
+    .ticket-page { display: grid; gap: 16px; }
+    .ticket-hero {
+        border: 1px solid #e5e7eb;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+    .ticket-hero-top {
+        padding: 22px 24px 18px;
+        border-left: 5px solid {% if ticket.prioridad == 1 %}#ef4444{% elif ticket.prioridad == 2 %}#f59e0b{% elif ticket.prioridad == 3 %}#e63946{% else %}#64748b{% endif %};
+    }
+    .ticket-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+    }
+    .ticket-meta-item {
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+    }
+    .ticket-meta-item .label {
+        font-size: 11px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 4px;
+    }
+    .ticket-meta-item .value {
+        font-size: 14px;
+        color: #0f172a;
+        font-weight: 600;
+    }
+    .ticket-description-box {
+        margin-top: 18px;
+        background: #0f172a;
+        color: #f8fafc;
+        border-radius: 14px;
+        padding: 16px 18px;
+        line-height: 1.55;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+    }
+    .ticket-section-title {
+        margin-bottom: 14px;
+        color: #64748b;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 700;
+    }
+    .ceyh-soft-card {
+        background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+        border: 1px solid #fdba74;
+        border-radius: 16px;
+        padding: 18px;
+    }
+    .note-list { display: grid; gap: 10px; }
+    .note-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-left: 4px solid #e63946;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+    .note-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; align-items:center; }
+    .note-author { font-weight: 700; color: #e63946; font-size: 13px; }
+    .note-date { color: #94a3b8; font-size: 12px; white-space: nowrap; }
+    .note-text { color: #0f172a; white-space: pre-wrap; margin: 0; line-height: 1.5; }
+    .radio-cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .radio-card {
+        display:flex; align-items:flex-start; gap:10px; padding:14px; border:1px solid #dbeafe;
+        border-radius:14px; cursor:pointer; background:#fff; transition:.18s ease;
+    }
+    .radio-card:hover { border-color:#60a5fa; box-shadow:0 6px 18px rgba(37,99,235,.08); transform: translateY(-1px); }
+    .ticket-page .card { border-radius: 16px; box-shadow: 0 8px 26px rgba(15, 23, 42, 0.05); border: 1px solid #e5e7eb; }
+</style>
+
+<div class="ticket-page">
 <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Tickets</a>
-<div class="card" style="border-left: 4px solid {% if ticket.prioridad == 1 %}#ef4444{% elif ticket.prioridad == 2 %}#f59e0b{% elif ticket.prioridad == 3 %}#e63946{% else %}#64748b{% endif %};">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+<div class="ticket-hero">
+    <div class="ticket-hero-top">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
         <h2>Ticket #{{ ticket.id }}</h2>
         <div style="display: flex; gap: 8px;">
             <span class="badge badge-p{{ ticket.prioridad }}">{{ prioridades[ticket.prioridad] }}</span>
@@ -20,14 +104,14 @@
         </div>
     </div>
 
-    <table>
-        <tr><td style="width: 140px; font-weight: 600; color: #94a3b8;">Sucursal</td><td><a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a></td></tr>
-        <tr><td style="font-weight: 600; color: #94a3b8;">Categoria</td><td>{{ ticket.categoria }} &raquo; {{ ticket.subcategoria }}</td></tr>
-        <tr><td style="font-weight: 600; color: #94a3b8;">Solicitante</td><td>{{ ticket.solicitante or '-' }}</td></tr>
-        <tr><td style="font-weight: 600; color: #94a3b8;">Asignado</td><td>{{ ticket.asignado }}</td></tr>
-        <tr><td style="font-weight: 600; color: #94a3b8;">Creado</td><td>{{ ticket.creado[:16].replace('T', ' ') }}</td></tr>
-        <tr><td style="font-weight: 600; color: #94a3b8;">Actualizado</td><td>{{ ticket.actualizado[:16].replace('T', ' ') }}</td></tr>
-    </table>
+    <div class="ticket-meta-grid">
+        <div class="ticket-meta-item"><div class="label">Sucursal</div><div class="value"><a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a></div></div>
+        <div class="ticket-meta-item"><div class="label">Categoría</div><div class="value">{{ ticket.categoria }} &raquo; {{ ticket.subcategoria }}</div></div>
+        <div class="ticket-meta-item"><div class="label">Solicitante</div><div class="value">{{ ticket.solicitante or '-' }}</div></div>
+        <div class="ticket-meta-item"><div class="label">Asignado</div><div class="value">{{ ticket.asignado }}</div></div>
+        <div class="ticket-meta-item"><div class="label">Creado</div><div class="value">{{ ticket.creado[:16].replace('T', ' ') }}</div></div>
+        <div class="ticket-meta-item"><div class="label">Actualizado</div><div class="value">{{ ticket.actualizado[:16].replace('T', ' ') }}</div></div>
+    </div>
 
     {% if ticket.categoria == 'Materiales' %}
     <div style="margin-top: 12px; padding: 12px; border-radius: 8px; background: {% if ticket.retiro_proveedor %}#fef3c7{% else %}#ecfeff{% endif %}; border: 1px solid {% if ticket.retiro_proveedor %}#fcd34d{% else %}#a5f3fc{% endif %};">
@@ -41,11 +125,11 @@
     </div>
     {% endif %}
 
-    <h3 style="margin-top: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Descripcion</h3>
-    <p style="margin: 8px 0; white-space: pre-wrap; background: #0a0a0a; padding: 14px; border-radius: 8px; color: #e2e8f0;">{{ ticket.descripcion }}</p>
+    <div class="ticket-section-title" style="margin-top:18px;">Descripción</div>
+    <div class="ticket-description-box">{{ ticket.descripcion }}</div>
 
     {% if ticket.fotos %}
-    <h3 style="margin-top: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Fotos</h3>
+    <h3 class="ticket-section-title" style="margin-top: 18px;">Fotos</h3>
     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
         {% for foto in ticket.fotos %}
         <a href="/static/uploads/{{ foto }}" target="_blank">
@@ -54,10 +138,11 @@
         {% endfor %}
     </div>
     {% endif %}
+    </div>
 </div>
 
 {% if puede_derivar_ceyh %}
-<div class="card" style="border-left: 4px solid #ea580c;">
+<div class="ceyh-soft-card">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">CEYH</h3>
     <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Este ticket está en el circuito de CEYH. Si querés, podés pasarlo al equipo propio.</p>
     <form method="POST" onsubmit="return confirm('¿Enviar este ticket a personal propio?');">
@@ -91,17 +176,17 @@
 
 <!-- Notas / Comentarios -->
 <div class="card">
-    <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Notas y comentarios</h3>
+    <h3 class="ticket-section-title" style="margin-bottom: 16px;">Notas y comentarios</h3>
 
     {% if ticket.notas is defined and ticket.notas %}
-    <div style="margin-bottom: 16px;">
+    <div class="note-list" style="margin-bottom: 16px;">
         {% for nota in ticket.notas %}
-        <div style="background: #0a0a0a; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 3px solid #e63946;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                <span style="font-weight: 700; color: #e63946; font-size: 13px;">{{ nota.autor }}</span>
-                <span style="color: #475569; font-size: 12px;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+        <div class="note-card">
+            <div class="note-head">
+                <span class="note-author">{{ nota.autor }}</span>
+                <span class="note-date">{{ nota.fecha[:16].replace('T', ' ') }}</span>
             </div>
-            <p style="color: #e2e8f0; white-space: pre-wrap; margin: 0;">{{ nota.texto }}</p>
+            <p class="note-text">{{ nota.texto }}</p>
         </div>
         {% endfor %}
     </div>
@@ -125,16 +210,16 @@
     {% endif %}
     <form method="POST">
         <input type="hidden" name="accion" value="responder_suc">
-        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
-            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+        <div class="radio-cards" style="margin-bottom: 10px;">
+            <label class="radio-card">
                 <input type="radio" name="motivo" value="esperando_proveedor" required>
                 <span><strong>Esperando proveedor</strong></span>
             </label>
-            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+            <label class="radio-card">
                 <input type="radio" name="motivo" value="esperando_materiales">
                 <span><strong>Esperando materiales</strong></span>
             </label>
-            <label style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 6px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
+            <label class="radio-card">
                 <input type="radio" name="motivo" value="otra">
                 <span><strong>Otra</strong></span>
             </label>
@@ -181,3 +266,4 @@
     </form>
 </div>
 {% endblock %}
+</div>
