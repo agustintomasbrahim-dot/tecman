@@ -39,6 +39,7 @@ ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
 ALERTAS_SYH_DISPATCH_FILE = DATA_DIR / "alertas_syh_dispatch.json"
 PRESUPUESTOS_FILE = DATA_DIR / "presupuestos.json"
 CEYH_RETIROS_FILE = DATA_DIR / "ceyh_retiros.json"
+CEYH_JORNADAS_FILE = DATA_DIR / "ceyh_jornadas.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -646,6 +647,17 @@ def load_ceyh_retiros():
 
 def save_ceyh_retiros(data):
     CEYH_RETIROS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+def load_ceyh_jornadas():
+    if CEYH_JORNADAS_FILE.exists():
+        try:
+            return json.loads(CEYH_JORNADAS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"jornadas": []}
+
+def save_ceyh_jornadas(data):
+    CEYH_JORNADAS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 def es_ticket_ceyh(ticket):
     return ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH" or ticket.get("derivado_desde") == "CEYH"
@@ -1561,12 +1573,16 @@ def admin_panel():
 def admin_ceyh():
     tickets = load_tickets()
     retiros_data = load_ceyh_retiros()
+    jornadas_data = load_ceyh_jornadas()
     ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t)]
     activos = [t for t in ceyh if t.get("estado") not in ("Resuelto", "Cerrado")]
     derivados = [t for t in ceyh if t.get("derivado_desde") == "CEYH" and t.get("asignado") == "Equipo Central"]
     terminados = [t for t in ceyh if t.get("estado") in ("Resuelto", "Cerrado")]
     retiros = list(retiros_data.get("retiros", []))
     retiros.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    jornadas = list(jornadas_data.get("jornadas", []))
+    jornadas.sort(key=lambda j: j.get("fecha", ""), reverse=True)
+    jornada_hoy = next((j for j in jornadas if j.get("fecha") == datetime.date.today().isoformat()), None)
 
     esperando_materiales = [t for t in activos if t.get("estado_materiales") == "Pendiente"]
     listos_retiro = [t for t in activos if t.get("estado_retiro") == "Listo para retirar"]
@@ -1583,6 +1599,8 @@ def admin_ceyh():
         derivados=derivados,
         terminados=terminados,
         retiros=retiros,
+        jornadas=jornadas,
+        jornada_hoy=jornada_hoy,
         esperando_materiales=esperando_materiales,
         listos_retiro=listos_retiro,
         en_ruta=en_ruta,
@@ -1633,6 +1651,75 @@ def admin_ceyh_retiro():
     ticket["actualizado"] = datetime.datetime.now().isoformat()
     save_tickets(tickets)
     flash("Retiro CEYH registrado")
+    return redirect(url_for("admin_ceyh"))
+
+
+@app.route("/admin/ceyh/jornada", methods=["POST"])
+@admin_required
+def admin_ceyh_jornada():
+    tickets = load_tickets()
+    data = load_ceyh_jornadas()
+    fecha = request.form.get("fecha", datetime.date.today().isoformat()).strip() or datetime.date.today().isoformat()
+    camioneta = request.form.get("camioneta", "").strip()
+    cuadrilla = request.form.get("cuadrilla", "").strip()
+    ticket_ids = request.form.getlist("ticket_ids")
+    urgencias_ids = request.form.getlist("urgencia_ids")
+
+    planificados = []
+    for idx, tid in enumerate(ticket_ids, start=1):
+        t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
+        if not t:
+            continue
+        planificados.append({
+            "ticket_id": t.get("id"),
+            "sucursal": t.get("sucursal", ""),
+            "prioridad": t.get("prioridad", 4),
+            "tipo": t.get("subcategoria") or t.get("categoria", ""),
+            "orden": idx,
+            "estado_jornada": "planificado",
+        })
+        _normalize_ceyh_ticket(t)
+        t["estado_operativo_ceyh"] = "Planificado"
+        t["actualizado"] = datetime.datetime.now().isoformat()
+
+    urgencias = []
+    for idx, tid in enumerate(urgencias_ids, start=1):
+        t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
+        if not t:
+            continue
+        urgencias.append({
+            "ticket_id": t.get("id"),
+            "sucursal": t.get("sucursal", ""),
+            "prioridad": t.get("prioridad", 4),
+            "tipo": t.get("subcategoria") or t.get("categoria", ""),
+            "orden": idx,
+            "estado_jornada": "urgencia_agregada",
+        })
+        _normalize_ceyh_ticket(t)
+        t["estado_operativo_ceyh"] = "Planificado"
+        t.setdefault("notas", []).append({
+            "autor": session.get("nombre", "Admin"),
+            "fecha": datetime.datetime.now().isoformat(),
+            "texto": "Agregado a jornada CEYH como urgencia",
+        })
+        t["actualizado"] = datetime.datetime.now().isoformat()
+
+    jornada = {
+        "id": uuid.uuid4().hex[:12],
+        "fecha": fecha,
+        "camioneta": camioneta,
+        "cuadrilla": cuadrilla,
+        "planificados": planificados,
+        "urgencias": urgencias,
+        "observaciones": request.form.get("observaciones", "").strip(),
+        "estado": "abierta",
+        "created_at": datetime.datetime.now().isoformat(),
+        "creado_por": session.get("nombre", "Admin"),
+    }
+    data.setdefault("jornadas", []).append(jornada)
+    save_ceyh_jornadas(data)
+    save_tickets(tickets)
+    flash("Jornada CEYH creada")
     return redirect(url_for("admin_ceyh"))
 
 

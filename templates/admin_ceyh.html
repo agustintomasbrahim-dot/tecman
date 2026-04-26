@@ -43,6 +43,68 @@
     </form>
 </div>
 
+<div class="card" style="margin-top:16px;border-left:4px solid #7c3aed;">
+    <h3 style="margin-bottom:12px;font-size:15px;color:#7c3aed;">Ruta / jornada CEYH</h3>
+    <form method="POST" action="{{ url_for('admin_ceyh_jornada') }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+            <div class="form-group" style="margin-bottom:0;"><label>Fecha</label><input type="date" name="fecha" value="{{ (jornada_hoy.fecha if jornada_hoy else '') or '' }}"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label><input type="text" name="camioneta" placeholder="Ej: Móvil 1"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Cuadrilla</label><input type="text" name="cuadrilla" placeholder="Ej: Gastón / Juan"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Planificados del día</label>
+                <select name="ticket_ids" multiple style="min-height:180px;">
+                    {% for t in activos %}
+                    <option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal }} — P{{ t.prioridad }} — {{ t.subcategoria }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Urgencias agregadas</label>
+                <select name="urgencia_ids" multiple style="min-height:180px;">
+                    {% for t in activos if t.prioridad == 1 or t.estado_operativo_ceyh == 'Demorado' %}
+                    <option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal }} — P{{ t.prioridad }} — {{ t.subcategoria }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:10px;"><label>Observaciones de jornada</label><input type="text" name="observaciones" placeholder="Ej: priorizar urgencias zona norte y pasar por Dabra primero"></div>
+        <button type="submit" class="btn" style="background:#7c3aed;color:white;">Guardar jornada</button>
+    </form>
+</div>
+
+{% if jornada_hoy %}
+<div class="card" style="margin-top:16px;">
+    <h3 style="margin-bottom:12px;font-size:15px;color:#7c3aed;">Jornada de hoy{% if jornada_hoy.camioneta or jornada_hoy.cuadrilla %} — {{ jornada_hoy.camioneta or '-' }} / {{ jornada_hoy.cuadrilla or '-' }}{% endif %}</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+            <div style="font-size:12px;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Planificado</div>
+            {% for item in jornada_hoy.planificados %}
+            <div style="padding:10px;border:1px solid #ede9fe;border-radius:8px;margin-bottom:8px;background:#faf5ff;">
+                <strong>#{{ item.ticket_id }}</strong> — {{ item.sucursal }}
+                <div style="font-size:12px;color:#6b7280;">Orden {{ item.orden }} • {{ item.tipo }}</div>
+            </div>
+            {% else %}
+            <div style="font-size:13px;color:#9ca3af;">Sin planificados</div>
+            {% endfor %}
+        </div>
+        <div>
+            <div style="font-size:12px;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Urgencias agregadas</div>
+            {% for item in jornada_hoy.urgencias %}
+            <div style="padding:10px;border:1px solid #fecaca;border-radius:8px;margin-bottom:8px;background:#fef2f2;">
+                <strong>#{{ item.ticket_id }}</strong> — {{ item.sucursal }}
+                <div style="font-size:12px;color:#6b7280;">Urgencia • {{ item.tipo }}</div>
+            </div>
+            {% else %}
+            <div style="font-size:13px;color:#9ca3af;">Sin urgencias agregadas</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% if jornada_hoy.observaciones %}<div style="margin-top:10px;font-size:13px;color:#6b7280;">{{ jornada_hoy.observaciones }}</div>{% endif %}
+</div>
+{% endif %}
+
 {% if activos %}
 <h3 style="margin:18px 0 10px;font-size:13px;text-transform:uppercase;color:#9a3412;">Activos CEYH</h3>
 <div style="display:grid;gap:10px;">
