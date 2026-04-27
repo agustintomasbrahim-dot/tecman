@@ -4239,7 +4239,9 @@ def admin_pedido_guia(ticket_id):
     else:
         retira = ""
 
-    # Items del pedido.
+    # Items del pedido vivo: original + agregados desde mantenimiento.
+    items = []
+
     cat = ticket.get("categoria_mat", "") or ""
     subitem = ticket.get("subitem_mat", "") or ""
     try:
@@ -4247,9 +4249,21 @@ def admin_pedido_guia(ticket_id):
     except (TypeError, ValueError):
         cantidad = 1
     detalle = f"{cat} - {subitem}" if (cat and subitem) else (cat or subitem or ticket.get("subcategoria", ""))
-    items = []
     if detalle:
         items.append({"cantidad": cantidad, "detalle": detalle})
+
+    for agregado in ticket.get("materiales_agregados", []) or []:
+        item_agregado = (agregado.get("item") or "").strip()
+        if not item_agregado:
+            continue
+        try:
+            cantidad_agregada = int(agregado.get("cantidad") or 1)
+        except (TypeError, ValueError):
+            cantidad_agregada = 1
+        detalle_agregado = item_agregado
+        if agregado.get("detalle"):
+            detalle_agregado += f" — {agregado.get('detalle')}"
+        items.append({"cantidad": cantidad_agregada, "detalle": detalle_agregado})
 
     return render_template(
         "guia_transporte.html",
