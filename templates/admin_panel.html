@@ -2,10 +2,15 @@
 {% block title %}Tecman - Panel{% endblock %}
 {% block nav %}
 <div class="nav">
+    {% if es_rita %}
+    <a href="{{ url_for('admin_panel', vista='dashboard') }}">Requisiciones</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Pendientes</a>
+    {% else %}
     <a href="{{ url_for('admin_panel', vista='dashboard') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
     <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
     <a href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
+    {% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
@@ -21,14 +26,14 @@
     .admin-dashboard-top p { color:#64748b; font-size:13px; margin-top:4px; }
 </style>
 
-{% if session.nombre == 'Rita' and tickets_rita_pendientes %}
+{% if es_rita %}
 <div class="card" style="border-left: 4px solid #0f766e; margin-bottom: 16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <h3 style="margin:0;font-size:15px;color:#0f766e;">🧾 Requisiciones pendientes para Rita ({{ tickets_rita_pendientes|length }})</h3>
         <a href="{{ url_for('admin_presupuestos', estado='Aprobado') }}" class="btn btn-sm" style="background:#ccfbf1;color:#0f766e;">Ver todos los aprobados</a>
     </div>
     <div style="display:grid;gap:8px;">
-        {% for t in tickets_rita_pendientes[:8] %}
+        {% for t in tickets_rita_pendientes[:20] %}
         <a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #f0fdfa;text-decoration:none;color:#0f172a;">
             <div>
                 <div style="font-weight:700;">#{{ t.id }} — {{ t.sucursal }}</div>
@@ -38,10 +43,13 @@
         </a>
         {% endfor %}
     </div>
+    {% if not tickets_rita_pendientes %}
+    <div style="padding:12px 0;color:#6b7280;">No hay requisiciones pendientes para Rita.</div>
+    {% endif %}
 </div>
 {% endif %}
 
-{% if notif_admin %}
+{% if not es_rita and notif_admin %}
 <!-- Notificaciones para admins -->
 <div class="card" style="border-left: 4px solid #2563eb; margin-bottom: 16px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -70,6 +78,7 @@
 </div>
 {% endif %}
 
+{% if not es_rita %}
 <!-- Quick access bar like InvGate -->
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
     <a href="{{ url_for('admin_panel', vista='tabla', estado='Nuevo') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">
@@ -93,8 +102,30 @@
         <div class="label">Resueltos</div>
     </a>
 </div>
+{% endif %}
 
-{% if vista == 'tarjetas' %}
+{% if es_rita %}
+<div class="card" style="padding:0;overflow:hidden;">
+    <table>
+        <thead>
+            <tr><th>#</th><th>Sucursal</th><th>Trabajo</th><th>Proveedor</th><th>Estado</th><th>Comentario</th></tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+            <tr style="cursor:pointer;" onclick="window.location='/admin/ticket/{{ t.id }}'">
+                <td style="font-weight:700;color:#0f766e;">{{ t.id }}</td>
+                <td>{{ t.sucursal }}</td>
+                <td>{{ t.subcategoria }}{% if t.zona_afectada %}<div style="font-size:11px;color:#6b7280;">{{ t.zona_afectada }}</div>{% endif %}</td>
+                <td>{{ t.proveedor_presupuesto or '-' }}</td>
+                <td><span class="badge" style="background:#d1fae5;color:#065f46;">Aprobado</span></td>
+                <td style="color:#6b7280;">{{ t.respuesta_sucursal_presupuesto or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not tickets %}<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:40px;">No hay requisiciones pendientes.</td></tr>{% endif %}
+        </tbody>
+    </table>
+</div>
+{% elif vista == 'tarjetas' %}
 <!-- CARD VIEW (like InvGate mywork) -->
 <div class="card" style="padding: 16px;">
     <form style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">

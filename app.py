@@ -1514,13 +1514,17 @@ def admin_panel():
     filtro_suc = request.args.get("sucursal", "")
     filtro_prioridad = request.args.get("prioridad", "")
 
-    filtered = tickets
-    if filtro_estado:
-        filtered = [t for t in filtered if t["estado"] == filtro_estado]
-    if filtro_suc:
-        filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
-    if filtro_prioridad:
-        filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
+    es_rita = session.get("nombre") == "Rita"
+    if es_rita:
+        filtered = [t for t in tickets if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
+    else:
+        filtered = tickets
+        if filtro_estado:
+            filtered = [t for t in filtered if t["estado"] == filtro_estado]
+        if filtro_suc:
+            filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
+        if filtro_prioridad:
+            filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
 
     stats = {
         "total": len(tickets),
@@ -1558,13 +1562,16 @@ def admin_panel():
 
     vista = request.args.get("vista", "dashboard")
     if vista == "tarjetas":
-        filtered = list(mis_asignados)
-        if filtro_estado:
-            filtered = [t for t in filtered if t["estado"] == filtro_estado]
-        if filtro_suc:
-            filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
-        if filtro_prioridad:
-            filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
+        if es_rita:
+            filtered = list(tickets_rita_pendientes)
+        else:
+            filtered = list(mis_asignados)
+            if filtro_estado:
+                filtered = [t for t in filtered if t["estado"] == filtro_estado]
+            if filtro_suc:
+                filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
+            if filtro_prioridad:
+                filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
 
     filtered.sort(key=lambda t: t["creado"], reverse=True)
 
@@ -1606,6 +1613,7 @@ def admin_panel():
         alertas=alertas,
         notif_admin=notif_admin,
         tickets_rita_pendientes=tickets_rita_pendientes,
+        es_rita=es_rita,
     )
 
 
