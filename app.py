@@ -1277,6 +1277,18 @@ def nuevo_ticket():
         categoria = request.form.get("categoria", "")
         solicitante_nombre = request.form.get("solicitante_nombre", "").strip()
         solicitante_apellido = request.form.get("solicitante_apellido", "").strip()
+        proveedor_presupuesto = request.form.get("proveedor_presupuesto", "").strip()
+        zona_afectada = request.form.get("zona_afectada", "").strip()
+
+        archivo_presupuesto_suc = ""
+        archivo_presupuesto_suc_nombre = ""
+        f_pres = request.files.get("archivo_presupuesto_suc")
+        if f_pres and f_pres.filename:
+            ext = Path(f_pres.filename).suffix.lower()
+            if ext in (".pdf", ".jpg", ".jpeg", ".png"):
+                archivo_presupuesto_suc = f"{tid}_ppto_suc_{uuid.uuid4().hex[:8]}{ext}"
+                f_pres.save(str(UPLOADS_DIR / archivo_presupuesto_suc))
+                archivo_presupuesto_suc_nombre = f_pres.filename
         ticket = {
             "id": tid,
             "sucursal": session.get("suc_nombre", request.form.get("sucursal", "")),
@@ -1300,10 +1312,25 @@ def nuevo_ticket():
             ticket["subitem_mat"] = request.form.get("subitem_mat", "").strip()
             ticket["cantidad_mat"] = request.form.get("cantidad_mat", "1").strip()
         elif categoria == "Presupuestos":
+            if not proveedor_presupuesto:
+                flash("En presupuestos, el proveedor es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            if not zona_afectada:
+                flash("En presupuestos, la zona afectada es obligatoria")
+                return redirect(url_for("nuevo_ticket"))
             ticket["estado_presupuesto"] = "Nuevo"
-            ticket["zona_afectada"] = request.form.get("zona_afectada", "").strip()
+            ticket["zona_afectada"] = zona_afectada
             ticket["respuesta_sucursal_presupuesto"] = ""
-            ticket["proveedor_presupuesto"] = request.form.get("proveedor_presupuesto", "").strip()
+            ticket["proveedor_presupuesto"] = proveedor_presupuesto
+            if archivo_presupuesto_suc:
+                ticket["presupuestos"] = [{
+                    "autor": session.get("suc_nombre", "Sucursal"),
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "detalle": request.form.get("descripcion", "").strip(),
+                    "monto": "",
+                    "archivo": archivo_presupuesto_suc,
+                    "archivo_nombre": archivo_presupuesto_suc_nombre,
+                }]
 
         tickets.append(ticket)
         save_tickets(tickets)

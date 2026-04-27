@@ -115,6 +115,7 @@
         <div class="ticket-meta-item"><div class="label">Estado presupuesto</div><div class="value">{{ ticket.estado_presupuesto or 'Nuevo' }}</div></div>
         <div class="ticket-meta-item"><div class="label">Zona afectada</div><div class="value">{{ ticket.zona_afectada or '-' }}</div></div>
         <div class="ticket-meta-item"><div class="label">Proveedor</div><div class="value">{{ ticket.proveedor_presupuesto or '-' }}</div></div>
+        <div class="ticket-meta-item"><div class="label">Rita / requisición</div><div class="value">{% if ticket.requiere_requisicion %}Pendiente de gestionar{% else %}-{% endif %}</div></div>
         {% endif %}
     </div>
 
@@ -191,6 +192,10 @@
             <div style="font-size:11px;text-transform:uppercase;color:#7c3aed;font-weight:700;">Requisición</div>
             <div style="margin-top:6px;font-size:15px;font-weight:700;color:#1f2937;">{% if ticket.requiere_requisicion %}Pendiente para Rita{% else %}No requerida{% endif %}</div>
         </div>
+        <div style="padding:12px;border:1px solid #ede9fe;border-radius:12px;background:#faf5ff;">
+            <div style="font-size:11px;text-transform:uppercase;color:#7c3aed;font-weight:700;">Último comentario a sucursal</div>
+            <div style="margin-top:6px;font-size:14px;font-weight:600;color:#1f2937;">{{ ticket.respuesta_sucursal_presupuesto or '-' }}</div>
+        </div>
     </div>
     <form method="POST" style="display:grid;gap:12px;">
         <input type="hidden" name="accion" value="estado_presupuesto">
@@ -224,6 +229,29 @@
         </div>
     </div>
     {% endif %}
+</div>
+{% endif %}
+
+{% if es_presupuesto and session.nombre == 'Rita' %}
+<div class="card" style="border-left:4px solid #0f766e;">
+    <h3 style="margin-bottom:12px;font-size:15px;color:#0f766e;">🧾 Vista operativa para Rita</h3>
+    <div style="display:grid;gap:10px;">
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Sucursal:</strong> {{ ticket.sucursal }}
+        </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Proveedor:</strong> {{ ticket.proveedor_presupuesto or '-' }}
+        </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Estado de aprobación:</strong> {{ ticket.estado_presupuesto or 'Nuevo' }}
+        </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Zona / trabajo:</strong> {{ ticket.zona_afectada or '-' }} — {{ ticket.subcategoria }}
+        </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Detalle:</strong><br>{{ ticket.descripcion }}
+        </div>
+    </div>
 </div>
 {% endif %}
 

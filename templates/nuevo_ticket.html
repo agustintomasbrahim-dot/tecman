@@ -94,13 +94,19 @@
         </div>
 
         <div id="proveedor-presupuesto-group" class="form-group" style="display:none;">
-            <label>Proveedor que envía / cotiza (opcional)</label>
-            <input type="text" name="proveedor_presupuesto" placeholder="Ej: Cortinas López / proveedor local">
+            <label>Proveedor que envía / cotiza *</label>
+            <input type="text" name="proveedor_presupuesto" id="proveedor_presupuesto" placeholder="Ej: Cortinas López / proveedor local">
         </div>
 
         <div class="form-group">
             <label id="descripcion-label">Descripcion del problema *</label>
             <textarea name="descripcion" required id="descripcion" placeholder="Describa el problema con el mayor detalle posible..."></textarea>
+        </div>
+
+        <div id="archivo-presupuesto-group" class="form-group" style="display:none;">
+            <label>Archivo del presupuesto (opcional)</label>
+            <input type="file" name="archivo_presupuesto_suc" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
+            <small style="color: #475569; display: block; margin-top: 6px;">Podés adjuntar el presupuesto que mandó el proveedor.</small>
         </div>
 
         <div class="form-group">
@@ -128,6 +134,8 @@ document.getElementById('categoria').addEventListener('change', function() {
     var provPptoGroup = document.getElementById('proveedor-presupuesto-group');
     var descLabel = document.getElementById('descripcion-label');
     var desc = document.getElementById('descripcion');
+    var provPptoInput = document.getElementById('proveedor_presupuesto');
+    var archivoPptoGroup = document.getElementById('archivo-presupuesto-group');
     if (this.value === 'Materiales') {
         subGroup.style.display = 'none';
         sub.removeAttribute('required');
@@ -136,6 +144,8 @@ document.getElementById('categoria').addEventListener('change', function() {
         zonaGroup.style.display = 'none';
         zonaInput.removeAttribute('required');
         provPptoGroup.style.display = 'none';
+        provPptoInput.removeAttribute('required');
+        archivoPptoGroup.style.display = 'none';
         descLabel.textContent = 'Descripcion del problema *';
         desc.placeholder = 'Describa el problema con el mayor detalle posible...';
     } else {
@@ -147,12 +157,16 @@ document.getElementById('categoria').addEventListener('change', function() {
             zonaGroup.style.display = 'block';
             zonaInput.setAttribute('required', 'required');
             provPptoGroup.style.display = 'block';
+            provPptoInput.setAttribute('required', 'required');
+            archivoPptoGroup.style.display = 'block';
             descLabel.textContent = 'Detalle del presupuesto *';
             desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
         } else {
             zonaGroup.style.display = 'none';
             zonaInput.removeAttribute('required');
             provPptoGroup.style.display = 'none';
+            provPptoInput.removeAttribute('required');
+            archivoPptoGroup.style.display = 'none';
             descLabel.textContent = 'Descripcion del problema *';
             desc.placeholder = 'Describa el problema con el mayor detalle posible...';
         }
