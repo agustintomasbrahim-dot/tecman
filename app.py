@@ -101,6 +101,7 @@ CATEGORIAS = {
     "Pintura": ["Interior", "Exterior", "Durlock reparación", "Otra pintura"],
     "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
     "Materiales": ["Solicitud de materiales"],
+    "Presupuestos": ["Cortinas", "Filtraciones", "Aire acondicionado", "Electricidad", "Pintura", "Plomería", "Carpintería", "Vidriería", "Matafuegos", "Habilitaciones", "Otro presupuesto"],
     "Otro": ["Otro"],
 }
 
@@ -111,7 +112,7 @@ PRIORIDADES = {
     4: "Baja",
 }
 
-ESTADOS = ["Nuevo", "Abierto", "En progreso", "Pendiente", "Resuelto", "Cerrado"]
+ESTADOS = ["Nuevo", "Abierto", "En progreso", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
 
 ADMINS = {
     "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
@@ -953,6 +954,8 @@ def save_tickets(tickets):
 
 
 def auto_priority(categoria, subcategoria):
+    if categoria == "Presupuestos":
+        return 3
     # 1 Urgente: local no puede operar
     urgentes = {"Tablero", "Persianas"}
     if subcategoria in urgentes:
@@ -1047,6 +1050,8 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
         return "Jonatan"
     if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
         return "Jonatan"
+    if categoria == "Presupuestos":
+        return ASIGNACION_DEFAULT
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
         # AA in AMBA goes to CEYH
         if suc_num not in SUCS_CORDOBA and suc_num not in SUCS_NOA and suc_num not in SUCS_MENDOZA and suc_num not in SUCS_SANJUAN:
@@ -1294,6 +1299,11 @@ def nuevo_ticket():
             ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
             ticket["subitem_mat"] = request.form.get("subitem_mat", "").strip()
             ticket["cantidad_mat"] = request.form.get("cantidad_mat", "1").strip()
+        elif categoria == "Presupuestos":
+            ticket["estado_presupuesto"] = "Nuevo"
+            ticket["zona_afectada"] = request.form.get("zona_afectada", "").strip()
+            ticket["respuesta_sucursal_presupuesto"] = ""
+            ticket["proveedor_presupuesto"] = request.form.get("proveedor_presupuesto", "").strip()
 
         tickets.append(ticket)
         save_tickets(tickets)
@@ -1503,6 +1513,8 @@ def admin_panel():
     # My work counts
     user_nombre = session.get("nombre", "")
     def _es_ticket_para_seguimiento_admin(t):
+        if t.get("categoria") == "Presupuestos":
+            return True
         suc = (t.get("sucursal") or "")
         suc_num = suc.replace("Sucursal ", "").strip()
         asignado = t.get("asignado") or ""
@@ -1819,61 +1831,18 @@ def serve_permiso(filename):
 @app.route("/admin/presupuestos", methods=["GET", "POST"])
 @login_required
 def admin_presupuestos():
-    data = load_presupuestos()
     tickets = load_tickets()
-
-    if request.method == "POST":
-        origen = request.form.get("origen", "sin_ticket").strip()
-        if origen == "con_ticket":
-            flash("Si el presupuesto nace de un ticket, debe cargarse dentro del ticket y no duplicarse acá")
-            return redirect(url_for("admin_presupuestos"))
-
-        archivo = ""
-        f = request.files.get("archivo")
-        if f and f.filename:
-            ext = Path(f.filename).suffix.lower()
-            if ext not in (".pdf", ".jpg", ".jpeg", ".png"):
-                flash("Formato no permitido")
-                return redirect(url_for("admin_presupuestos"))
-            fname = f"ppto_{uuid.uuid4().hex[:10]}{ext}"
-            f.save(str(PRESUPUESTOS_DIR / fname))
-            archivo = fname
-
-        nuevo = {
-            "id": uuid.uuid4().hex[:12],
-            "origen": origen,
-            "ticket_id": request.form.get("ticket_id", "").strip(),
-            "sucursal": request.form.get("sucursal", "").strip(),
-            "categoria": request.form.get("categoria", "").strip(),
-            "subcategoria": request.form.get("subcategoria", "").strip(),
-            "proveedor": request.form.get("proveedor", "").strip(),
-            "monto": request.form.get("monto", "").strip(),
-            "moneda": request.form.get("moneda", "ARS").strip(),
-            "descripcion": request.form.get("descripcion", "").strip(),
-            "archivo": archivo,
-            "archivo_nombre": f.filename if f and f.filename else "",
-            "estado": request.form.get("estado", "Pendiente").strip(),
-            "fecha_presupuesto": request.form.get("fecha_presupuesto", "").strip(),
-            "fecha_carga": datetime.datetime.now().isoformat(),
-            "cargado_por": session.get("nombre", ""),
-            "observacion_interna": request.form.get("observacion_interna", "").strip(),
-        }
-        data.setdefault("presupuestos", []).append(nuevo)
-        save_presupuestos(data)
-        flash("Presupuesto cargado")
-        return redirect(url_for("admin_presupuestos"))
-
-    presupuestos = list(data.get("presupuestos", []))
+    presupuesto_tickets = [t for t in tickets if t.get("categoria") == "Presupuestos"]
     filtro_suc = request.args.get("sucursal", "").strip()
     filtro_estado = request.args.get("estado", "").strip()
+
     if filtro_suc:
-        presupuestos = [p for p in presupuestos if p.get("sucursal") == filtro_suc]
+        presupuesto_tickets = [t for t in presupuesto_tickets if t.get("sucursal") == filtro_suc]
     if filtro_estado:
-        presupuestos = [p for p in presupuestos if p.get("estado") == filtro_estado]
-    presupuestos.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
-    tickets_con_presupuesto = [t for t in tickets if t.get("presupuestos")]
-    tickets_con_presupuesto.sort(key=lambda x: x.get("actualizado", ""), reverse=True)
-    return render_template("admin_presupuestos.html", presupuestos=presupuestos, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado, tickets_con_presupuesto=tickets_con_presupuesto)
+        presupuesto_tickets = [t for t in presupuesto_tickets if (t.get("estado_presupuesto") or "Nuevo") == filtro_estado]
+
+    presupuesto_tickets.sort(key=lambda x: x.get("actualizado", ""), reverse=True)
+    return render_template("admin_presupuestos.html", presupuestos=presupuesto_tickets, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado)
 
 
 @app.route("/uploads/presupuestos/<filename>")
@@ -1920,11 +1889,51 @@ def admin_ticket(ticket_id):
                 "leida": False,
             })
             ticket["estado_respuesta"] = label
+            if ticket.get("categoria") == "Presupuestos":
+                ticket["respuesta_sucursal_presupuesto"] = mensaje
             if ticket["estado"] in ("Nuevo", "Abierto"):
                 ticket["estado"] = "Pendiente"
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             flash("Respuesta enviada a la sucursal")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+        if accion == "estado_presupuesto":
+            nuevo_estado = request.form.get("nuevo_estado_presupuesto", "").strip() or "Nuevo"
+            comentario = request.form.get("comentario_presupuesto", "").strip()
+            ticket["estado_presupuesto"] = nuevo_estado
+            ticket["estado"] = "Pendiente" if nuevo_estado == "Nuevo" else nuevo_estado
+            if nuevo_estado == "Aprobado":
+                ticket["requiere_requisicion"] = True
+                ticket["asignado_rita"] = True
+                ticket.setdefault("notificaciones", []).append({
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": "Presupuesto aprobado. El proveedor puede avanzar.",
+                    "leida": False,
+                })
+            elif nuevo_estado == "Rechazado":
+                ticket["requiere_requisicion"] = False
+            if comentario:
+                ticket.setdefault("notas", []).append({
+                    "autor": session.get("nombre", "Admin"),
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Presupuesto {nuevo_estado}: {comentario}",
+                })
+                ticket.setdefault("notificaciones", []).append({
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": comentario,
+                    "leida": False,
+                })
+                ticket["respuesta_sucursal_presupuesto"] = comentario
+            else:
+                ticket.setdefault("notas", []).append({
+                    "autor": session.get("nombre", "Admin"),
+                    "fecha": datetime.datetime.now().isoformat(),
+                    "texto": f"Estado de presupuesto actualizado a {nuevo_estado}",
+                })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Estado del presupuesto actualizado")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         if accion == "derivar_equipo_desde_ceyh":
@@ -1992,6 +2001,7 @@ def admin_ticket(ticket_id):
         prioridades=PRIORIDADES,
         puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",
         es_ceyh=es_ticket_ceyh(ticket),
+        es_presupuesto=(ticket.get("categoria") == "Presupuestos"),
     )
 
 

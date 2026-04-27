@@ -88,9 +88,19 @@
             </div>
         </div>
 
+        <div id="zona-afectada-group" class="form-group" style="display:none;">
+            <label>Zona del local afectada *</label>
+            <input type="text" name="zona_afectada" id="zona_afectada" placeholder="Ej: ingreso, salón principal, depósito, caja 2">
+        </div>
+
+        <div id="proveedor-presupuesto-group" class="form-group" style="display:none;">
+            <label>Proveedor que envía / cotiza (opcional)</label>
+            <input type="text" name="proveedor_presupuesto" placeholder="Ej: Cortinas López / proveedor local">
+        </div>
+
         <div class="form-group">
-            <label>Descripcion del problema *</label>
-            <textarea name="descripcion" required placeholder="Describa el problema con el mayor detalle posible..."></textarea>
+            <label id="descripcion-label">Descripcion del problema *</label>
+            <textarea name="descripcion" required id="descripcion" placeholder="Describa el problema con el mayor detalle posible..."></textarea>
         </div>
 
         <div class="form-group">
@@ -113,16 +123,39 @@ document.getElementById('categoria').addEventListener('change', function() {
     var sub = document.getElementById('subcategoria');
     var subGroup = document.getElementById('subcategoria-group');
     var matGroup = document.getElementById('mat-group');
+    var zonaGroup = document.getElementById('zona-afectada-group');
+    var zonaInput = document.getElementById('zona_afectada');
+    var provPptoGroup = document.getElementById('proveedor-presupuesto-group');
+    var descLabel = document.getElementById('descripcion-label');
+    var desc = document.getElementById('descripcion');
     if (this.value === 'Materiales') {
         subGroup.style.display = 'none';
         sub.removeAttribute('required');
         sub.innerHTML = '<option value="Solicitud de materiales" selected>Solicitud de materiales</option>';
         matGroup.style.display = 'block';
+        zonaGroup.style.display = 'none';
+        zonaInput.removeAttribute('required');
+        provPptoGroup.style.display = 'none';
+        descLabel.textContent = 'Descripcion del problema *';
+        desc.placeholder = 'Describa el problema con el mayor detalle posible...';
     } else {
         subGroup.style.display = 'block';
         sub.setAttribute('required', 'required');
         sub.innerHTML = '<option value="">Seleccionar...</option>';
         matGroup.style.display = 'none';
+        if (this.value === 'Presupuestos') {
+            zonaGroup.style.display = 'block';
+            zonaInput.setAttribute('required', 'required');
+            provPptoGroup.style.display = 'block';
+            descLabel.textContent = 'Detalle del presupuesto *';
+            desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
+        } else {
+            zonaGroup.style.display = 'none';
+            zonaInput.removeAttribute('required');
+            provPptoGroup.style.display = 'none';
+            descLabel.textContent = 'Descripcion del problema *';
+            desc.placeholder = 'Describa el problema con el mayor detalle posible...';
+        }
     }
     var subs = categorias[this.value] || [];
     if (this.value !== 'Materiales') {
