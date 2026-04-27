@@ -296,6 +296,7 @@
     </form>
 </div>
 
+{% if session.nombre != 'Rita' %}
 <!-- Respuesta rapida a sucursal -->
 <div class="card" style="border-left: 4px solid #2563eb;">
     <h3 style="margin-bottom: 12px; font-size: 15px;">💬 Responder a la sucursal</h3>
@@ -359,5 +360,11 @@
         <button type="submit" class="btn btn-primary btn-block">Guardar cambios</button>
     </form>
 </div>
+{% else %}
+<div class="card" style="border-left:4px solid #0f766e;">
+    <h3 style="margin-bottom:12px;color:#0f766e;">✅ Acción de Rita</h3>
+    <p style="color:#475569;font-size:14px;margin:0;">Acá solo tiene que revisar la información y <strong>armar la requisición</strong>.</p>
+</div>
+{% endif %}
 {% endblock %}
 </div>
