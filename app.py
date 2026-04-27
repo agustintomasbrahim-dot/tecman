@@ -1528,10 +1528,8 @@ def admin_panel():
 
     stats = {
         "total": len(tickets),
-        "nuevos": sum(1 for t in tickets if t["estado"] == "Nuevo"),
-        "abiertos": sum(1 for t in tickets if t["estado"] == "Abierto"),
-        "en_progreso": sum(1 for t in tickets if t["estado"] == "En progreso"),
-        "pendientes": sum(1 for t in tickets if t["estado"] == "Pendiente"),
+        "nuevos": sum(1 for t in tickets if t["estado"] in ("Nuevo", "Abierto")),
+        "en_progreso": sum(1 for t in tickets if t["estado"] in ("En progreso", "Pendiente")),
         "resueltos": sum(1 for t in tickets if t["estado"] == "Resuelto"),
     }
 

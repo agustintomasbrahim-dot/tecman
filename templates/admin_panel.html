@@ -85,17 +85,9 @@
         <div class="number" style="color: #dc2626;">{{ stats.nuevos }}</div>
         <div class="label">Nuevos</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tabla', estado='Abierto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
-        <div class="number" style="color: #b45309;">{{ stats.abiertos }}</div>
-        <div class="label">Abiertos</div>
-    </a>
     <a href="{{ url_for('admin_panel', vista='tabla', estado='En progreso') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
         <div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div>
         <div class="label">En progreso</div>
-    </a>
-    <a href="{{ url_for('admin_panel', vista='tabla', estado='Pendiente') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
-        <div class="number" style="color: #d97706;">{{ stats.pendientes }}</div>
-        <div class="label">Pendientes</div>
     </a>
     <a href="{{ url_for('admin_panel', vista='tabla', estado='Resuelto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #059669;">{{ stats.resueltos }}</div>
@@ -320,9 +312,8 @@
         <div class="label">Total de solicitudes</div>
     </div>
     <div class="stat-card"><div class="number" style="color: #0ea5e9;">{{ stats.nuevos }}</div><div class="label">Nuevos</div></div>
-    <div class="stat-card"><div class="number" style="color: #b45309;">{{ stats.abiertos }}</div><div class="label">Abiertos</div></div>
     <div class="stat-card"><div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div><div class="label">En progreso</div></div>
-    <div class="stat-card"><div class="number" style="color: #d97706;">{{ stats.pendientes }}</div><div class="label">Pendientes</div></div>
+    <div class="stat-card"><div class="number" style="color: #10b981;">{{ stats.resueltos }}</div><div class="label">Resueltos</div></div>
 </div>
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
