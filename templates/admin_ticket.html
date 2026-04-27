@@ -98,9 +98,14 @@
     <div class="ticket-hero-top">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
         <h2>Ticket #{{ ticket.id }}</h2>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap:wrap;">
             <span class="badge badge-p{{ ticket.prioridad }}">{{ prioridades[ticket.prioridad] }}</span>
             <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+            {% if es_presupuesto %}
+                {% set ep = ticket.estado_presupuesto or 'Nuevo' %}
+                <span class="badge" style="background:{% if ep == 'Aprobado' %}#d1fae5{% elif ep == 'Pendiente' %}#fef3c7{% elif ep == 'Rechazado' %}#fee2e2{% else %}#e5e7eb{% endif %};color:{% if ep == 'Aprobado' %}#065f46{% elif ep == 'Pendiente' %}#b45309{% elif ep == 'Rechazado' %}#b91c1c{% else %}#475569{% endif %};">Presupuesto {{ ep }}</span>
+                {% if ticket.requiere_requisicion %}<span class="badge" style="background:#ccfbf1;color:#0f766e;">Rita pendiente</span>{% endif %}
+            {% endif %}
         </div>
     </div>
 
@@ -235,22 +240,30 @@
 {% if es_presupuesto and session.nombre == 'Rita' %}
 <div class="card" style="border-left:4px solid #0f766e;">
     <h3 style="margin-bottom:12px;font-size:15px;color:#0f766e;">🧾 Vista operativa para Rita</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;"><strong>Sucursal:</strong><div style="margin-top:6px;font-weight:700;">{{ ticket.sucursal }}</div></div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;"><strong>Proveedor:</strong><div style="margin-top:6px;font-weight:700;">{{ ticket.proveedor_presupuesto or '-' }}</div></div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;"><strong>Estado de aprobación:</strong><div style="margin-top:6px;font-weight:700;">{{ ticket.estado_presupuesto or 'Nuevo' }}</div></div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;"><strong>Zona / trabajo:</strong><div style="margin-top:6px;font-weight:700;">{{ ticket.zona_afectada or '-' }} — {{ ticket.subcategoria }}</div></div>
+    </div>
     <div style="display:grid;gap:10px;">
-        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
-            <strong>Sucursal:</strong> {{ ticket.sucursal }}
-        </div>
-        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
-            <strong>Proveedor:</strong> {{ ticket.proveedor_presupuesto or '-' }}
-        </div>
-        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
-            <strong>Estado de aprobación:</strong> {{ ticket.estado_presupuesto or 'Nuevo' }}
-        </div>
-        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
-            <strong>Zona / trabajo:</strong> {{ ticket.zona_afectada or '-' }} — {{ ticket.subcategoria }}
-        </div>
         <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
             <strong>Detalle:</strong><br>{{ ticket.descripcion }}
         </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Última indicación / comentario:</strong><br>{{ ticket.respuesta_sucursal_presupuesto or 'Sin comentario todavía' }}
+        </div>
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Acción esperada:</strong><br>{% if ticket.requiere_requisicion %}Armar requisición con este presupuesto aprobado.{% else %}Esperar aprobación o definición del admin.{% endif %}
+        </div>
+        {% if ticket.presupuestos %}
+        <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
+            <strong>Archivo para usar en requisición:</strong><br>
+            {% for p in ticket.presupuestos %}
+                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver adjunto' }}</a></div>{% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endif %}
