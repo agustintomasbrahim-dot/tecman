@@ -9,10 +9,22 @@
 </div>
 {% endblock %}
 {% block content %}
+<style>
+    .ceyh-grid { display:grid; gap:16px; }
+    .ceyh-top { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+    .ceyh-top p { color:#64748b; font-size:13px; margin-top:4px; }
+    .ceyh-section-title { margin:0 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; }
+    .ceyh-mini-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+    .ceyh-mini-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 8px 22px rgba(15,23,42,.04); }
+    .ceyh-mini-card ul { margin:0; padding-left:18px; color:#475569; font-size:13px; line-height:1.6; }
+    .ceyh-kpi-note { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .ceyh-kpi-pill { padding:8px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+</style>
+<div class="ceyh-grid">
 <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
     <div>
         <h2 style="color:#ea580c;">CEYH</h2>
-        <p style="color:#64748b;font-size:13px;">Control operativo de tickets CEYH y derivados a personal propio</p>
+        <p style="color:#64748b;font-size:13px;">Una vista simple para saber qué está pendiente, qué materiales faltan y qué ya salió a la calle.</p>
     </div>
 </div>
 
@@ -26,8 +38,28 @@
     <div class="stat-card"><div class="number" style="color:#b91c1c;">{{ demorados|length }}</div><div class="label">Demorados</div></div>
 </div>
 
+<div class="ceyh-mini-grid">
+    <div class="ceyh-mini-card">
+        <h3 class="ceyh-section-title">Qué mirar primero</h3>
+        <ul>
+            <li><strong>Esperando materiales:</strong> trabajos que todavía no pueden salir.</li>
+            <li><strong>Listos para retirar:</strong> CEYH ya podría pasar por Central.</li>
+            <li><strong>En ruta:</strong> tickets que están en movimiento hoy.</li>
+        </ul>
+    </div>
+    <div class="ceyh-mini-card">
+        <h3 class="ceyh-section-title">Prioridades del día</h3>
+        <div class="ceyh-kpi-note">
+            <span class="ceyh-kpi-pill" style="background:#fef2f2;color:#b91c1c;">{{ esperando_materiales|length }} esperando materiales</span>
+            <span class="ceyh-kpi-pill" style="background:#eff6ff;color:#1d4ed8;">{{ listos_retiro|length }} listos para retirar</span>
+            <span class="ceyh-kpi-pill" style="background:#f5f3ff;color:#7c3aed;">{{ en_ruta|length }} en ruta</span>
+        </div>
+    </div>
+</div>
+
 <div class="card" style="margin-top:16px;border-left:4px solid #1d4ed8;">
-    <h3 style="margin-bottom:12px;font-size:15px;color:#1d4ed8;">Retiros Dabra Central</h3>
+    <h3 style="margin-bottom:6px;font-size:15px;color:#1d4ed8;">Preparar retiro en Dabra Central</h3>
+    <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">Usá este bloque cuando Central deja materiales listos para que CEYH los retire.</p>
     <form method="POST" action="{{ url_for('admin_ceyh_retiro') }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
             <div class="form-group" style="margin-bottom:0;"><label>Ticket CEYH</label><select name="ticket_id" required><option value="">Seleccionar...</option>{% for t in activos %}<option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal }} — {{ t.subcategoria }}</option>{% endfor %}</select></div>
@@ -44,7 +76,8 @@
 </div>
 
 <div class="card" style="margin-top:16px;border-left:4px solid #7c3aed;">
-    <h3 style="margin-bottom:12px;font-size:15px;color:#7c3aed;">Ruta / jornada CEYH</h3>
+    <h3 style="margin-bottom:6px;font-size:15px;color:#7c3aed;">Armar jornada / ruta del día</h3>
+    <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">Acá definís qué trabajos estaban planificados y qué urgencias se sumaron sobre la marcha.</p>
     <form method="POST" action="{{ url_for('admin_ceyh_jornada') }}">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
             <div class="form-group" style="margin-bottom:0;"><label>Fecha</label><input type="date" name="fecha" value="{{ (jornada_hoy.fecha if jornada_hoy else '') or '' }}"></div>
@@ -106,7 +139,7 @@
 {% endif %}
 
 {% if activos %}
-<h3 style="margin:18px 0 10px;font-size:13px;text-transform:uppercase;color:#9a3412;">Activos CEYH</h3>
+<h3 style="margin:18px 0 10px;font-size:13px;text-transform:uppercase;color:#9a3412;">Trabajos CEYH activos</h3>
 <div style="display:grid;gap:10px;">
 {% for t in activos %}
 <a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="text-decoration:none;">
@@ -119,12 +152,12 @@
         <div style="margin-top:4px;color:#64748b;font-size:13px;">{{ t.categoria }}{% if t.subcategoria %} » {{ t.subcategoria }}{% endif %}</div>
         <div style="margin-top:4px;color:#64748b;font-size:12px;">{{ t.descripcion[:110] }}{% if t.descripcion|length > 110 %}...{% endif %}</div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-            <span class="badge" style="background:#fff7ed;color:#9a3412;">Operativo: {{ t.estado_operativo_ceyh }}</span>
+            <span class="badge" style="background:#fff7ed;color:#9a3412;">Trabajo: {{ t.estado_operativo_ceyh }}</span>
             <span class="badge" style="background:#eff6ff;color:#1d4ed8;">Materiales: {{ t.estado_materiales }}</span>
             <span class="badge" style="background:#f5f3ff;color:#7c3aed;">Retiro: {{ t.estado_retiro }}</span>
         </div>
         {% if t.proxima_accion or t.fecha_objetivo %}
-        <div style="margin-top:6px;font-size:12px;color:#6b7280;">Próxima acción: {{ t.proxima_accion or '-' }} {% if t.fecha_objetivo %}• objetivo {{ t.fecha_objetivo }}{% endif %}</div>
+        <div style="margin-top:6px;font-size:12px;color:#6b7280;">Siguiente paso: {{ t.proxima_accion or '-' }} {% if t.fecha_objetivo %}• objetivo {{ t.fecha_objetivo }}{% endif %}</div>
         {% endif %}
     </div>
 </a>
@@ -154,7 +187,7 @@
 {% endif %}
 
 {% if derivados %}
-<h3 style="margin:20px 0 10px;font-size:13px;text-transform:uppercase;color:#ea580c;">Derivados a personal propio</h3>
+<h3 style="margin:20px 0 10px;font-size:13px;text-transform:uppercase;color:#ea580c;">Pasados a personal propio</h3>
 <div class="card" style="padding:0;overflow:hidden;">
     <table>
         <thead><tr><th>#</th><th>Sucursal</th><th>Estado</th><th>Actualizado</th></tr></thead>
@@ -190,4 +223,5 @@
     </table>
 </div>
 {% endif %}
+</div>
 {% endblock %}
