@@ -204,7 +204,7 @@
 </div>
 {% endif %}
 
-{% if es_presupuesto %}
+{% if es_presupuesto and session.nombre != 'Rita' %}
 <div class="card" style="border-left:4px solid #7c3aed;">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #6d28d9;">💸 Gestión de presupuesto</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
@@ -279,7 +279,7 @@
         <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
             <strong>Archivo para usar en requisición:</strong><br>
             {% for p in ticket.presupuestos %}
-                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver adjunto' }}</a></div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;"><a href="/static/uploads/{{ p.archivo }}" target="_blank" class="btn btn-sm" style="background:#0f766e;color:white;text-decoration:none;">Descargar presupuesto</a><span style="font-size:12px;color:#475569;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</span></div>{% endif %}
             {% endfor %}
         </div>
         {% endif %}
