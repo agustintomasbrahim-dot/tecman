@@ -1554,6 +1554,7 @@ def admin_panel():
     mis_esperando = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
     mis_asignados = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
     sin_asignar = [t for t in tickets if not t.get("asignado") or t.get("asignado") == ""]
+    tickets_rita_pendientes = [t for t in tickets if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
 
     vista = request.args.get("vista", "dashboard")
     if vista == "tarjetas":
@@ -1604,6 +1605,7 @@ def admin_panel():
         vista=vista,
         alertas=alertas,
         notif_admin=notif_admin,
+        tickets_rita_pendientes=tickets_rita_pendientes,
     )
 
 

@@ -220,7 +220,15 @@
                 <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
                 <td>{{ t.subcategoria }}{% if t.categoria == 'Presupuestos' and t.zona_afectada %}<div style="font-size:12px;color:#6b7280;">Zona: {{ t.zona_afectada }}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
                 <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
-                <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
+                <td>
+                    <span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span>
+                    {% if t.categoria == 'Presupuestos' %}
+                    {% set ep = t.estado_presupuesto or 'Nuevo' %}
+                    <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                        <span class="badge" style="background:{% if ep == 'Aprobado' %}#d1fae5{% elif ep == 'Pendiente' %}#fef3c7{% elif ep == 'Rechazado' %}#fee2e2{% else %}#e5e7eb{% endif %};color:{% if ep == 'Aprobado' %}#065f46{% elif ep == 'Pendiente' %}#b45309{% elif ep == 'Rechazado' %}#b91c1c{% else %}#475569{% endif %};font-size:10px;">Presupuesto {{ ep }}</span>
+                    </div>
+                    {% endif %}
+                </td>
                 <td style="color: #6b7280;">{{ t.creado[:10] }}</td>
             </tr>
             {% endfor %}

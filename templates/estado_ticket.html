@@ -25,7 +25,19 @@
         <div><span style="color: #6b7280;">Prioridad:</span> <span class="badge badge-p{{ ticket.prioridad }}">{{ prioridades[ticket.prioridad] }}</span></div>
         <div><span style="color: #6b7280;">Creado:</span> {{ ticket.creado[:10] }}</div>
         <div><span style="color: #6b7280;">Actualizado:</span> {{ ticket.actualizado[:10] }}</div>
+        {% if ticket.categoria == 'Presupuestos' %}
+        <div><span style="color: #6b7280;">Zona afectada:</span> <strong>{{ ticket.zona_afectada or '-' }}</strong></div>
+        <div><span style="color: #6b7280;">Proveedor:</span> <strong>{{ ticket.proveedor_presupuesto or '-' }}</strong></div>
+        {% endif %}
     </div>
+
+    {% if ticket.categoria == 'Presupuestos' %}
+    {% set ep = ticket.estado_presupuesto or 'Nuevo' %}
+    <div style="margin-top:12px; background:{% if ep == 'Aprobado' %}#ecfdf5{% elif ep == 'Pendiente' %}#fffbeb{% elif ep == 'Rechazado' %}#fef2f2{% else %}#f8fafc{% endif %}; border:1px solid {% if ep == 'Aprobado' %}#a7f3d0{% elif ep == 'Pendiente' %}#fde68a{% elif ep == 'Rechazado' %}#fecaca{% else %}#e5e7eb{% endif %}; border-radius:8px; padding:12px;">
+        <div style="font-weight:700; color:{% if ep == 'Aprobado' %}#065f46{% elif ep == 'Pendiente' %}#b45309{% elif ep == 'Rechazado' %}#b91c1c{% else %}#475569{% endif %};">Estado del presupuesto: {{ ep }}</div>
+        <div style="font-size:13px; color:#475569; margin-top:4px;">{{ ticket.respuesta_sucursal_presupuesto or 'Todavía no hay comentarios del área administrativa.' }}</div>
+    </div>
+    {% endif %}
 
     {% if ticket.fecha_visita is defined and ticket.fecha_visita %}
     <div style="margin-top: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px;">
@@ -42,6 +54,17 @@
         {% for foto in ticket.fotos %}
         <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
         {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if ticket.categoria == 'Presupuestos' and ticket.presupuestos %}
+    <div style="margin-top:12px; padding:12px; border:1px solid #e5e7eb; border-radius:8px; background:#f8fafc;">
+        <strong style="color:#334155;">Archivo/s del presupuesto</strong>
+        <div style="margin-top:8px; display:grid; gap:6px;">
+            {% for p in ticket.presupuestos %}
+                {% if p.archivo %}<a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver archivo adjunto' }}</a>{% endif %}
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 </div>
