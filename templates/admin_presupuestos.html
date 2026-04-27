@@ -11,16 +11,24 @@
 <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
     <div>
         <h2 style="margin:0;">Presupuestos</h2>
-        <p style="font-size:13px;color:#6b7280;margin-top:4px;">Unificados, con o sin ticket, y con historial por sucursal</p>
+        <p style="font-size:13px;color:#6b7280;margin-top:4px;">Acá van los presupuestos sin ticket. Los que nacen de tickets siguen dentro del ticket y se consultan abajo.</p>
     </div>
 </div>
 
+<div class="card" style="margin-bottom:16px;border-left:4px solid #2563eb;">
+    <h3 style="margin-bottom:8px;color:#1d4ed8;font-size:15px;">Cómo funciona ahora</h3>
+    <ul style="margin:0;padding-left:18px;color:#475569;font-size:13px;line-height:1.6;">
+        <li><strong>Con ticket:</strong> el presupuesto se carga y vive dentro del ticket.</li>
+        <li><strong>Sin ticket:</strong> se carga en este módulo como presupuesto independiente.</li>
+        <li>Este panel consolida ambos mundos sin obligarte a duplicar información.</li>
+    </ul>
+</div>
+
 <div class="card" style="margin-bottom:16px;">
-    <h3 style="margin-bottom:12px;">Cargar presupuesto</h3>
+    <h3 style="margin-bottom:12px;">Cargar presupuesto sin ticket</h3>
     <form method="POST" enctype="multipart/form-data">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-            <div class="form-group" style="margin-bottom:0;"><label>Origen</label><select name="origen"><option value="sin_ticket">Sin ticket</option><option value="con_ticket">Desde ticket</option></select></div>
-            <div class="form-group" style="margin-bottom:0;"><label>Ticket (opcional)</label><select name="ticket_id"><option value="">Sin ticket...</option>{% for t in tickets[:300] %}<option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal }} — {{ t.subcategoria }}</option>{% endfor %}</select></div>
+            <input type="hidden" name="origen" value="sin_ticket">
             <div class="form-group" style="margin-bottom:0;"><label>Sucursal</label><select name="sucursal" required><option value="">Seleccionar...</option>{% for s in sucursales %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></div>
             <div class="form-group" style="margin-bottom:0;"><label>Categoría</label><input type="text" name="categoria" placeholder="Mantenimiento / S&H / Habilitaciones"></div>
             <div class="form-group" style="margin-bottom:0;"><label>Subcategoría</label><input type="text" name="subcategoria" placeholder="AA / Matafuegos / Local"></div>
@@ -35,6 +43,25 @@
         <div class="form-group"><label>Observación interna</label><input type="text" name="observacion_interna"></div>
         <button type="submit" class="btn btn-primary">Guardar presupuesto</button>
     </form>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-bottom:12px;">Presupuestos cargados dentro de tickets</h3>
+    <div style="display:grid;gap:10px;">
+        {% for t in tickets_con_presupuesto[:20] %}
+        <a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="text-decoration:none;">
+            <div style="padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <div style="font-weight:700;color:#0f172a;">Ticket #{{ t.id }} — {{ t.sucursal }}</div>
+                    <span class="badge" style="background:#dbeafe;color:#1d4ed8;">{{ t.presupuestos|length }} presupuesto{{ 's' if t.presupuestos|length != 1 }}</span>
+                </div>
+                <div style="margin-top:6px;color:#6b7280;font-size:13px;">{{ t.subcategoria }} • {{ t.actualizado[:10] }}</div>
+            </div>
+        </a>
+        {% else %}
+        <div style="padding:16px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:13px;">Todavía no hay tickets con presupuestos cargados.</div>
+        {% endfor %}
+    </div>
 </div>
 
 <div class="card" style="margin-bottom:16px;">

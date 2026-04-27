@@ -1804,6 +1804,11 @@ def admin_presupuestos():
     tickets = load_tickets()
 
     if request.method == "POST":
+        origen = request.form.get("origen", "sin_ticket").strip()
+        if origen == "con_ticket":
+            flash("Si el presupuesto nace de un ticket, debe cargarse dentro del ticket y no duplicarse acá")
+            return redirect(url_for("admin_presupuestos"))
+
         archivo = ""
         f = request.files.get("archivo")
         if f and f.filename:
@@ -1817,7 +1822,7 @@ def admin_presupuestos():
 
         nuevo = {
             "id": uuid.uuid4().hex[:12],
-            "origen": request.form.get("origen", "sin_ticket").strip(),
+            "origen": origen,
             "ticket_id": request.form.get("ticket_id", "").strip(),
             "sucursal": request.form.get("sucursal", "").strip(),
             "categoria": request.form.get("categoria", "").strip(),
@@ -1847,7 +1852,9 @@ def admin_presupuestos():
     if filtro_estado:
         presupuestos = [p for p in presupuestos if p.get("estado") == filtro_estado]
     presupuestos.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
-    return render_template("admin_presupuestos.html", presupuestos=presupuestos, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado)
+    tickets_con_presupuesto = [t for t in tickets if t.get("presupuestos")]
+    tickets_con_presupuesto.sort(key=lambda x: x.get("actualizado", ""), reverse=True)
+    return render_template("admin_presupuestos.html", presupuestos=presupuestos, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado, tickets_con_presupuesto=tickets_con_presupuesto)
 
 
 @app.route("/uploads/presupuestos/<filename>")
