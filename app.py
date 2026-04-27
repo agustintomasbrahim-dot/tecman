@@ -1609,6 +1609,25 @@ def admin_ceyh():
     )
 
 
+@app.route("/admin/ceyh/jornada/<jid>/modificar", methods=["POST"])
+@admin_required
+def admin_ceyh_jornada_modificar(jid):
+    data = load_ceyh_jornadas()
+    jornada = next((j for j in data.get("jornadas", []) if j.get("id") == jid), None)
+    if not jornada:
+        flash("Jornada no encontrada")
+        return redirect(url_for("admin_ceyh"))
+
+    jornada["camioneta"] = request.form.get("camioneta", jornada.get("camioneta", "")).strip()
+    jornada["cuadrilla"] = request.form.get("cuadrilla", jornada.get("cuadrilla", "")).strip()
+    jornada["observaciones"] = request.form.get("observaciones", jornada.get("observaciones", "")).strip()
+    jornada["cambio_ruta"] = request.form.get("cambio_ruta", "").strip()
+    jornada["updated_at"] = datetime.datetime.now().isoformat()
+    save_ceyh_jornadas(data)
+    flash("Ruta / jornada actualizada")
+    return redirect(url_for("admin_ceyh"))
+
+
 @app.route("/admin/ceyh/retiro", methods=["POST"])
 @admin_required
 def admin_ceyh_retiro():
@@ -2114,6 +2133,7 @@ def prov_logout():
 def prov_panel():
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
+    jornadas_hoy = []
     mis_tickets = [t for t in tickets if t.get("asignado") == prov_nombre and t["estado"] not in ("Cerrado",)]
     pendientes_todo = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
     trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
@@ -2135,6 +2155,9 @@ def prov_panel():
             if r.get("estado") in ("Listo para retirar", "Retirado por CEYH"):
                 retiros_ceyh.append(r)
         retiros_ceyh.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        jornadas = load_ceyh_jornadas().get("jornadas", [])
+        hoy = datetime.date.today().isoformat()
+        jornadas_hoy = [j for j in jornadas if j.get("fecha") == hoy]
 
     return render_template(
         "prov_panel.html",
@@ -2144,6 +2167,7 @@ def prov_panel():
         prioridades=PRIORIDADES,
         notificaciones=notif_prov,
         retiros_ceyh=retiros_ceyh,
+        jornadas_hoy=jornadas_hoy,
     )
 
 
@@ -2379,6 +2403,15 @@ def prov_ticket(ticket_id):
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": f"Registró sobrante de materiales: {destino}" + (f" - {detalle}" if detalle else ""),
                 })
+        elif accion == "trabajo_continua_manana":
+            motivo = request.form.get("motivo_continua", "").strip() or "Falta de materiales"
+            ticket["etapa_prov"] = "continua_manana"
+            ticket["estado"] = "Pendiente"
+            ticket.setdefault("notas", []).append({
+                "autor": prov_nombre,
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Trabajo no terminado. Continúa al día siguiente: {motivo}",
+            })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()
         save_tickets(tickets)

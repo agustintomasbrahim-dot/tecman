@@ -6,6 +6,19 @@
     <a href="{{ url_for('index') }}">Inicio</a>
     <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
 </div>
+
+{% if session.prov_nombre == 'CEYH' and jornadas_hoy %}
+<div class="card" style="margin-bottom:16px;border-left:4px solid #7c3aed;">
+    <h3 style="margin-bottom:10px;font-size:14px;color:#7c3aed;">📍 Planificación del día</h3>
+    {% for j in jornadas_hoy %}
+    <div style="padding:10px 0;{% if not loop.last %}border-bottom:1px solid #f3f4f6;{% endif %}">
+        <div style="font-weight:700;color:#1a1a2e;">{{ j.camioneta or 'Sin camioneta' }} / {{ j.cuadrilla or 'Sin cuadrilla' }}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px;">Planificados: {{ j.planificados|length }} • Urgencias: {{ j.urgencias|length }}</div>
+        {% if j.cambio_ruta %}<div style="font-size:12px;color:#b45309;margin-top:4px;">Cambio de ruta: {{ j.cambio_ruta }}</div>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
 {% block content %}
 

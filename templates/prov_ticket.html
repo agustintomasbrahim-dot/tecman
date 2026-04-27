@@ -23,6 +23,9 @@
 {% if etapa == 'esperando_presupuesto' %}
 {% set etapas = [('pendiente','Pendiente','#64748b'), ('recibido','Recibido','#0ea5e9'), ('planificado','Planificado','#a78bfa'), ('relevado','Relevado','#f59e0b'), ('esperando_presupuesto','Esperando Ppto','#f59e0b'), ('hecho','Hecho','#10b981')] %}
 {% endif %}
+{% if etapa == 'continua_manana' %}
+{% set etapas = [('pendiente','Pendiente','#64748b'), ('recibido','Recibido','#0ea5e9'), ('planificado','Planificado','#a78bfa'), ('relevado','Relevado','#f59e0b'), ('continua_manana','Continúa mañana','#b45309'), ('hecho','Hecho','#10b981')] %}
+{% endif %}
 
 <!-- Progress bar -->
 <div class="card" style="padding: 20px;">
@@ -174,6 +177,21 @@
         <div class="card" style="padding: 12px; border-left: 4px solid #1a1a2e; margin: 0;">
             <p style="font-weight: 600; color: #1a1a2e;">&#128296; En progreso</p>
         </div>
+        <form method="POST"><input type="hidden" name="accion" value="trabajo_continua_manana"><input type="hidden" name="motivo_continua" value="Falta de materiales">
+            <button type="submit" class="btn btn-block" style="background: #b45309; color: white; padding: 14px;">⏭️ No terminado por falta de materiales — continúa mañana</button>
+        </form>
+        <form method="POST"><input type="hidden" name="accion" value="hecho">
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
+        </form>
+    </div>
+    {% elif etapa == 'continua_manana' %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="card" style="padding: 12px; border-left: 4px solid #b45309; margin: 0;">
+            <p style="font-weight: 600; color: #b45309;">⏭️ Trabajo no terminado — continúa al día siguiente</p>
+        </div>
+        <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">Retomar trabajo</button>
+        </form>
         <form method="POST"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
