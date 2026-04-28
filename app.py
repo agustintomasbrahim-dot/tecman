@@ -968,7 +968,7 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 def _seed_data_dir():
     """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
     repo_data = Path(__file__).parent / "data"
-    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json", "habilitaciones.json"]:
+    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json", "habilitaciones.json", "matafuegos.json", "syh.json", "permisos.json", "alertas_syh.json"]:
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
