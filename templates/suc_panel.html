@@ -49,11 +49,11 @@
             <div class="suc-mini-value">{{ habilitaciones_suc|length if habilitaciones_suc else 0 }}</div>
             <div style="font-size:12px;color:#6b7280;margin-top:4px;">Documentación y vigencias</div>
         </div>
-        <div class="suc-mini-card">
+        <a href="{{ url_for('suc_matafuegos') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Matafuegos</div>
             <div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cantidad y vencimientos</div>
-        </div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cantidad y vencimientos · Ver →</div>
+        </a>
         <div class="suc-mini-card">
             <div class="suc-mini-label">Permisos</div>
             <div class="suc-mini-value">{{ permisos_suc|length if permisos_suc else 0 }}</div>

@@ -1253,6 +1253,16 @@ def suc_panel():
     )
 
 
+@app.route("/suc/matafuegos")
+@suc_login_required
+def suc_matafuegos():
+    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
+    resumen = _resumen_matafuegos_sucursal(matafuegos)
+    return render_template("suc_matafuegos.html", matafuegos_suc=matafuegos, resumen_matafuegos=resumen, hoy=datetime.date.today().isoformat())
+
+
 @app.route("/suc/permisos/<permiso_id>/fao", methods=["POST"])
 @suc_login_required
 def suc_permiso_fao(permiso_id):

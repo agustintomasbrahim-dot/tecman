@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Matafuegos{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('suc_panel') }}">Mi panel</a>
+    <a href="{{ url_for('suc_matafuegos') }}" style="border-bottom-color: #e63946; color: #e63946;">Matafuegos</a>
+    <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+    <div>
+        <h2 style="margin:0;">Matafuegos</h2>
+        <p style="color:#6b7280;font-size:13px;margin-top:4px;">Vista específica para revisar estado y registrar mantenimiento anual.</p>
+    </div>
+    <a href="{{ url_for('suc_panel') }}" class="btn btn-outline btn-sm">← Volver al panel</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card"><div class="number">{{ resumen_matafuegos.cantidad or 0 }}</div><div class="label">Registros</div></div>
+    <div class="stat-card"><div class="number" style="color:#059669;">{{ resumen_matafuegos.stats.al_dia or 0 }}</div><div class="label">Al día</div></div>
+    <div class="stat-card"><div class="number" style="color:#d97706;">{{ resumen_matafuegos.stats.proximo or 0 }}</div><div class="label">Próx. recarga</div></div>
+    <div class="stat-card"><div class="number" style="color:#dc2626;">{{ (resumen_matafuegos.stats.vencido or 0) + (resumen_matafuegos.stats.rechazado or 0) }}</div><div class="label">Críticos</div></div>
+</div>
+
+<div class="card" style="border-left:4px solid #0ea5e9;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <h3 style="margin:0;">Registrar mantenimiento anual</h3>
+        <form method="POST" action="{{ url_for('suc_syh_asistencia') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="hidden" name="motivo" value="Matafuego rechazado">
+            <input type="text" name="comentario" placeholder="Si necesitás ayuda, detallá acá" style="min-width:220px;">
+            <button type="submit" class="btn btn-outline btn-sm">Solicitar asistencia</button>
+        </form>
+    </div>
+
+    {% if matafuegos_suc %}
+    <div style="display:grid;gap:12px;">
+        {% for m in matafuegos_suc %}
+        <div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:#fff;display:grid;grid-template-columns:1.1fr 0.9fr;gap:14px;">
+            <div>
+                <div style="font-weight:700;color:#0f172a;">{{ m.tipo or 'Matafuego' }} × {{ m.cantidad or 1 }}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:4px;">{{ m.ubicacion or 'Sin ubicación' }}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:6px;">Última carga: {{ m.fecha_carga or 'Sin dato' }}</div>
+                <div style="font-size:12px;color:#6b7280;">Próxima recarga: <strong style="color:{% if m.estado_calc == 'al_dia' %}#059669{% elif m.estado_calc == 'proximo' %}#d97706{% else %}#dc2626{% endif %};">{{ m.fecha_control_calc or m.fecha_vencimiento or 'Sin fecha' }}</strong></div>
+                <div style="font-size:12px;color:#6b7280;">Estado: {{ m.estado_calc.replace('_', ' ') }}</div>
+            </div>
+            <div>
+                <form method="POST" action="{{ url_for('suc_matafuego_mantenimiento', mid=m.id) }}" style="display:grid;gap:8px;">
+                    <input type="date" name="fecha_carga" value="{{ hoy }}">
+                    <select name="accion_matafuego">
+                        <option value="mantenimiento">Mantenimiento realizado</option>
+                        <option value="rechazado">Rechazado</option>
+                    </select>
+                    <input type="text" name="observacion_matafuego" placeholder="Observación breve (opcional)">
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:#6b7280;">No hay matafuegos cargados para esta sucursal.</p>
+    {% endif %}
+</div>
+{% endblock %}
