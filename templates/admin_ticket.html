@@ -300,6 +300,18 @@
 </div>
 {% endif %}
 
+{% if ticket.tipo == 'syh_matafuego_rechazado' and session.nombre != 'Rita' %}
+<div class="card" style="border-left:4px solid #b91c1c;background:#fff7f7;">
+    <h3 style="margin-bottom:10px;color:#b91c1c;">🧯 Gestión rápida de matafuego rechazado</h3>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Cuando Patricia/Admin resuelva el caso, puede cerrarlo desde acá sin dar vueltas.</p>
+    <form method="POST" style="display:grid;gap:10px;">
+        <input type="hidden" name="accion" value="resolver_matafuego_rechazado">
+        <input type="text" name="detalle_resolucion" placeholder="Ej: reemplazado / recargado / retirado de servicio">
+        <button type="submit" class="btn" style="background:#b91c1c;color:white;">Marcar como resuelto</button>
+    </form>
+</div>
+{% endif %}
+
 {% if session.nombre != 'Rita' %}
 <!-- Notas / Comentarios -->
 <div class="card">

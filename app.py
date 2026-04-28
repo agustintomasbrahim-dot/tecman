@@ -430,26 +430,60 @@ def load_matafuegos():
 def save_matafuegos(data):
     MATAFUEGOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
-def _estado_matafuego(fecha_vencimiento, estado_manual=""):
+def _parse_fecha_matafuego(valor):
+    valor = str(valor or "").strip()
+    if not valor:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%m/%Y", "%m/%y", "%m-%Y", "%m-%y"):
+        try:
+            dt = datetime.datetime.strptime(valor, fmt)
+            if fmt in ("%m/%Y", "%m/%y", "%m-%Y", "%m-%y"):
+                return datetime.date(dt.year, dt.month, 1)
+            return dt.date()
+        except ValueError:
+            continue
+    return None
+
+
+def _sumar_un_anio(fecha):
+    if not fecha:
+        return None
+    try:
+        return fecha.replace(year=fecha.year + 1)
+    except ValueError:
+        return fecha + datetime.timedelta(days=365)
+
+
+def _fecha_control_matafuego(item):
+    fecha_carga = _parse_fecha_matafuego(item.get("fecha_carga"))
+    if fecha_carga:
+        return _sumar_un_anio(fecha_carga), "fecha_carga"
+    fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento"))
+    if fecha_venc:
+        return fecha_venc, "fecha_vencimiento"
+    return None, "sin_fecha"
+
+
+def _estado_matafuego(fecha_control, estado_manual=""):
     estado_manual = (estado_manual or "").strip().lower()
     if estado_manual == "rechazado":
         return "rechazado"
-    if not fecha_vencimiento:
-        return "sin_dato"
-    try:
-        venc = datetime.date.fromisoformat(str(fecha_vencimiento)[:10])
-    except (ValueError, TypeError):
+    if not fecha_control:
         return "sin_dato"
     hoy = datetime.date.today()
-    if venc < hoy:
+    if fecha_control < hoy:
         return "vencido"
-    if venc <= hoy + datetime.timedelta(days=60):
+    if fecha_control <= hoy + datetime.timedelta(days=60):
         return "proximo"
     return "al_dia"
 
+
 def _enrich_matafuego(m):
     x = dict(m)
-    x["estado_calc"] = _estado_matafuego(x.get("fecha_vencimiento"), x.get("estado_manual", ""))
+    fecha_control, fuente_control = _fecha_control_matafuego(x)
+    x["fecha_control_calc"] = fecha_control.isoformat() if fecha_control else ""
+    x["fuente_control"] = fuente_control
+    x["estado_calc"] = _estado_matafuego(fecha_control, x.get("estado_manual", ""))
     return x
 
 def _stats_matafuegos(items):
@@ -469,7 +503,7 @@ def _resumen_matafuegos_sucursal(items):
     for i in items:
         tipo = (i.get("tipo") or "Sin tipo").strip() or "Sin tipo"
         tipos[tipo] = tipos.get(tipo, 0) + int(i.get("cantidad") or 1)
-        fv = (i.get("fecha_vencimiento") or "").strip()
+        fv = (i.get("fecha_control_calc") or "").strip()
         if fv and (not proximo_vto or fv < proximo_vto):
             proximo_vto = fv
     tipos_txt = ", ".join(f"{k}: {v}" for k, v in sorted(tipos.items())) if tipos else "-"
@@ -1200,7 +1234,7 @@ def suc_panel():
     habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
     matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
-    matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
+    matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
 
@@ -1215,6 +1249,7 @@ def suc_panel():
         habilitaciones_suc=habs,
         matafuegos_suc=matafuegos,
         permisos_suc=permisos,
+        hoy=datetime.date.today().isoformat(),
     )
 
 
@@ -1239,7 +1274,61 @@ def suc_permiso_fao(permiso_id):
             updated = True
     if updated:
         save_permisos(data)
-        flash("FAO confirmado")
+    return redirect(url_for("suc_panel"))
+
+
+@app.route("/suc/matafuegos/<mid>/mantenimiento", methods=["POST"])
+@suc_login_required
+def suc_matafuego_mantenimiento(mid):
+    data = load_matafuegos()
+    items = data.get("matafuegos", [])
+    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    matafuego = next((m for m in items if m.get("id") == mid and (m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num)), None)
+    if not matafuego:
+        flash("Matafuego no encontrado")
+        return redirect(url_for("suc_panel"))
+
+    accion = request.form.get("accion_matafuego", "mantenimiento")
+    observacion = request.form.get("observacion_matafuego", "").strip()
+    fecha_carga = request.form.get("fecha_carga", "").strip() or datetime.date.today().isoformat()
+    ahora = datetime.datetime.now().isoformat()
+
+    matafuego["fecha_carga"] = fecha_carga
+    matafuego["actualizado_por_sucursal"] = session.get("suc_user", "")
+    matafuego["actualizado_at"] = ahora
+    matafuego["observacion_mantenimiento"] = observacion
+
+    if accion == "rechazado":
+        matafuego["estado_manual"] = "rechazado"
+        agregar_notif_admin(
+            "🚨 Matafuego rechazado",
+            f"Sucursal {suc_num} informó un matafuego rechazado ({matafuego.get('tipo') or 'Sin tipo'} · {matafuego.get('ubicacion') or 'Sin ubicación'}).",
+            tipo="syh_matafuegos"
+        )
+        tickets = load_tickets()
+        nuevo_ticket_id = max([t.get("id", 0) for t in tickets] + [0]) + 1
+        tickets.append({
+            "id": nuevo_ticket_id,
+            "sucursal": session["suc_nombre"],
+            "categoria": "Seguridad e Higiene",
+            "subcategoria": "Matafuego rechazado",
+            "descripcion": observacion or f"Matafuego rechazado en {matafuego.get('ubicacion') or 'sin ubicación'}",
+            "prioridad": 2,
+            "estado": "Nuevo",
+            "asignado": "Patricia",
+            "creado": ahora,
+            "actualizado": ahora,
+            "historial": [{"autor": session.get("suc_nombre", "Sucursal"), "texto": f"Matafuego rechazado: {matafuego.get('tipo') or 'Sin tipo'} · {matafuego.get('ubicacion') or 'Sin ubicación'}", "fecha": ahora}],
+            "tipo": "syh_matafuego_rechazado",
+        })
+        save_tickets(tickets)
+        flash("Se registró el rechazo y se notificó a Seguridad e Higiene")
+    else:
+        matafuego["estado_manual"] = ""
+        flash("Mantenimiento anual registrado")
+
+    save_matafuegos(data)
+    sync_alertas_matafuegos()
     return redirect(url_for("suc_panel"))
 
 
@@ -2007,6 +2096,19 @@ def admin_ticket(ticket_id):
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             flash("Control operativo CEYH actualizado")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+        if accion == "resolver_matafuego_rechazado":
+            detalle = request.form.get("detalle_resolucion", "").strip()
+            ticket["estado"] = "Resuelto"
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Rechazo de matafuego resuelto{': ' + detalle if detalle else ''}",
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash("Caso de matafuego rechazado marcado como resuelto")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         # Check if it's a note or an update
@@ -3641,6 +3743,7 @@ def syh_matafuegos():
     stats = _stats_matafuegos(items)
     sin_datos = len(SUCURSALES_INFO) - len({p['num'] for p in por_sucursal})
     por_sucursal.sort(key=lambda x: (0 if x["estado"] == "Vencidos" else 1 if x["estado"] == "Proximo a vencer" else 2, x.get("proximo_vto") or "9999-99-99", x["num"]))
+    rechazados_recientes = [x for x in por_sucursal if any(d.get("estado_calc") == "rechazado" for d in x.get("detalle", []))]
 
     return render_template(
         "syh_matafuegos.html",
@@ -3649,6 +3752,7 @@ def syh_matafuegos():
         sin_datos=sin_datos,
         filtro_estado=filtro_estado,
         filtro_suc=filtro_suc,
+        rechazados_recientes=rechazados_recientes,
     )
 
 
@@ -3729,6 +3833,7 @@ def admin_syh():
     sin_datos = sum(1 for s in sucursales_syh if s["habilitacion"] == "Sin datos")
 
     matafuegos_data = load_matafuegos().get("matafuegos", [])
+    rechazados_recientes = []
     for s in sucursales_syh:
         mats = [m for m in matafuegos_data if m.get("sucursal_num") == s["num"] or m.get("sucursal") == f"Sucursal {s['num']}"]
         resumen = _resumen_matafuegos_sucursal(mats)
@@ -3736,6 +3841,15 @@ def admin_syh():
         s["matafuegos"] = resumen["estado"]
         s["matafuegos_tipos"] = resumen["tipos"]
         s["matafuegos_proximo_vto"] = resumen["proximo_vto"]
+        s["matafuegos_rechazados"] = resumen.get("rechazados", 0)
+        if resumen.get("rechazados", 0):
+            rechazados_recientes.append({
+                "num": s["num"],
+                "marca": s["marca"],
+                "ciudad": s["ciudad"],
+                "rechazados": resumen.get("rechazados", 0),
+                "tipos": resumen.get("tipos", "-"),
+            })
 
     return render_template(
         "admin_syh.html",
@@ -3747,6 +3861,7 @@ def admin_syh():
         syh_estados=SYH_ESTADOS,
         matafuegos_stats=_stats_matafuegos(matafuegos_data),
         alertas_syh=alertas_syh,
+        rechazados_recientes=rechazados_recientes,
     )
 
 

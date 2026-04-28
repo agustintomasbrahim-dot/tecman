@@ -130,17 +130,32 @@
 
     {% if matafuegos_suc %}
     <div>
-        <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 6px;">Matafuegos</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin:0;">Matafuegos</p>
+            <span style="font-size:12px;color:#475569;">Podés registrar mantenimiento anual o marcar rechazado.</span>
+        </div>
         <table style="width: 100%; font-size: 13px;"><tbody>
             {% for m in matafuegos_suc %}
-            <tr style="border-bottom: 1px solid #f3f4f6;">
-                <td style="padding: 6px 0;">
+            <tr style="border-bottom: 1px solid #f3f4f6; vertical-align:top;">
+                <td style="padding: 8px 0; width:36%;">
                     <div style="font-weight: 600;">{{ m.tipo or 'Matafuego' }} × {{ m.cantidad or 1 }}</div>
                     <div style="font-size: 12px; color: #6b7280;">{{ m.ubicacion or 'Sin ubicación' }}</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top:4px;">Última carga: {{ m.fecha_carga or 'Sin dato' }}</div>
                 </td>
-                <td style="text-align: right; padding: 6px 0;">
-                    <div style="font-weight: 700; color: {% if m.estado_calc == 'al_dia' %}#059669{% elif m.estado_calc == 'proximo' %}#d97706{% elif m.estado_calc in ('vencido','rechazado') %}#dc2626{% else %}#6b7280{% endif %};">{{ m.fecha_vencimiento or 'Sin fecha' }}</div>
+                <td style="text-align: right; padding: 8px 0; width:18%;">
+                    <div style="font-weight: 700; color: {% if m.estado_calc == 'al_dia' %}#059669{% elif m.estado_calc == 'proximo' %}#d97706{% elif m.estado_calc in ('vencido','rechazado') %}#dc2626{% else %}#6b7280{% endif %};">{{ m.fecha_control_calc or m.fecha_vencimiento or 'Sin fecha' }}</div>
                     <div style="font-size: 12px; color: #6b7280;">{{ m.estado_calc.replace('_', ' ') }}</div>
+                </td>
+                <td style="padding: 8px 0; width:46%;">
+                    <form method="POST" action="{{ url_for('suc_matafuego_mantenimiento', mid=m.id) }}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:start;">
+                        <input type="date" name="fecha_carga" value="{{ hoy }}">
+                        <select name="accion_matafuego">
+                            <option value="mantenimiento">Mantenimiento realizado</option>
+                            <option value="rechazado">Rechazado</option>
+                        </select>
+                        <button type="submit" class="btn btn-outline btn-sm">Guardar</button>
+                        <input type="text" name="observacion_matafuego" placeholder="Observación breve (opcional)" style="grid-column:1 / span 3;">
+                    </form>
                 </td>
             </tr>
             {% endfor %}
