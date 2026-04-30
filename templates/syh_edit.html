@@ -38,6 +38,10 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>Vencimiento habilitación</label>
+                <input type="date" name="habilitacion_vencimiento" value="{{ estado.get('habilitacion_vencimiento', '') }}">
+            </div>
+            <div class="form-group">
                 <label>Bomberos</label>
                 <select name="bomberos">
                     {% for opt in syh_estados.bomberos %}

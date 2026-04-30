@@ -161,6 +161,7 @@ SYH_DOCUMENTOS_CATEGORIAS = [
     ("plan_evacuacion", "Plan de evacuación"),
     ("plano_evacuacion_doc", "Plano de evacuación"),
     ("carga_de_fuego", "Carga de fuego"),
+    ("antisiniestral", "Antisiniestral"),
     ("capacitaciones", "Capacitaciones"),
 ]
 
@@ -3824,6 +3825,7 @@ def syh_edit(suc_num):
     if request.method == "POST":
         syh_data[suc_num] = {
             "habilitacion": request.form.get("habilitacion", ""),
+            "habilitacion_vencimiento": request.form.get("habilitacion_vencimiento", "").strip(),
             "bomberos": request.form.get("bomberos", ""),
             "matafuegos": request.form.get("matafuegos", ""),
             "matafuegos_cantidad": request.form.get("matafuegos_cantidad", ""),
@@ -4028,6 +4030,7 @@ def admin_syh_edit(suc_num):
     if request.method == "POST":
         syh_data[suc_num] = {
             "habilitacion": request.form.get("habilitacion", ""),
+            "habilitacion_vencimiento": request.form.get("habilitacion_vencimiento", "").strip(),
             "bomberos": request.form.get("bomberos", ""),
             "matafuegos": request.form.get("matafuegos", ""),
             "matafuegos_cantidad": request.form.get("matafuegos_cantidad", ""),
