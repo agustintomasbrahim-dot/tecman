@@ -5594,6 +5594,11 @@ def serve_habilitacion(filename):
     return send_from_directory(str(HABILITACIONES_DIR), filename)
 
 
+@app.route("/uploads/syh/<filename>")
+def serve_syh_upload(filename):
+    return send_from_directory(str(UPLOADS_DIR), filename)
+
+
 # --- API ---
 
 @app.route("/api/categorias")

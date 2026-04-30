@@ -135,7 +135,7 @@
     {% for doc in estado.documentos %}
     <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a2a;">
         <div>
-            <a href="/static/uploads/{{ doc.archivo }}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">{{ doc.nombre }}</a>
+            <a href="{{ url_for('serve_syh_upload', filename=doc.archivo) }}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">{{ doc.nombre }}</a>
             <span style="color: #475569; font-size: 12px; margin-left: 8px;">{{ doc.fecha[:10] }}</span>
         </div>
     </div>
@@ -155,7 +155,7 @@
             {% for doc in docs %}
             <div style="display: flex; justify-content: space-between; align-items: center; gap:10px; padding: 8px 0; border-bottom: 1px solid #1f2937;">
                 <div style="min-width:0;">
-                    <a href="/static/uploads/{{ doc.archivo }}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ doc.nombre }}</a>
+                    <a href="{{ url_for('serve_syh_upload', filename=doc.archivo) }}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ doc.nombre }}</a>
                     {% if doc.subtipo %}<span style="color: #94a3b8; font-size: 12px;">{{ doc.subtipo }}</span>{% endif %}
                 </div>
                 <span style="color: #475569; font-size: 12px; white-space:nowrap;">{{ doc.fecha[:10] }}</span>
