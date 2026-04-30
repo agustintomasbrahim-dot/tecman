@@ -151,6 +151,54 @@ def load_syh():
 def save_syh(data):
     SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
+
+SYH_DOCUMENTOS_CATEGORIAS = [
+    ("habilitaciones", "Habilitaciones"),
+    ("planos_municipales", "Planos municipales"),
+    ("planos_electromecanicos", "Planos electromecánicos"),
+    ("planos_bomberos_mas_1000", "Planos de bomberos sup. mayores a 1000 mts"),
+    ("doc_seg_hig_ministerio_art", "Documentación de seg. e higiene / ministerio de trabajo / ART"),
+    ("protocolo_puesta_tierra_iluminacion", "Protocolo de puesta a tierra e iluminación"),
+    ("plan_evacuacion", "Plan de evacuación"),
+    ("plano_evacuacion_doc", "Plano de evacuación"),
+    ("carga_de_fuego", "Carga de fuego"),
+    ("capacitaciones", "Capacitaciones"),
+]
+
+SYH_CAPACITACIONES_SUBTIPOS = [
+    "Uso de extintores",
+    "RCP",
+    "Manejo de cargas",
+    "Primeros auxilios",
+    "Riesgo de las tareas",
+]
+
+
+def _build_syh_documentos_detallados(form, files, suc_num, estado):
+    existentes = list(estado.get("documentos_detallados", []) or [])
+    nuevos = []
+    ahora = datetime.datetime.now().isoformat()
+    for categoria, _label in SYH_DOCUMENTOS_CATEGORIAS:
+        for f in files.getlist(f"documento_{categoria}"):
+            if not f or not f.filename:
+                continue
+            ext = Path(f.filename).suffix.lower()
+            if ext not in (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                continue
+            fname = f"syh_{suc_num}_{categoria}_{uuid.uuid4().hex[:8]}{ext}"
+            f.save(str(UPLOADS_DIR / fname))
+            item = {
+                "categoria": categoria,
+                "categoria_label": dict(SYH_DOCUMENTOS_CATEGORIAS).get(categoria, categoria),
+                "nombre": f.filename,
+                "archivo": fname,
+                "fecha": ahora,
+            }
+            if categoria == "capacitaciones":
+                item["subtipo"] = form.get(f"capacitacion_tipo_{categoria}", "").strip()
+            nuevos.append(item)
+    return existentes + nuevos
+
 def _stock_entry(val):
     """Normaliza un valor de stock central al formato {cantidad, precio_unitario}.
     Compatible con formato viejo (int/float)."""
@@ -3797,6 +3845,7 @@ def syh_edit(suc_num):
             syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
         else:
             syh_data[suc_num]["documentos"] = estado.get("documentos", [])
+        syh_data[suc_num]["documentos_detallados"] = _build_syh_documentos_detallados(request.form, request.files, suc_num, estado)
         save_syh(syh_data)
         flash("Sucursal actualizada")
         return redirect(url_for("syh_panel"))
@@ -3807,6 +3856,8 @@ def syh_edit(suc_num):
         info=info,
         estado=estado,
         syh_estados=SYH_ESTADOS,
+        syh_documentos_categorias=SYH_DOCUMENTOS_CATEGORIAS,
+        syh_capacitaciones_subtipos=SYH_CAPACITACIONES_SUBTIPOS,
     )
 
 
@@ -4002,6 +4053,7 @@ def admin_syh_edit(suc_num):
         else:
             syh_data[suc_num]["documentos"] = estado.get("documentos", [])
 
+        syh_data[suc_num]["documentos_detallados"] = _build_syh_documentos_detallados(request.form, request.files, suc_num, estado)
         save_syh(syh_data)
         flash("Sucursal actualizada")
         return redirect(url_for("admin_syh"))
@@ -4012,6 +4064,8 @@ def admin_syh_edit(suc_num):
         info=info,
         estado=estado,
         syh_estados=SYH_ESTADOS,
+        syh_documentos_categorias=SYH_DOCUMENTOS_CATEGORIAS,
+        syh_capacitaciones_subtipos=SYH_CAPACITACIONES_SUBTIPOS,
     )
 
 

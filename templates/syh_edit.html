@@ -89,6 +89,27 @@
             <input type="file" name="documento" accept=".pdf,image/*" style="padding: 8px;">
         </div>
 
+        <div class="card" style="margin-top: 18px; background: #f9fafb; border: 1px solid #e5e7eb;">
+            <h3 style="margin-bottom: 12px;">Documentación por rubro</h3>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 16px;">Podés subir PDF o imágenes en cada categoría.</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                {% for key, label in syh_documentos_categorias %}
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>{{ label }}</label>
+                    {% if key == 'capacitaciones' %}
+                    <select name="capacitacion_tipo_{{ key }}" style="margin-bottom: 8px;">
+                        <option value="">Tipo de capacitación</option>
+                        {% for subtipo in syh_capacitaciones_subtipos %}
+                        <option value="{{ subtipo }}">{{ subtipo }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                    <input type="file" name="documento_{{ key }}" accept=".pdf,image/*" multiple style="padding: 8px;">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
         <button type="submit" class="btn btn-block" style="background: #059669; color: white;">Guardar</button>
     </form>
 </div>
@@ -101,6 +122,29 @@
         <a href="/static/uploads/{{ doc.archivo }}" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 600;">{{ doc.nombre }}</a>
         <span style="color: #9ca3af; font-size: 12px;">{{ doc.fecha[:10] }}</span>
     </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if estado.documentos_detallados is defined and estado.documentos_detallados %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Documentación vinculada</h3>
+    {% for key, label in syh_documentos_categorias %}
+        {% set docs = estado.documentos_detallados | selectattr('categoria', 'equalto', key) | list %}
+        {% if docs %}
+        <div style="margin-bottom: 16px;">
+            <div style="font-weight: 700; color: #111827; margin-bottom: 6px;">{{ label }}</div>
+            {% for doc in docs %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f3f4f6;">
+                <div>
+                    <a href="/static/uploads/{{ doc.archivo }}" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 600;">{{ doc.nombre }}</a>
+                    {% if doc.subtipo %}<span style="color: #6b7280; font-size: 12px; margin-left: 8px;">{{ doc.subtipo }}</span>{% endif %}
+                </div>
+                <span style="color: #9ca3af; font-size: 12px;">{{ doc.fecha[:10] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     {% endfor %}
 </div>
 {% endif %}
