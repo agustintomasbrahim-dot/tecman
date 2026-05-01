@@ -961,51 +961,45 @@ PROVEEDORES = [
     {"nombre": "Astronovo HV", "zona": "AMBA", "tipo": "General", "tel": "11 3813-9215", "contacto": "Horacio", "fijo": True, "sucursales": ["176"]},
     {"nombre": "Escalmeca / Mauricio", "zona": "AMBA", "tipo": "Escaleras mecanicas", "tel": "115308-9834", "sucursales": ["183","184","186"], "monto": "$688.000 + IVA/mes", "incluye": "Mantenimiento preventivo de 8 escaleras mecanicas en 3 sucursales, lubricacion, engrase, limpieza, desarme parcial", "no_incluye": "-"},
     {"nombre": "L&G (Geronimo)", "zona": "AMBA", "tipo": "Tecnicos", "tel": "54 9 2236 69-2804", "contacto": "Geronimo", "fijo": False, "sucursales": ["092","217","239","240"]},
-    {"nombre": "Sergio Marmol", "zona": "AMBA", "tipo": "Aire Acondicionado", "tel": "-", "sucursales": ["141"]},
     {"nombre": "Nicolas Audio", "zona": "Nacional", "tipo": "Audio", "tel": "-", "sucursales": ["036","049","053","065","077","083","091","092","125","127","128","141","148","156","165","166","167","176","177","183","186","194","200","202","210","211","213","216","226"]},
     {"nombre": "Gustavo Avellaneda", "zona": "Cordoba", "tipo": "General", "tel": "0351-320-1198", "sucursales": ["076","078","123","124","203","215","224","233"], "monto": "$1.800.000/mes", "incluye": "Limpieza canaletas/techos, filtros AA, destapes, plomeria menor, albañileria menor, pintura menor, luminarias, cerraduras, arranque semanal generadores, mantenimiento AA planificado", "no_incluye": "Combustible, pintura grande, zingueria, techos, albañileria mayor"},
     {"nombre": "Adriel (Pintor)", "zona": "Cordoba", "tipo": "Pintura", "tel": "351-860-2101", "sucursales": ["076","078","123","124","203","215","233"]},
-    {"nombre": "Julio Fuga (JRF)", "zona": "NOA", "tipo": "Electrico + AA + Gral", "tel": "0381-454-5659", "sucursales": ["120","126","128","135","139","146","158","173","191","193","212","229","230","234","235"], "monto": "$2.050.000 + IVA/mes + San Luis/Mendoza $1.200.000", "incluye": "Mto electrico preventivo (luminarias, tableros, bornes, termicas), mto AA (filtros, evaporadora, condensadora, desagues, plaquetas), 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
-    {"nombre": "Ismael Allende (JRF)", "zona": "Mendoza/San Luis", "tipo": "Electrico + AA + Gral", "tel": "0261-664-3429", "sucursales": ["128","132","145","206","207","236"], "monto": "$1.200.000 + IVA/mes", "incluye": "Mto electrico preventivo, mto AA, plomeria, gral. 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
+    {"nombre": "Julio Fuga (JRF)", "zona": "NOA", "tipo": "Electrico + AA + Gral", "tel": "0381-454-5659", "sucursales": ["120","126","128","132","135","139","145","146","158","173","191","193","206","207","212","229","230","234","235","236"], "monto": "$2.050.000 + IVA/mes + San Luis/Mendoza $1.200.000", "incluye": "Mto electrico preventivo (luminarias, tableros, bornes, termicas), mto AA (filtros, evaporadora, condensadora, desagues, plaquetas), 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
     {"nombre": "Oscar San Juan", "zona": "San Juan", "tipo": "General", "tel": "0264-498-5365", "sucursales": ["159","172"]},
     {"nombre": "Jose Sanchez", "zona": "San Juan", "tipo": "General", "tel": "0264-504-1961", "sucursales": ["159","172"]},
-    {"nombre": "Gustavo Blanco", "zona": "Chaco/Corrientes", "tipo": "General", "tel": "379-434-7529", "sucursales": ["220","224"]},
-    {"nombre": "Majo", "zona": "Chaco/Corrientes", "tipo": "General", "tel": "-", "sucursales": ["220","224"]},
+    {"nombre": "Majo / Nivelar Construcciones", "zona": "Chaco/Corrientes", "tipo": "General / Construccion", "tel": "54 9 364 430-2787", "contacto": "Maria Jose", "fijo": False, "sucursales": ["220","224"]},
     {"nombre": "Nestor Raul Diaz", "zona": "Neuquen", "tipo": "General", "tel": "299-418-7955", "sucursales": ["133"]},
-    {"nombre": "Federico Confort", "zona": "Neuquen", "tipo": "General", "tel": "299-418-7955", "contacto": "Federico", "fijo": True, "sucursales": ["178","210"]},
+    {"nombre": "Federico Confort", "zona": "Parana", "tipo": "General", "tel": "299-418-7955", "contacto": "Federico", "fijo": True, "sucursales": ["178","210"]},
     {"nombre": "Javier", "zona": "Santa Fe", "tipo": "General", "tel": "342-478-0031", "sucursales": ["226"]},
-    {"nombre": "Liliana (Paisajista)", "zona": "AMBA", "tipo": "Paisajismo", "tel": "115872-4697", "sucursales": ["222"]},
-    {"nombre": "Cesar Frattini (No Bugs)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "114474-9457", "sucursales": ["165","183","200","208","209","211","213","214","221","222"], "monto": "Por servicio", "incluye": "Fumigacion, urgencias bonificadas", "no_incluye": "-"},
-    {"nombre": "Gerardo Goog", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "115851-5565", "sucursales": ["052","167","187"]},
+    {"nombre": "Cesar Frattini (No Bugs)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "114474-9457", "sucursales": ["165","183","200","208","209","211","213","214","221","222"], "monto": "Por servicio", "incluye": "Fumigacion, urgencias bonificadas", "no_incluye": "-", "mostrar_sucursal": False},
+    {"nombre": "Gerardo Goog", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "115851-5565", "sucursales": ["052","167","187"], "mostrar_sucursal": False},
     {"nombre": "Pablo Norsuply", "zona": "AMBA", "tipo": "Insumos", "tel": "115923-5320", "sucursales": ["AMBA general"]},
-    {"nombre": "Cesar Avalos (Prov. varios)", "zona": "Nacional", "tipo": "Varios", "tel": "116433-6302", "sucursales": ["091","114","116","126","127","166","178","210","214","226"]},
     {"nombre": "Croacia", "zona": "AMBA", "tipo": "Urgencias persianas", "tel": "11 3663-6408", "contacto": "Raquel", "fijo": False, "sucursales": ["AMBA general"]},
     {"nombre": "Home Pro", "zona": "AMBA", "tipo": "General", "tel": "11 4416-3911", "contacto": "Nicolas", "fijo": False, "sucursales": ["AMBA eventual"]},
-    {"nombre": "Nivelar Construcciones", "zona": "Chaco/Corrientes", "tipo": "Construccion", "tel": "54 9 364 430-2787", "contacto": "Maria Jose", "fijo": False, "sucursales": ["220","224"]},
     {"nombre": "Conex", "zona": "Neuquen", "tipo": "General", "tel": "54 9 2995 57-5495", "contacto": "Rodrigo", "fijo": False, "sucursales": ["160","233","133","134","231"]},
     {"nombre": "Atila Generaciones", "zona": "AMBA", "tipo": "Grupos electrogenos", "tel": "115318-3306", "contacto": "Waldo", "fijo": True, "sucursales": ["195","208","211","Garin"]},
     {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
     # --- Proveedores de fumigacion por sucursal ---
-    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","190","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"]},
-    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["065","077","080","082","083","142","173","188","191","194","195","209","211","216","230"]},
-    {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
-    {"nombre": "RC Mansilla SA (El Gallo)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["011","058","222"]},
-    {"nombre": "Gerardo Osvaldo Gonzalez", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["052","167","187"]},
-    {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["126","139","193"]},
-    {"nombre": "Lassna SRL", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["051","171"]},
-    {"nombre": "Sindel Siscobio", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["146","158"]},
-    {"nombre": "Contreras Mauricio Sergio", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["159","172"]},
-    {"nombre": "Manggini Pablo y Ulises", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["043","204"]},
-    {"nombre": "Municipalidad de Moreno", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["023","232"]},
-    {"nombre": "Jorge Alejandro Gardel", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["120","212"]},
-    {"nombre": "Imhoff Fernando Alberto", "zona": "Litoral", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["114","226"]},
-    {"nombre": "Felix Raul Millan", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["145"]},
-    {"nombre": "Nazareno Marchilli", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["116"]},
-    {"nombre": "Comservar SRL", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["207"]},
-    {"nombre": "Rabincho SRL", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["220"]},
-    {"nombre": "Perez Bobadilla Nicolas", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["224"]},
-    {"nombre": "Marcelo Domingo Pedregal", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["229"]},
-    {"nombre": "ULT SRL", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["235"]},
+    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","190","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"], "mostrar_sucursal": False},
+    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["065","077","080","082","083","142","173","188","191","194","195","209","211","216","230"], "mostrar_sucursal": False},
+    {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"], "mostrar_sucursal": False},
+    {"nombre": "RC Mansilla SA (El Gallo)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["011","058","222"], "mostrar_sucursal": False},
+    {"nombre": "Gerardo Osvaldo Gonzalez", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["052","167","187"], "mostrar_sucursal": False},
+    {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["126","139","193"], "mostrar_sucursal": False},
+    {"nombre": "Lassna SRL", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["051","171"], "mostrar_sucursal": False},
+    {"nombre": "Sindel Siscobio", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["146","158"], "mostrar_sucursal": False},
+    {"nombre": "Contreras Mauricio Sergio", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["159","172"], "mostrar_sucursal": False},
+    {"nombre": "Manggini Pablo y Ulises", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["043","204"], "mostrar_sucursal": False},
+    {"nombre": "Municipalidad de Moreno", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["023","232"], "mostrar_sucursal": False},
+    {"nombre": "Jorge Alejandro Gardel", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["120","212"], "mostrar_sucursal": False},
+    {"nombre": "Imhoff Fernando Alberto", "zona": "Litoral", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["114","226"], "mostrar_sucursal": False},
+    {"nombre": "Felix Raul Millan", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["145"], "mostrar_sucursal": False},
+    {"nombre": "Nazareno Marchilli", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["116"], "mostrar_sucursal": False},
+    {"nombre": "Comservar SRL", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["207"], "mostrar_sucursal": False},
+    {"nombre": "Rabincho SRL", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["220"], "mostrar_sucursal": False},
+    {"nombre": "Perez Bobadilla Nicolas", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["224"], "mostrar_sucursal": False},
+    {"nombre": "Marcelo Domingo Pedregal", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["229"], "mostrar_sucursal": False},
+    {"nombre": "ULT SRL", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["235"], "mostrar_sucursal": False},
 ]
 
 ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
@@ -1261,7 +1255,9 @@ def suc_panel():
     mis_proveedores = []
     for p in PROVEEDORES:
         for s in p["sucursales"]:
-            if suc_num in s or suc_num.lstrip("0") in s:
+            if s == suc_num or s == suc_num.lstrip("0"):
+                if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                    continue
                 mis_proveedores.append(p)
                 break
 
@@ -1397,7 +1393,9 @@ def suc_proveedores():
     mis_proveedores = []
     for p in PROVEEDORES:
         for s in p["sucursales"]:
-            if suc_num in s or suc_num.lstrip("0") in s:
+            if s == suc_num or s == suc_num.lstrip("0"):
+                if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                    continue
                 mis_proveedores.append(p)
                 break
     return render_template("suc_proveedores.html", mis_proveedores=mis_proveedores)
@@ -3395,7 +3393,9 @@ def admin_sucursal(suc_num):
     mis_proveedores = []
     for p in PROVEEDORES:
         for s in p["sucursales"]:
-            if suc_num in s or suc_num.lstrip("0") in s:
+            if s == suc_num or s == suc_num.lstrip("0"):
+                if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                    continue
                 mis_proveedores.append(p)
                 break
 
