@@ -1297,6 +1297,28 @@ def suc_panel():
     )
 
 
+@app.route("/suc/syh")
+@suc_login_required
+def suc_syh():
+    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    syh_data = load_syh()
+    estado = syh_data.get(suc_num, {})
+    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
+    return render_template(
+        "suc_syh.html",
+        estado=estado,
+        habilitaciones_suc=habs,
+        matafuegos_suc=matafuegos,
+        permisos_suc=permisos,
+        syh_documentos_categorias=SYH_DOCUMENTOS_CATEGORIAS,
+    )
+
+
 @app.route("/suc/matafuegos")
 @suc_login_required
 def suc_matafuegos():

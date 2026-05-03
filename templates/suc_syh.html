@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Seguridad e Higiene{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('suc_panel') }}">Inicio</a>
+    <a href="{{ url_for('suc_syh') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Seguridad e Higiene</a>
+    <a href="{{ url_for('suc_panel') }}#stock-recibido">Stock recibido</a>
+    <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
+    <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
+    <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <div>
+        <h2 style="margin-bottom:4px;">🛡️ Seguridad e Higiene</h2>
+        <p style="color:#6b7280;margin:0;">Información y documentación cargada para {{ session.suc_nombre }}</p>
+    </div>
+    <form method="POST" action="{{ url_for('suc_syh_asistencia') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <select name="motivo" style="min-width: 180px;">
+            <option value="Matafuego rechazado">Matafuego rechazado</option>
+            <option value="Consulta de habilitación">Consulta de habilitación</option>
+            <option value="Asistencia S&H">Otra asistencia S&amp;H</option>
+        </select>
+        <input type="text" name="comentario" placeholder="Detalle breve" style="min-width: 180px;">
+        <button type="submit" class="btn btn-outline btn-sm">Solicitar asistencia</button>
+    </form>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-bottom:12px;">Resumen general</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+            <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Habilitación</div>
+            <div style="font-size:15px;font-weight:700;color:#111827;">{{ estado.get('habilitacion', 'Sin datos') or 'Sin datos' }}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Vto.: {{ estado.get('habilitacion_vencimiento', 'Sin fecha') or 'Sin fecha' }}</div>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+            <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Bomberos</div>
+            <div style="font-size:15px;font-weight:700;color:#111827;">{{ estado.get('bomberos', 'Sin datos') or 'Sin datos' }}</div>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+            <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Matafuegos</div>
+            <div style="font-size:15px;font-weight:700;color:#111827;">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Estado general: {{ estado.get('matafuegos', 'Sin datos') or 'Sin datos' }}</div>
+        </div>
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+            <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Permisos</div>
+            <div style="font-size:15px;font-weight:700;color:#111827;">{{ permisos_suc|length if permisos_suc else 0 }}</div>
+        </div>
+    </div>
+</div>
+
+{% if habilitaciones_suc %}
+<div class="card" style="margin-bottom:16px; border-left:4px solid #0ea5e9;">
+    <h3 style="margin-bottom:12px;">Habilitaciones</h3>
+    <table style="width:100%;font-size:13px;"><tbody>
+        {% for h in habilitaciones_suc %}
+        <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:8px 0;">
+                <div style="font-weight:600;">{{ h.numero_cert or 'Sin número' }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ h.municipio or '-' }}{% if h.archivo %} · <a href="{{ url_for('serve_habilitacion', filename=h.archivo) }}" target="_blank">ver archivo</a>{% endif %}</div>
+            </td>
+            <td style="padding:8px 0;text-align:right;">
+                <div style="font-weight:700;">{{ h.fecha_vencimiento or 'Sin fecha' }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ h.estado.replace('_', ' ') }}</div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody></table>
+</div>
+{% endif %}
+
+{% if matafuegos_suc %}
+<div class="card" style="margin-bottom:16px; border-left:4px solid #dc2626;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <h3 style="margin:0;">Matafuegos</h3>
+        <a href="{{ url_for('suc_matafuegos') }}" class="btn btn-outline btn-sm">Ver detalle completo</a>
+    </div>
+    <table style="width:100%;font-size:13px;"><tbody>
+        {% for m in matafuegos_suc[:8] %}
+        <tr style="border-bottom:1px solid #f3f4f6; vertical-align:top;">
+            <td style="padding:8px 0;">
+                <div style="font-weight:600;">{{ m.tipo or 'Matafuego' }} × {{ m.cantidad or 1 }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ m.ubicacion or 'Sin ubicación' }}</div>
+            </td>
+            <td style="padding:8px 0;text-align:right;">
+                <div style="font-weight:700;">{{ m.fecha_control_calc or m.fecha_vencimiento or 'Sin fecha' }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ m.estado_calc.replace('_', ' ') }}</div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody></table>
+</div>
+{% endif %}
+
+{% if permisos_suc %}
+<div class="card" style="margin-bottom:16px; border-left:4px solid #7c3aed;">
+    <h3 style="margin-bottom:12px;">Permisos</h3>
+    {% for p in permisos_suc %}
+    <div style="padding:8px 0; {% if not loop.last %}border-bottom:1px solid #f3f4f6;{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+            <div>
+                <div style="font-weight:600;color:#1a1a2e;">{{ p.tipo_documento or 'Permiso' }}</div>
+                <div style="font-size:12px;color:#6b7280;">{{ p.proveedor or 'Sin proveedor' }}{% if p.periodo %} · {{ p.periodo }}{% endif %}{% if p.vigencia_hasta %} · Vigencia hasta {{ p.vigencia_hasta }}{% endif %}</div>
+                <div style="font-size:12px;color:{% if p.fao_estado == 'Contamos FAO' %}#059669{% else %}#d97706{% endif %};margin-top:2px;font-weight:600;">{{ p.fao_estado or 'Pendiente' }}</div>
+            </div>
+            <a href="{{ url_for('serve_permiso', filename=p.archivo) }}" target="_blank" class="btn btn-outline btn-sm">Ver</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if estado.documentos_detallados is defined and estado.documentos_detallados %}
+<div class="card" style="margin-bottom:16px; border-left:4px solid #10b981;">
+    <h3 style="margin-bottom:12px;">Documentación por rubro</h3>
+    {% for key, label in syh_documentos_categorias %}
+        {% set docs = estado.documentos_detallados | selectattr('categoria', 'equalto', key) | list %}
+        {% if docs %}
+        <div style="margin-bottom:12px;">
+            <div style="font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">{{ label }}</div>
+            {% for doc in docs %}
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
+                <div>
+                    <div style="font-weight:600;">{{ doc.nombre }}</div>
+                    <div style="font-size:12px;color:#6b7280;">{{ doc.fecha[:10] if doc.fecha else '' }}{% if doc.subtipo %} · {{ doc.subtipo }}{% endif %}</div>
+                </div>
+                <a href="{{ url_for('serve_syh_upload', filename=doc.archivo) }}" target="_blank" class="btn btn-outline btn-sm">Ver</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
