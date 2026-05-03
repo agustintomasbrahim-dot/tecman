@@ -2,10 +2,11 @@
 {% block title %}Tecman - {{ session.suc_nombre }}{% endblock %}
 {% block nav %}
 <div class="nav">
-    <a href="{{ url_for('suc_panel') }}">Mis tickets</a>
+    <a href="{{ url_for('suc_panel') }}">Inicio</a>
+    <a href="{{ url_for('suc_panel') }}#seguridad-higiene">Seguridad e Higiene</a>
+    <a href="{{ url_for('suc_panel') }}#stock-recibido">Stock recibido</a>
     <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
-    <a href="{{ url_for('index') }}">Inicio</a>
     <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
 </div>
 {% endblock %}
@@ -22,7 +23,7 @@
     <span style="color: #6b7280;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
 </div>
 
-<div class="suc-top-grid">
+<div id="inicio-sucursal" class="suc-top-grid">
     <div class="card" style="margin-bottom:0;">
         <h3 style="margin-bottom: 10px;">¿Qué querés hacer?</h3>
         <a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="font-size: 16px; padding: 14px; margin-bottom: 10px;">
@@ -94,7 +95,7 @@
 {% endif %}
 
 {% if habilitaciones_suc or matafuegos_suc %}
-<div class="card" style="margin-bottom: 16px; border-left: 4px solid #0ea5e9;">
+<div id="seguridad-higiene" class="card" style="margin-bottom: 16px; border-left: 4px solid #0ea5e9;">
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
         <h3 style="margin: 0; font-size: 15px;">🛡️ Seguridad e Higiene</h3>
         <form method="POST" action="{{ url_for('suc_syh_asistencia') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -166,7 +167,7 @@
 {% endif %}
 
 {% if mi_stock_insumos or mi_stock_manten %}
-<div class="card" style="margin-bottom: 16px;">
+<div id="stock-recibido" class="card" style="margin-bottom: 16px;">
     <h3 style="margin-bottom: 12px; font-size: 15px;">📦 Mi stock recibido</h3>
     {% if mi_stock_insumos %}
     <div style="margin-bottom: 14px;">
