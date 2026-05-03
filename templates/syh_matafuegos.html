@@ -4,7 +4,7 @@
 <div class="nav">
     <a href="{{ url_for('syh_panel') }}">Panel S&amp;H</a>
     <a href="{{ url_for('syh_matafuegos') }}" style="border-bottom-color: #dc2626; color: #dc2626;">Matafuegos</a>
-    <a href="{{ url_for('index') }}">Inicio</a>
+    <a href="{{ url_for('syh_panel') }}">Inicio</a>
     <a href="{{ url_for('syh_logout') }}" style="margin-left: auto;">Salir ({{ session.get('syh_nombre', '') }})</a>
 </div>
 {% endblock %}
