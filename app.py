@@ -618,9 +618,68 @@ def sync_alertas_matafuegos():
             )
         nuevas_alertas.append(alerta)
 
-    data["alertas"] = nuevas_alertas
-    save_alertas_syh(data)
     return nuevas_alertas
+
+
+def sync_alertas_habilitaciones(prev_map=None):
+    prev_map = prev_map or {}
+    items = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", [])]
+    nuevas_alertas = []
+    for h in items:
+        estado = h.get("estado")
+        if estado not in ("por_vencer", "vencida"):
+            continue
+        suc_num = h.get("sucursal_num") or (h.get("sucursal", "").replace("Sucursal ", "").strip())
+        aid = f"habilitacion:{h.get('id') or suc_num}:{estado}"
+        alerta = {
+            "id": aid,
+            "tipo": "habilitacion",
+            "sucursal_num": suc_num,
+            "sucursal": h.get("sucursal", ""),
+            "estado": "Vencida" if estado == "vencida" else "Próximo a vencer",
+            "proximo_vto": h.get("fecha_vencimiento", ""),
+            "tipos": h.get("numero_cert", "") or h.get("municipio", "") or "Habilitación",
+            "cantidad": 1,
+            "destinatarios": ["Agustín", "Patricia", f"Sucursal {suc_num}"],
+            "updated_at": datetime.datetime.now().isoformat(),
+        }
+        dias = None
+        try:
+            dias = (datetime.date.fromisoformat((h.get("fecha_vencimiento") or "")[:10]) - datetime.date.today()).days
+        except (ValueError, TypeError):
+            pass
+        if aid not in prev_map:
+            detalle_extra = f"Vence el {alerta['proximo_vto'] or '-'}"
+            if dias is not None and dias >= 0:
+                detalle_extra += f" ({dias} día(s))"
+            agregar_notif_admin(
+                f"🚨 Habilitación {alerta['estado'].lower()} - Sucursal {suc_num}",
+                f"{alerta['tipos']} · {detalle_extra}\nRevisar con Patricia y sucursal.",
+                tipo="syh_habilitacion",
+                autor="Sistema",
+                link="/admin/syh",
+            )
+        elif prev_map[aid].get("proximo_vto") != alerta.get("proximo_vto") or prev_map[aid].get("tipos") != alerta.get("tipos"):
+            agregar_notif_admin(
+                f"🔄 Actualización habilitación - Sucursal {suc_num}",
+                f"Estado: {alerta['estado']} · {alerta['tipos']} · Vencimiento: {alerta['proximo_vto'] or '-'}",
+                tipo="syh_habilitacion",
+                autor="Sistema",
+                link="/admin/syh",
+            )
+        nuevas_alertas.append(alerta)
+    return nuevas_alertas
+
+
+def sync_alertas_syh():
+    data = load_alertas_syh()
+    prev_map = {a.get("id"): a for a in data.get("alertas", [])}
+    alertas = []
+    alertas.extend(sync_alertas_matafuegos())
+    alertas.extend(sync_alertas_habilitaciones(prev_map))
+    data["alertas"] = alertas
+    save_alertas_syh(data)
+    return alertas
 
 def load_alertas_syh_dispatch():
     if ALERTAS_SYH_DISPATCH_FILE.exists():
@@ -953,7 +1012,7 @@ PROVEEDOR_USERS = {
 # Proveedores database
 PROVEEDORES = [
     {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","190","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
-    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["023","028","035","054","058","077","082","083","092","141","157","165","167","170","176","177","184","188","195","196","200","202","209","213","214","216","222","223","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
+    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","028","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","190","192","194","195","196","198","199","200","202","204","208","209","211","213","214","216","219","221","222","228","232","234","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
     {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "General", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "sucursales": ["011","023","036","077","147","176","177","183","186","198","209","211","213","222","223","234"]},
     {"nombre": "Angel JYS", "zona": "AMBA", "tipo": "General", "tel": "113560-9316", "sucursales": ["Zona Norte AMBA"]},
     {"nombre": "Jorge (Limpieza vidrios)", "zona": "AMBA", "tipo": "Limpieza", "tel": "115182-7823", "sucursales": ["AMBA general"]},
@@ -1407,7 +1466,7 @@ def suc_matafuego_mantenimiento(mid):
         flash("Mantenimiento anual registrado")
 
     save_matafuegos(data)
-    sync_alertas_matafuegos()
+    sync_alertas_syh()
     return redirect(url_for("suc_panel"))
 
 
@@ -1680,7 +1739,7 @@ def admin_panel():
     # Jonathan (tecnico) va directo a sus pedidos
     if session.get("rol") == "tecnico":
         return redirect(url_for("admin_pedidos"))
-    sync_alertas_matafuegos()
+    sync_alertas_syh()
     tickets = load_tickets()
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
@@ -3896,7 +3955,7 @@ def syh_edit(suc_num):
 def admin_syh():
     from sucursales_data import SUCURSALES_INFO
     syh_data = load_syh()
-    alertas_syh = sync_alertas_matafuegos()
+    alertas_syh = sync_alertas_syh()
 
     sucursales_syh = []
     for num in sorted(SUCURSALES_INFO.keys()):
@@ -5495,6 +5554,7 @@ def admin_habilitaciones_nuevo():
     }
     data.setdefault("habilitaciones", []).append(nueva)
     save_habilitaciones(data)
+    sync_alertas_syh()
     flash(f"Habilitación cargada para {sucursal}")
     return redirect(url_for("admin_habilitaciones"))
 
@@ -5558,6 +5618,7 @@ def admin_habilitaciones_editar(hid):
             h["archivo"] = fname
 
     save_habilitaciones(data)
+    sync_alertas_syh()
     flash("Habilitación actualizada")
     return redirect(url_for("admin_habilitaciones"))
 
@@ -5570,6 +5631,7 @@ def admin_habilitaciones_eliminar(hid):
     data["habilitaciones"] = [x for x in data.get("habilitaciones", []) if x.get("id") != hid]
     if len(data["habilitaciones"]) < antes:
         save_habilitaciones(data)
+        sync_alertas_syh()
         flash("Habilitación eliminada")
     return redirect(url_for("admin_habilitaciones"))
 

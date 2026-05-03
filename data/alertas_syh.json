@@ -1,11 +1,41 @@
 {
   "alertas": [
     {
-      "id": "matafuegos:078:Vencidos",
+      "id": "matafuegos:065:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "065",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-07-01",
+      "tipos": "ABC: 7, CO2: 1, HCFC-123: 1",
+      "cantidad": 9,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 065"
+      ],
+      "updated_at": "2026-05-03T07:38:48.038881"
+    },
+    {
+      "id": "matafuegos:058:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "058",
+      "estado": "Vencidos",
+      "proximo_vto": "2026-02-01",
+      "tipos": "ABC: 9, Otro: 1",
+      "cantidad": 10,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 058"
+      ],
+      "updated_at": "2026-05-03T07:38:48.039807"
+    },
+    {
+      "id": "matafuegos:078:Proximo a vencer",
       "tipo": "matafuegos",
       "sucursal_num": "078",
-      "estado": "Vencidos",
-      "proximo_vto": "2025-06-09",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-09",
       "tipos": "ABC: 14, AGUA: 5, CO2: 1, HALOCLEAN: 1",
       "cantidad": 21,
       "destinatarios": [
@@ -13,7 +43,67 @@
         "Patricia",
         "Sucursal 078"
       ],
-      "updated_at": "2026-04-24T08:58:01.205751"
+      "updated_at": "2026-05-03T07:38:48.040139"
+    },
+    {
+      "id": "matafuegos:080:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "080",
+      "estado": "Vencidos",
+      "proximo_vto": "2025-07-01",
+      "tipos": "ABC: 4",
+      "cantidad": 4,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 080"
+      ],
+      "updated_at": "2026-05-03T07:38:48.040482"
+    },
+    {
+      "id": "matafuegos:116:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "116",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-07-01",
+      "tipos": "ABC: 10, HCFC-123: 1",
+      "cantidad": 11,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 116"
+      ],
+      "updated_at": "2026-05-03T07:38:48.042561"
+    },
+    {
+      "id": "matafuegos:123:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "123",
+      "estado": "Vencidos",
+      "proximo_vto": "2023-03-07",
+      "tipos": "ABC: 19, AC: 2, Otro: 2",
+      "cantidad": 23,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 123"
+      ],
+      "updated_at": "2026-05-03T07:38:48.042996"
+    },
+    {
+      "id": "matafuegos:125:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "125",
+      "estado": "Vencidos",
+      "proximo_vto": "2024-11-01",
+      "tipos": "ABC: 9, Otro: 1",
+      "cantidad": 10,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 125"
+      ],
+      "updated_at": "2026-05-03T07:38:48.043758"
     },
     {
       "id": "matafuegos:139:Proximo a vencer",
@@ -28,37 +118,127 @@
         "Patricia",
         "Sucursal 139"
       ],
-      "updated_at": "2026-04-24T08:58:01.206219"
+      "updated_at": "2026-05-03T07:38:48.044291"
     },
     {
-      "id": "matafuegos:206:Proximo a vencer",
+      "id": "matafuegos:142:Vencidos",
       "tipo": "matafuegos",
-      "sucursal_num": "206",
-      "estado": "Proximo a vencer",
-      "proximo_vto": "2026-05-14",
-      "tipos": "ABC: 21, CO2: 2",
-      "cantidad": 23,
+      "sucursal_num": "142",
+      "estado": "Vencidos",
+      "proximo_vto": "0206-07-01",
+      "tipos": "ABC: 6, CO2: 1",
+      "cantidad": 7,
       "destinatarios": [
         "Agustín",
         "Patricia",
-        "Sucursal 206"
+        "Sucursal 142"
       ],
-      "updated_at": "2026-04-24T08:58:01.206876"
+      "updated_at": "2026-05-03T07:38:48.044351"
     },
     {
-      "id": "matafuegos:235:Proximo a vencer",
+      "id": "matafuegos:183:Proximo a vencer",
       "tipo": "matafuegos",
-      "sucursal_num": "235",
+      "sucursal_num": "183",
       "estado": "Proximo a vencer",
-      "proximo_vto": "2026-05-13",
-      "tipos": "ABC: 13",
-      "cantidad": 13,
+      "proximo_vto": "2026-07-01",
+      "tipos": "ABC: 22",
+      "cantidad": 22,
       "destinatarios": [
         "Agustín",
         "Patricia",
-        "Sucursal 235"
+        "Sucursal 183"
       ],
-      "updated_at": "2026-04-24T08:58:01.207253"
+      "updated_at": "2026-05-03T07:38:48.048553"
+    },
+    {
+      "id": "matafuegos:184:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "184",
+      "estado": "Vencidos",
+      "proximo_vto": "2025-08-01",
+      "tipos": "ABC: 39, Otro: 4",
+      "cantidad": 43,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 184"
+      ],
+      "updated_at": "2026-05-03T07:38:48.050905"
+    },
+    {
+      "id": "matafuegos:196:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "196",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-23",
+      "tipos": "ABC: 5",
+      "cantidad": 5,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 196"
+      ],
+      "updated_at": "2026-05-03T07:38:48.053908"
+    },
+    {
+      "id": "matafuegos:217:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "217",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-07-01",
+      "tipos": "ABC: 11",
+      "cantidad": 11,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 217"
+      ],
+      "updated_at": "2026-05-03T07:38:48.056403"
+    },
+    {
+      "id": "matafuegos:220:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "220",
+      "estado": "Vencidos",
+      "proximo_vto": "2026-05-01",
+      "tipos": "ABC: 15, BC: 2",
+      "cantidad": 17,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 220"
+      ],
+      "updated_at": "2026-05-03T07:38:48.056860"
+    },
+    {
+      "id": "matafuegos:145:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "145",
+      "estado": "Vencidos",
+      "proximo_vto": "2024-04-01",
+      "tipos": "ABC: 12, CO2: 1, Otro: 1",
+      "cantidad": 14,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 145"
+      ],
+      "updated_at": "2026-05-03T07:38:48.059399"
+    },
+    {
+      "id": "matafuegos:210:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "210",
+      "estado": "Vencidos",
+      "proximo_vto": "2025-03-01",
+      "tipos": "ABC: 7",
+      "cantidad": 7,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 210"
+      ],
+      "updated_at": "2026-05-03T07:38:48.061032"
     },
     {
       "id": "matafuegos:215:Proximo a vencer",
@@ -73,7 +253,97 @@
         "Patricia",
         "Sucursal 215"
       ],
-      "updated_at": "2026-04-24T08:58:01.207703"
+      "updated_at": "2026-05-03T07:38:48.061714"
+    },
+    {
+      "id": "matafuegos:231:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "231",
+      "estado": "Vencidos",
+      "proximo_vto": "2025-02-15",
+      "tipos": "ABC: 7",
+      "cantidad": 7,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 231"
+      ],
+      "updated_at": "2026-05-03T07:38:48.064289"
+    },
+    {
+      "id": "matafuegos:232:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "232",
+      "estado": "Vencidos",
+      "proximo_vto": "2021-01-29",
+      "tipos": "ABC: 6, CO2: 2",
+      "cantidad": 8,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 232"
+      ],
+      "updated_at": "2026-05-03T07:38:48.065050"
+    },
+    {
+      "id": "matafuegos:173:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "173",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-05-06",
+      "tipos": "ABC: 12, BC: 1",
+      "cantidad": 13,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 173"
+      ],
+      "updated_at": "2026-05-03T07:38:48.066673"
+    },
+    {
+      "id": "matafuegos:177:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "177",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-19",
+      "tipos": "ABC: 16",
+      "cantidad": 16,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 177"
+      ],
+      "updated_at": "2026-05-03T07:38:48.067691"
+    },
+    {
+      "id": "matafuegos:121:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "121",
+      "estado": "Vencidos",
+      "proximo_vto": "2026-05-01",
+      "tipos": "ABC: 1",
+      "cantidad": 1,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 121"
+      ],
+      "updated_at": "2026-05-03T07:38:48.068768"
+    },
+    {
+      "id": "matafuegos:235:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "235",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-05-13",
+      "tipos": "ABC: 13",
+      "cantidad": 13,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 235"
+      ],
+      "updated_at": "2026-05-03T07:38:48.070818"
     },
     {
       "id": "matafuegos:236:Proximo a vencer",
@@ -88,7 +358,84 @@
         "Patricia",
         "Sucursal 236"
       ],
-      "updated_at": "2026-04-24T08:58:01.207954"
+      "updated_at": "2026-05-03T07:38:48.070893"
+    },
+    {
+      "id": "matafuegos:237:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "237",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-01",
+      "tipos": "ABC: 7, CO2: 1",
+      "cantidad": 8,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 237"
+      ],
+      "updated_at": "2026-05-03T07:38:48.070961"
+    },
+    {
+      "id": "matafuegos:240:Vencidos",
+      "tipo": "matafuegos",
+      "sucursal_num": "240",
+      "estado": "Vencidos",
+      "proximo_vto": "2026-02-01",
+      "tipos": "ABC: 16",
+      "cantidad": 16,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 240"
+      ],
+      "updated_at": "2026-05-03T07:38:48.071471"
+    },
+    {
+      "id": "matafuegos:076:Proximo a vencer",
+      "tipo": "matafuegos",
+      "sucursal_num": "076",
+      "estado": "Proximo a vencer",
+      "proximo_vto": "2026-06-12",
+      "tipos": "ABC: 7, CO2: 2, HCFC-123: 1",
+      "cantidad": 10,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 076"
+      ],
+      "updated_at": "2026-05-03T07:38:48.071803"
+    },
+    {
+      "id": "habilitacion:a1b2c3d4e5f6:vencida",
+      "tipo": "habilitacion",
+      "sucursal_num": "114",
+      "sucursal": "Sucursal 114",
+      "estado": "Vencida",
+      "proximo_vto": "2018-04-21",
+      "tipos": "074094",
+      "cantidad": 1,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 114"
+      ],
+      "updated_at": "2026-05-03T07:38:48.072983"
+    },
+    {
+      "id": "habilitacion:b2c3d4e5f6a7:por_vencer",
+      "tipo": "habilitacion",
+      "sucursal_num": "023",
+      "sucursal": "Sucursal 023",
+      "estado": "Próximo a vencer",
+      "proximo_vto": "2026-06-15",
+      "tipos": "C-2024-08891",
+      "cantidad": 1,
+      "destinatarios": [
+        "Agustín",
+        "Patricia",
+        "Sucursal 023"
+      ],
+      "updated_at": "2026-05-03T07:38:48.073189"
     }
   ]
 }
