@@ -148,14 +148,11 @@
                     <div style="font-size: 12px; color: #6b7280;">{{ m.estado_calc.replace('_', ' ') }}</div>
                 </td>
                 <td style="padding: 8px 0; width:46%;">
-                    <form method="POST" action="{{ url_for('suc_matafuego_mantenimiento', mid=m.id) }}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:start;">
-                        <input type="date" name="fecha_carga" value="{{ hoy }}">
-                        <select name="accion_matafuego">
-                            <option value="mantenimiento">Mantenimiento realizado</option>
-                            <option value="rechazado">Rechazado</option>
-                        </select>
-                        <button type="submit" class="btn btn-outline btn-sm">Guardar</button>
-                        <input type="text" name="observacion_matafuego" placeholder="Observación breve (opcional)" style="grid-column:1 / span 3;">
+                    <form method="POST" action="{{ url_for('suc_matafuego_mantenimiento', mid=m.id) }}" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;">
+                        <input type="date" name="fecha_carga" value="{{ hoy }}" style="grid-column:1 / span 2;">
+                        <input type="text" name="observacion_matafuego" placeholder="Observación breve (opcional)" style="grid-column:1 / span 2;">
+                        <button type="submit" name="accion_matafuego" value="mantenimiento" class="btn btn-sm" style="background:#059669;color:white;">✅ Mantenimiento realizado</button>
+                        <button type="submit" name="accion_matafuego" value="rechazado" class="btn btn-sm" style="background:#dc2626;color:white;">⚠️ Rechazado</button>
                     </form>
                 </td>
             </tr>
