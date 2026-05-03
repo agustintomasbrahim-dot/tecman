@@ -3,7 +3,7 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('prov_panel') }}">Mis trabajos</a>
-    <a href="{{ url_for('index') }}">Inicio</a>
+    <a href="{{ url_for('prov_panel') }}">Inicio</a>
     <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
 </div>
 {% endblock %}
