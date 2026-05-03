@@ -613,5 +613,81 @@
         "texto": "Seguimiento de prueba desde Patricia"
       }
     ]
+  },
+  {
+    "id": 35,
+    "sucursal": "Sucursal 196",
+    "categoria": "Aire Acondicionado",
+    "subcategoria": "Goteo",
+    "descripcion": "El equipo del salón presenta goteo intermitente cerca de la línea de cajas.",
+    "solicitante_nombre": "Encargado",
+    "solicitante_apellido": "Sucursal",
+    "solicitante": "Encargado Sucursal",
+    "prioridad": 2,
+    "estado": "Pendiente",
+    "asignado": "CEYH",
+    "fotos": [],
+    "observaciones": "Se informó a la sucursal que está en coordinación con proveedor.",
+    "creado": "2026-05-02T09:20:00",
+    "actualizado": "2026-05-03T09:45:00",
+    "notificaciones": [
+      {
+        "fecha": "2026-05-03T09:45:00",
+        "texto": "Estamos coordinando visita técnica con el proveedor.",
+        "leida": false
+      }
+    ],
+    "notas": [
+      {
+        "autor": "Sucursal 196",
+        "fecha": "2026-05-02T09:20:00",
+        "texto": "Se detecta goteo desde el aire del salón principal."
+      },
+      {
+        "autor": "Agustín Brahim",
+        "fecha": "2026-05-03T09:45:00",
+        "texto": "Respuesta a sucursal: Esperando proveedor - Se coordina visita técnica."
+      }
+    ],
+    "estado_respuesta": "Esperando proveedor"
+  },
+  {
+    "id": 36,
+    "sucursal": "Sucursal 196",
+    "categoria": "Materiales",
+    "subcategoria": "Solicitud de materiales",
+    "descripcion": "Reposición de luminarias para el salón de ventas.",
+    "solicitante_nombre": "Encargado",
+    "solicitante_apellido": "Sucursal",
+    "solicitante": "Encargado Sucursal",
+    "prioridad": 3,
+    "estado": "Pendiente",
+    "asignado": "Jonatan",
+    "fotos": [],
+    "observaciones": "Material enviado. Pendiente de recepción por parte de la sucursal.",
+    "creado": "2026-04-25T10:00:00",
+    "actualizado": "2026-04-28T11:00:00",
+    "categoria_mat": "Luminarias",
+    "subitem_mat": "Panel LED 60x60",
+    "cantidad_mat": "6",
+    "notas": [
+      {
+        "autor": "Sucursal 196",
+        "fecha": "2026-04-25T10:00:00",
+        "texto": "Se solicita reposición de luminarias para reemplazo en salón."
+      },
+      {
+        "autor": "Central",
+        "fecha": "2026-04-26T11:15:00",
+        "texto": "Pedido aprobado y preparado para despacho."
+      },
+      {
+        "autor": "Central",
+        "fecha": "2026-04-28T11:00:00",
+        "texto": "Material despachado a sucursal. Pendiente confirmación de recepción con remito."
+      }
+    ],
+    "estado_recepcion": "pendiente",
+    "requiere_confirmacion_recepcion": true
   }
 ]
