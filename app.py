@@ -101,6 +101,7 @@ CATEGORIAS = {
     "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
     "Materiales": ["Solicitud de materiales"],
     "Presupuestos": ["Cortinas", "Filtraciones", "Aire acondicionado", "Electricidad", "Pintura", "Plomería", "Carpintería", "Vidriería", "Matafuegos", "Habilitaciones", "Otro presupuesto"],
+    "Seguridad e Higiene": ["Consulta de habilitación", "Permiso", "Documentación faltante", "Otra asistencia S&H"],
     "Otro": ["Otro"],
 }
 
@@ -1126,6 +1127,8 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
         return "Jonatan"
     if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
         return "Jonatan"
+    if categoria == "Seguridad e Higiene":
+        return "Patricia"
     if categoria == "Presupuestos":
         return ASIGNACION_DEFAULT
     if subcategoria in ("Reparacion", "Sin funcionamiento", "Goteo", "Limpieza interna de equipo") and "Aire" in subcategoria:
@@ -1498,6 +1501,8 @@ def nuevo_ticket():
                     "archivo": archivo_presupuesto_suc,
                     "archivo_nombre": archivo_presupuesto_suc_nombre,
                 }]
+        elif categoria == "Seguridad e Higiene":
+            ticket["tipo"] = "syh_general"
 
         tickets.append(ticket)
         save_tickets(tickets)

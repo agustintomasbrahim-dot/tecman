@@ -44,7 +44,7 @@
             <select name="categoria" id="categoria" required>
                 <option value="">Seleccionar categoria...</option>
                 {% for cat in categorias %}
-                <option value="{{ cat }}">{{ cat }}</option>
+                <option value="{{ cat }}" {% if request.args.get('categoria') == cat %}selected{% endif %}>{{ cat }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -161,6 +161,22 @@ document.getElementById('categoria').addEventListener('change', function() {
             archivoPptoGroup.style.display = 'block';
             descLabel.textContent = 'Detalle del presupuesto *';
             desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
+        } else if (this.value === 'Seguridad e Higiene') {
+            zonaGroup.style.display = 'none';
+            zonaInput.removeAttribute('required');
+            provPptoGroup.style.display = 'none';
+            provPptoInput.removeAttribute('required');
+            archivoPptoGroup.style.display = 'none';
+            descLabel.textContent = 'Detalle del pedido *';
+            desc.placeholder = 'Describa claramente qué necesita la sucursal sobre Seguridad e Higiene...';
+        } else {
+            zonaGroup.style.display = 'block';
+            zonaInput.setAttribute('required', 'required');
+            provPptoGroup.style.display = 'block';
+            provPptoInput.setAttribute('required', 'required');
+            archivoPptoGroup.style.display = 'block';
+            descLabel.textContent = 'Detalle del presupuesto *';
+            desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
         } else {
             zonaGroup.style.display = 'none';
             zonaInput.removeAttribute('required');
@@ -227,5 +243,18 @@ document.getElementById('categoria').addEventListener('change', function() {
         }
     });
 })();
+document.addEventListener('DOMContentLoaded', function() {
+    var categoria = document.getElementById('categoria');
+    if (categoria.value) {
+        categoria.dispatchEvent(new Event('change'));
+    }
+    var sub = document.getElementById('subcategoria');
+    var subcategoriaParam = {{ request.args.get('subcategoria', '') | tojson }};
+    if (subcategoriaParam) {
+        setTimeout(function() {
+            sub.value = subcategoriaParam;
+        }, 0);
+    }
+});
 </script>
 {% endblock %}
