@@ -3837,6 +3837,16 @@ def syh_panel():
             "senalizacion": estado.get("senalizacion", "Sin datos"),
         })
 
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene"]
+    tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
+    tickets_syh = [
+        {
+            **t,
+            "tiene_no_leidas": any(not n.get("leida", True) for n in t.get("notificaciones", [])),
+        }
+        for t in tickets_syh
+    ]
+
     total = len(sucursales_syh)
     habilitadas = sum(1 for s in sucursales_syh if s["habilitacion"] == "Vigente")
     bomberos_ok = sum(1 for s in sucursales_syh if s["bomberos"] == "Aprobado")
@@ -3850,6 +3860,9 @@ def syh_panel():
         bomberos_ok=bomberos_ok,
         sin_datos=sin_datos,
         syh_estados=SYH_ESTADOS,
+        tickets_syh=tickets_syh,
+        tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
+        tickets_syh_pendientes=sum(1 for t in tickets_syh if t.get("estado") in ("Nuevo", "Abierto", "Pendiente")),
     )
 
 
@@ -3897,6 +3910,82 @@ def syh_matafuegos():
         filtro_estado=filtro_estado,
         filtro_suc=filtro_suc,
         rechazados_recientes=rechazados_recientes,
+    )
+
+
+@app.route("/syh/ticket/<int:ticket_id>", methods=["GET", "POST"])
+@syh_login_required
+def syh_ticket(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id and t.get("categoria") == "Seguridad e Higiene"), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+
+    if request.method == "POST":
+        accion = request.form.get("accion", "").strip()
+        ahora = datetime.datetime.now().isoformat()
+        autor = session.get("syh_nombre", session.get("nombre", "Patricia"))
+
+        if accion == "responder_suc":
+            motivo = request.form.get("motivo", "").strip()
+            detalle = request.form.get("motivo_detalle", "").strip()
+            labels = {
+                "esperando_proveedor": "Esperando proveedor",
+                "esperando_materiales": "Esperando materiales",
+                "otra": "Otra",
+            }
+            label = labels.get(motivo, motivo or "Respuesta")
+            mensaje = label if motivo != "otra" else (detalle or label)
+            if detalle and motivo != "otra":
+                mensaje += f" - {detalle}"
+            ticket.setdefault("notas", []).append({
+                "autor": autor,
+                "fecha": ahora,
+                "texto": f"Respuesta a sucursal: {mensaje}",
+            })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": ahora,
+                "texto": mensaje,
+                "leida": False,
+            })
+            ticket["estado_respuesta"] = label
+            if ticket.get("estado") in ("Nuevo", "Abierto"):
+                ticket["estado"] = "Pendiente"
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+            flash("Respuesta enviada a la sucursal")
+            return redirect(url_for("syh_ticket", ticket_id=ticket_id))
+
+        if accion == "agregar_nota_syh":
+            nueva_nota = request.form.get("nueva_nota", "").strip()
+            if nueva_nota:
+                ticket.setdefault("notas", []).append({
+                    "autor": autor,
+                    "fecha": ahora,
+                    "texto": nueva_nota,
+                })
+                ticket["actualizado"] = ahora
+                save_tickets(tickets)
+                flash("Nota agregada")
+            return redirect(url_for("syh_ticket", ticket_id=ticket_id))
+
+        if accion == "actualizar_ticket_syh":
+            ticket["estado"] = request.form.get("estado", ticket.get("estado", "Nuevo"))
+            ticket["observaciones"] = request.form.get("observaciones", ticket.get("observaciones", ""))
+            ticket.setdefault("notas", []).append({
+                "autor": autor,
+                "fecha": ahora,
+                "texto": f"Actualización S&H: estado {ticket['estado']}",
+            })
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+            flash("Ticket actualizado")
+            return redirect(url_for("syh_ticket", ticket_id=ticket_id))
+
+    return render_template(
+        "syh_ticket.html",
+        ticket=ticket,
+        estados=ESTADOS,
     )
 
 
@@ -3999,6 +4088,9 @@ def admin_syh():
                 "tipos": resumen.get("tipos", "-"),
             })
 
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene"]
+    tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
+
     return render_template(
         "admin_syh.html",
         sucursales=sucursales_syh,
@@ -4010,6 +4102,8 @@ def admin_syh():
         matafuegos_stats=_stats_matafuegos(matafuegos_data),
         alertas_syh=alertas_syh,
         rechazados_recientes=rechazados_recientes,
+        tickets_syh=tickets_syh,
+        tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
     )
 
 

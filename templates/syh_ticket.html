@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Ticket S&H{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('syh_panel') }}">Panel S&H</a>
+    <a href="{{ url_for('syh_panel') }}#tickets-syh" style="border-bottom-color: #7c3aed; color: #7c3aed;">Tickets S&H</a>
+    <a href="{{ url_for('syh_matafuegos') }}">Matafuegos</a>
+    <a href="{{ url_for('syh_logout') }}" style="margin-left: auto;">Salir ({{ session.get('syh_nombre', '') }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <div>
+        <a href="{{ url_for('syh_panel') }}#tickets-syh" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;text-decoration:none;color:#374151;font-size:13px;font-weight:600;margin-bottom:10px;">← Volver a Tickets S&H</a>
+        <h2 style="margin:0 0 4px 0;">Ticket S&H #{{ ticket.id }}</h2>
+        <p style="color:#6b7280;margin:0;">{{ ticket.sucursal }} · {{ ticket.subcategoria or 'Sin subcategoría' }}</p>
+    </div>
+    <div>
+        {% if ticket.estado in ['Resuelto', 'Cerrado'] %}
+        <span class="badge badge-resuelto">{{ ticket.estado }}</span>
+        {% elif ticket.estado in ['Pendiente', 'Abierto'] %}
+        <span class="badge badge-abierto">{{ ticket.estado }}</span>
+        {% else %}
+        <span class="badge badge-p1">{{ ticket.estado }}</span>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;align-items:start;">
+    <div>
+        <div class="card" style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Detalle</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
+                <div><div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Sucursal</div><div style="font-weight:600;">{{ ticket.sucursal }}</div></div>
+                <div><div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Categoría</div><div style="font-weight:600;">{{ ticket.categoria }}</div></div>
+                <div><div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Subcategoría</div><div style="font-weight:600;">{{ ticket.subcategoria or '—' }}</div></div>
+                <div><div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Asignado</div><div style="font-weight:600;">{{ ticket.asignado or '—' }}</div></div>
+            </div>
+            <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Descripción</div>
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;white-space:pre-wrap;">{{ ticket.descripcion or 'Sin detalle' }}</div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Notas y seguimiento</h3>
+            {% if ticket.notas %}
+                {% for nota in ticket.notas|reverse %}
+                <div style="padding:10px 0; {% if not loop.last %}border-bottom:1px solid #f3f4f6;{% endif %}">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px;">
+                        <strong>{{ nota.autor }}</strong>
+                        <span style="font-size:12px;color:#6b7280;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
+                    </div>
+                    <div style="white-space:pre-wrap;color:#334155;">{{ nota.texto }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color:#6b7280;margin:0;">Todavía no hay notas cargadas.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div>
+        <div class="card" style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Actualizar ticket</h3>
+            <form method="POST">
+                <input type="hidden" name="accion" value="actualizar_ticket_syh">
+                <div class="form-group">
+                    <label>Estado</label>
+                    <select name="estado">
+                        {% for estado in estados %}
+                        <option value="{{ estado }}" {% if ticket.estado == estado %}selected{% endif %}>{{ estado }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observaciones internas</label>
+                    <textarea name="observaciones">{{ ticket.observaciones or '' }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Guardar cambios</button>
+            </form>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+            <h3 style="margin-bottom:12px;">Responder a la sucursal</h3>
+            <form method="POST">
+                <input type="hidden" name="accion" value="responder_suc">
+                <div class="form-group">
+                    <label>Respuesta rápida</label>
+                    <select name="motivo">
+                        <option value="esperando_proveedor">Esperando proveedor</option>
+                        <option value="esperando_materiales">Esperando materiales</option>
+                        <option value="otra">Otra</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Detalle</label>
+                    <textarea name="motivo_detalle" placeholder="Ej: estamos esperando respuesta del municipio / falta documentación / inspección pendiente..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-outline btn-block">Enviar respuesta</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3 style="margin-bottom:12px;">Agregar nota</h3>
+            <form method="POST">
+                <input type="hidden" name="accion" value="agregar_nota_syh">
+                <div class="form-group">
+                    <textarea name="nueva_nota" placeholder="Seguimiento interno, novedades, próximo paso..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-outline btn-block">Agregar nota</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -3,6 +3,7 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('syh_panel') }}" style="border-bottom-color: #059669; color: #059669;">Habilitaciones</a>
+    <a href="{{ url_for('syh_panel') }}#tickets-syh">Tickets S&H</a>
     <a href="{{ url_for('syh_matafuegos') }}">Matafuegos</a>
     <a href="{{ url_for('syh_panel') }}">Inicio</a>
     <a href="{{ url_for('syh_logout') }}" style="margin-left: auto;">Salir ({{ session.get('syh_nombre', '') }})</a>
@@ -31,9 +32,56 @@
         <div class="label">Bomberos OK</div>
     </div>
     <div class="stat-card">
+        <div class="number" style="color: #7c3aed;">{{ tickets_syh_abiertos }}</div>
+        <div class="label">Tickets S&H abiertos</div>
+    </div>
+    <div class="stat-card">
         <div class="number" style="color: #f59e0b;">{{ sin_datos }}</div>
         <div class="label">Sin datos</div>
     </div>
+</div>
+
+<div id="tickets-syh" class="card" style="margin-bottom:16px; padding:0; overflow-x:auto; border-left:4px solid #7c3aed;">
+    <div style="padding:16px 16px 8px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <div>
+            <h3 style="margin:0 0 4px 0;">Tickets S&H</h3>
+            <p style="margin:0; color:#6b7280; font-size:13px;">Pedidos cargados por las sucursales para que Patricia haga seguimiento.</p>
+        </div>
+        <span class="badge" style="background:#ede9fe;color:#6d28d9;">{{ tickets_syh_pendientes }} pendientes</span>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Sucursal</th>
+                <th>Subcategoría</th>
+                <th>Estado</th>
+                <th>Asignado</th>
+                <th>Actualizado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets_syh %}
+            <tr>
+                <td style="font-weight:700;">#{{ t.id }}</td>
+                <td>{{ t.sucursal }}</td>
+                <td>{{ t.subcategoria or '—' }}</td>
+                <td>
+                    {% if t.estado in ['Resuelto', 'Cerrado'] %}<span class="badge badge-resuelto">{{ t.estado }}</span>
+                    {% elif t.estado in ['Pendiente', 'Abierto'] %}<span class="badge badge-abierto">{{ t.estado }}</span>
+                    {% else %}<span class="badge badge-p1">{{ t.estado }}</span>{% endif %}
+                    {% if t.tiene_no_leidas %}<span style="color:#dc2626;font-size:11px;font-weight:700;display:block;margin-top:4px;">Sin leer</span>{% endif %}
+                </td>
+                <td>{{ t.asignado or '—' }}</td>
+                <td style="color:#6b7280; font-size:12px;">{{ (t.actualizado or t.creado or '')[:16].replace('T', ' ') }}</td>
+                <td><a href="{{ url_for('syh_ticket', ticket_id=t.id) }}" class="btn btn-sm btn-outline">Abrir</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" style="padding:16px; color:#6b7280;">Todavía no hay tickets de Seguridad e Higiene cargados por sucursales.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <div class="card" style="padding: 0; overflow-x: auto;">

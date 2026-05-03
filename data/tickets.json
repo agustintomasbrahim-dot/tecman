@@ -583,5 +583,35 @@
     "cantidad_mat": 2,
     "notas": [],
     "tipo": "materiales"
+  },
+  {
+    "id": 33,
+    "sucursal": "Sucursal 036",
+    "categoria": "Seguridad e Higiene",
+    "subcategoria": "Consulta de habilitación",
+    "descripcion": "Prueba interna del circuito S&H para validar visualización y seguimiento desde sucursal, Patricia y admin.",
+    "solicitante_nombre": "Prueba",
+    "solicitante_apellido": "Sistema",
+    "solicitante": "Prueba Sistema",
+    "prioridad": 2,
+    "estado": "Nuevo",
+    "asignado": "Patricia",
+    "fotos": [],
+    "observaciones": "",
+    "creado": "2026-05-03T10:05:46.557530",
+    "actualizado": "2026-05-03T10:05:56.875867",
+    "tipo": "syh_general",
+    "notas": [
+      {
+        "autor": "Sistema",
+        "fecha": "2026-05-03T10:05:46.557530",
+        "texto": "Ticket de prueba creado para validar el flujo de Seguridad e Higiene."
+      },
+      {
+        "autor": "Patricia",
+        "fecha": "2026-05-03T10:05:56.875867",
+        "texto": "Seguimiento de prueba desde Patricia"
+      }
+    ]
   }
 ]
