@@ -52,19 +52,26 @@
 {% if not es_rita and notif_admin %}
 <!-- Notificaciones para admins -->
 <div class="card" style="border-left: 4px solid #2563eb; margin-bottom: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }})</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
+        <div>
+            <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }})</h3>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{% if notif_criticas %}<strong style="color:#b91c1c;">{{ notif_criticas }} crítica{{ 's' if notif_criticas != 1 }}</strong> · {% endif %}Las más nuevas primero.</div>
+        </div>
         <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin: 0;">
             <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; font-size: 12px;">Marcar todas como leídas</button>
         </form>
     </div>
     {% for n in notif_admin %}
-    <div style="padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+    <div style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
             <div style="flex: 1; min-width: 0;">
-                <p style="font-weight: 600; color: #1e40af; font-size: 14px; margin-bottom: 4px;">{{ n.titulo }}</p>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:{% if n.es_critica %}#fee2e2{% else %}#dbeafe{% endif %};color:{% if n.es_critica %}#b91c1c{% else %}#1d4ed8{% endif %};">{{ n.tipo_label }}</span>
+                    {% if n.es_critica %}<span style="font-size:11px;font-weight:700;color:#b91c1c;">Requiere atención</span>{% endif %}
+                </div>
+                <p style="font-weight: 700; color: {% if n.es_critica %}#991b1b{% else %}#1e40af{% endif %}; font-size: 14px; margin-bottom: 4px;">{{ n.titulo }}</p>
                 <p style="color: #374151; font-size: 13px; white-space: pre-line; margin-bottom: 6px;">{{ n.detalle }}</p>
-                <span style="font-size: 11px; color: #6b7280;">{{ n.autor }} — {{ n.fecha[:16].replace('T', ' ') }}</span>
+                <span style="font-size: 11px; color: #6b7280;">{{ n.autor or 'Sistema' }} — {{ n.fecha[:16].replace('T', ' ') }}</span>
             </div>
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                 {% if n.link %}<a href="{{ n.link }}" class="btn btn-sm" style="background: #dbeafe; color: #1e40af; font-size: 11px;">Ver</a>{% endif %}

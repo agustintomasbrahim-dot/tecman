@@ -1834,7 +1834,23 @@ def admin_panel():
 
     # Notificaciones admin (stock / facturas cargadas)
     notif_data = load_notif_admin()
-    notif_admin = [n for n in notif_data.get("notificaciones", []) if not n.get("leida")][:10]
+    notif_admin = [n for n in notif_data.get("notificaciones", []) if not n.get("leida")]
+    notif_tipo_labels = {
+        "stock": "Stock",
+        "factura": "Contabilidad",
+        "equipo_central": "Equipo Central",
+        "syh_matafuegos": "Matafuegos",
+        "syh_habilitacion": "Habilitaciones",
+        "syh": "Seguridad e Higiene",
+    }
+    notif_admin = [
+        {
+            **n,
+            "tipo_label": notif_tipo_labels.get(n.get("tipo"), (n.get("tipo") or "General").replace("_", " ").title()),
+            "es_critica": n.get("tipo") in ("syh_matafuegos", "syh_habilitacion") or "🚨" in (n.get("titulo") or ""),
+        }
+        for n in notif_admin[:12]
+    ]
 
     return render_template(
         "admin_panel.html",
@@ -1852,6 +1868,7 @@ def admin_panel():
         mis_esperando=len(mis_esperando),
         mis_asignados=len(mis_asignados),
         sin_asignar_count=len(sin_asignar),
+        notif_criticas=sum(1 for n in notif_admin if n.get("es_critica")),
         vista=vista,
         alertas=alertas,
         notif_admin=notif_admin,
