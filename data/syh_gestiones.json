@@ -1,0 +1,25 @@
+{
+  "gestiones": [
+    {
+      "id": 1,
+      "sucursal": "Sucursal 036",
+      "sucursal_num": "036",
+      "tipo": "Intimación municipal",
+      "origen": "Mail",
+      "estado": "En gestión",
+      "fecha_objetivo": "2026-05-12",
+      "detalle": "Prueba de gestión S&H recibida por mail desde municipio.",
+      "observaciones": "Seguimiento inicial de prueba",
+      "creado": "2026-05-03T11:28:17.235291",
+      "actualizado": "2026-05-03T11:28:17.235291",
+      "creado_por": "Patricia",
+      "historial": [
+        {
+          "autor": "Patricia",
+          "fecha": "2026-05-03T11:28:17.235291",
+          "texto": "Gestión S&H creada"
+        }
+      ]
+    }
+  ]
+}

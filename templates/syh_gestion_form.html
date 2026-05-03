@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Nueva gestión S&H{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('syh_panel') }}">Panel S&H</a>
+    <a href="{{ url_for('syh_panel') }}#gestiones-syh" style="border-bottom-color: #0ea5e9; color: #0ea5e9;">Gestiones S&H</a>
+    <a href="{{ url_for('syh_matafuegos') }}">Matafuegos</a>
+    <a href="{{ url_for('syh_logout') }}" style="margin-left: auto;">Salir ({{ session.get('syh_nombre', '') }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:900px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+        <div>
+            <h2 style="margin:0 0 4px 0;">Nueva gestión S&H</h2>
+            <p style="margin:0;color:#6b7280;">Para registrar temas que le llegan directo a Patricia por municipio, mail, WhatsApp o inspección.</p>
+        </div>
+        <a href="{{ url_for('syh_panel') }}#gestiones-syh" class="btn btn-outline btn-sm">← Volver</a>
+    </div>
+    <form method="POST">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+                <label>Sucursal *</label>
+                <select name="sucursal" required>
+                    <option value="">Seleccionar sucursal...</option>
+                    {% for suc in sucursales %}
+                    <option value="{{ suc }}">{{ suc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tipo de gestión *</label>
+                <input type="text" name="tipo" required placeholder="Ej: Intimación municipal / seguimiento habilitación">
+            </div>
+            <div class="form-group">
+                <label>Origen *</label>
+                <select name="origen" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="Municipio">Municipio</option>
+                    <option value="Mail">Mail</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Inspección">Inspección</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Estado inicial</label>
+                <select name="estado">
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="En gestión">En gestión</option>
+                    <option value="Resuelto">Resuelto</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column:1 / span 2;">
+                <label>Fecha objetivo</label>
+                <input type="date" name="fecha_objetivo">
+            </div>
+            <div class="form-group" style="grid-column:1 / span 2;">
+                <label>Detalle *</label>
+                <textarea name="detalle" required placeholder="Describí qué pasó, qué llegó y qué seguimiento requiere..."></textarea>
+            </div>
+            <div class="form-group" style="grid-column:1 / span 2;">
+                <label>Observaciones internas</label>
+                <textarea name="observaciones" placeholder="Notas para seguimiento interno..."></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Guardar gestión S&H</button>
+    </form>
+</div>
+{% endblock %}

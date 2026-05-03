@@ -24,6 +24,7 @@ else:
 DATA_DIR.mkdir(exist_ok=True)
 
 TICKETS_FILE = DATA_DIR / "tickets.json"
+SYH_GESTIONES_FILE = DATA_DIR / "syh_gestiones.json"
 STOCK_FILE = DATA_DIR / "stock.json"
 TRANSFERS_FILE = DATA_DIR / "transfers.json"
 COMPROBANTES_FILE = DATA_DIR / "comprobantes.json"
@@ -1087,6 +1088,19 @@ def load_tickets():
 
 def save_tickets(tickets):
     TICKETS_FILE.write_text(json.dumps(tickets, indent=2, ensure_ascii=False))
+
+
+def load_syh_gestiones():
+    if SYH_GESTIONES_FILE.exists():
+        try:
+            return json.loads(SYH_GESTIONES_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"gestiones": []}
+
+
+def save_syh_gestiones(data):
+    SYH_GESTIONES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def auto_priority(categoria, subcategoria):
@@ -3846,6 +3860,8 @@ def syh_panel():
         }
         for t in tickets_syh
     ]
+    gestiones_syh = load_syh_gestiones().get("gestiones", [])
+    gestiones_syh.sort(key=lambda g: g.get("actualizado", g.get("creado", "")), reverse=True)
 
     total = len(sucursales_syh)
     habilitadas = sum(1 for s in sucursales_syh if s["habilitacion"] == "Vigente")
@@ -3863,6 +3879,8 @@ def syh_panel():
         tickets_syh=tickets_syh,
         tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
         tickets_syh_pendientes=sum(1 for t in tickets_syh if t.get("estado") in ("Nuevo", "Abierto", "Pendiente")),
+        gestiones_syh=gestiones_syh,
+        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ("Resuelto", "Cerrado")),
     )
 
 
@@ -3989,6 +4007,46 @@ def syh_ticket(ticket_id):
     )
 
 
+@app.route("/syh/gestion/nueva", methods=["GET", "POST"])
+@syh_login_required
+def syh_gestion_nueva():
+    if request.method == "POST":
+        sucursal = request.form.get("sucursal", "").strip()
+        if not sucursal:
+            flash("Seleccione una sucursal")
+            return redirect(url_for("syh_gestion_nueva"))
+        suc_num = sucursal.replace("Sucursal ", "").strip()
+        data = load_syh_gestiones()
+        items = data.setdefault("gestiones", [])
+        ahora = datetime.datetime.now().isoformat()
+        gid = max([g.get("id", 0) for g in items] + [0]) + 1
+        nueva = {
+            "id": gid,
+            "sucursal": sucursal,
+            "sucursal_num": suc_num,
+            "tipo": request.form.get("tipo", "").strip(),
+            "origen": request.form.get("origen", "").strip(),
+            "estado": request.form.get("estado", "Pendiente").strip() or "Pendiente",
+            "fecha_objetivo": request.form.get("fecha_objetivo", "").strip(),
+            "detalle": request.form.get("detalle", "").strip(),
+            "observaciones": request.form.get("observaciones", "").strip(),
+            "creado": ahora,
+            "actualizado": ahora,
+            "creado_por": session.get("syh_nombre", session.get("nombre", "Patricia")),
+            "historial": [{
+                "autor": session.get("syh_nombre", session.get("nombre", "Patricia")),
+                "fecha": ahora,
+                "texto": "Gestión S&H creada",
+            }],
+        }
+        items.append(nueva)
+        save_syh_gestiones(data)
+        flash("Gestión S&H creada")
+        return redirect(url_for("syh_panel") + "#gestiones-syh")
+
+    return render_template("syh_gestion_form.html", sucursales=SUCURSALES)
+
+
 @app.route("/syh/sucursal/<suc_num>", methods=["GET", "POST"])
 @syh_login_required
 def syh_edit(suc_num):
@@ -4090,6 +4148,8 @@ def admin_syh():
 
     tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene"]
     tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
+    gestiones_syh = load_syh_gestiones().get("gestiones", [])
+    gestiones_syh.sort(key=lambda g: g.get("actualizado", g.get("creado", "")), reverse=True)
 
     return render_template(
         "admin_syh.html",
@@ -4104,6 +4164,8 @@ def admin_syh():
         rechazados_recientes=rechazados_recientes,
         tickets_syh=tickets_syh,
         tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
+        gestiones_syh=gestiones_syh,
+        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ("Resuelto", "Cerrado")),
     )
 
 
