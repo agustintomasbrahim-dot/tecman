@@ -47,8 +47,21 @@
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
         <a href="{{ url_for('suc_syh') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Habilitaciones</div>
-            <div class="suc-mini-value">{{ habilitaciones_suc|length if habilitaciones_suc else 0 }}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Documentación y vigencias · Ver →</div>
+            {% if habilitaciones_suc %}
+                {% set h = habilitaciones_suc[0] %}
+                <div style="font-size:13px; font-weight:700; color:{% if h.estado == 'vigente' %}#065f46{% elif h.estado == 'por_vencer' %}#b45309{% else %}#dc2626{% endif %}; margin-top:2px;">
+                    {{ h.estado.replace('_', ' ').title() }}
+                </div>
+                <div style="font-size:12px; color:#374151; margin-top:2px; font-weight:600;">{{ h.numero_cert or 'Sin número' }}</div>
+                <div style="font-size:11px; color:#6b7280; margin-top:2px;">Vto: {{ h.fecha_vencimiento or 'Sin fecha' }}</div>
+                {% if habilitaciones_suc|length > 1 %}
+                <div style="font-size:11px; color:#6b7280; margin-top:2px;">+{{ habilitaciones_suc|length - 1 }} más</div>
+                {% endif %}
+                <div style="font-size:12px; color:#2563eb; margin-top:6px;">Ver detalle →</div>
+            {% else %}
+                <div class="suc-mini-value" style="color:#9ca3af;">Sin datos</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cargar habilitación →</div>
+            {% endif %}
         </a>
         <a href="{{ url_for('suc_matafuegos') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Matafuegos</div>
