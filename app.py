@@ -113,7 +113,7 @@ PRIORIDADES = {
     4: "Baja",
 }
 
-ESTADOS = ["Nuevo", "Abierto", "En progreso", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
+ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
 
 ADMINS = {
     "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
@@ -1640,7 +1640,7 @@ def confirmar_recepcion(ticket_id):
 
     ticket["notas"].append(nota)
     ticket["materiales_recibidos"] = True
-    ticket["estado"] = "En progreso"
+    ticket["estado"] = "Materiales recibidos"
     ticket["actualizado"] = datetime.datetime.now().isoformat()
 
     agregar_notif_admin(
@@ -2214,11 +2214,10 @@ def admin_ticket(ticket_id):
                 flash("Seleccioná una opción")
                 return redirect(url_for("admin_ticket", ticket_id=ticket_id))
             ticket["siguiente_paso"] = siguiente_paso
+            ticket["estado"] = "Cerrado" if siguiente_paso == "sucursal" else "En progreso"
             if siguiente_paso == "personal_mantenimiento":
                 ticket["asignado_equipo"] = "Equipo Central"
                 ticket.setdefault("etapa_equipo", "asignado")
-            elif siguiente_paso == "sucursal":
-                ticket["estado"] = "Cerrado"
             ticket.setdefault("notas", []).append({
                 "autor": session.get("nombre", "Admin"),
                 "fecha": datetime.datetime.now().isoformat(),
@@ -4336,7 +4335,7 @@ def admin_pedidos():
     # Filter material tickets assigned to Jonathan
     pedidos = [t for t in tickets if (t.get("categoria") in ("Materiales", "Solicitud de materiales") or t.get("tipo") == "materiales") and t["estado"] not in ("Cerrado",)]
     pendientes = [t for t in pedidos if t["estado"] in ("Nuevo", "Abierto")]
-    en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Pendiente")]
+    en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Materiales recibidos", "Pendiente")]
     resueltos = [t for t in pedidos if t["estado"] == "Resuelto"]
 
     return render_template(
