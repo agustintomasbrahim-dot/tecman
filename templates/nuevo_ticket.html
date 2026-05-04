@@ -170,14 +170,6 @@ document.getElementById('categoria').addEventListener('change', function() {
             descLabel.textContent = 'Detalle del pedido *';
             desc.placeholder = 'Describa claramente qué necesita la sucursal sobre Seguridad e Higiene...';
         } else {
-            zonaGroup.style.display = 'block';
-            zonaInput.setAttribute('required', 'required');
-            provPptoGroup.style.display = 'block';
-            provPptoInput.setAttribute('required', 'required');
-            archivoPptoGroup.style.display = 'block';
-            descLabel.textContent = 'Detalle del presupuesto *';
-            desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
-        } else {
             zonaGroup.style.display = 'none';
             zonaInput.removeAttribute('required');
             provPptoGroup.style.display = 'none';
