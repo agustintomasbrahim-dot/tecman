@@ -1658,18 +1658,25 @@ def confirmar_recepcion(ticket_id):
         "texto": f"Siguiente paso: {paso_texto}",
     })
 
-    # Si va a Personal de Mantenimiento Central, asignar al equipo y avisar al admin
+    # Notificar al admin en todos los caminos
+    _paso_labels = {
+        "personal_mantenimiento": "Personal de Mantenimiento Central",
+        "proveedor_abono": "Proveedor del abono mensual",
+        "proveedor_eventual": "Proveedor eventual",
+        "sucursal": "Personal propio de la sucursal",
+    }
+    agregar_notif_admin(
+        titulo=f"Recepción confirmada #{ticket_id} — {_paso_labels.get(siguiente_paso, siguiente_paso)}",
+        detalle=f"{ticket['sucursal']} confirmó recepción de materiales. Siguiente paso: {_paso_labels.get(siguiente_paso, siguiente_paso)}.",
+        tipo="equipo_central",
+        autor=session.get("suc_nombre", "Sucursal"),
+        link=url_for("admin_ticket", ticket_id=ticket_id),
+    )
+
     if siguiente_paso == "personal_mantenimiento":
         ticket["asignado_equipo"] = "Equipo Central"
         if not ticket.get("etapa_equipo"):
             ticket["etapa_equipo"] = "asignado"
-        agregar_notif_admin(
-            titulo=f"Equipo Central - Trabajo asignado #{ticket_id}",
-            detalle=f"{ticket['sucursal']} confirmo recepcion. El equipo de Mantenimiento Central debe ejecutar el trabajo.",
-            tipo="equipo_central",
-            autor=session.get("suc_nombre", "Sucursal"),
-            link=url_for("admin_ticket", ticket_id=ticket_id),
-        )
 
     # Notify provider
     if "notificaciones_prov" not in ticket:

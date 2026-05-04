@@ -92,11 +92,22 @@
 </div>
 {% endif %}
 
+<!-- Aviso de recepcion pendiente (materiales enviados, esperando confirmacion) -->
+{% if ticket.metodo_envio is defined and ticket.estado == 'Resuelto' and session.suc_user is defined %}
+<div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:10px;">
+    <span style="font-size:20px; flex-shrink:0;">📦</span>
+    <div>
+        <div style="font-weight:700; color:#b45309; margin-bottom:4px;">Materiales enviados — confirmá la recepción</div>
+        <div style="font-size:13px; color:#78350f;">Para registrar correctamente la recepción, <strong>adjuntá una foto del remito</strong>. Sin remito no se puede cerrar el pedido.</div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Confirmar recepcion de materiales -->
 {% if ticket.metodo_envio is defined and ticket.estado == 'Resuelto' and session.suc_user is defined %}
 <div class="card" style="border-left: 4px solid #e63946;">
-    <h3 style="margin-bottom: 8px;">Materiales recibidos - Siguiente paso</h3>
-    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Suba el remito y seleccione como se realizara el trabajo</p>
+    <h3 style="margin-bottom: 8px;">Confirmar recepción de materiales</h3>
+    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Adjuntá el remito y seleccioná cómo se realizará el trabajo.</p>
     <form method="POST" action="{{ url_for('confirmar_recepcion', ticket_id=ticket.id) }}" enctype="multipart/form-data">
         <div class="form-group">
             <label>Remito (foto o PDF)</label>
