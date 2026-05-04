@@ -184,6 +184,37 @@
     </div>
 </div>
 
+{% if ticket.materiales_recibidos and not ticket.siguiente_paso and session.nombre != 'Rita' %}
+<div class="card" style="border-left: 4px solid #16a34a; background: #f0fdf4;">
+    <h3 style="margin-bottom: 8px; color: #166534;">📦 Materiales recibidos — Definir siguiente paso</h3>
+    <p style="font-size: 13px; color: #374151; margin-bottom: 14px;">La sucursal confirmó la recepción con remito. Elegí cómo se va a ejecutar el trabajo.</p>
+    <form method="POST">
+        <input type="hidden" name="accion" value="definir_siguiente_paso">
+        <div class="radio-cards" style="margin-bottom: 14px;">
+            <label class="radio-card">
+                <input type="radio" name="siguiente_paso" value="personal_mantenimiento" required>
+                <div><div style="font-weight:600;">Equipo Central</div><div style="font-size:12px;color:#6b7280;">Personal de Mantenimiento Central</div></div>
+            </label>
+            {% if tiene_abono_suc %}
+            <label class="radio-card">
+                <input type="radio" name="siguiente_paso" value="proveedor_abono">
+                <div><div style="font-weight:600;">Proveedor del abono</div><div style="font-size:12px;color:#6b7280;">Proveedor mensual asignado a la sucursal</div></div>
+            </label>
+            {% endif %}
+            <label class="radio-card">
+                <input type="radio" name="siguiente_paso" value="proveedor_eventual">
+                <div><div style="font-weight:600;">Proveedor eventual</div><div style="font-size:12px;color:#6b7280;">Contratar proveedor fuera del abono</div></div>
+            </label>
+            <label class="radio-card">
+                <input type="radio" name="siguiente_paso" value="sucursal">
+                <div><div style="font-weight:600;">Personal de sucursal</div><div style="font-size:12px;color:#6b7280;">El personal propio realiza el trabajo</div></div>
+            </label>
+        </div>
+        <button type="submit" class="btn" style="background:#16a34a;color:white;">Confirmar siguiente paso</button>
+    </form>
+</div>
+{% endif %}
+
 {% if puede_derivar_ceyh %}
 <div class="ceyh-soft-card">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">CEYH</h3>

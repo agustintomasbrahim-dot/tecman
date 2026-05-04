@@ -1638,94 +1638,17 @@ def confirmar_recepcion(ticket_id):
         nota["fotos"] = [remito_file]
 
     ticket["notas"].append(nota)
+    ticket["materiales_recibidos"] = True
+    ticket["estado"] = "En progreso"
     ticket["actualizado"] = datetime.datetime.now().isoformat()
 
-    # Handle next step
-    siguiente_paso = request.form.get("siguiente_paso", "sucursal")
-    pasos = {
-        "personal_mantenimiento": ("En progreso", "Trabajo a realizar con personal de Mantenimiento Central"),
-        "proveedor_abono": ("En progreso", "Coordinar con proveedor del abono mensual"),
-        "proveedor_eventual": ("En progreso", "Coordinar con proveedor eventual"),
-        "sucursal": ("Cerrado", "Trabajo a realizar con personal propio de sucursal"),
-    }
-    estado, paso_texto = pasos.get(siguiente_paso, ("Cerrado", ""))
-
-    ticket["estado"] = estado
-    ticket["siguiente_paso"] = siguiente_paso
-    ticket["notas"].append({
-        "autor": session.get("suc_nombre", "Sucursal"),
-        "fecha": datetime.datetime.now().isoformat(),
-        "texto": f"Siguiente paso: {paso_texto}",
-    })
-
-    # Notificar al admin en todos los caminos
-    _paso_labels = {
-        "personal_mantenimiento": "Personal de Mantenimiento Central",
-        "proveedor_abono": "Proveedor del abono mensual",
-        "proveedor_eventual": "Proveedor eventual",
-        "sucursal": "Personal propio de la sucursal",
-    }
     agregar_notif_admin(
-        titulo=f"Recepción confirmada #{ticket_id} — {_paso_labels.get(siguiente_paso, siguiente_paso)}",
-        detalle=f"{ticket['sucursal']} confirmó recepción de materiales. Siguiente paso: {_paso_labels.get(siguiente_paso, siguiente_paso)}.",
+        titulo=f"Materiales recibidos #{ticket_id} — definir siguiente paso",
+        detalle=f"{ticket['sucursal']} confirmó recepción de materiales. Decidir cómo se realizará el trabajo.",
         tipo="equipo_central",
         autor=session.get("suc_nombre", "Sucursal"),
         link=url_for("admin_ticket", ticket_id=ticket_id),
     )
-
-    if siguiente_paso == "personal_mantenimiento":
-        ticket["asignado_equipo"] = "Equipo Central"
-        if not ticket.get("etapa_equipo"):
-            ticket["etapa_equipo"] = "asignado"
-
-    # Notify provider
-    if "notificaciones_prov" not in ticket:
-        ticket["notificaciones_prov"] = []
-    notif_texto = f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales."
-    if siguiente_paso in ("proveedor_abono", "proveedor_eventual"):
-        notif_texto += " Se requiere coordinar visita para ejecutar el trabajo."
-    ticket["notificaciones_prov"].append({
-        "fecha": datetime.datetime.now().isoformat(),
-        "texto": f"{session.get('suc_nombre', 'Sucursal')} confirmo recepcion de materiales. Ya cuenta con los materiales.",
-    })
-
-    # Si la sucursal eligio "Proveedor del abono", crear ticket vinculado
-    if siguiente_paso == "proveedor_abono":
-        suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
-        prov_abono = get_proveedor_abono_sucursal(suc_num)
-        if prov_abono:
-            now_iso = datetime.datetime.now().isoformat()
-            new_id = next_ticket_id(tickets)
-            descripcion_nueva = (ticket.get("descripcion", "") or "").strip()
-            descripcion_nueva += "\n\nRequiere trabajo con materiales recibidos"
-            nuevo = {
-                "id": new_id,
-                "tipo": "trabajo_proveedor",
-                "sucursal": ticket["sucursal"],
-                "origen_ticket_id": ticket["id"],
-                "descripcion": descripcion_nueva,
-                "estado": "Nuevo",
-                "asignado_proveedor": prov_abono,
-                "asignado": prov_abono,
-                "prioridad": ticket.get("prioridad", 3),
-                "creado": now_iso,
-                "actualizado": now_iso,
-                "categoria": "Trabajo con materiales",
-                "subcategoria": ticket.get("subcategoria", ""),
-                "fotos": [],
-                "notas": [{
-                    "autor": "Sistema",
-                    "fecha": now_iso,
-                    "texto": f"Ticket generado automaticamente desde pedido de materiales #{ticket['id']}",
-                }],
-            }
-            tickets.append(nuevo)
-            ticket["trabajo_proveedor_ticket_id"] = new_id
-            ticket["notas"].append({
-                "autor": "Sistema",
-                "fecha": now_iso,
-                "texto": f"Se creo ticket #{new_id} asignado a {prov_abono} para ejecutar el trabajo",
-            })
 
     save_tickets(tickets)
     flash("Recepcion confirmada")
@@ -2278,6 +2201,70 @@ def admin_ticket(ticket_id):
             flash("Control operativo CEYH actualizado")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
+        if accion == "definir_siguiente_paso":
+            siguiente_paso = request.form.get("siguiente_paso", "").strip()
+            _paso_labels = {
+                "personal_mantenimiento": "Personal de Mantenimiento Central",
+                "proveedor_abono": "Proveedor del abono mensual",
+                "proveedor_eventual": "Proveedor eventual",
+                "sucursal": "Personal propio de la sucursal",
+            }
+            if siguiente_paso not in _paso_labels:
+                flash("Seleccioná una opción")
+                return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+            ticket["siguiente_paso"] = siguiente_paso
+            if siguiente_paso == "personal_mantenimiento":
+                ticket["asignado_equipo"] = "Equipo Central"
+                ticket.setdefault("etapa_equipo", "asignado")
+            elif siguiente_paso == "sucursal":
+                ticket["estado"] = "Cerrado"
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Siguiente paso definido: {_paso_labels[siguiente_paso]}",
+            })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"El equipo de administración definió el siguiente paso: {_paso_labels[siguiente_paso]}.",
+                "leida": False,
+            })
+            if siguiente_paso == "proveedor_abono":
+                suc_num = ticket["sucursal"].replace("Sucursal ", "").strip()
+                prov_abono = get_proveedor_abono_sucursal(suc_num)
+                if prov_abono:
+                    now_iso = datetime.datetime.now().isoformat()
+                    new_id = next_ticket_id(tickets)
+                    descripcion_nueva = (ticket.get("descripcion", "") or "").strip()
+                    descripcion_nueva += "\n\nRequiere trabajo con materiales recibidos en sucursal"
+                    nuevo = {
+                        "id": new_id,
+                        "tipo": "trabajo_proveedor",
+                        "sucursal": ticket["sucursal"],
+                        "origen_ticket_id": ticket["id"],
+                        "descripcion": descripcion_nueva,
+                        "estado": "Nuevo",
+                        "asignado_proveedor": prov_abono,
+                        "asignado": prov_abono,
+                        "prioridad": ticket.get("prioridad", 3),
+                        "creado": now_iso,
+                        "actualizado": now_iso,
+                        "categoria": "Trabajo con materiales",
+                        "subcategoria": ticket.get("subcategoria", ""),
+                        "fotos": [],
+                        "notas": [{"autor": "Sistema", "fecha": now_iso, "texto": f"Ticket generado desde pedido de materiales #{ticket['id']}"}],
+                    }
+                    tickets.append(nuevo)
+                    ticket["trabajo_proveedor_ticket_id"] = new_id
+                    ticket.setdefault("notas", []).append({
+                        "autor": "Sistema",
+                        "fecha": now_iso,
+                        "texto": f"Se creó ticket #{new_id} asignado a {prov_abono} para ejecutar el trabajo",
+                    })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            flash(f"Siguiente paso definido: {_paso_labels[siguiente_paso]}")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         if accion == "resolver_matafuego_rechazado":
             detalle = request.form.get("detalle_resolucion", "").strip()
             ticket["estado"] = "Resuelto"
@@ -2311,6 +2298,7 @@ def admin_ticket(ticket_id):
         flash("Ticket actualizado")
         return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
+    _suc_num_at = ticket.get("sucursal", "").replace("Sucursal ", "").strip()
     return render_template(
         "admin_ticket.html",
         ticket=ticket,
@@ -2319,6 +2307,7 @@ def admin_ticket(ticket_id):
         puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",
         es_ceyh=es_ticket_ceyh(ticket),
         es_presupuesto=(ticket.get("categoria") == "Presupuestos"),
+        tiene_abono_suc=bool(get_proveedor_abono_sucursal(_suc_num_at)),
     )
 
 

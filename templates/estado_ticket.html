@@ -107,54 +107,17 @@
 {% if ticket.metodo_envio is defined and ticket.estado == 'Resuelto' and session.suc_user is defined %}
 <div class="card" style="border-left: 4px solid #e63946;">
     <h3 style="margin-bottom: 8px;">Confirmar recepción de materiales</h3>
-    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Adjuntá el remito y seleccioná cómo se realizará el trabajo.</p>
+    <p style="color: #6b7280; font-size: 13px; margin-bottom: 12px;">Adjuntá una foto o PDF del remito para confirmar que los materiales llegaron correctamente.</p>
     <form method="POST" action="{{ url_for('confirmar_recepcion', ticket_id=ticket.id) }}" enctype="multipart/form-data">
         <div class="form-group">
-            <label>Remito (foto o PDF)</label>
+            <label>Remito (foto o PDF) <span style="color:#e63946;">*</span></label>
             <input type="file" name="remito" accept="image/*,.pdf" required style="padding: 8px;">
         </div>
-
-        <div class="form-group">
-            <label>¿Cómo se realizará el trabajo?</label>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="siguiente_paso" value="personal_mantenimiento" required style="margin-top: 3px; flex-shrink: 0;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; color: #1a1a2e;">Personal de Mantenimiento Central</div>
-                        <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Coordinar visita del equipo de Mantenimiento Central</div>
-                    </div>
-                </label>
-                {% if tiene_abono %}
-                <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="siguiente_paso" value="proveedor_abono" style="margin-top: 3px; flex-shrink: 0;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; color: #1a1a2e;">Proveedor del abono mensual</div>
-                        <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Coordinar con el proveedor fijo asignado</div>
-                    </div>
-                </label>
-                {% endif %}
-                <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="siguiente_paso" value="proveedor_eventual" style="margin-top: 3px; flex-shrink: 0;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; color: #1a1a2e;">Proveedor eventual</div>
-                        <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Contratar un proveedor fuera del abono</div>
-                    </div>
-                </label>
-                <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; background: #fff;">
-                    <input type="radio" name="siguiente_paso" value="sucursal" style="margin-top: 3px; flex-shrink: 0;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; color: #1a1a2e;">Personal propio de sucursal</div>
-                        <div style="color: #6b7280; font-size: 12px; margin-top: 2px; line-height: 1.4;">Realiza el trabajo el personal de la propia sucursal</div>
-                    </div>
-                </label>
-            </div>
-        </div>
-
         <div class="form-group">
             <label>Comentario (opcional)</label>
-            <textarea name="comentario" placeholder="Ej: Recibi todo conforme..." style="height: 60px;"></textarea>
+            <textarea name="comentario" placeholder="Ej: Todo recibido conforme..." style="height: 60px;"></textarea>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Confirmar recepcion</button>
+        <button type="submit" class="btn btn-primary btn-block">Confirmar recepción</button>
     </form>
 </div>
 {% endif %}
