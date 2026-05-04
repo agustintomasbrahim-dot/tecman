@@ -132,8 +132,9 @@
 
 <div class="card">
     <h3 style="margin-bottom: 12px;">2. Resolver el pedido</h3>
-    <p style="font-size: 12px; color: #6b7280; margin-bottom: 12px;">Acá definís qué sale desde stock, qué va a Compras y qué materiales complementarios necesitás sumar.</p>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+    <p style="font-size: 12px; color: #6b7280; margin-bottom: 14px;">Elegí una de las siguientes opciones según el stock disponible.</p>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
         <div>
             <p style="font-size: 12px; color: #6b7280; font-weight: 700; margin-bottom: 8px;">Solicitado por sucursal</p>
             <div style="padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; font-size: 13px;">
@@ -155,10 +156,39 @@
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
-        <form method="POST" style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+    <!-- Opción 1: Cuento con stock (solo para tickets Nuevo/Abierto) -->
+    {% if ticket.estado in ('Nuevo', 'Abierto') %}
+    <div style="border: 2px solid #16a34a; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #f0fdf4;">
+        <h4 style="color: #166534; margin-bottom: 10px;">✅ Cuento con stock</h4>
+        <form method="POST">
+            <input type="hidden" name="accion" value="cuento_material">
+            <p style="font-size: 13px; color: #374151; margin-bottom: 8px; font-weight: 600;">Método de envío:</p>
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                {% if es_amba %}
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                    <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
+                    <span><strong>Recoge CEYH</strong> — la camioneta de CEYH lo retira de Central</span>
+                </label>
+                {% endif %}
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                    <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
+                    <span><strong>Envio desde Central</strong> — se despacha desde Dabra Central</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                    <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
+                    <span><strong>Envio directo a sucursal</strong> — el proveedor envia directo</span>
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Confirmar — Cuento con stock</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Opción 2: Agregar item relacionado con el ticket -->
+    <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fff;">
+        <h4 style="margin-bottom: 10px;">➕ Agregar item relacionado con el ticket</h4>
+        <form method="POST">
             <input type="hidden" name="accion" value="agregar_material_stock">
-            <h4 style="margin-bottom:10px;">➕ Agregar desde stock</h4>
             <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
             <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
                 <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1"></div>
@@ -166,17 +196,20 @@
             </div>
             <button type="submit" class="btn btn-outline btn-block">Agregar al ticket</button>
         </form>
+    </div>
 
-        <form method="POST" style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff;">
+    <!-- Opción 3: No cuento con stock → Derivar a Compras -->
+    <div style="border: 2px solid #dc2626; border-radius: 10px; padding: 14px; background: #fef2f2;">
+        <h4 style="color: #dc2626; margin-bottom: 10px;">🛒 No cuento con stock — Derivar a Compras</h4>
+        <form method="POST">
             <input type="hidden" name="accion" value="derivar_a_compras">
-            <h4 style="margin-bottom:10px;">🛒 Derivar a Compras</h4>
             <div class="form-group"><label>Material</label><input type="text" name="item_compra" placeholder="Ej: cable 2,5 mm" required></div>
             <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
                 <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_compra" min="1" value="1"></div>
                 <div class="form-group"><label>N° requisición</label><input type="text" name="requisicion" placeholder="Obligatorio" required></div>
             </div>
             <div class="form-group"><label>Detalle</label><input type="text" name="detalle_compra_item" placeholder="Motivo / observación"></div>
-            <button type="submit" class="btn btn-block" style="background:#1a1a2e; color:white;">Enviar a Compras</button>
+            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white;">Enviar a Compras</button>
         </form>
     </div>
 
@@ -218,49 +251,8 @@
 </div>
 {% endif %}
 
-<!-- Acciones -->
-{% if ticket.estado in ('Nuevo', 'Abierto') %}
-<div class="card">
-    <h3 style="margin-bottom: 16px;">3. Definir cómo sigue</h3>
-
-    <!-- Cuento con material -->
-    <form method="POST" style="margin-bottom: 16px;">
-        <input type="hidden" name="accion" value="cuento_material">
-        <p style="font-weight: 600; margin-bottom: 8px;">Cuento con el material - Metodo de envio:</p>
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
-            {% if es_amba %}
-            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
-                <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
-                <span><strong>Recoge CEYH</strong> — la camioneta de CEYH lo retira de Central</span>
-            </label>
-            {% endif %}
-            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
-                <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
-                <span><strong>Envio desde Central</strong> — se despacha desde Dabra Central</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
-                <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
-                <span><strong>Envio directo a sucursal</strong> — el proveedor envia directo</span>
-            </label>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Confirmar - Cuento con material</button>
-    </form>
-
-    <div style="border-top: 1px solid #e5e7eb; padding-top: 16px;">
-        <!-- Solicitar a compras -->
-        <form method="POST">
-            <input type="hidden" name="accion" value="solicitar_compras">
-            <p style="font-weight: 600; margin-bottom: 8px;">No cuento con el material</p>
-            <div class="form-group">
-                <label>Detalle del pedido a Compras</label>
-                <textarea name="detalle_compras" placeholder="Ej: Necesito 10 luminarias LED 60cm, 5 candados Yale..." required></textarea>
-            </div>
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white;">Solicitar material a Compras</button>
-        </form>
-    </div>
-</div>
-
-{% elif ticket.estado == 'En progreso' %}
+<!-- Envío (solo cuando ya está En progreso) -->
+{% if ticket.estado == 'En progreso' %}
 <div class="card">
     <h3 style="margin-bottom: 12px;">3. Envío</h3>
     <p style="margin-bottom: 12px;"><strong>Metodo de envio:</strong> {{ ticket.metodo_envio }}</p>
