@@ -42,10 +42,12 @@
     </div>
 </div>
 
-{% if habilitaciones_suc %}
+{% set syh_habs = estado.documentos_detallados | selectattr('categoria', 'equalto', 'habilitaciones') | list if estado.documentos_detallados else [] %}
+{% if habilitaciones_suc or syh_habs %}
 <div class="card" style="margin-bottom:16px; border-left:4px solid #0ea5e9;">
     <h3 style="margin-bottom:12px;">Habilitaciones</h3>
-    <table style="width:100%;font-size:13px;"><tbody>
+    {% if habilitaciones_suc %}
+    <table style="width:100%;font-size:13px;margin-bottom:0;"><tbody>
         {% for h in habilitaciones_suc %}
         <tr style="border-bottom:1px solid #f3f4f6;">
             <td style="padding:8px 0;">
@@ -59,6 +61,19 @@
         </tr>
         {% endfor %}
     </tbody></table>
+    {% endif %}
+    {% if syh_habs %}
+    {% if habilitaciones_suc %}<div style="margin-top:10px;border-top:1px solid #e5e7eb;padding-top:10px;"></div>{% endif %}
+    {% for doc in syh_habs %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;{% if not loop.last %}border-bottom:1px solid #f3f4f6;{% endif %}">
+        <div>
+            <div style="font-weight:600;">{{ doc.nombre }}</div>
+            <div style="font-size:12px;color:#6b7280;">S&H · {{ doc.fecha[:10] if doc.fecha else '' }}</div>
+        </div>
+        <a href="{{ url_for('serve_syh_upload', filename=doc.archivo) }}" target="_blank" class="btn btn-outline btn-sm">Ver</a>
+    </div>
+    {% endfor %}
+    {% endif %}
 </div>
 {% endif %}
 
