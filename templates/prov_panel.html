@@ -123,31 +123,31 @@
     {% set etapa = t.get('etapa_prov', 'pendiente') %}
     {% set color_borde = '#ef4444' if t.prioridad == 1 else '#f59e0b' if t.prioridad == 2 else '#e63946' if t.prioridad == 3 else '#64748b' %}
     <a href="{{ url_for('prov_ticket', ticket_id=t.id) }}" style="text-decoration: none;">
-        <div style="background: #1e1e2e; border-radius: 10px; border-left: 5px solid {{ color_borde }}; padding: 14px 16px; transition: box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.4)'" onmouseout="this.style.boxShadow=''">
+        <div style="background: #ffffff; border-radius: 10px; border-left: 5px solid {{ color_borde }}; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); transition: box-shadow 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseout="this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)'">
 
             <!-- Fila superior: sucursal + ID + etapa -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:12px; font-weight:700; color:{{ color_borde }}; text-transform:uppercase; letter-spacing:0.5px;">{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</span>
-                    <span style="color:#475569; font-size:12px;">·</span>
-                    <span style="font-size:12px; color:#94a3b8;">{{ t.subcategoria or t.categoria }}</span>
+                    <span style="color:#d1d5db; font-size:12px;">·</span>
+                    <span style="font-size:12px; color:#6b7280;">{{ t.subcategoria or t.categoria }}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; background:{% if etapa == 'recibido' %}rgba(14,165,233,0.15); color:#38bdf8{% elif etapa == 'planificado' %}rgba(139,92,246,0.15); color:#a78bfa{% elif etapa == 'relevado' %}rgba(245,158,11,0.15); color:#fbbf24{% elif etapa == 'hecho' %}rgba(16,185,129,0.15); color:#34d399{% else %}rgba(100,116,139,0.15); color:#94a3b8{% endif %};">{% if etapa == 'recibido' %}👁 Recibido{% elif etapa == 'planificado' %}📅 Plan.{% elif etapa == 'relevado' %}🔍 Relevado{% elif etapa == 'hecho' %}✔ Hecho{% else %}⏳ Pendiente{% endif %}</span>
+                    <span style="font-size:11px; padding:2px 8px; border-radius:20px; font-weight:600; background:{% if etapa == 'recibido' %}rgba(14,165,233,0.12); color:#0284c7{% elif etapa == 'planificado' %}rgba(139,92,246,0.12); color:#7c3aed{% elif etapa == 'relevado' %}rgba(245,158,11,0.12); color:#b45309{% elif etapa == 'hecho' %}rgba(16,185,129,0.12); color:#059669{% else %}rgba(100,116,139,0.12); color:#6b7280{% endif %};">{% if etapa == 'recibido' %}👁 Recibido{% elif etapa == 'planificado' %}📅 Plan.{% elif etapa == 'relevado' %}🔍 Relevado{% elif etapa == 'hecho' %}✔ Hecho{% else %}⏳ Pendiente{% endif %}</span>
                     <span style="font-size:12px; font-weight:700; color:#e63946;">#{{ t.id }}</span>
                 </div>
             </div>
 
             <!-- Descripción principal -->
-            <div style="font-size:15px; font-weight:600; color:#f1f5f9; line-height:1.4; margin-bottom:8px;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}…{% endif %}</div>
+            <div style="font-size:15px; font-weight:600; color:#111827; line-height:1.4; margin-bottom:8px;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}…{% endif %}</div>
 
             <!-- Fila inferior: categoría + prioridad + fecha -->
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:12px; color:#64748b;">{{ t.categoria }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}</span>
+                <span style="font-size:12px; color:#9ca3af;">{{ t.categoria }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}</span>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    {% if t.fotos %}<span style="font-size:11px; color:#64748b;">📷 {{ t.fotos|length }}</span>{% endif %}
+                    {% if t.fotos %}<span style="font-size:11px; color:#9ca3af;">📷 {{ t.fotos|length }}</span>{% endif %}
                     <span class="badge badge-p{{ t.prioridad }}" style="font-size:11px;">{{ prioridades[t.prioridad] }}</span>
-                    <span style="font-size:11px; color:#64748b;">{{ t.creado[:10] if t.creado else '' }}</span>
+                    <span style="font-size:11px; color:#9ca3af;">{{ t.creado[:10] if t.creado else '' }}</span>
                 </div>
             </div>
 
