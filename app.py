@@ -5922,6 +5922,31 @@ def admin_syh_docs():
     return render_template("admin_syh_docs.html", docs=docs, suc_num=suc_num, sucs_con_docs=sucs_con_docs)
 
 
+@app.route("/admin/syh/limpiar-222", methods=["POST"])
+@admin_required
+def admin_syh_limpiar_222():
+    """Limpieza puntual: borra docs específicos de S&H."""
+    data = load_syh()
+    resumen = []
+
+    filtros_globales = ["reg cap 2019", "greg cap 2019"]
+    filtros_222 = ["moron municipal", "morón municipal", "informe"]
+
+    for suc_num, suc_data in data.items():
+        docs = suc_data.get("documentos_detallados", [])
+        antes = len(docs)
+        filtros = filtros_globales + (filtros_222 if suc_num == "222" else [])
+        docs = [d for d in docs if not any(f in (d.get("nombre") or "").lower() for f in filtros)]
+        data[suc_num]["documentos_detallados"] = docs
+        borrados = antes - len(docs)
+        if borrados:
+            resumen.append(f"Suc {suc_num}: {borrados} borrado(s)")
+
+    save_syh(data)
+    flash("Limpieza completada. " + " | ".join(resumen) if resumen else "No se encontraron documentos a borrar.")
+    return redirect(url_for("admin_panel"))
+
+
 @app.route("/admin/fix-asignacion-ceyh", methods=["POST"])
 @admin_required
 def fix_asignacion_ceyh():
