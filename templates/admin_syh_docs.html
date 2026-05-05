@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Tecman - S&H Documentos{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin_panel') }}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;text-decoration:none;color:#374151;font-size:13px;font-weight:600;margin-bottom:16px;">← Admin</a>
+
+<h2 style="margin-bottom:16px;">Documentos S&H</h2>
+
+<!-- Filtro por sucursal -->
+<div class="card" style="margin-bottom:16px;">
+    <form method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select name="suc" style="padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+            {% for s in sucs_con_docs %}
+            <option value="{{ s }}" {% if s == suc_num %}selected{% endif %}>Sucursal {{ s }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm" style="background:#374151;color:white;">Ver</button>
+    </form>
+</div>
+
+<!-- Borrar por texto -->
+<div class="card" style="margin-bottom:16px;border-left:4px solid #e63946;">
+    <h3 style="margin-bottom:12px;color:#e63946;font-size:13px;text-transform:uppercase;">Borrar documentos</h3>
+    <form method="POST" action="{{ url_for('admin_syh_borrar_doc') }}" onsubmit="return confirm('¿Confirmar eliminación?')">
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;">
+            <div>
+                <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Sucursal (vacío = todas)</label>
+                <input type="text" name="suc_num" value="{{ suc_num }}" placeholder="222" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Nombre contiene</label>
+                <input type="text" name="contiene" placeholder="REG CAP 2019" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+            </div>
+            <button type="submit" class="btn btn-sm" style="background:#e63946;color:white;">Eliminar</button>
+        </div>
+    </form>
+</div>
+
+<!-- Listado de docs -->
+<div class="card">
+    <h3 style="margin-bottom:14px;">Sucursal {{ suc_num }} — {{ docs|length }} documento(s)</h3>
+    {% if docs %}
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+        <thead>
+            <tr style="border-bottom:2px solid #e5e7eb;">
+                <th style="text-align:left;padding:8px 4px;color:#6b7280;font-weight:600;">#</th>
+                <th style="text-align:left;padding:8px 4px;color:#6b7280;font-weight:600;">Nombre</th>
+                <th style="text-align:left;padding:8px 4px;color:#6b7280;font-weight:600;">Categoría</th>
+                <th style="text-align:left;padding:8px 4px;color:#6b7280;font-weight:600;">Fecha</th>
+                <th style="text-align:left;padding:8px 4px;color:#6b7280;font-weight:600;">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for d in docs %}
+        <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:8px 4px;color:#9ca3af;">{{ loop.index }}</td>
+            <td style="padding:8px 4px;font-weight:600;color:#111827;">{{ d.nombre or '-' }}</td>
+            <td style="padding:8px 4px;color:#6b7280;">{{ d.categoria or '-' }}</td>
+            <td style="padding:8px 4px;color:#6b7280;">{{ (d.fecha or '')[:10] }}</td>
+            <td style="padding:8px 4px;">
+                <form method="POST" action="{{ url_for('admin_syh_borrar_doc') }}" onsubmit="return confirm('¿Borrar este documento?')">
+                    <input type="hidden" name="suc_num" value="{{ suc_num }}">
+                    <input type="hidden" name="archivo" value="{{ d.archivo }}">
+                    <button type="submit" style="background:none;border:none;color:#e63946;cursor:pointer;font-size:12px;font-weight:600;">Borrar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#9ca3af;text-align:center;padding:24px;">Sin documentos para esta sucursal.</p>
+    {% endif %}
+</div>
+{% endblock %}

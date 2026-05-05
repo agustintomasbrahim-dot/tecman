@@ -5881,6 +5881,47 @@ def serve_guia(filename):
     return send_from_directory(str(GUIAS_DIR), filename)
 
 
+@app.route("/admin/syh/borrar-doc", methods=["POST"])
+@admin_required
+def admin_syh_borrar_doc():
+    """Borra documentos de syh.json que coincidan con filtros."""
+    suc_num = request.form.get("suc_num", "").strip()
+    contiene = request.form.get("contiene", "").strip().lower()
+    archivo = request.form.get("archivo", "").strip()
+
+    data = load_syh()
+    total_borrados = 0
+
+    sucs = [suc_num] if suc_num else list(data.keys())
+    for s in sucs:
+        if s not in data:
+            continue
+        docs = data[s].get("documentos_detallados", [])
+        antes = len(docs)
+        if contiene:
+            docs = [d for d in docs if contiene not in (d.get("nombre") or "").lower()]
+        if archivo:
+            docs = [d for d in docs if d.get("archivo") != archivo]
+        data[s]["documentos_detallados"] = docs
+        total_borrados += antes - len(docs)
+
+    save_syh(data)
+    flash(f"Se eliminaron {total_borrados} documento(s) de S&H.")
+    return redirect(url_for("admin_syh_docs"))
+
+
+@app.route("/admin/syh/docs")
+@admin_required
+def admin_syh_docs():
+    """Lista todos los documentos S&H para gestión."""
+    suc_num = request.args.get("suc", "222")
+    data = load_syh()
+    suc_data = data.get(suc_num, {})
+    docs = suc_data.get("documentos_detallados", [])
+    sucs_con_docs = sorted([s for s in data if data[s].get("documentos_detallados")])
+    return render_template("admin_syh_docs.html", docs=docs, suc_num=suc_num, sucs_con_docs=sucs_con_docs)
+
+
 @app.route("/admin/fix-asignacion-ceyh", methods=["POST"])
 @admin_required
 def fix_asignacion_ceyh():
