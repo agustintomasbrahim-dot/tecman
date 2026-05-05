@@ -5881,5 +5881,26 @@ def serve_guia(filename):
     return send_from_directory(str(GUIAS_DIR), filename)
 
 
+@app.route("/admin/fix-asignacion-ceyh", methods=["POST"])
+@admin_required
+def fix_asignacion_ceyh():
+    tickets = load_tickets()
+    cambiados = []
+    for t in tickets:
+        if t.get("asignado") not in ("Agustin Brahim", "Agustín Brahim", ASIGNACION_DEFAULT):
+            continue
+        if t.get("estado") in ("Cerrado", "Resuelto"):
+            continue
+        suc_nombre = t.get("sucursal", "")
+        suc_num = suc_nombre.replace("Sucursal ", "").strip()
+        proveedor = get_proveedor_abono_sucursal(suc_num)
+        if proveedor:
+            t["asignado"] = proveedor
+            cambiados.append(t["id"])
+    save_tickets(tickets)
+    flash(f"Reasignados {len(cambiados)} tickets al proveedor de abono: {cambiados}")
+    return redirect(url_for("admin_panel"))
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)
