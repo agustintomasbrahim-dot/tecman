@@ -1062,6 +1062,17 @@ PROVEEDORES = [
     {"nombre": "Perez Bobadilla Nicolas", "zona": "NEA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["224"], "mostrar_sucursal": False},
     {"nombre": "Marcelo Domingo Pedregal", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["229"], "mostrar_sucursal": False},
     {"nombre": "ULT SRL", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["235"], "mostrar_sucursal": False},
+    # --- Nuevos proveedores fumigacion (actualizado 05/05/2026 - Rita Robles) ---
+    {"nombre": "LANIDINI - VENA SALVADOR", "zona": "Litoral", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["127","166"], "mostrar_sucursal": False},
+    {"nombre": "Castro Luna Dario", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["128","206"], "mostrar_sucursal": False},
+    {"nombre": "CHASQUI SRL", "zona": "Patagonia", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["133"], "mostrar_sucursal": False},
+    {"nombre": "Mak Consulter S.R.L", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["178"], "mostrar_sucursal": False},
+    {"nombre": "FLR Control de Plagas (Isaurralde)", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["210"], "mostrar_sucursal": False},
+    {"nombre": "EXTER - Caviglia y Tellarini S.A.", "zona": "PBA Sur", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["217"], "mostrar_sucursal": False},
+    {"nombre": "MIPSA SRL", "zona": "Patagonia", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["134","231"], "mostrar_sucursal": False},
+    {"nombre": "La fumigación la realiza el shopping", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["132","160","236"], "mostrar_sucursal": False},
+    {"nombre": "Solo bajo requerimiento puntual", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["091","092","205"], "mostrar_sucursal": False},
+    {"nombre": "Sin servicio de fumigación", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["239","240","241"], "mostrar_sucursal": False},
 ]
 
 ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
