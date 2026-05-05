@@ -12,7 +12,7 @@
 
 <style>
     .action-tab { padding: 10px 16px; border: 1px solid #e5e7eb; border-bottom: none; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; background: #f9fafb; color: #6b7280; transition: all 0.2s; }
-    .action-tab.active { background: #1a1a2e; color: white; }
+    .action-tab.active { background: #ffffff; color: #111827; border: 2px solid #e5e7eb; border-bottom: 2px solid #fff; font-weight: 700; }
     .action-tab:hover:not(.active) { background: #f3f4f6; }
     .action-content { display: none; background: #fff; border: 1px solid #e5e7eb; border-radius: 0 8px 8px 8px; padding: 20px; }
     .action-content.active { display: block; }
@@ -139,7 +139,7 @@
 <div style="margin: 16px 0;">
     {% if etapa == 'pendiente' %}
     <form method="POST"><input type="hidden" name="accion" value="recibido">
-        <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; font-size: 17px; padding: 16px;">&#128065; Marcar como RECIBIDO</button>
+        <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 17px; padding: 16px;">&#128065; Marcar como RECIBIDO</button>
     </form>
     {% elif etapa == 'recibido' %}
     <div class="card" style="padding: 16px;">
@@ -147,7 +147,7 @@
             <input type="hidden" name="accion" value="planificado">
             <p style="font-weight: 600; margin-bottom: 8px;">&#128197; Planificar visita - Seleccione fecha:</p>
             <input type="date" name="fecha_visita" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; margin-bottom: 12px;">
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">Confirmar fecha de visita</button>
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">Confirmar fecha de visita</button>
         </form>
         <div style="border-top: 1px solid #e5e7eb; margin-top: 12px; padding-top: 12px;">
             <form method="POST"><input type="hidden" name="accion" value="relevado">
@@ -162,10 +162,10 @@
     {% elif etapa == 'relevado' %}
     <div style="display: flex; flex-direction: column; gap: 10px;">
         <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">&#128296; EN PROGRESO - Estoy trabajando</button>
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128296; EN PROGRESO - Estoy trabajando</button>
         </form>
         <form method="POST"><input type="hidden" name="accion" value="esperando_materiales">
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">&#128230; ESPERANDO MATERIALES</button>
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128230; ESPERANDO MATERIALES</button>
         </form>
         <form method="POST"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
@@ -190,7 +190,7 @@
             <p style="font-weight: 600; color: #b45309;">⏭️ Trabajo no terminado — continúa al día siguiente</p>
         </div>
         <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white; padding: 14px;">Retomar trabajo</button>
+            <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">Retomar trabajo</button>
         </form>
         <form method="POST"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
@@ -233,11 +233,11 @@
                 <input type="hidden" name="accion" value="foto_antes">
                 <label style="color: #e63946; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto ANTES</label>
                 <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
-                <button type="submit" class="btn btn-sm" style="background: #1a1a2e; color: white; margin-top: 8px; width: 100%;">Subir</button>
+                <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="accion" value="foto_despues">
-                <label style="color: #1a1a2e; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto DESPUES</label>
+                <label style="color: #374151; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto DESPUES</label>
                 <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
                 <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
@@ -269,7 +269,7 @@
                     <input type="file" name="archivo_presupuesto" accept="image/*,.pdf" style="padding: 8px; width: 100%;">
                 </div>
             </div>
-            <button type="submit" class="btn btn-sm" style="background: #1a1a2e; color: white; margin-top: 10px;">Enviar presupuesto</button>
+            <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 10px;">Enviar presupuesto</button>
         </form>
     </div>
 
@@ -282,7 +282,7 @@
                 <label style="color: #94a3b8; font-size: 12px;">Adjuntar archivo (opcional)</label>
                 <input type="file" name="archivo_informe" accept="image/*,.pdf" style="padding: 8px;">
             </div>
-            <button type="submit" class="btn btn-sm" style="background: #1a1a2e; color: white; margin-top: 10px;">Enviar informe</button>
+            <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 10px;">Enviar informe</button>
         </form>
     </div>
 
@@ -292,7 +292,7 @@
             <input type="hidden" name="accion" value="no_se_pudo">
             <p style="color: #e63946; font-size: 13px; margin-bottom: 12px;">Indicar por que no se pudo realizar el trabajo</p>
             <textarea name="motivo" placeholder="Ej: No habia acceso, falta material, problema mayor al esperado..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 80px; font-size: 15px;" required></textarea>
-            <button type="submit" class="btn btn-sm" style="background: #1a1a2e; color: white; margin-top: 10px;">Reportar problema</button>
+            <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 10px;">Reportar problema</button>
         </form>
     </div>
 </div>
