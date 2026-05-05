@@ -1215,8 +1215,9 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
         return "Gustavo Avellaneda"
     if suc_num in SUCS_NOA:
         return "Julio Fuga (JRF)"
-    # Sucursales sin abono fijo principal (no CEYH / Fuga / Avellaneda)
-    # quedan para seguimiento interno en el panel admin.
+    proveedor_abono = get_proveedor_abono_sucursal(suc_num)
+    if proveedor_abono:
+        return proveedor_abono
     return ASIGNACION_DEFAULT
 
 
