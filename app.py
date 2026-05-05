@@ -1358,6 +1358,7 @@ def suc_panel():
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
+    estado_syh = load_syh().get(suc_num, {})
 
     return render_template(
         "suc_panel.html",
@@ -1370,6 +1371,7 @@ def suc_panel():
         habilitaciones_suc=habs,
         matafuegos_suc=matafuegos,
         permisos_suc=permisos,
+        estado_syh=estado_syh,
         hoy=datetime.date.today().isoformat(),
     )
 

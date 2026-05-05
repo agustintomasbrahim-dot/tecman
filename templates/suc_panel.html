@@ -58,6 +58,13 @@
                 <div style="font-size:11px; color:#6b7280; margin-top:2px;">+{{ habilitaciones_suc|length - 1 }} más</div>
                 {% endif %}
                 <div style="font-size:12px; color:#2563eb; margin-top:6px;">Ver detalle →</div>
+            {% elif estado_syh.get('habilitacion') %}
+                {% set hab_val = estado_syh.get('habilitacion', '') %}
+                <div style="font-size:13px; font-weight:700; color:{% if 'vigente' in hab_val.lower() %}#065f46{% elif 'vencer' in hab_val.lower() %}#b45309{% else %}#374151{% endif %}; margin-top:2px;">
+                    {{ hab_val }}
+                </div>
+                <div style="font-size:11px; color:#6b7280; margin-top:2px;">Vto: {{ estado_syh.get('habilitacion_vencimiento') or 'Sin fecha' }}</div>
+                <div style="font-size:12px; color:#2563eb; margin-top:6px;">Ver detalle →</div>
             {% else %}
                 <div class="suc-mini-value" style="color:#9ca3af;">Sin datos</div>
                 <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cargar habilitación →</div>
