@@ -310,7 +310,7 @@
 <div class="card" style="margin-top: 16px;">
     <h3 style="margin-bottom: 12px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Historial</h3>
     {% for nota in ticket.notas | reverse %}
-    <div style="display: flex; gap: 10px; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #1a1a1a;{% endif %}">
+    <div style="display: flex; gap: 10px; padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="width: 8px; min-height: 100%; border-radius: 4px; background: {% if 'Recibido' in nota.texto %}#0ea5e9{% elif 'Planificado' in nota.texto %}#a78bfa{% elif 'Relevado' in nota.texto %}#f59e0b{% elif 'Hecho' in nota.texto %}#10b981{% elif 'NO SE PUDO' in nota.texto %}#ef4444{% elif 'presupuesto' in nota.texto.lower() %}#f59e0b{% elif 'informe' in nota.texto.lower() %}#0ea5e9{% else %}#333{% endif %};"></div>
         <div style="flex: 1;">
             <div style="display: flex; justify-content: space-between; font-size: 12px;">
@@ -348,12 +348,18 @@
 <!-- Informes -->
 {% if ticket.informes is defined and ticket.informes %}
 <div class="card">
-    <h3 style="margin-bottom: 12px; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Informes</h3>
+    <h3 style="margin-bottom: 14px; color: #374151; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">📋 Informes ({{ ticket.informes | length }})</h3>
     {% for inf in ticket.informes %}
-    <div style="background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between;"><span style="color: #374151; font-weight: 600;">{{ inf.autor }}</span><span style="color: #475569; font-size: 12px;">{{ inf.fecha[:10] }}</span></div>
-        <p style="color: #1a1a2e; font-size: 13px; margin-top: 6px; white-space: pre-wrap;">{{ inf.texto }}</p>
-        {% if inf.archivo %}<a href="/static/uploads/{{ inf.archivo }}" target="_blank" style="color: #374151; font-size: 12px;">Ver adjunto</a>{% endif %}
+    <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 10px; background: #ffffff;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="background: #e63946; color: white; font-size: 11px; font-weight: 700; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">{{ loop.index }}</span>
+                <span style="color: #111827; font-weight: 600; font-size: 13px;">{{ inf.autor }}</span>
+            </div>
+            <span style="color: #9ca3af; font-size: 12px;">{{ inf.fecha[:10] }}</span>
+        </div>
+        <p style="color: #374151; font-size: 14px; line-height: 1.5; white-space: pre-wrap;">{{ inf.texto }}</p>
+        {% if inf.archivo %}<a href="/static/uploads/{{ inf.archivo }}" target="_blank" style="display: inline-block; margin-top: 8px; color: #e63946; font-size: 12px; font-weight: 600;">📎 Ver adjunto</a>{% endif %}
     </div>
     {% endfor %}
 </div>
