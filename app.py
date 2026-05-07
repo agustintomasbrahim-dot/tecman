@@ -1336,7 +1336,7 @@ def suc_login():
     return render_template("suc_login.html")
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 def suc_logout():
     session.pop("suc_user", None)
     session.pop("suc_nombre", None)
@@ -1707,7 +1707,7 @@ def admin_login():
     return render_template("admin_login.html")
 
 
-@app.route("/admin/logout")
+@app.route("/admin/logout", methods=["GET", "POST"])
 def admin_logout():
     session.clear()
     return redirect(url_for("admin_login"))
@@ -2474,7 +2474,7 @@ def prov_login():
     return render_template("prov_login.html")
 
 
-@app.route("/proveedor/logout")
+@app.route("/proveedor/logout", methods=["GET", "POST"])
 def prov_logout():
     session.pop("prov_user", None)
     session.pop("prov_nombre", None)
@@ -2794,7 +2794,7 @@ def compras_login():
     return render_template("compras_login.html")
 
 
-@app.route("/compras/logout")
+@app.route("/compras/logout", methods=["GET", "POST"])
 def compras_logout():
     session.pop("compras_user", None)
     session.pop("compras_nombre", None)
@@ -3261,7 +3261,7 @@ def equipo_login():
     return render_template("equipo_login.html")
 
 
-@app.route("/equipo/logout")
+@app.route("/equipo/logout", methods=["GET", "POST"])
 def equipo_logout():
     session.pop("equipo_user", None)
     session.pop("equipo_nombre", None)
@@ -3873,7 +3873,7 @@ def syh_login():
     return render_template("syh_login.html")
 
 
-@app.route("/syh/logout")
+@app.route("/syh/logout", methods=["GET", "POST"])
 def syh_logout():
     session.pop("syh_user", None)
     session.pop("syh_nombre", None)
