@@ -1,14 +1,16 @@
 """Tecman - Sistema de tickets de mantenimiento para Grupo Dabra"""
 
 import os
+import io
 import json
 import uuid
+import zipfile
 import datetime
 import shutil
 from pathlib import Path
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, Response
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
@@ -6029,6 +6031,25 @@ def fix_asignacion_ceyh():
     save_tickets(tickets)
     flash(f"Reasignados {len(cambiados)} tickets al proveedor de abono: {cambiados}")
     return redirect(url_for("admin_panel"))
+
+
+@app.route("/api/backup-data")
+def api_backup_data():
+    secret = os.environ.get("BACKUP_SECRET", "")
+    if not secret or request.args.get("token") != secret:
+        return Response("Forbidden", status=403)
+    buf = io.BytesIO()
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in DATA_DIR.glob("*.json"):
+            zf.write(f, f.name)
+    buf.seek(0)
+    filename = f"tecman-data-{ts}.zip"
+    return Response(
+        buf.read(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 if __name__ == "__main__":
