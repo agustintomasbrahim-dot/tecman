@@ -1232,6 +1232,17 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
     return ASIGNACION_DEFAULT
 
 
+def any_session_required(f):
+    """Permite acceso a cualquier portal autenticado (admin, suc, prov, equipo, compras, syh)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        has_session = any(k in session for k in ("user", "suc_user", "prov_user", "equipo_user", "compras_user", "syh_user"))
+        if not has_session:
+            return render_template("error.html", mensaje="Acceso restringido."), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 def login_required(f):
     """Permite acceso a cualquier usuario logueado (admin o tecnico)."""
     @wraps(f)
@@ -1449,8 +1460,8 @@ def suc_permiso_fao(permiso_id):
 def suc_matafuego_mantenimiento(mid):
     data = load_matafuegos()
     items = data.get("matafuegos", [])
-    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
-    matafuego = next((m for m in items if m.get("id") == mid and (m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num)), None)
+    suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
+    matafuego = next((m for m in items if m.get("id") == mid and (m.get("sucursal") == session.get("suc_nombre") or m.get("sucursal_num") == suc_num)), None)
     if not matafuego:
         flash("Matafuego no encontrado")
         return redirect(url_for("suc_panel"))
@@ -1633,6 +1644,9 @@ def confirmar_recepcion(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+
+    if ticket.get("sucursal") != session.get("suc_nombre"):
+        return render_template("error.html", mensaje="No tenés permiso para confirmar este ticket."), 403
 
     if "notas" not in ticket:
         ticket["notas"] = []
@@ -2073,6 +2087,7 @@ def admin_permisos():
 
 
 @app.route("/uploads/permisos/<filename>")
+@any_session_required
 def serve_permiso(filename):
     return send_from_directory(str(PERMISOS_DIR), filename)
 
@@ -2095,6 +2110,7 @@ def admin_presupuestos():
 
 
 @app.route("/uploads/presupuestos/<filename>")
+@any_session_required
 def serve_presupuesto(filename):
     return send_from_directory(str(PRESUPUESTOS_DIR), filename)
 
@@ -3499,6 +3515,7 @@ def equipo_vehiculo_informe(vid):
 
 
 @app.route("/uploads/trabajos/<filename>")
+@any_session_required
 def serve_trabajo(filename):
     return send_from_directory(str(TRABAJOS_DIR), filename)
 
@@ -5872,11 +5889,13 @@ def admin_habilitaciones_reporte():
 
 
 @app.route("/uploads/habilitaciones/<filename>")
+@any_session_required
 def serve_habilitacion(filename):
     return send_from_directory(str(HABILITACIONES_DIR), filename)
 
 
 @app.route("/uploads/syh/<filename>")
+@any_session_required
 def serve_syh_upload(filename):
     return send_from_directory(str(UPLOADS_DIR), filename)
 
