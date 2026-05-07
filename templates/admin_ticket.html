@@ -289,9 +289,9 @@
         <div style="display:grid;gap:10px;">
             {% for p in ticket.presupuestos %}
             <div style="padding:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
-                <div style="font-weight:700;color:#111827;">{{ p.autor or 'Proveedor' }}{% if p.monto %} — ${{ p.monto }}{% endif %}</div>
+                <div style="font-weight:700;color:#111827;">{{ p.proveedor or p.autor or 'Proveedor' }}{% if p.monto %} — ${{ p.monto }}{% endif %}</div>
                 <div style="font-size:13px;color:#6b7280;margin-top:4px;">{{ p.detalle }}</div>
-                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">Ver archivo adjunto</a></div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver archivo adjunto' }}</a></div>{% endif %}
             </div>
             {% endfor %}
         </div>
