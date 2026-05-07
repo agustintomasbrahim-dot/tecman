@@ -93,21 +93,38 @@
             <input type="text" name="zona_afectada" id="zona_afectada" placeholder="Ej: ingreso, salón principal, depósito, caja 2">
         </div>
 
-        <div id="proveedor-presupuesto-group" class="form-group" style="display:none;">
-            <label>Proveedor que envía / cotiza *</label>
-            <input type="text" name="proveedor_presupuesto" id="proveedor_presupuesto" placeholder="Ej: Cortinas López / proveedor local">
+        <div id="proveedor-presupuesto-group" style="display:none;">
+            <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">La empresa requiere hasta 3 cotizaciones. Cargá al menos 1.</p>
+            {% for n in [1,2,3] %}
+            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:12px;background:#fafafa;">
+                <div style="font-weight:600;font-size:14px;margin-bottom:10px;color:#374151;">
+                    Presupuesto {{ n }}{% if n == 1 %} <span style="color:#e63946;">*</span>{% else %} <span style="font-weight:400;color:#9ca3af;">(opcional)</span>{% endif %}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Proveedor{% if n == 1 %} *{% endif %}</label>
+                        <input type="text" name="ppto_proveedor_{{ n }}" id="ppto_proveedor_{{ n }}"
+                               placeholder="Nombre del proveedor"{% if n == 1 %} required{% endif %}>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Monto</label>
+                        <input type="number" name="ppto_monto_{{ n }}" placeholder="Ej: 250000" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Archivo (PDF o foto)</label>
+                    <input type="file" name="ppto_archivo_{{ n }}" accept=".pdf,.jpg,.jpeg,.png" style="padding:8px;">
+                </div>
+            </div>
+            {% endfor %}
         </div>
+        <input type="hidden" name="proveedor_presupuesto" id="proveedor_presupuesto" value="">
 
         <div class="form-group">
             <label id="descripcion-label">Descripcion del problema *</label>
             <textarea name="descripcion" required id="descripcion" placeholder="Describa el problema con el mayor detalle posible..."></textarea>
         </div>
 
-        <div id="archivo-presupuesto-group" class="form-group" style="display:none;">
-            <label>Archivo del presupuesto (opcional)</label>
-            <input type="file" name="archivo_presupuesto_suc" accept=".pdf,.jpg,.jpeg,.png" style="padding: 10px;">
-            <small style="color: #475569; display: block; margin-top: 6px;">Podés adjuntar el presupuesto que mandó el proveedor.</small>
-        </div>
 
         <div class="form-group">
             <label>Fotos (opcional, max 3)</label>
@@ -134,8 +151,7 @@ document.getElementById('categoria').addEventListener('change', function() {
     var provPptoGroup = document.getElementById('proveedor-presupuesto-group');
     var descLabel = document.getElementById('descripcion-label');
     var desc = document.getElementById('descripcion');
-    var provPptoInput = document.getElementById('proveedor_presupuesto');
-    var archivoPptoGroup = document.getElementById('archivo-presupuesto-group');
+    var provPptoInput = document.getElementById('ppto_proveedor_1');
     if (this.value === 'Materiales') {
         subGroup.style.display = 'none';
         sub.removeAttribute('required');
@@ -145,7 +161,6 @@ document.getElementById('categoria').addEventListener('change', function() {
         zonaInput.removeAttribute('required');
         provPptoGroup.style.display = 'none';
         provPptoInput.removeAttribute('required');
-        archivoPptoGroup.style.display = 'none';
         descLabel.textContent = 'Descripcion del problema *';
         desc.placeholder = 'Describa el problema con el mayor detalle posible...';
     } else {
@@ -158,7 +173,6 @@ document.getElementById('categoria').addEventListener('change', function() {
             zonaInput.setAttribute('required', 'required');
             provPptoGroup.style.display = 'block';
             provPptoInput.setAttribute('required', 'required');
-            archivoPptoGroup.style.display = 'block';
             descLabel.textContent = 'Detalle del presupuesto *';
             desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
         } else if (this.value === 'Seguridad e Higiene') {
@@ -166,7 +180,6 @@ document.getElementById('categoria').addEventListener('change', function() {
             zonaInput.removeAttribute('required');
             provPptoGroup.style.display = 'none';
             provPptoInput.removeAttribute('required');
-            archivoPptoGroup.style.display = 'none';
             descLabel.textContent = 'Detalle del pedido *';
             desc.placeholder = 'Describa claramente qué necesita la sucursal sobre Seguridad e Higiene...';
         } else {
@@ -174,7 +187,6 @@ document.getElementById('categoria').addEventListener('change', function() {
             zonaInput.removeAttribute('required');
             provPptoGroup.style.display = 'none';
             provPptoInput.removeAttribute('required');
-            archivoPptoGroup.style.display = 'none';
             descLabel.textContent = 'Descripcion del problema *';
             desc.placeholder = 'Describa el problema con el mayor detalle posible...';
         }
