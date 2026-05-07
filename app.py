@@ -149,8 +149,15 @@ def load_syh():
         return json.loads(SYH_FILE.read_text())
     return {}
 
+def _atomic_write(path: Path, data) -> None:
+    content = json.dumps(data, indent=2, ensure_ascii=False)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
 def save_syh(data):
-    SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(SYH_FILE, data)
 
 
 SYH_DOCUMENTOS_CATEGORIAS = [
@@ -234,7 +241,7 @@ def load_stock():
 
 
 def save_stock(data):
-    STOCK_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(STOCK_FILE, data)
 
 
 def get_central_qty(stock, item):
@@ -274,7 +281,7 @@ def load_transfers():
     return []
 
 def save_transfers(data):
-    TRANSFERS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(TRANSFERS_FILE, data)
 
 def load_comprobantes():
     if COMPROBANTES_FILE.exists():
@@ -282,7 +289,7 @@ def load_comprobantes():
     return {"comprobantes": []}
 
 def save_comprobantes(data):
-    COMPROBANTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(COMPROBANTES_FILE, data)
 
 
 def load_notif_admin():
@@ -292,7 +299,7 @@ def load_notif_admin():
 
 
 def save_notif_admin(data):
-    NOTIF_ADMIN_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(NOTIF_ADMIN_FILE, data)
 
 
 def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
@@ -318,7 +325,7 @@ def load_movimientos():
     return {"movimientos": []}
 
 def save_movimientos(data):
-    STOCK_MOV_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(STOCK_MOV_FILE, data)
 
 
 # --- FIFO por lotes ---
@@ -336,7 +343,7 @@ def load_lotes_fifo():
 
 
 def save_lotes_fifo(data):
-    STOCK_LOTES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(STOCK_LOTES_FILE, data)
 
 
 def crear_lote_fifo(item, cantidad, precio_unitario, tipo_origen="remito_proveedor",
@@ -456,7 +463,7 @@ def _load_guias_counter():
     return {"ultimo": 87889}
 
 def _save_guias_counter(data):
-    GUIAS_COUNTER_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(GUIAS_COUNTER_FILE, data)
 
 def load_habilitaciones():
     if HABILITACIONES_FILE.exists():
@@ -467,7 +474,7 @@ def load_habilitaciones():
     return {"habilitaciones": []}
 
 def save_habilitaciones(data):
-    HABILITACIONES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(HABILITACIONES_FILE, data)
 
 def load_matafuegos():
     if MATAFUEGOS_FILE.exists():
@@ -478,7 +485,7 @@ def load_matafuegos():
     return {"matafuegos": []}
 
 def save_matafuegos(data):
-    MATAFUEGOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(MATAFUEGOS_FILE, data)
 
 def _parse_fecha_matafuego(valor):
     valor = str(valor or "").strip()
@@ -691,7 +698,7 @@ def load_alertas_syh_dispatch():
     return {"sent": {}}
 
 def save_alertas_syh_dispatch(data):
-    ALERTAS_SYH_DISPATCH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(ALERTAS_SYH_DISPATCH_FILE, data)
 
 def enviar_alertas_matafuegos_email(destino="abrahim@grupodexter.com.ar"):
     alertas = load_alertas_syh().get("alertas", [])
@@ -757,7 +764,7 @@ def load_vehiculos_equipo():
     return {"vehiculos": []}
 
 def save_vehiculos_equipo(data):
-    VEHICULOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(VEHICULOS_FILE, data)
 
 def load_permisos():
     if PERMISOS_FILE.exists():
@@ -768,7 +775,7 @@ def load_permisos():
     return {"permisos": []}
 
 def save_permisos(data):
-    PERMISOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(PERMISOS_FILE, data)
 
 def load_presupuestos():
     if PRESUPUESTOS_FILE.exists():
@@ -779,7 +786,7 @@ def load_presupuestos():
     return {"presupuestos": []}
 
 def save_presupuestos(data):
-    PRESUPUESTOS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(PRESUPUESTOS_FILE, data)
 
 def load_ceyh_retiros():
     if CEYH_RETIROS_FILE.exists():
@@ -790,7 +797,7 @@ def load_ceyh_retiros():
     return {"retiros": []}
 
 def save_ceyh_retiros(data):
-    CEYH_RETIROS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(CEYH_RETIROS_FILE, data)
 
 def load_ceyh_jornadas():
     if CEYH_JORNADAS_FILE.exists():
@@ -801,7 +808,7 @@ def load_ceyh_jornadas():
     return {"jornadas": []}
 
 def save_ceyh_jornadas(data):
-    CEYH_JORNADAS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(CEYH_JORNADAS_FILE, data)
 
 def es_ticket_ceyh(ticket):
     return ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH" or ticket.get("derivado_desde") == "CEYH"
@@ -847,7 +854,7 @@ def load_alertas_syh():
     return {"alertas": []}
 
 def save_alertas_syh(data):
-    ALERTAS_SYH_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(ALERTAS_SYH_FILE, data)
 
 def _estado_doc_vehiculo(fecha):
     if not fecha:
@@ -1099,7 +1106,7 @@ def load_tickets():
 
 
 def save_tickets(tickets):
-    TICKETS_FILE.write_text(json.dumps(tickets, indent=2, ensure_ascii=False))
+    _atomic_write(TICKETS_FILE, tickets)
 
 
 def load_syh_gestiones():
@@ -1112,7 +1119,7 @@ def load_syh_gestiones():
 
 
 def save_syh_gestiones(data):
-    SYH_GESTIONES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    _atomic_write(SYH_GESTIONES_FILE, data)
 
 
 def auto_priority(categoria, subcategoria):
