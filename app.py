@@ -146,7 +146,10 @@ SYH_ESTADOS = {
 
 def load_syh():
     if SYH_FILE.exists():
-        return json.loads(SYH_FILE.read_text())
+        try:
+            return json.loads(SYH_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return {}
 
 def _atomic_write(path: Path, data) -> None:
@@ -229,7 +232,10 @@ def _stock_entry(val):
 
 def load_stock():
     if STOCK_FILE.exists():
-        data = json.loads(STOCK_FILE.read_text())
+        try:
+            data = json.loads(STOCK_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            data = {"central": {}, "sucursales": {}}
     else:
         data = {"central": {}, "sucursales": {}}
     central = data.get("central", {}) or {}
@@ -285,7 +291,10 @@ def save_transfers(data):
 
 def load_comprobantes():
     if COMPROBANTES_FILE.exists():
-        return json.loads(COMPROBANTES_FILE.read_text())
+        try:
+            return json.loads(COMPROBANTES_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return {"comprobantes": []}
 
 def save_comprobantes(data):
@@ -1101,7 +1110,10 @@ _seed_data_dir()
 
 def load_tickets():
     if TICKETS_FILE.exists():
-        return json.loads(TICKETS_FILE.read_text())
+        try:
+            return json.loads(TICKETS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return []
 
 
@@ -4130,11 +4142,14 @@ def syh_edit(suc_num):
         f = request.files.get("documento")
         if f and f.filename:
             ext = Path(f.filename).suffix.lower()
-            fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
-            f.save(str(UPLOADS_DIR / fname))
-            if "documentos" not in syh_data[suc_num]:
-                syh_data[suc_num]["documentos"] = []
-            syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+            if ext in (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
+                f.save(str(UPLOADS_DIR / fname))
+                if "documentos" not in syh_data[suc_num]:
+                    syh_data[suc_num]["documentos"] = []
+                syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+            else:
+                syh_data[suc_num]["documentos"] = estado.get("documentos", [])
         else:
             syh_data[suc_num]["documentos"] = estado.get("documentos", [])
         syh_data[suc_num]["documentos_detallados"] = _build_syh_documentos_detallados(request.form, request.files, suc_num, estado)
@@ -4347,11 +4362,14 @@ def admin_syh_edit(suc_num):
         f = request.files.get("documento")
         if f and f.filename:
             ext = Path(f.filename).suffix.lower()
-            fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
-            f.save(str(UPLOADS_DIR / fname))
-            if "documentos" not in syh_data[suc_num]:
-                syh_data[suc_num]["documentos"] = []
-            syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+            if ext in (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                fname = f"syh_{suc_num}_{uuid.uuid4().hex[:8]}{ext}"
+                f.save(str(UPLOADS_DIR / fname))
+                if "documentos" not in syh_data[suc_num]:
+                    syh_data[suc_num]["documentos"] = []
+                syh_data[suc_num]["documentos"] = estado.get("documentos", []) + [{"nombre": f.filename, "archivo": fname, "fecha": datetime.datetime.now().isoformat()}]
+            else:
+                syh_data[suc_num]["documentos"] = estado.get("documentos", [])
         else:
             syh_data[suc_num]["documentos"] = estado.get("documentos", [])
 
@@ -5921,6 +5939,7 @@ def guia_luminaria():
 
 
 @app.route("/static/uploads/guias/<filename>")
+@any_session_required
 def serve_guia(filename):
     return send_from_directory(str(GUIAS_DIR), filename)
 
