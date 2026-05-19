@@ -15,6 +15,22 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
 
+# PostgreSQL via SQLAlchemy (dual-write con fallback a JSON)
+_DB_URL = os.environ.get("DATABASE_URL", "")
+if _DB_URL.startswith("postgres://"):
+    _DB_URL = _DB_URL.replace("postgres://", "postgresql://", 1)
+USE_DB = bool(_DB_URL)
+if USE_DB:
+    from models import (db, TicketDB, MatafuegoDB, HabilitacionDB, ComprobanteDB,
+                        StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
+                        VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
+                        CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
+    app.config["SQLALCHEMY_DATABASE_URI"] = _DB_URL
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+
 IS_CLOUD = os.environ.get("RENDER", False)
 
 # En Render usamos el disco persistente montado en /data
@@ -151,6 +167,8 @@ SYH_ESTADOS = {
 }
 
 def load_syh():
+    if USE_DB:
+        return _db_cfg_get("syh", {})
     if SYH_FILE.exists():
         try:
             return json.loads(SYH_FILE.read_text())
@@ -165,7 +183,33 @@ def _atomic_write(path: Path, data) -> None:
     tmp.replace(path)
 
 
+# --- Helpers DB (sólo se llaman cuando USE_DB es True) ---
+
+def _db_replace(model, items):
+    db.session.query(model).delete()
+    for item in items:
+        db.session.add(model.from_dict(item))
+    db.session.commit()
+
+def _db_list(model):
+    return [r.to_dict() for r in model.query.all()]
+
+def _db_cfg_get(key, default):
+    row = ConfigDB.query.get(key)
+    return row.value if row else default
+
+def _db_cfg_set(key, value):
+    row = ConfigDB.query.get(key)
+    if row:
+        row.value = value
+    else:
+        db.session.add(ConfigDB(key=key, value=value))
+    db.session.commit()
+
+
 def save_syh(data):
+    if USE_DB:
+        _db_cfg_set("syh", data)
     _atomic_write(SYH_FILE, data)
 
 
@@ -237,7 +281,9 @@ def _stock_entry(val):
 
 
 def load_stock():
-    if STOCK_FILE.exists():
+    if USE_DB:
+        data = _db_cfg_get("stock", {"central": {}, "sucursales": {}})
+    elif STOCK_FILE.exists():
         try:
             data = json.loads(STOCK_FILE.read_text())
         except (json.JSONDecodeError, OSError):
@@ -253,6 +299,8 @@ def load_stock():
 
 
 def save_stock(data):
+    if USE_DB:
+        _db_cfg_set("stock", data)
     _atomic_write(STOCK_FILE, data)
 
 
@@ -288,14 +336,23 @@ def set_central_precio(stock, item, precio):
     central[item] = entry
 
 def load_transfers():
+    if USE_DB:
+        return _db_list(TransferDB)
     if TRANSFERS_FILE.exists():
-        return json.loads(TRANSFERS_FILE.read_text())
+        try:
+            return json.loads(TRANSFERS_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return []
 
 def save_transfers(data):
+    if USE_DB:
+        _db_replace(TransferDB, data)
     _atomic_write(TRANSFERS_FILE, data)
 
 def load_comprobantes():
+    if USE_DB:
+        return {"comprobantes": _db_list(ComprobanteDB)}
     if COMPROBANTES_FILE.exists():
         try:
             return json.loads(COMPROBANTES_FILE.read_text())
@@ -304,16 +361,25 @@ def load_comprobantes():
     return {"comprobantes": []}
 
 def save_comprobantes(data):
+    if USE_DB:
+        _db_replace(ComprobanteDB, data.get("comprobantes", []))
     _atomic_write(COMPROBANTES_FILE, data)
 
 
 def load_notif_admin():
+    if USE_DB:
+        return {"notificaciones": _db_list(NotifAdminDB)}
     if NOTIF_ADMIN_FILE.exists():
-        return json.loads(NOTIF_ADMIN_FILE.read_text())
+        try:
+            return json.loads(NOTIF_ADMIN_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return {"notificaciones": []}
 
 
 def save_notif_admin(data):
+    if USE_DB:
+        _db_replace(NotifAdminDB, data.get("notificaciones", []))
     _atomic_write(NOTIF_ADMIN_FILE, data)
 
 
@@ -335,11 +401,18 @@ def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
     save_notif_admin(data)
 
 def load_movimientos():
+    if USE_DB:
+        return {"movimientos": _db_list(StockMovimientoDB)}
     if STOCK_MOV_FILE.exists():
-        return json.loads(STOCK_MOV_FILE.read_text())
+        try:
+            return json.loads(STOCK_MOV_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
     return {"movimientos": []}
 
 def save_movimientos(data):
+    if USE_DB:
+        _db_replace(StockMovimientoDB, data.get("movimientos", []))
     _atomic_write(STOCK_MOV_FILE, data)
 
 
@@ -349,6 +422,8 @@ def save_movimientos(data):
 # FIFO (fecha_origen asc, luego created_at asc) para imputar el costo real.
 
 def load_lotes_fifo():
+    if USE_DB:
+        return {"lotes": _db_list(LoteFifoDB)}
     if STOCK_LOTES_FILE.exists():
         try:
             return json.loads(STOCK_LOTES_FILE.read_text())
@@ -358,6 +433,8 @@ def load_lotes_fifo():
 
 
 def save_lotes_fifo(data):
+    if USE_DB:
+        _db_replace(LoteFifoDB, data.get("lotes", []))
     _atomic_write(STOCK_LOTES_FILE, data)
 
 
@@ -481,6 +558,8 @@ def _save_guias_counter(data):
     _atomic_write(GUIAS_COUNTER_FILE, data)
 
 def load_habilitaciones():
+    if USE_DB:
+        return {"habilitaciones": _db_list(HabilitacionDB)}
     if HABILITACIONES_FILE.exists():
         try:
             return json.loads(HABILITACIONES_FILE.read_text())
@@ -489,9 +568,13 @@ def load_habilitaciones():
     return {"habilitaciones": []}
 
 def save_habilitaciones(data):
+    if USE_DB:
+        _db_replace(HabilitacionDB, data.get("habilitaciones", []))
     _atomic_write(HABILITACIONES_FILE, data)
 
 def load_matafuegos():
+    if USE_DB:
+        return {"matafuegos": _db_list(MatafuegoDB)}
     if MATAFUEGOS_FILE.exists():
         try:
             return json.loads(MATAFUEGOS_FILE.read_text())
@@ -500,6 +583,8 @@ def load_matafuegos():
     return {"matafuegos": []}
 
 def save_matafuegos(data):
+    if USE_DB:
+        _db_replace(MatafuegoDB, data.get("matafuegos", []))
     _atomic_write(MATAFUEGOS_FILE, data)
 
 def _parse_fecha_matafuego(valor):
@@ -705,6 +790,8 @@ def sync_alertas_syh():
     return alertas
 
 def load_alertas_syh_dispatch():
+    if USE_DB:
+        return _db_cfg_get("alertas_syh_dispatch", {"sent": {}})
     if ALERTAS_SYH_DISPATCH_FILE.exists():
         try:
             return json.loads(ALERTAS_SYH_DISPATCH_FILE.read_text())
@@ -713,6 +800,8 @@ def load_alertas_syh_dispatch():
     return {"sent": {}}
 
 def save_alertas_syh_dispatch(data):
+    if USE_DB:
+        _db_cfg_set("alertas_syh_dispatch", data)
     _atomic_write(ALERTAS_SYH_DISPATCH_FILE, data)
 
 def enviar_alertas_matafuegos_email(destino="abrahim@grupodexter.com.ar"):
@@ -771,6 +860,8 @@ def enviar_alertas_matafuegos_email(destino="abrahim@grupodexter.com.ar"):
         return {"sent": 0, "reason": f"error: {e}"}
 
 def load_vehiculos_equipo():
+    if USE_DB:
+        return {"vehiculos": _db_list(VehiculoDB)}
     if VEHICULOS_FILE.exists():
         try:
             return json.loads(VEHICULOS_FILE.read_text())
@@ -779,9 +870,13 @@ def load_vehiculos_equipo():
     return {"vehiculos": []}
 
 def save_vehiculos_equipo(data):
+    if USE_DB:
+        _db_replace(VehiculoDB, data.get("vehiculos", []))
     _atomic_write(VEHICULOS_FILE, data)
 
 def load_permisos():
+    if USE_DB:
+        return {"permisos": _db_list(PermisoDB)}
     if PERMISOS_FILE.exists():
         try:
             return json.loads(PERMISOS_FILE.read_text())
@@ -790,9 +885,13 @@ def load_permisos():
     return {"permisos": []}
 
 def save_permisos(data):
+    if USE_DB:
+        _db_replace(PermisoDB, data.get("permisos", []))
     _atomic_write(PERMISOS_FILE, data)
 
 def load_presupuestos():
+    if USE_DB:
+        return {"presupuestos": _db_list(PresupuestoDB)}
     if PRESUPUESTOS_FILE.exists():
         try:
             return json.loads(PRESUPUESTOS_FILE.read_text())
@@ -801,9 +900,13 @@ def load_presupuestos():
     return {"presupuestos": []}
 
 def save_presupuestos(data):
+    if USE_DB:
+        _db_replace(PresupuestoDB, data.get("presupuestos", []))
     _atomic_write(PRESUPUESTOS_FILE, data)
 
 def load_ceyh_retiros():
+    if USE_DB:
+        return {"retiros": _db_list(CeyhRetiroDB)}
     if CEYH_RETIROS_FILE.exists():
         try:
             return json.loads(CEYH_RETIROS_FILE.read_text())
@@ -812,9 +915,13 @@ def load_ceyh_retiros():
     return {"retiros": []}
 
 def save_ceyh_retiros(data):
+    if USE_DB:
+        _db_replace(CeyhRetiroDB, data.get("retiros", []))
     _atomic_write(CEYH_RETIROS_FILE, data)
 
 def load_ceyh_jornadas():
+    if USE_DB:
+        return {"jornadas": _db_list(CeyhJornadaDB)}
     if CEYH_JORNADAS_FILE.exists():
         try:
             return json.loads(CEYH_JORNADAS_FILE.read_text())
@@ -823,6 +930,8 @@ def load_ceyh_jornadas():
     return {"jornadas": []}
 
 def save_ceyh_jornadas(data):
+    if USE_DB:
+        _db_replace(CeyhJornadaDB, data.get("jornadas", []))
     _atomic_write(CEYH_JORNADAS_FILE, data)
 
 def es_ticket_ceyh(ticket):
@@ -861,6 +970,8 @@ def _expand_permisos_para_sucursales(items):
     return expanded
 
 def load_alertas_syh():
+    if USE_DB:
+        return {"alertas": _db_list(AlertaSyhDB)}
     if ALERTAS_SYH_FILE.exists():
         try:
             return json.loads(ALERTAS_SYH_FILE.read_text())
@@ -869,6 +980,8 @@ def load_alertas_syh():
     return {"alertas": []}
 
 def save_alertas_syh(data):
+    if USE_DB:
+        _db_replace(AlertaSyhDB, data.get("alertas", []))
     _atomic_write(ALERTAS_SYH_FILE, data)
 
 def _estado_doc_vehiculo(fecha):
@@ -1119,6 +1232,8 @@ _seed_data_dir()
 
 
 def load_tickets():
+    if USE_DB:
+        return _db_list(TicketDB)
     if TICKETS_FILE.exists():
         try:
             return json.loads(TICKETS_FILE.read_text())
@@ -1128,10 +1243,14 @@ def load_tickets():
 
 
 def save_tickets(tickets):
+    if USE_DB:
+        _db_replace(TicketDB, tickets)
     _atomic_write(TICKETS_FILE, tickets)
 
 
 def load_syh_gestiones():
+    if USE_DB:
+        return {"gestiones": _db_list(SyhGestionDB)}
     if SYH_GESTIONES_FILE.exists():
         try:
             return json.loads(SYH_GESTIONES_FILE.read_text())
@@ -1141,6 +1260,8 @@ def load_syh_gestiones():
 
 
 def save_syh_gestiones(data):
+    if USE_DB:
+        _db_replace(SyhGestionDB, data.get("gestiones", []))
     _atomic_write(SYH_GESTIONES_FILE, data)
 
 
