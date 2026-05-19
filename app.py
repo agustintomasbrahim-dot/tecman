@@ -117,22 +117,26 @@ PRIORIDADES = {
 
 ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
 
+_ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
+_COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
+_CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
+
 ADMINS = {
-    "agustin": {"password": "tecman2026", "nombre": "Agustín Brahim", "rol": "admin"},
-    "carolina": {"password": "tecman2026", "nombre": "Carolina", "rol": "admin"},
-    "jonathan": {"password": "tecman2026", "nombre": "Jonatan", "rol": "tecnico"},
-    "patricia": {"password": "tecman2026", "nombre": "Patricia", "rol": "syh"},
-    "rita": {"password": "tecman2026", "nombre": "Rita", "rol": "admin"},
+    "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
+    "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin"},
+    "jonathan": {"password": _ADMIN_PWD, "nombre": "Jonatan", "rol": "tecnico"},
+    "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
+    "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin"},
 }
 
 # Portal de Compras (Laura). Portal separado del de admin.
 COMPRAS_USERS = {
-    "laura": {"password": "compras2026", "nombre": "Laura", "rol": "compras"},
+    "laura": {"password": _COMPRAS_PWD, "nombre": "Laura", "rol": "compras"},
 }
 
 # Portal Equipo de Mantenimiento Central (Hector y Jose)
 EQUIPO_USERS = {
-    "equipo": {"password": "central2026", "nombre": "Equipo Central", "rol": "equipo_central"},
+    "equipo": {"password": _CENTRAL_PWD, "nombre": "Equipo Central", "rol": "equipo_central"},
 }
 
 SYH_FILE = DATA_DIR / "syh.json"
@@ -985,16 +989,18 @@ def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota
     save_movimientos(data)
 
 # Sucursal login: each sucursal has a unique password
+_SUC_PREFIX = os.environ.get("SUCURSAL_PASSWORD_PREFIX", "mto")
+
 SUCURSAL_USERS = {}
 for suc in SUCURSALES:
     # Extract number or key from name
     if "Sucursal" in suc:
         num = suc.replace("Sucursal ", "")
-        SUCURSAL_USERS[f"suc{num}"] = {"password": f"mto{num}", "sucursal": suc}
+        SUCURSAL_USERS[f"suc{num}"] = {"password": f"{_SUC_PREFIX}{num}", "sucursal": suc}
     elif suc == "Central - Dabra":
-        SUCURSAL_USERS["central"] = {"password": "mtocentral", "sucursal": suc}
+        SUCURSAL_USERS["central"] = {"password": f"{_SUC_PREFIX}central", "sucursal": suc}
     elif suc == "Garin":
-        SUCURSAL_USERS["garin"] = {"password": "mtogarin", "sucursal": suc}
+        SUCURSAL_USERS["garin"] = {"password": f"{_SUC_PREFIX}garin", "sucursal": suc}
 
 # Auto-assignment rules
 ASIGNACION_DEFAULT = "Agustín Brahim"
@@ -1005,27 +1011,29 @@ SUCS_NOA = {"120","126","128","135","139","146","158","173","191","193","212","2
 SUCS_MENDOZA = {"128","132","145","206","207","236"}
 SUCS_SANJUAN = {"159","172"}
 
+_PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
+
 # Proveedor login
 PROVEEDOR_USERS = {
-    "ceyh": {"password": "prov2026", "nombre": "CEYH"},
-    "gustavo": {"password": "prov2026", "nombre": "Gustavo Avellaneda"},
-    "fuga": {"password": "prov2026", "nombre": "Julio Fuga (JRF)"},
-    "ismael": {"password": "prov2026", "nombre": "Ismael Allende (JRF)"},
-    "escalmeca": {"password": "prov2026", "nombre": "Escalmeca / Mauricio"},
-    "adriel": {"password": "prov2026", "nombre": "Adriel (Pintor)"},
-    "oscar": {"password": "prov2026", "nombre": "Oscar San Juan"},
-    "jose": {"password": "prov2026", "nombre": "Jose Sanchez"},
-    "blanco": {"password": "prov2026", "nombre": "Gustavo Blanco"},
-    "nestor": {"password": "prov2026", "nombre": "Nestor Raul Diaz"},
-    "federico": {"password": "prov2026", "nombre": "Federico Confort"},
-    "javier": {"password": "prov2026", "nombre": "Javier"},
-    "nicolas": {"password": "prov2026", "nombre": "Nicolas Audio"},
-    "frattini": {"password": "prov2026", "nombre": "Cesar Frattini (No Bugs)"},
-    "polaris": {"password": "prov2026", "nombre": "Polaris"},
-    "astronovo": {"password": "prov2026", "nombre": "Astronovo"},
-    "geronimo": {"password": "prov2026", "nombre": "Geronimo - Leo"},
-    "croacia": {"password": "prov2026", "nombre": "Croacia"},
-    "microglobal": {"password": "prov2026", "nombre": "Martin Microglobal"},
+    "ceyh": {"password": _PROVEEDOR_PWD, "nombre": "CEYH"},
+    "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda"},
+    "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)"},
+    "ismael": {"password": _PROVEEDOR_PWD, "nombre": "Ismael Allende (JRF)"},
+    "escalmeca": {"password": _PROVEEDOR_PWD, "nombre": "Escalmeca / Mauricio"},
+    "adriel": {"password": _PROVEEDOR_PWD, "nombre": "Adriel (Pintor)"},
+    "oscar": {"password": _PROVEEDOR_PWD, "nombre": "Oscar San Juan"},
+    "jose": {"password": _PROVEEDOR_PWD, "nombre": "Jose Sanchez"},
+    "blanco": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Blanco"},
+    "nestor": {"password": _PROVEEDOR_PWD, "nombre": "Nestor Raul Diaz"},
+    "federico": {"password": _PROVEEDOR_PWD, "nombre": "Federico Confort"},
+    "javier": {"password": _PROVEEDOR_PWD, "nombre": "Javier"},
+    "nicolas": {"password": _PROVEEDOR_PWD, "nombre": "Nicolas Audio"},
+    "frattini": {"password": _PROVEEDOR_PWD, "nombre": "Cesar Frattini (No Bugs)"},
+    "polaris": {"password": _PROVEEDOR_PWD, "nombre": "Polaris"},
+    "astronovo": {"password": _PROVEEDOR_PWD, "nombre": "Astronovo"},
+    "geronimo": {"password": _PROVEEDOR_PWD, "nombre": "Geronimo - Leo"},
+    "croacia": {"password": _PROVEEDOR_PWD, "nombre": "Croacia"},
+    "microglobal": {"password": _PROVEEDOR_PWD, "nombre": "Martin Microglobal"},
 }
 
 # Proveedores database
