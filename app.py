@@ -1815,7 +1815,7 @@ def admin_panel():
                 if age > 150:
                     t["dias"] = age
                     alertas.append(t)
-            except:
+            except (ValueError, KeyError):
                 pass
     alertas.sort(key=lambda t: t.get("dias", 0), reverse=True)
 
@@ -1885,9 +1885,9 @@ def admin_ceyh():
     en_ruta = [t for t in activos if t.get("estado_operativo_ceyh") == "En ruta"]
     demorados = [t for t in activos if t.get("estado_operativo_ceyh") == "Demorado"]
 
-    activos.sort(key=lambda t: (t.get("prioridad", 4), t.get("fecha_objetivo", "9999-99-99"), t.get("creado", "")))
-    derivados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
-    terminados.sort(key=lambda t: t.get("actualizado", ""), reverse=True)
+    activos.sort(key=lambda t: (int(t.get("prioridad") or 4), t.get("fecha_objetivo") or "9999-99-99", t.get("creado") or ""))
+    derivados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
+    terminados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
 
     return render_template(
         "admin_ceyh.html",
@@ -2452,7 +2452,7 @@ def admin_inventario():
                         "persianas": persianas,
                         "aires": aires,
                     })
-        except:
+        except Exception:
             pass
 
     inventario.sort(key=lambda x: x["sucursal"])
@@ -3592,7 +3592,7 @@ def admin_sucursal(suc_num):
                 "persianas": r[2] if len(r) > 2 else "",
                 "aires": r[3] if len(r) > 3 else "",
             }
-    except:
+    except Exception:
         pass
 
     return render_template(
@@ -3671,7 +3671,7 @@ def admin_reporte():
                 age = (now - datetime.datetime.fromisoformat(t["creado"])).days
                 if age > 150:
                     alertas.append({"ticket": t, "dias": age})
-            except:
+            except (ValueError, KeyError):
                 pass
 
     # Build HTML email
@@ -6052,5 +6052,10 @@ def api_backup_data():
     )
 
 
+@app.errorhandler(500)
+def internal_error(e):
+    return render_template("500.html"), 500
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5050, debug=True)
+    app.run(host="0.0.0.0", port=5050, debug=not IS_CLOUD)
