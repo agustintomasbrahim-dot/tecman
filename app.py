@@ -19,17 +19,21 @@ app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
 _DB_URL = os.environ.get("DATABASE_URL", "")
 if _DB_URL.startswith("postgres://"):
     _DB_URL = _DB_URL.replace("postgres://", "postgresql://", 1)
-USE_DB = bool(_DB_URL)
-if USE_DB:
-    from models import (db, TicketDB, MatafuegoDB, HabilitacionDB, ComprobanteDB,
-                        StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
-                        VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
-                        CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
-    app.config["SQLALCHEMY_DATABASE_URI"] = _DB_URL
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    db.init_app(app)
-    with app.app_context():
-        db.create_all()
+USE_DB = False
+if _DB_URL:
+    try:
+        from models import (db, TicketDB, MatafuegoDB, HabilitacionDB, ComprobanteDB,
+                            StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
+                            VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
+                            CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
+        app.config["SQLALCHEMY_DATABASE_URI"] = _DB_URL
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        db.init_app(app)
+        with app.app_context():
+            db.create_all()
+        USE_DB = True
+    except Exception as e:
+        print(f"[WARN] DB no disponible, usando JSON: {e}")
 
 IS_CLOUD = os.environ.get("RENDER", False)
 
