@@ -52,15 +52,16 @@
 {% if not es_rita and notif_admin %}
 <!-- Notificaciones para admins -->
 <div class="card" style="border-left: 4px solid #2563eb; margin-bottom: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer;" onclick="toggleNotif()">
         <div>
-            <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }})</h3>
-            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{% if notif_criticas %}<strong style="color:#b91c1c;">{{ notif_criticas }} crítica{{ 's' if notif_criticas != 1 }}</strong> · {% endif %}Las más nuevas primero.</div>
+            <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }}) <span id="notif-arrow" style="font-size:12px;">▶</span></h3>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{% if notif_criticas %}<strong style="color:#b91c1c;">{{ notif_criticas }} crítica{{ 's' if notif_criticas != 1 }}</strong> · {% endif %}Tocá para ver</div>
         </div>
-        <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin: 0;">
+        <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin: 0;" onclick="event.stopPropagation()">
             <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; font-size: 12px;">Marcar todas como leídas</button>
         </form>
     </div>
+    <div id="notif-lista" style="display: none; margin-top: 10px;">
     {% for n in notif_admin %}
     <div style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
@@ -82,7 +83,21 @@
         </div>
     </div>
     {% endfor %}
+    </div>
 </div>
+<script>
+function toggleNotif() {
+    var lista = document.getElementById('notif-lista');
+    var arrow = document.getElementById('notif-arrow');
+    if (lista.style.display === 'none') {
+        lista.style.display = 'block';
+        arrow.textContent = '▼';
+    } else {
+        lista.style.display = 'none';
+        arrow.textContent = '▶';
+    }
+}
+</script>
 {% endif %}
 
 {% if not es_rita %}
