@@ -61,7 +61,7 @@
             <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; font-size: 12px;">Marcar todas como leídas</button>
         </form>
     </div>
-    <div id="notif-lista" style="display: none; margin-top: 10px;">
+    <div id="notif-lista" style="display: none; margin-top: 10px; max-height: 320px; overflow-y: auto;">
     {% for n in notif_admin %}
     <div style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
