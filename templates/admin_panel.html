@@ -295,16 +295,6 @@ function toggleNotif() {
             <a class="admin-group-link" href="{{ url_for('admin_mapa') }}"><span>Mapa</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_exportar') }}"><span>Exportar</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_syh_docs') }}"><span>Gestión docs S&H</span><span>›</span></a>
-            <form method="POST" action="{{ url_for('admin_syh_limpiar_222') }}" style="margin:0;">
-                <button type="submit" class="admin-group-link" style="width:100%;text-align:left;border:none;background:none;cursor:pointer;color:#dc2626;" onclick="return confirm('Borrar: todos los Informes de suc 222, todos REG CAP 2019, y los Morón Municipal?')">
-                    <span>Limpiar docs S&H (informes / REG CAP / Morón)</span><span>›</span>
-                </button>
-            </form>
-            <form method="POST" action="{{ url_for('fix_asignacion_ceyh') }}" style="margin:0;">
-                <button type="submit" class="admin-group-link" style="width:100%;text-align:left;border:none;background:none;cursor:pointer;color:#dc2626;" onclick="return confirm('Reasignar tickets abiertos de sucursales CEYH al proveedor del abono?')">
-                    <span>Reasignar tickets a proveedores abono</span><span>›</span>
-                </button>
-            </form>
         </div>
     </div>
 </div>
