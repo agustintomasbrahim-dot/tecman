@@ -6438,6 +6438,31 @@ def fix_asignacion_ceyh():
     return redirect(url_for("admin_panel"))
 
 
+@app.route("/api/resumen")
+def api_resumen():
+    secret = os.environ.get("BACKUP_SECRET", "")
+    if not secret or request.args.get("token") != secret:
+        return Response("Forbidden", status=403)
+    tickets = load_tickets()
+    hoy = datetime.date.today().isoformat()
+    ayer = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    nuevos = [t for t in tickets if t.get("estado") == "Nuevo"]
+    en_progreso = [t for t in tickets if t.get("estado") == "En progreso"]
+    resueltos_hoy = [t for t in tickets if t.get("estado") == "Resuelto" and (t.get("fecha_cierre") or "")[:10] == hoy]
+    urgentes = [t for t in tickets if t.get("prioridad") in (1, "1") and t.get("estado") not in ("Resuelto", "Cerrado")]
+    nuevos_hoy = [t for t in nuevos if (t.get("fecha") or "")[:10] >= ayer]
+    def mini(t):
+        return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("fecha") or "")[:10]}
+    return jsonify({
+        "fecha": hoy,
+        "totales": {"nuevos": len(nuevos), "en_progreso": len(en_progreso), "urgentes": len(urgentes), "total_abiertos": len(nuevos) + len(en_progreso)},
+        "nuevos_ultimas_24h": [mini(t) for t in nuevos_hoy],
+        "urgentes": [mini(t) for t in urgentes[:10]],
+        "en_progreso": [mini(t) for t in en_progreso[:15]],
+        "resueltos_hoy": len(resueltos_hoy),
+    })
+
+
 @app.route("/api/backup-data")
 def api_backup_data():
     secret = os.environ.get("BACKUP_SECRET", "")
