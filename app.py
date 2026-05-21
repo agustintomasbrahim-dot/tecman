@@ -78,6 +78,8 @@ PERMISOS_DIR = UPLOADS_DIR / "permisos"
 PERMISOS_DIR.mkdir(parents=True, exist_ok=True)
 PRESUPUESTOS_DIR = UPLOADS_DIR / "presupuestos"
 PRESUPUESTOS_DIR.mkdir(parents=True, exist_ok=True)
+REQUISICIONES_DIR = UPLOADS_DIR / "requisiciones"
+REQUISICIONES_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Data ---
 
@@ -136,6 +138,124 @@ ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente
 _ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
+COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar")
+PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
+SUCURSAL_EMAILS = {
+    "011": "suc011@grupodabra.com.ar",
+    "014": "suc014@grupodabra.com.ar",
+    "020": "suc020@grupodabra.com.ar",
+    "023": "suc023@grupodabra.com.ar",
+    "028": "suc028@grupodabra.com.ar",
+    "035": "suc035@grupodabra.com.ar",
+    "036": "suc036@grupodabra.com.ar",
+    "043": "suc043@grupodabra.com.ar",
+    "049": "suc049@grupodabra.com.ar",
+    "051": "suc051@grupodabra.com.ar",
+    "052": "suc052@grupodabra.com.ar",
+    "053": "suc053@grupodabra.com.ar",
+    "054": "suc054@grupodabra.com.ar",
+    "058": "suc058@grupodabra.com.ar",
+    "065": "suc065@grupodabra.com.ar",
+    "076": "suc076@grupodabra.com.ar",
+    "077": "suc077@grupodabra.com.ar",
+    "078": "suc078@grupodabra.com.ar",
+    "080": "suc080@grupodabra.com.ar",
+    "082": "suc082@grupodabra.com.ar",
+    "083": "suc083@grupodabra.com.ar",
+    "091": "suc091@grupodabra.com.ar",
+    "092": "suc092@grupodabra.com.ar",
+    "102": "suc102@grupodabra.com.ar",
+    "111": "suc111@grupodabra.com.ar",
+    "114": "suc114@grupodabra.com.ar",
+    "116": "suc116@grupodabra.com.ar",
+    "120": "suc120@grupodabra.com.ar",
+    "121": "suc121@grupodabra.com.ar",
+    "123": "suc123@grupodabra.com.ar",
+    "124": "suc124@grupodabra.com.ar",
+    "125": "suc125@grupodabra.com.ar",
+    "126": "suc126@grupodabra.com.ar",
+    "127": "suc127@grupodabra.com.ar",
+    "128": "suc128@grupodabra.com.ar",
+    "132": "suc132@grupodabra.com.ar",
+    "133": "suc133@grupodabra.com.ar",
+    "134": "suc134@grupodabra.com.ar",
+    "135": "suc135@grupodabra.com.ar",
+    "139": "suc139@grupodabra.com.ar",
+    "141": "suc141@grupodabra.com.ar",
+    "142": "suc142@grupodabra.com.ar",
+    "145": "suc145@grupodabra.com.ar",
+    "146": "suc146@grupodabra.com.ar",
+    "147": "suc147@grupodabra.com.ar",
+    "148": "suc148@grupodabra.com.ar",
+    "156": "suc156@grupodabra.com.ar",
+    "157": "suc157@grupodabra.com.ar",
+    "158": "suc158@grupodabra.com.ar",
+    "159": "suc159@grupodabra.com.ar",
+    "160": "suc160@grupodabra.com.ar",
+    "165": "suc165@grupodabra.com.ar",
+    "166": "suc166@grupodabra.com.ar",
+    "167": "suc167@grupodabra.com.ar",
+    "170": "suc170@grupodabra.com.ar",
+    "171": "suc171@grupodabra.com.ar",
+    "172": "suc172@grupodabra.com.ar",
+    "173": "suc173@grupodabra.com.ar",
+    "176": "suc176@grupodabra.com.ar",
+    "177": "suc177@grupodabra.com.ar",
+    "178": "suc178@grupodabra.com.ar",
+    "183": "suc183@grupodabra.com.ar",
+    "184": "suc184@grupodabra.com.ar",
+    "185": "suc185@grupodabra.com.ar",
+    "186": "suc186@grupodabra.com.ar",
+    "187": "suc187@grupodabra.com.ar",
+    "188": "suc188@grupodabra.com.ar",
+    "190": "suc190@grupodabra.com.ar",
+    "191": "suc191@grupodabra.com.ar",
+    "192": "suc192@grupodabra.com.ar",
+    "193": "suc193@grupodabra.com.ar",
+    "194": "suc194@grupodabra.com.ar",
+    "195": "suc195@grupodabra.com.ar",
+    "196": "suc196@grupodabra.com.ar",
+    "198": "suc198@grupodabra.com.ar",
+    "199": "suc199@grupodabra.com.ar",
+    "200": "suc200@grupodabra.com.ar",
+    "202": "suc202@grupodabra.com.ar",
+    "203": "suc203@grupodabra.com.ar",
+    "204": "suc204@grupodabra.com.ar",
+    "205": "suc205@grupodabra.com.ar",
+    "206": "suc206@grupodabra.com.ar",
+    "207": "suc207@grupodabra.com.ar",
+    "208": "suc208@grupodabra.com.ar",
+    "209": "suc209@grupodabra.com.ar",
+    "210": "suc210@grupodabra.com.ar",
+    "211": "suc211@grupodabra.com.ar",
+    "212": "suc212@grupodabra.com.ar",
+    "213": "suc213@grupodabra.com.ar",
+    "214": "suc214@grupodabra.com.ar",
+    "215": "suc215@grupodabra.com.ar",
+    "216": "suc216@grupodabra.com.ar",
+    "217": "suc217@grupodabra.com.ar",
+    "219": "suc219@grupodabra.com.ar",
+    "220": "suc220@grupodabra.com.ar",
+    "221": "suc221@grupodabra.com.ar",
+    "222": "suc222@grupodabra.com.ar",
+    "223": "suc223@grupodabra.com.ar",
+    "224": "suc224@grupodabra.com.ar",
+    "226": "suc226@grupodabra.com.ar",
+    "228": "suc228@grupodabra.com.ar",
+    "229": "suc229@grupodabra.com.ar",
+    "230": "suc230@grupodabra.com.ar",
+    "231": "suc231@grupodabra.com.ar",
+    "232": "suc232@grupodabra.com.ar",
+    "233": "suc233@grupodabra.com.ar",
+    "234": "suc234@grupodabra.com.ar",
+    "235": "suc235@grupodexter.com.ar",
+    "236": "suc236@grupodabra.com.ar",
+    "237": "suc237@grupodabra.com.ar",
+    "238": "suc238@grupodexter.com.ar",
+    "239": "suc239@grupodexter.com.ar",
+    "240": "suc240@grupodexter.com.ar",
+    "241": "suc241@grupodexter.com.ar",
+}
 
 ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
@@ -787,6 +907,7 @@ def sync_alertas_syh():
     alertas.extend(sync_alertas_habilitaciones(prev_map))
     data["alertas"] = alertas
     save_alertas_syh(data)
+    enviar_alertas_matafuegos_email()
     return alertas
 
 def load_alertas_syh_dispatch():
@@ -804,60 +925,170 @@ def save_alertas_syh_dispatch(data):
         _db_cfg_set("alertas_syh_dispatch", data)
     _atomic_write(ALERTAS_SYH_DISPATCH_FILE, data)
 
-def enviar_alertas_matafuegos_email(destino="abrahim@grupodexter.com.ar"):
+def _fila_alerta(a):
+    color = "#fee2e2" if a.get("estado") == "Vencidos" else "#fef3c7"
+    return (
+        f"<tr style='background:{color};'>"
+        f"<td style='padding:8px;border-bottom:1px solid #eee;font-weight:700;'>Suc. {a.get('sucursal_num')}</td>"
+        f"<td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('estado')}</td>"
+        f"<td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('proximo_vto') or '-'}</td>"
+        f"<td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('tipos') or '-'}</td>"
+        f"<td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('cantidad') or 0}</td>"
+        f"</tr>"
+    )
+
+def _tabla_alertas(filas_html):
+    return (
+        "<table style='width:100%;border-collapse:collapse;'>"
+        "<tr>"
+        "<th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Sucursal</th>"
+        "<th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Estado</th>"
+        "<th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Próx. vencimiento</th>"
+        "<th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Tipos</th>"
+        "<th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Cantidad</th>"
+        "</tr>"
+        + filas_html +
+        "</table>"
+    )
+
+def enviar_alertas_matafuegos_email():
     alertas = load_alertas_syh().get("alertas", [])
-    if not alertas:
+    alertas_mat = [a for a in alertas if a.get("tipo_alerta") != "habilitacion"]
+    if not alertas_mat:
         return {"sent": 0, "reason": "no_alertas"}
 
     dispatch = load_alertas_syh_dispatch()
     sent_map = dispatch.setdefault("sent", {})
     pendientes = []
-    for a in alertas:
+    for a in alertas_mat:
         aid = a.get("id")
         stamp = f"{a.get('estado')}|{a.get('proximo_vto')}|{a.get('cantidad')}|{a.get('tipos')}"
-        if sent_map.get(aid) == stamp:
-            continue
-        pendientes.append((a, stamp))
+        if sent_map.get(aid) != stamp:
+            pendientes.append((a, stamp))
 
     if not pendientes:
         return {"sent": 0, "reason": "sin_cambios"}
 
     try:
+        import sys
+
         from gauth import gmail as get_gmail
         import base64
+        from collections import defaultdict
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
 
-        filas = "".join(
-            f"<tr><td style='padding:8px;border-bottom:1px solid #eee;'>{a['sucursal_num']}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a['estado']}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('proximo_vto') or '-'}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('tipos') or '-'}</td><td style='padding:8px;border-bottom:1px solid #eee;'>{a.get('cantidad') or 0}</td></tr>"
-            for a, _ in pendientes
-        )
-        html = f"""
+        service = get_gmail()
+        sent_count = 0
+
+        # Agrupar por sucursal y enviar mail individual a cada una
+        por_sucursal = defaultdict(list)
+        for a, stamp in pendientes:
+            por_sucursal[str(a.get("sucursal_num", "")).zfill(3)].append((a, stamp))
+
+        for suc_num, items in por_sucursal.items():
+            suc_email = SUCURSAL_EMAILS.get(suc_num)
+            if not suc_email:
+                continue
+            filas = "".join(_fila_alerta(a) for a, _ in items)
+            html = f"""
+            <div style='font-family:Arial,sans-serif;max-width:700px;margin:0 auto;'>
+              <h2 style='color:#dc2626;'>Alerta de matafuegos - Sucursal {suc_num}</h2>
+              <p>Se detectaron matafuegos con vencimiento próximo o vencidos en su sucursal. Por favor coordinen con el proveedor para regularizar la situación.</p>
+              {_tabla_alertas(filas)}
+              <p style='margin-top:16px;color:#6b7280;font-size:13px;'>Ante cualquier consulta, contactarse con el equipo de mantenimiento.</p>
+            </div>
+            """
+            msg = MIMEMultipart("alternative")
+            msg["To"] = suc_email
+            msg["Subject"] = f"Tecman - Alerta matafuegos Suc. {suc_num}"
+            msg.attach(MIMEText(html, "html"))
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+            service.users().messages().send(userId="me", body={"raw": raw}).execute()
+            sent_count += 1
+
+        # Resumen completo para Patricia
+        filas_todas = "".join(_fila_alerta(a) for a, _ in pendientes)
+        html_patricia = f"""
         <div style='font-family:Arial,sans-serif;max-width:700px;margin:0 auto;'>
-          <h2 style='color:#dc2626;'>Alerta de matafuegos - Tecman</h2>
-          <p>Se detectaron alertas nuevas o actualizadas para revisar.</p>
-          <table style='width:100%;border-collapse:collapse;'>
-            <tr><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Sucursal</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Estado</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Próx. vencimiento</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Tipos</th><th align='left' style='padding:8px;border-bottom:2px solid #ddd;'>Cantidad</th></tr>
-            {filas}
-          </table>
-          <p style='margin-top:16px;color:#6b7280;'>Patricia y la sucursal deberían revisarlo según corresponda.</p>
+          <h2 style='color:#dc2626;'>Resumen alertas matafuegos - Tecman</h2>
+          <p>{len(pendientes)} alerta(s) nuevas o actualizadas en {len(por_sucursal)} sucursal(es). Cada sucursal ya fue notificada.</p>
+          {_tabla_alertas(filas_todas)}
+          <p style='margin-top:16px;color:#6b7280;font-size:13px;'>Generado automáticamente por Tecman.</p>
         </div>
         """
-
-        service = get_gmail()
         msg = MIMEMultipart("alternative")
-        msg["To"] = destino
-        msg["Subject"] = f"Tecman - Alertas de matafuegos ({len(pendientes)})"
-        msg.attach(MIMEText(html, "html"))
+        msg["To"] = PATRICIA_EMAIL
+        msg["Subject"] = f"Tecman - Resumen alertas matafuegos ({len(pendientes)} alertas, {len(por_sucursal)} sucursales)"
+        msg.attach(MIMEText(html_patricia, "html"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
         for a, stamp in pendientes:
             sent_map[a.get("id")] = stamp
         save_alertas_syh_dispatch(dispatch)
-        return {"sent": len(pendientes), "reason": "ok"}
+        return {"sent": sent_count, "reason": "ok"}
     except Exception as e:
         return {"sent": 0, "reason": f"error: {e}"}
+
+def _enviar_requisicion_compras(ticket, req_numero, archivo_path=None, archivo_nombre=None):
+    try:
+        import sys
+
+        from gauth import gmail as get_gmail
+        import base64
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+
+        suc = ticket.get("sucursal", "-")
+        subcat = ticket.get("subcategoria", "-")
+        zona = ticket.get("zona_afectada", "-")
+        prov = ticket.get("proveedor_presupuesto", "-")
+        desc = ticket.get("descripcion", "-")
+        montos = "".join(
+            f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{p.get('proveedor') or prov}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>${p.get('monto') or '-'}</td>"
+            f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{p.get('detalle') or '-'}</td></tr>"
+            for p in (ticket.get("presupuestos") or [])
+        )
+        html = f"""
+        <div style='font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#1a1a2e;'>
+          <h2 style='color:#0f766e;'>Requisición lista para procesar — Tecman</h2>
+          <p>Rita cargó la requisición <strong>#{req_numero}</strong> para el siguiente presupuesto aprobado:</p>
+          <table style='width:100%;border-collapse:collapse;margin-bottom:16px;'>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;width:160px;'>Sucursal</td><td style='padding:8px 12px;background:#f8fafc;'>{suc}</td></tr>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Trabajo</td><td style='padding:8px 12px;background:#f8fafc;'>{subcat}</td></tr>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Zona</td><td style='padding:8px 12px;background:#f8fafc;'>{zona}</td></tr>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Proveedor</td><td style='padding:8px 12px;background:#f8fafc;'>{prov}</td></tr>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Descripción</td><td style='padding:8px 12px;background:#f8fafc;'>{desc}</td></tr>
+          </table>
+          {"<table style='width:100%;border-collapse:collapse;margin-bottom:16px;'><tr><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Proveedor</th><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Monto</th><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Detalle</th></tr>" + montos + "</table>" if montos else ""}
+          <p style='color:#6b7280;font-size:13px;'>Ticket #{ticket.get("id")} — generado automáticamente por Tecman</p>
+        </div>
+        """
+
+        service = get_gmail()
+        msg = MIMEMultipart()
+        msg["To"] = COMPRAS_EMAIL
+        msg["Subject"] = f"Requisición #{req_numero} — {suc} ({subcat})"
+        msg.attach(MIMEText(html, "html"))
+
+        if archivo_path and Path(archivo_path).exists():
+            with open(archivo_path, "rb") as f:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{archivo_nombre or Path(archivo_path).name}"')
+            msg.attach(part)
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True
+    except Exception as e:
+        return False
+
 
 def load_vehiculos_equipo():
     if USE_DB:
@@ -1181,9 +1412,8 @@ PROVEEDORES = [
     {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
     # --- Proveedores de fumigacion por sucursal ---
     {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","190","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"], "mostrar_sucursal": False},
-    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["065","077","080","082","083","142","173","188","191","194","195","209","211","216","230"], "mostrar_sucursal": False},
+    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["011","058","065","077","080","082","083","142","173","188","191","194","195","209","211","216","222","230"], "mostrar_sucursal": False},
     {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"], "mostrar_sucursal": False},
-    {"nombre": "RC Mansilla SA (El Gallo)", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["011","058","222"], "mostrar_sucursal": True},
     {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "sucursales": ["222"]},
     {"nombre": "Gerardo Osvaldo Gonzalez", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["052","167","187"], "mostrar_sucursal": False},
     {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["126","139","193"], "mostrar_sucursal": False},
@@ -2265,6 +2495,12 @@ def serve_presupuesto(filename):
     return send_from_directory(str(PRESUPUESTOS_DIR), filename)
 
 
+@app.route("/uploads/requisiciones/<filename>")
+@login_required
+def serve_requisicion(filename):
+    return send_from_directory(str(REQUISICIONES_DIR), filename)
+
+
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_ticket(ticket_id):
@@ -2349,6 +2585,42 @@ def admin_ticket(ticket_id):
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             flash("Estado del presupuesto actualizado")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+        if accion == "cargar_requisicion":
+            req_numero = request.form.get("requisicion_numero", "").strip()
+            req_nota = request.form.get("requisicion_nota", "").strip()
+            if not req_numero:
+                flash("Ingresá el número de requisición")
+                return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+            archivo = request.files.get("archivo_requisicion")
+            archivo_guardado = None
+            archivo_nombre = None
+            if archivo and archivo.filename:
+                ext = os.path.splitext(archivo.filename)[1].lower()
+                archivo_guardado = f"req_{ticket_id}_{uuid.uuid4().hex[:8]}{ext}"
+                archivo.save(str(REQUISICIONES_DIR / archivo_guardado))
+                archivo_nombre = archivo.filename
+            ticket["requisicion_numero"] = req_numero
+            ticket["requisicion_fecha"] = datetime.datetime.now().isoformat()
+            ticket["requisicion_por"] = session.get("nombre", "Rita")
+            if archivo_guardado:
+                ticket["requisicion_archivo"] = archivo_guardado
+                ticket["requisicion_archivo_nombre"] = archivo_nombre
+            ticket["requiere_requisicion"] = False
+            nota_texto = f"Requisición cargada: #{req_numero}"
+            if req_nota:
+                nota_texto += f" — {req_nota}"
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Rita"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": nota_texto,
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            archivo_path = str(REQUISICIONES_DIR / archivo_guardado) if archivo_guardado else None
+            email_ok = _enviar_requisicion_compras(ticket, req_numero, archivo_path, archivo_nombre)
+            flash("Requisición cargada y mail enviado a Compras" if email_ok else "Requisición cargada (no se pudo enviar el mail)")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         if accion == "derivar_equipo_desde_ceyh":
@@ -3704,7 +3976,7 @@ def admin_sucursal(suc_num):
     inventario = {}
     try:
         import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
+
         from gauth import sheets as get_sheets
         SSID = "1nsWmQ1umlOoFLt9C3O1Uhi0SQp02JEQd7PX-btb4pm0"
         service = get_sheets()

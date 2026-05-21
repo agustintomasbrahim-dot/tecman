@@ -152,7 +152,7 @@
         <div class="ticket-meta-item"><div class="label">Estado presupuesto</div><div class="value">{{ ticket.estado_presupuesto or 'Nuevo' }}</div></div>
         <div class="ticket-meta-item"><div class="label">Zona afectada</div><div class="value">{{ ticket.zona_afectada or '-' }}</div></div>
         <div class="ticket-meta-item"><div class="label">Proveedor</div><div class="value">{{ ticket.proveedor_presupuesto or '-' }}</div></div>
-        <div class="ticket-meta-item"><div class="label">Rita / requisición</div><div class="value">{% if ticket.requiere_requisicion %}Pendiente de gestionar{% else %}-{% endif %}</div></div>
+        <div class="ticket-meta-item"><div class="label">Rita / requisición</div><div class="value">{% if ticket.requisicion_numero %}Req. #{{ ticket.requisicion_numero }} ({{ ticket.requisicion_por }}){% elif ticket.requiere_requisicion %}Pendiente de gestionar{% else %}-{% endif %}</div></div>
         {% endif %}
     </div>
 
@@ -323,12 +323,45 @@
         <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
             <strong>Archivo de referencia:</strong><br>
             {% for p in ticket.presupuestos %}
-                {% if p.archivo %}<div style="margin-top:8px; font-size:12px; color:#475569;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:8px; font-size:12px; color:#475569;"><a href="/uploads/presupuestos/{{ p.archivo }}" target="_blank" style="color:#0f766e;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</a></div>{% endif %}
             {% endfor %}
         </div>
         {% endif %}
     </div>
 </div>
+
+{% if ticket.requisicion_numero %}
+<div class="card" style="border-left:4px solid #059669;background:#f0fdf4;">
+    <h3 style="margin-bottom:10px;font-size:15px;color:#059669;">Requisición cargada</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+        <div><strong>N° Requisición</strong><div style="font-size:18px;font-weight:700;margin-top:4px;">#{{ ticket.requisicion_numero }}</div></div>
+        <div><strong>Cargada por</strong><div style="margin-top:4px;">{{ ticket.requisicion_por }}</div></div>
+        <div><strong>Fecha</strong><div style="margin-top:4px;">{{ ticket.requisicion_fecha[:16].replace('T',' ') }}</div></div>
+        {% if ticket.requisicion_archivo %}<div><strong>Archivo</strong><div style="margin-top:4px;"><a href="{{ url_for('serve_requisicion', filename=ticket.requisicion_archivo) }}" target="_blank" style="color:#059669;">Descargar</a></div></div>{% endif %}
+    </div>
+</div>
+{% elif ticket.requiere_requisicion %}
+<div class="card" style="border-left:4px solid #0f766e;">
+    <h3 style="margin-bottom:12px;font-size:15px;color:#0f766e;">Cargar requisición</h3>
+    <form method="POST" enctype="multipart/form-data" style="display:grid;gap:12px;">
+        <input type="hidden" name="accion" value="cargar_requisicion">
+        <div class="form-group" style="margin-bottom:0;">
+            <label>N° Requisición *</label>
+            <input type="text" name="requisicion_numero" required placeholder="Ej: REQ-2026-0123">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Adjuntar archivo (PDF/Excel, opcional)</label>
+            <input type="file" name="archivo_requisicion" accept=".pdf,.xlsx,.xls,.docx">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Nota interna (opcional)</label>
+            <input type="text" name="requisicion_nota" placeholder="Ej: enviada a compras por mail">
+        </div>
+        <button type="submit" class="btn" style="background:#0f766e;color:white;">Guardar requisición</button>
+    </form>
+</div>
+{% endif %}
+
 {% endif %}
 
 {% if ticket.tipo == 'syh_matafuego_rechazado' and session.nombre != 'Rita' %}

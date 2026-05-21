@@ -15,6 +15,17 @@ def _parse_dt(s):
         return None
 
 
+_PRIORIDAD_MAP = {'alta': 1, 'media': 2, 'baja': 3}
+
+def _parse_prioridad(v):
+    if v is None:
+        return 4
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return _PRIORIDAD_MAP.get(str(v).lower(), 4)
+
+
 def _ensure_id(d):
     return str(d['id']) if d.get('id') is not None else uuid.uuid4().hex[:12]
 
@@ -34,7 +45,7 @@ class TicketDB(db.Model):
             id=_ensure_id(d),
             sucursal_num=d.get('sucursal_num', ''),
             estado=d.get('estado', ''),
-            prioridad=int(d.get('prioridad') or 4),
+            prioridad=_parse_prioridad(d.get('prioridad')),
             creado=_parse_dt(d.get('creado')),
             payload=d,
         )

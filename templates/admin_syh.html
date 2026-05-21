@@ -185,10 +185,10 @@
                 <td><span class="badge" style="background: {% if s.marca == 'DX' %}rgba(230,57,70,0.2); color: #e63946{% elif s.marca == 'MV' %}rgba(255,255,255,0.15); color: #fff{% else %}rgba(232,145,168,0.2); color: #e891a8{% endif %};">{{ s.marca }}</span></td>
                 <td style="color: #94a3b8; font-size: 12px;">{{ s.ciudad }}</td>
                 <td>
-                    {% if s.habilitacion == 'Vigente' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Vigente</span>
-                    {% elif s.habilitacion == 'Vencida' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencida</span>
-                    {% elif s.habilitacion == 'En tramite' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">En tramite</span>
-                    {% elif s.habilitacion == 'Sin habilitacion' %}<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Sin hab.</span>
+                    {% if s.habilitacion == 'Vigente' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Vigente</span></a>
+                    {% elif s.habilitacion == 'Vencida' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencida</span></a>
+                    {% elif s.habilitacion == 'En tramite' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">En tramite</span></a>
+                    {% elif s.habilitacion == 'Sin habilitacion' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Sin hab.</span></a>
                     {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
                 </td>
                 <td>

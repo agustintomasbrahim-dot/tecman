@@ -335,6 +335,15 @@
 {% if ticket.presupuestos is defined and ticket.presupuestos %}
 <div class="card">
     <h3 style="margin-bottom: 12px; color: #374151; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Presupuestos adicionales</h3>
+    {% set ep = ticket.estado_presupuesto or 'Nuevo' %}
+    {% if ep != 'Nuevo' %}
+    <div style="margin-bottom:12px;padding:10px 14px;border-radius:10px;background:{% if ep == 'Aprobado' %}#d1fae5{% elif ep == 'Rechazado' %}#fee2e2{% else %}#fef3c7{% endif %};border:1px solid {% if ep == 'Aprobado' %}#6ee7b7{% elif ep == 'Rechazado' %}#fca5a5{% else %}#fcd34d{% endif %};">
+        <strong style="color:{% if ep == 'Aprobado' %}#065f46{% elif ep == 'Rechazado' %}#b91c1c{% else %}#b45309{% endif %};">
+            {% if ep == 'Aprobado' %}Presupuesto aprobado{% elif ep == 'Rechazado' %}Presupuesto rechazado{% else %}En revisión{% endif %}
+        </strong>
+        {% if ticket.respuesta_sucursal_presupuesto %}<div style="font-size:13px;margin-top:4px;color:#374151;">{{ ticket.respuesta_sucursal_presupuesto }}</div>{% endif %}
+    </div>
+    {% endif %}
     {% for p in ticket.presupuestos %}
     <div style="background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between;"><span style="color: #374151; font-weight: 700; font-size: 18px;">${{ p.monto }}</span><span style="color: #475569; font-size: 12px;">{{ p.fecha[:10] }}</span></div>

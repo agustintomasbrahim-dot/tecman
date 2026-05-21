@@ -107,10 +107,10 @@
                 <strong style="color:#1a1a2e;">{{ t.sucursal }}</strong>
                 <span style="color:#9ca3af;font-size:12px;margin-left:8px;">#{{ t.id }}</span>
             </div>
-            <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
+            <span class="badge badge-p{{ t.prioridad or 4 }}">{{ prioridades.get(t.prioridad, 'Baja') }}</span>
         </div>
         <div style="margin-top:4px;color:#64748b;font-size:13px;">{{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %}</div>
-        <div style="margin-top:4px;color:#64748b;font-size:12px;">{{ t.descripcion[:110] }}{% if t.descripcion|length > 110 %}...{% endif %}</div>
+        <div style="margin-top:4px;color:#64748b;font-size:12px;">{{ (t.descripcion or '')[:110] }}{% if (t.descripcion or '')|length > 110 %}...{% endif %}</div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
             <span class="badge" style="background:#fff7ed;color:#9a3412;">{{ t.estado_operativo_ceyh or 'Pendiente' }}</span>
             <span class="badge" style="background:#eff6ff;color:#1d4ed8;">Mat: {{ t.estado_materiales or 'No requiere' }}</span>
@@ -193,7 +193,7 @@
                     <td><a href="{{ url_for('admin_ticket', ticket_id=r.ticket_id) }}" style="color:#1d4ed8;font-weight:600;">#{{ r.ticket_id }}</a></td>
                     <td>{{ r.sucursal }}</td>
                     <td>{{ r.estado }}</td>
-                    <td style="font-size:12px;">{{ r.materiales[:80] }}{% if r.materiales|length > 80 %}...{% endif %}</td>
+                    <td style="font-size:12px;">{{ (r.materiales or '')[:80] }}{% if (r.materiales or '')|length > 80 %}...{% endif %}</td>
                     <td>{{ r.retirado_por or '-' }}</td>
                     <td>{{ r.fecha_retiro or '-' }}</td>
                 </tr>
@@ -216,7 +216,7 @@
                     <td><a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="color:#ea580c;font-weight:600;">{{ t.id }}</a></td>
                     <td>{{ t.sucursal }}</td>
                     <td>{{ t.estado }}</td>
-                    <td>{{ t.actualizado[:16].replace('T', ' ') }}</td>
+                    <td>{{ (t.actualizado or '')[:16].replace('T', ' ') }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -237,7 +237,7 @@
                     <td><a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="color:#059669;font-weight:600;">{{ t.id }}</a></td>
                     <td>{{ t.sucursal }}</td>
                     <td>{{ t.asignado }}</td>
-                    <td>{{ t.actualizado[:10] }}</td>
+                    <td>{{ (t.actualizado or '')[:10] }}</td>
                 </tr>
             {% endfor %}
             </tbody>
