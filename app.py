@@ -6463,6 +6463,33 @@ def api_resumen():
     })
 
 
+@app.route("/api/mails-resumen")
+def api_mails_resumen():
+    secret = os.environ.get("BACKUP_SECRET", "")
+    if not secret or request.args.get("token") != secret:
+        return Response("Forbidden", status=403)
+    try:
+        from gauth import gmail as get_gmail
+        service = get_gmail()
+        horas = int(request.args.get("horas", 24))
+        desde = (datetime.datetime.utcnow() - datetime.timedelta(hours=horas)).strftime("%Y/%m/%d")
+        results = service.users().messages().list(
+            userId="me", q=f"after:{desde} -from:me", maxResults=30
+        ).execute()
+        msgs = results.get("messages", [])
+        mails = []
+        for m in msgs:
+            msg = service.users().messages().get(userId="me", id=m["id"], format="metadata",
+                metadataHeaders=["From", "Subject", "Date"]).execute()
+            h = {x["name"]: x["value"] for x in msg["payload"]["headers"]}
+            snippet = msg.get("snippet", "")[:200]
+            mails.append({"from": h.get("From", ""), "subject": h.get("Subject", ""),
+                          "date": h.get("Date", ""), "snippet": snippet, "id": m["id"]})
+        return jsonify({"total": len(mails), "mails": mails})
+    except Exception as e:
+        return jsonify({"error": str(e), "total": 0, "mails": []})
+
+
 @app.route("/api/backup-data")
 def api_backup_data():
     secret = os.environ.get("BACKUP_SECRET", "")
