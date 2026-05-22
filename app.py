@@ -6116,7 +6116,9 @@ def admin_habilitaciones():
     ESTADO_SYH_MAP = {"Vigente": "vigente", "Por vencer": "por_vencer", "Vencida": "vencida"}
     for suc_num, sdata in syh_data.items():
         hab_syh = sdata.get("habilitacion", "")
-        if hab_syh and hab_syh not in ("Sin datos", "") and suc_num not in suc_con_detalle:
+        if hab_syh and hab_syh not in ("Sin datos", "Sin habilitacion", "") and suc_num not in suc_con_detalle:
+            hab_venc = sdata.get("habilitacion_vencimiento", "")
+            estado_calc = _calc_estado_habilitacion(hab_venc) if hab_venc else ESTADO_SYH_MAP.get(hab_syh, "sin_dato")
             items.append({
                 "id": f"syh_{suc_num}",
                 "sucursal": f"Sucursal {suc_num}",
@@ -6124,9 +6126,9 @@ def admin_habilitaciones():
                 "municipio": "",
                 "rubro": "",
                 "numero_cert": "",
-                "fecha_vencimiento": sdata.get("habilitacion_vencimiento", ""),
+                "fecha_vencimiento": hab_venc,
                 "observaciones": "(Estado cargado desde S&H)",
-                "estado": ESTADO_SYH_MAP.get(hab_syh, "sin_dato"),
+                "estado": estado_calc,
                 "_desde_syh": True,
             })
 
