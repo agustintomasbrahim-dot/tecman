@@ -152,6 +152,8 @@ COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gp
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 SUCURSAL_EMAILS = {
     "011": "suc011@grupodabra.com.ar",
     "014": "suc014@grupodabra.com.ar",
@@ -919,7 +921,13 @@ def sync_alertas_syh():
     alertas.extend(sync_alertas_habilitaciones(prev_map))
     data["alertas"] = alertas
     save_alertas_syh(data)
-    enviar_alertas_matafuegos_email()
+    if alertas:
+        suc_lista = ", ".join(sorted({str(a.get("sucursal_num", "?")) for a in alertas}))
+        _telegram_notify(
+            f"⚠️ Tecman — {len(alertas)} alerta(s) de matafuegos pendientes de enviar\n"
+            f"Sucursales: {suc_lista}\n\n"
+            f"Entrá al panel admin → S&H → para revisar y enviar los mails."
+        )
     return alertas
 
 def load_alertas_syh_dispatch():
@@ -962,6 +970,21 @@ def _tabla_alertas(filas_html):
         + filas_html +
         "</table>"
     )
+
+def _telegram_notify(mensaje):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        import urllib.request
+        import urllib.parse
+        data = urllib.parse.urlencode({"chat_id": TELEGRAM_CHAT_ID, "text": mensaje}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", data=data
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
+
 
 def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
