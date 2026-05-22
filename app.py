@@ -6451,6 +6451,11 @@ def api_resumen():
     nuevos_hoy = [t for t in nuevos if (t.get("fecha") or "")[:10] >= ayer]
     def mini(t):
         return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("fecha") or "")[:10]}
+    alertas = load_alertas_syh().get("alertas", [])
+    alertas_mat = [a for a in alertas if a.get("tipo_alerta") != "habilitacion" and a.get("estado") in ("Vencidos", "Próximo a vencer")]
+    alertas_hab = [a for a in alertas if a.get("tipo_alerta") == "habilitacion" and a.get("estado") in ("Vencida", "Próxima a vencer")]
+    def mini_alerta(a):
+        return {"sucursal": a.get("sucursal_num"), "estado": a.get("estado"), "tipos": a.get("tipos"), "proximo_vto": a.get("proximo_vto")}
     return jsonify({
         "fecha": hoy,
         "totales": {"nuevos": len(nuevos), "en_progreso": len(en_progreso), "urgentes": len(urgentes), "total_abiertos": len(nuevos) + len(en_progreso)},
@@ -6458,6 +6463,8 @@ def api_resumen():
         "urgentes": [mini(t) for t in urgentes[:10]],
         "en_progreso": [mini(t) for t in en_progreso[:15]],
         "resueltos_hoy": len(resueltos_hoy),
+        "alertas_matafuegos": [mini_alerta(a) for a in alertas_mat],
+        "alertas_habilitaciones": [mini_alerta(a) for a in alertas_hab],
     })
 
 
