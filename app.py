@@ -764,7 +764,7 @@ def _estado_matafuego(fecha_control, estado_manual=""):
     hoy = datetime.date.today()
     if fecha_control < hoy:
         return "vencido"
-    if fecha_control <= hoy + datetime.timedelta(days=60):
+    if fecha_control <= hoy + datetime.timedelta(days=30):
         return "proximo"
     return "al_dia"
 
