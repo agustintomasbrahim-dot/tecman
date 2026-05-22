@@ -6467,22 +6467,31 @@ def api_mails_resumen():
     if not secret or request.args.get("token") != secret:
         return Response("Forbidden", status=403)
     try:
-        from gauth import gmail as get_gmail
-        service = get_gmail()
+        import imaplib
+        import email
+        from email.header import decode_header
         horas = int(request.args.get("horas", 24))
-        desde = (datetime.datetime.utcnow() - datetime.timedelta(hours=horas)).strftime("%Y/%m/%d")
-        results = service.users().messages().list(
-            userId="me", q=f"after:{desde} -from:me", maxResults=30
-        ).execute()
-        msgs = results.get("messages", [])
+        since = (datetime.datetime.utcnow() - datetime.timedelta(hours=horas)).strftime("%d-%b-%Y")
+        M = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+        M.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        M.select("INBOX")
+        _, data = M.search(None, f'(SINCE "{since}" NOT FROM "{GMAIL_USER}")')
+        ids = data[0].split()[-30:]
         mails = []
-        for m in msgs:
-            msg = service.users().messages().get(userId="me", id=m["id"], format="metadata",
-                metadataHeaders=["From", "Subject", "Date"]).execute()
-            h = {x["name"]: x["value"] for x in msg["payload"]["headers"]}
-            snippet = msg.get("snippet", "")[:200]
-            mails.append({"from": h.get("From", ""), "subject": h.get("Subject", ""),
-                          "date": h.get("Date", ""), "snippet": snippet, "id": m["id"]})
+        for uid in ids:
+            _, msg_data = M.fetch(uid, "(RFC822.HEADER)")
+            msg = email.message_from_bytes(msg_data[0][1])
+            def _decode(val):
+                parts = decode_header(val or "")
+                return "".join(p.decode(enc or "utf-8") if isinstance(p, bytes) else p for p, enc in parts)
+            mails.append({
+                "from": _decode(msg.get("From", "")),
+                "subject": _decode(msg.get("Subject", "")),
+                "date": msg.get("Date", ""),
+                "snippet": "",
+                "id": uid.decode()
+            })
+        M.logout()
         return jsonify({"total": len(mails), "mails": mails})
     except Exception as e:
         return jsonify({"error": str(e), "total": 0, "mails": []})
