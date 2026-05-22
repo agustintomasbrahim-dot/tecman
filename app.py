@@ -7,8 +7,14 @@ import uuid
 import zipfile
 import datetime
 import shutil
+import smtplib
+import ssl
 from pathlib import Path
 from functools import wraps
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, Response
 
@@ -144,6 +150,8 @@ _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar")
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
+GMAIL_USER = os.environ.get("GMAIL_USER", "")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 SUCURSAL_EMAILS = {
     "011": "suc011@grupodabra.com.ar",
     "014": "suc014@grupodabra.com.ar",
@@ -955,6 +963,28 @@ def _tabla_alertas(filas_html):
         "</table>"
     )
 
+def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        raise RuntimeError("GMAIL_USER y GMAIL_APP_PASSWORD no configurados")
+    msg = MIMEMultipart()
+    msg["From"] = GMAIL_USER
+    msg["To"] = to if isinstance(to, str) else ", ".join(to)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html, "html"))
+    if attachment_path and Path(attachment_path).exists():
+        with open(attachment_path, "rb") as f:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f'attachment; filename="{attachment_name or Path(attachment_path).name}"')
+        msg.attach(part)
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ctx) as server:
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        recipients = [to] if isinstance(to, str) else to
+        server.sendmail(GMAIL_USER, recipients, msg.as_bytes())
+
+
 def enviar_alertas_matafuegos_email():
     alertas = load_alertas_syh().get("alertas", [])
     alertas_mat = [a for a in alertas if a.get("tipo_alerta") != "habilitacion"]
@@ -974,18 +1004,9 @@ def enviar_alertas_matafuegos_email():
         return {"sent": 0, "reason": "sin_cambios"}
 
     try:
-        import sys
-
-        from gauth import gmail as get_gmail
-        import base64
         from collections import defaultdict
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-
-        service = get_gmail()
         sent_count = 0
 
-        # Agrupar por sucursal y enviar mail individual a cada una
         por_sucursal = defaultdict(list)
         for a, stamp in pendientes:
             por_sucursal[str(a.get("sucursal_num", "")).zfill(3)].append((a, stamp))
@@ -1003,15 +1024,9 @@ def enviar_alertas_matafuegos_email():
               <p style='margin-top:16px;color:#6b7280;font-size:13px;'>Ante cualquier consulta, contactarse con el equipo de mantenimiento.</p>
             </div>
             """
-            msg = MIMEMultipart("alternative")
-            msg["To"] = suc_email
-            msg["Subject"] = f"Tecman - Alerta matafuegos Suc. {suc_num}"
-            msg.attach(MIMEText(html, "html"))
-            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-            service.users().messages().send(userId="me", body={"raw": raw}).execute()
+            _smtp_send(suc_email, f"Tecman - Alerta matafuegos Suc. {suc_num}", html)
             sent_count += 1
 
-        # Resumen completo para Patricia
         filas_todas = "".join(_fila_alerta(a) for a, _ in pendientes)
         html_patricia = f"""
         <div style='font-family:Arial,sans-serif;max-width:700px;margin:0 auto;'>
@@ -1021,12 +1036,7 @@ def enviar_alertas_matafuegos_email():
           <p style='margin-top:16px;color:#6b7280;font-size:13px;'>Generado automáticamente por Tecman.</p>
         </div>
         """
-        msg = MIMEMultipart("alternative")
-        msg["To"] = PATRICIA_EMAIL
-        msg["Subject"] = f"Tecman - Resumen alertas matafuegos ({len(pendientes)} alertas, {len(por_sucursal)} sucursales)"
-        msg.attach(MIMEText(html_patricia, "html"))
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        _smtp_send(PATRICIA_EMAIL, f"Tecman - Resumen alertas matafuegos ({len(pendientes)} alertas, {len(por_sucursal)} sucursales)", html_patricia)
 
         for a, stamp in pendientes:
             sent_map[a.get("id")] = stamp
@@ -1037,15 +1047,6 @@ def enviar_alertas_matafuegos_email():
 
 def _enviar_requisicion_compras(ticket, req_numero, archivo_path=None, archivo_nombre=None):
     try:
-        import sys
-
-        from gauth import gmail as get_gmail
-        import base64
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        from email.mime.base import MIMEBase
-        from email import encoders
-
         suc = ticket.get("sucursal", "-")
         subcat = ticket.get("subcategoria", "-")
         zona = ticket.get("zona_afectada", "-")
@@ -1073,22 +1074,8 @@ def _enviar_requisicion_compras(ticket, req_numero, archivo_path=None, archivo_n
         </div>
         """
 
-        service = get_gmail()
-        msg = MIMEMultipart()
-        msg["To"] = COMPRAS_EMAIL
-        msg["Subject"] = f"Requisición #{req_numero} — {suc} ({subcat})"
-        msg.attach(MIMEText(html, "html"))
-
-        if archivo_path and Path(archivo_path).exists():
-            with open(archivo_path, "rb") as f:
-                part = MIMEBase("application", "octet-stream")
-                part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f'attachment; filename="{archivo_nombre or Path(archivo_path).name}"')
-            msg.attach(part)
-
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        _smtp_send(COMPRAS_EMAIL, f"Requisición #{req_numero} — {suc} ({subcat})", html,
+                   attachment_path=archivo_path, attachment_name=archivo_nombre)
         return True
     except Exception as e:
         return False
@@ -4131,20 +4118,8 @@ def admin_reporte():
     </div>
     """
 
-    # Send email via Gmail API
     try:
-        from gauth import gmail as get_gmail
-        import base64
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-
-        service = get_gmail()
-        msg = MIMEMultipart("alternative")
-        msg["To"] = "agustintomasbrahim@gmail.com"
-        msg["Subject"] = f"Tecman - Reporte Semanal {now.strftime('%d/%m/%Y')}"
-        msg.attach(MIMEText(html, "html"))
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        _smtp_send("agustintomasbrahim@gmail.com", f"Tecman - Reporte Semanal {now.strftime('%d/%m/%Y')}", html)
         flash("Reporte enviado a agustintomasbrahim@gmail.com")
     except Exception as e:
         flash(f"Error al enviar: {str(e)}")

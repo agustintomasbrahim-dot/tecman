@@ -11,3 +11,7 @@ services:
         generateValue: true
       - key: RENDER
         value: "true"
+      - key: GMAIL_USER
+        value: "agustintomasbrahim@gmail.com"
+      - key: GMAIL_APP_PASSWORD
+        sync: false
