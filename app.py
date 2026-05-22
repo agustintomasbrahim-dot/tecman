@@ -4582,16 +4582,28 @@ def admin_syh():
     syh_data = load_syh()
     alertas_syh = sync_alertas_syh()
 
+    # Mapa sucursal_num → habilitacion detallada (fuente de verdad si existe)
+    habs_detalle = {}
+    for h in load_habilitaciones().get("habilitaciones", []):
+        sn = str(h.get("sucursal_num") or "").strip().lstrip("0") or str(h.get("sucursal", "")).replace("Sucursal ", "").strip().lstrip("0")
+        if sn:
+            he = _enrich_habilitacion(h)
+            ESTADO_MAP = {"vigente": "Vigente", "por_vencer": "Por vencer", "vencida": "Vencida", "sin_dato": "Sin datos"}
+            habs_detalle[sn] = ESTADO_MAP.get(he.get("estado", ""), "Sin datos")
+
     sucursales_syh = []
     for num in sorted(SUCURSALES_INFO.keys()):
         info = SUCURSALES_INFO[num]
         estado = syh_data.get(num, {})
+        num_strip = num.lstrip("0")
+        hab_status = habs_detalle.get(num_strip) or habs_detalle.get(num) or estado.get("habilitacion", "Sin datos")
         sucursales_syh.append({
             "num": num,
             "marca": info.get("marca", ""),
             "tienda": info.get("tienda", ""),
             "ciudad": info.get("ciudad", ""),
-            "habilitacion": estado.get("habilitacion", "Sin datos"),
+            "habilitacion": hab_status,
+            "habilitacion_desde_modulo": num_strip in habs_detalle or num in habs_detalle,
             "bomberos": estado.get("bomberos", "Sin datos"),
             "matafuegos": estado.get("matafuegos", "Sin datos"),
             "red_incendio": estado.get("red_incendio", "Sin datos"),
@@ -6093,6 +6105,27 @@ def _calc_vencimiento(fecha_hab, anios):
 def admin_habilitaciones():
     data = load_habilitaciones()
     items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", [])]
+
+    # Agregar sucursales con estado en S&H pero sin registro detallado
+    syh_data = load_syh()
+    suc_con_detalle = {str(h.get("sucursal_num") or "").strip() for h in data.get("habilitaciones", [])}
+    suc_con_detalle |= {str(h.get("sucursal", "")).replace("Sucursal ", "").strip() for h in data.get("habilitaciones", [])}
+    ESTADO_SYH_MAP = {"Vigente": "vigente", "Por vencer": "por_vencer", "Vencida": "vencida"}
+    for suc_num, sdata in syh_data.items():
+        hab_syh = sdata.get("habilitacion", "")
+        if hab_syh and hab_syh not in ("Sin datos", "") and suc_num not in suc_con_detalle:
+            items.append({
+                "id": f"syh_{suc_num}",
+                "sucursal": f"Sucursal {suc_num}",
+                "sucursal_num": suc_num,
+                "municipio": "",
+                "rubro": "",
+                "numero_cert": "",
+                "fecha_vencimiento": sdata.get("habilitacion_vencimiento", ""),
+                "observaciones": "(Estado cargado desde S&H)",
+                "estado": ESTADO_SYH_MAP.get(hab_syh, "sin_dato"),
+                "_desde_syh": True,
+            })
 
     filtro_estado = request.args.get("estado", "").strip()
     filtro_sucursal = request.args.get("sucursal", "").strip()
