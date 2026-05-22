@@ -920,18 +920,26 @@ def sync_alertas_syh():
     alertas.extend(sync_alertas_matafuegos())
     alertas.extend(sync_alertas_habilitaciones(prev_map))
     data["alertas"] = alertas
-    hoy = datetime.date.today().isoformat()
-    ultima_notif = data.get("telegram_notif_fecha", "")
-    if alertas and ultima_notif != hoy:
-        suc_lista = ", ".join(sorted({str(a.get("sucursal_num", "?")) for a in alertas}))
-        _telegram_notify(
-            f"⚠️ Tecman — {len(alertas)} alerta(s) de matafuegos pendientes de enviar\n"
-            f"Sucursales: {suc_lista}\n\n"
-            f"Entrá al panel admin → S&H → para revisar y enviar los mails."
-        )
-        data["telegram_notif_fecha"] = hoy
     save_alertas_syh(data)
     return alertas
+
+
+def notify_alertas_telegram_if_needed():
+    """Dispara notificación Telegram UNA VEZ POR DÍA. Llamar solo desde /api/resumen (Aquiles), no desde vistas admin."""
+    hoy = datetime.date.today().isoformat()
+    ultima = _db_cfg_get("telegram_notif_fecha", "")
+    if ultima == hoy:
+        return
+    alertas = load_alertas_syh().get("alertas", [])
+    if not alertas:
+        return
+    suc_lista = ", ".join(sorted({str(a.get("sucursal_num", "?")) for a in alertas}))
+    _telegram_notify(
+        f"⚠️ Tecman — {len(alertas)} alerta(s) de matafuegos pendientes de enviar\n"
+        f"Sucursales: {suc_lista}\n\n"
+        f"Entrá al panel admin → S&H → para revisar y enviar los mails."
+    )
+    _db_cfg_set("telegram_notif_fecha", hoy)
 
 def load_alertas_syh_dispatch():
     if USE_DB:
@@ -6505,6 +6513,7 @@ def api_resumen():
     secret = os.environ.get("BACKUP_SECRET", "")
     if not secret or request.args.get("token") != secret:
         return Response("Forbidden", status=403)
+    notify_alertas_telegram_if_needed()
     tickets = load_tickets()
     hoy = datetime.date.today().isoformat()
     ayer = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
