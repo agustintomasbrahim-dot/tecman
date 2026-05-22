@@ -920,14 +920,17 @@ def sync_alertas_syh():
     alertas.extend(sync_alertas_matafuegos())
     alertas.extend(sync_alertas_habilitaciones(prev_map))
     data["alertas"] = alertas
-    save_alertas_syh(data)
-    if alertas:
+    hoy = datetime.date.today().isoformat()
+    ultima_notif = data.get("telegram_notif_fecha", "")
+    if alertas and ultima_notif != hoy:
         suc_lista = ", ".join(sorted({str(a.get("sucursal_num", "?")) for a in alertas}))
         _telegram_notify(
             f"⚠️ Tecman — {len(alertas)} alerta(s) de matafuegos pendientes de enviar\n"
             f"Sucursales: {suc_lista}\n\n"
             f"Entrá al panel admin → S&H → para revisar y enviar los mails."
         )
+        data["telegram_notif_fecha"] = hoy
+    save_alertas_syh(data)
     return alertas
 
 def load_alertas_syh_dispatch():
