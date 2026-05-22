@@ -21,6 +21,9 @@
     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
         <a href="{{ url_for('admin_habilitaciones') }}" class="btn btn-outline btn-sm">Habilitaciones</a>
         <a href="{{ url_for('admin_syh_matafuegos') }}" class="btn btn-primary btn-sm">Matafuegos</a>
+        <form method="POST" action="{{ url_for('admin_syh_enviar_alertas') }}" style="display:inline;" onsubmit="return confirm('¿Enviar alertas de matafuegos a las sucursales y a Patricia?')">
+            <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;cursor:pointer;">Enviar alertas</button>
+        </form>
         <span style="color: #64748b; font-size: 13px;">Patricia - Control de habilitaciones</span>
     </div>
 </div>

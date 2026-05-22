@@ -6453,6 +6453,32 @@ def admin_syh_limpiar_222():
     return redirect(url_for("admin_panel"))
 
 
+@app.route("/admin/syh/enviar-alertas-matafuegos", methods=["POST"])
+@admin_required
+def admin_syh_enviar_alertas():
+    result = enviar_alertas_matafuegos_email()
+    reason = result.get("reason", "")
+    sent = result.get("sent", 0)
+    if reason == "ok":
+        flash(f"Alertas enviadas: {sent} sucursal(es) notificadas + resumen a Patricia.")
+    elif reason == "no_alertas":
+        flash("No hay alertas de matafuegos activas.")
+    elif reason == "sin_cambios":
+        flash("Las alertas ya fueron enviadas previamente (sin cambios desde el último envío).")
+    else:
+        flash(f"Error al enviar: {reason}")
+    return redirect(url_for("admin_syh"))
+
+
+@app.route("/api/dispatch-alertas-matafuegos", methods=["POST"])
+def api_dispatch_alertas_matafuegos():
+    secret = os.environ.get("BACKUP_SECRET", "")
+    if not secret or request.args.get("token") != secret:
+        return Response("Forbidden", status=403)
+    result = enviar_alertas_matafuegos_email()
+    return jsonify(result)
+
+
 @app.route("/admin/fix-asignacion-ceyh", methods=["POST"])
 @admin_required
 def fix_asignacion_ceyh():
