@@ -2269,7 +2269,14 @@ def admin_ceyh():
     en_ruta = [t for t in activos if t.get("estado_operativo_ceyh") == "En ruta"]
     demorados = [t for t in activos if t.get("estado_operativo_ceyh") == "Demorado"]
 
-    activos.sort(key=lambda t: (int(t.get("prioridad") or 4), t.get("fecha_objetivo") or "9999-99-99", t.get("creado") or ""))
+    _pmap = {"alta": 1, "media": 2, "baja": 3}
+    def _prio(t):
+        p = t.get("prioridad")
+        try:
+            return int(p) if p is not None else 4
+        except (ValueError, TypeError):
+            return _pmap.get(str(p).lower(), 4)
+    activos.sort(key=lambda t: (_prio(t), t.get("fecha_objetivo") or "9999-99-99", t.get("creado") or ""))
     derivados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
     terminados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
 
