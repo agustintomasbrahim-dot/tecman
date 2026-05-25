@@ -6758,6 +6758,61 @@ def api_backup_data():
     )
 
 
+# ENDPOINT TEMPORAL DEMO — eliminar después de la presentación con Fuga
+@app.route("/admin/crear-demo-fuga")
+@admin_required
+def admin_crear_demo_fuga():
+    tickets = load_tickets()
+    ahora = datetime.datetime.now().isoformat()
+    demo = [
+        {
+            "sucursal": "Sucursal 120", "categoria": "Filtraciones", "subcategoria": "Por azotea",
+            "descripcion": "Filtración en tapa del salón, desagüe de azotea colapsado. Requiere sellado urgente.",
+            "estado": "Pendiente", "prioridad": 2,
+            "asignado": "Julio Fuga (JRF)", "asignado_proveedor": "fuga", "proveedor_nombre": "Julio Fuga (JRF)",
+            "creado": "2026-05-10T09:00:00", "historial": [{"autor": "Sistema", "texto": "Ticket de demo", "fecha": ahora}],
+        },
+        {
+            "sucursal": "Sucursal 126", "categoria": "Aire Acondicionado", "subcategoria": "Sin funcionamiento",
+            "descripcion": "Unidad split del sector ventas sin funcionamiento. Técnico visitó y requiere reposición de plaqueta.",
+            "estado": "En progreso", "prioridad": 2,
+            "asignado": "Julio Fuga (JRF)", "asignado_proveedor": "fuga", "proveedor_nombre": "Julio Fuga (JRF)",
+            "creado": "2026-05-15T10:30:00", "historial": [{"autor": "Sistema", "texto": "Ticket de demo", "fecha": ahora}],
+        },
+        {
+            "sucursal": "Sucursal 139", "categoria": "Electricidad", "subcategoria": "Tablero",
+            "descripcion": "Térmica del tablero principal disparándose de forma intermitente. Sucursal puede operar pero con riesgo.",
+            "estado": "Nuevo", "prioridad": 3,
+            "asignado": "Julio Fuga (JRF)", "asignado_proveedor": "fuga", "proveedor_nombre": "Julio Fuga (JRF)",
+            "creado": "2026-05-20T08:15:00", "historial": [{"autor": "Sistema", "texto": "Ticket de demo", "fecha": ahora}],
+        },
+        {
+            "sucursal": "Sucursal 173", "categoria": "Reparaciones", "subcategoria": "General",
+            "descripcion": "Puerta trasera de depósito con cerradura rota, no cierra correctamente. Requiere cambio de cerrojo.",
+            "estado": "Pendiente", "prioridad": 3,
+            "asignado": "Julio Fuga (JRF)", "asignado_proveedor": "fuga", "proveedor_nombre": "Julio Fuga (JRF)",
+            "creado": "2026-05-18T14:00:00", "historial": [{"autor": "Sistema", "texto": "Ticket de demo", "fecha": ahora}],
+        },
+        {
+            "sucursal": "Sucursal 193", "categoria": "Aire Acondicionado", "subcategoria": "Limpieza interna de equipo",
+            "descripcion": "Mantenimiento preventivo anual de las 3 unidades del salón. Trabajo completado sin observaciones.",
+            "estado": "Resuelto", "prioridad": 2,
+            "asignado": "Julio Fuga (JRF)", "asignado_proveedor": "fuga", "proveedor_nombre": "Julio Fuga (JRF)",
+            "creado": "2026-05-05T09:00:00", "historial": [{"autor": "Sistema", "texto": "Ticket de demo", "fecha": ahora}],
+        },
+    ]
+    max_id = max((t.get("id", 0) for t in tickets), default=0)
+    for i, t in enumerate(demo, start=1):
+        t["id"] = max_id + i
+        t["actualizado"] = ahora
+        t["fotos"] = []
+        t["observaciones"] = ""
+        tickets.append(t)
+    save_tickets(tickets)
+    flash(f"✅ 5 tickets de demo creados para Julio Fuga (IDs {max_id+1}–{max_id+5})")
+    return redirect(url_for("admin_panel"))
+
+
 @app.errorhandler(500)
 def internal_error(e):
     return render_template("500.html"), 500
