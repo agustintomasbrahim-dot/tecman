@@ -44,13 +44,37 @@
 <div class="card" style="border-left: 4px solid #ef4444; margin-bottom: 16px;">
     <h3 style="margin-bottom: 10px; color: #dc2626;">🚨 Alertas S&H</h3>
     {% for a in alertas_syh[:10] %}
-    <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
-        <div style="font-weight: 700; color: #1f2937;">Sucursal {{ a.sucursal_num }} · {{ a.estado }}</div>
-        <div style="font-size: 12px; color: #6b7280;">{{ a.cantidad }} registro(s) · {{ a.tipos }} · Próx. vencimiento: {{ a.proximo_vto or '-' }}</div>
-        <div style="font-size: 12px; color: #6b7280;">Avisar a: {{ a.destinatarios | join(', ') }}</div>
+    <div style="{% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+        <div onclick="toggleAlerta(this)" style="padding: 10px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;">
+            <div>
+                <span style="font-weight: 700; color: #1f2937;">Sucursal {{ a.sucursal_num }}</span>
+                <span style="margin-left: 8px;">
+                    {% if a.estado == 'Vencidos' %}<span class="badge" style="background: rgba(239,68,68,0.15); color: #dc2626;">Vencidos</span>
+                    {% else %}<span class="badge" style="background: rgba(245,158,11,0.15); color: #d97706;">{{ a.estado }}</span>{% endif %}
+                </span>
+            </div>
+            <span style="font-size: 11px; color: #9ca3af;">▼</span>
+        </div>
+        <div class="alerta-detalle" style="display: none; padding: 0 0 12px 0;">
+            <div style="background: #fef2f2; border-radius: 8px; padding: 12px; font-size: 13px;">
+                <div style="margin-bottom: 6px;"><span style="color: #6b7280;">Registros:</span> <strong>{{ a.cantidad }}</strong></div>
+                <div style="margin-bottom: 6px;"><span style="color: #6b7280;">Tipos:</span> {{ a.tipos }}</div>
+                <div style="margin-bottom: 6px;"><span style="color: #6b7280;">Próx. vencimiento:</span> <strong style="color: #dc2626;">{{ a.proximo_vto or '-' }}</strong></div>
+                <div><span style="color: #6b7280;">Avisar a:</span> {{ a.destinatarios | join(', ') }}</div>
+            </div>
+        </div>
     </div>
     {% endfor %}
 </div>
+<script>
+function toggleAlerta(header) {
+    var detalle = header.nextElementSibling;
+    var arrow = header.querySelector('span:last-child');
+    var open = detalle.style.display !== 'none';
+    detalle.style.display = open ? 'none' : 'block';
+    arrow.textContent = open ? '▼' : '▲';
+}
+</script>
 {% endif %}
 
 <div class="card" style="border-left: 4px solid #7c3aed; margin-bottom: 16px; padding:0; overflow-x:auto;">
@@ -144,10 +168,6 @@
         <div class="label">Sucursales</div>
     </div>
     <div class="stat-card">
-        <div class="number" style="color: #34d399;">{{ habilitadas }}</div>
-        <div class="label">Habilitadas</div>
-    </div>
-    <div class="stat-card">
         <div class="number" style="color: #38bdf8;">{{ bomberos_ok }}</div>
         <div class="label">Bomberos OK</div>
     </div>
@@ -169,7 +189,6 @@
                 <th>Sucursal</th>
                 <th>Marca</th>
                 <th>Ciudad</th>
-                <th>Habilitacion</th>
                 <th>Bomberos</th>
                 <th>Matafuegos</th>
                 <th>Red incendio</th>
@@ -187,13 +206,6 @@
                 <td style="font-weight: 700;">{{ s.num }}</td>
                 <td><span class="badge" style="background: {% if s.marca == 'DX' %}rgba(230,57,70,0.2); color: #e63946{% elif s.marca == 'MV' %}rgba(255,255,255,0.15); color: #fff{% else %}rgba(232,145,168,0.2); color: #e891a8{% endif %};">{{ s.marca }}</span></td>
                 <td style="color: #94a3b8; font-size: 12px;">{{ s.ciudad }}</td>
-                <td>
-                    {% if s.habilitacion == 'Vigente' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">Vigente</span></a>
-                    {% elif s.habilitacion == 'Vencida' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Vencida</span></a>
-                    {% elif s.habilitacion == 'En tramite' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">En tramite</span></a>
-                    {% elif s.habilitacion == 'Sin habilitacion' %}<a href="{{ url_for('admin_habilitaciones') }}?sucursal=Sucursal+{{ s.num }}" style="text-decoration:none;"><span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">Sin hab.</span></a>
-                    {% else %}<span style="color: #475569; font-size: 12px;">-</span>{% endif %}
-                </td>
                 <td>
                     {% if s.bomberos == 'Aprobado' %}<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399;">OK</span>
                     {% elif s.bomberos == 'Pendiente' %}<span class="badge" style="background: rgba(245,158,11,0.2); color: #fbbf24;">Pend.</span>
