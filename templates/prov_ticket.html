@@ -220,7 +220,6 @@
 <div style="margin-top: 20px;">
     <div style="display: flex; gap: 4px; flex-wrap: wrap;">
         <button class="action-tab active" onclick="showTab('fotos')">&#128247; Fotos</button>
-        <button class="action-tab" onclick="showTab('nota')">&#128172; Nota</button>
         <button class="action-tab" onclick="showTab('presupuesto')">&#128176; Presupuesto</button>
         <button class="action-tab" onclick="showTab('informe')">&#128196; Informe</button>
         <button class="action-tab" onclick="showTab('problema')">&#10060; Problema</button>
@@ -242,15 +241,6 @@
                 <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
         </div>
-    </div>
-
-    <!-- Tab: Nota -->
-    <div id="tab-nota" class="action-content">
-        <form method="POST">
-            <input type="hidden" name="accion" value="nota">
-            <textarea name="nota" placeholder="Escribir comentario..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 80px; font-size: 15px; resize: vertical;"></textarea>
-            <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 8px;">Enviar nota</button>
-        </form>
     </div>
 
     <!-- Tab: Presupuesto -->
