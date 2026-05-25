@@ -39,59 +39,90 @@
 
 <!-- JORNADA DE HOY -->
 {% if jornada_hoy %}
-<div class="card" style="border-left:4px solid #7c3aed;padding:18px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-        <h3 style="font-size:15px;color:#7c3aed;margin:0;">📍 Ruta de hoy</h3>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <span style="background:#f5f3ff;color:#7c3aed;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;">🚐 {{ jornada_hoy.camioneta or '-' }}</span>
-            <span style="background:#f0fdf4;color:#166534;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:700;">👷 {{ jornada_hoy.cuadrilla or '-' }}</span>
-        </div>
+<div class="card" style="border-left:4px solid #7c3aed;padding:0;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#faf5ff;border-bottom:1px solid #ede9fe;">
+        <h3 style="font-size:15px;color:#7c3aed;margin:0;">Recorrido de hoy — {{ jornada_hoy.fecha }}</h3>
+        <span style="background:{% if jornada_hoy.estado == 'cerrada' %}#dcfce7;color:#166534{% else %}#eff6ff;color:#1d4ed8{% endif %};padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;">{{ jornada_hoy.estado }}</span>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div>
-            <div style="font-size:12px;text-transform:uppercase;color:#6b7280;font-weight:700;margin-bottom:8px;">Planificados ({{ jornada_hoy.planificados|length }})</div>
-            {% for item in jornada_hoy.planificados %}
-            <div style="padding:8px 12px;border:1px solid #ede9fe;border-radius:8px;margin-bottom:6px;background:#faf5ff;">
-                <strong style="color:#7c3aed;">{{ item.sucursal | replace('Sucursal ', 'Suc ') }}</strong>
-                <span style="font-size:12px;color:#9ca3af;margin-left:8px;">#{{ item.ticket_id }}</span>
-                <div style="font-size:12px;color:#6b7280;">{{ item.tipo or '' }}</div>
-            </div>
-            {% else %}
-            <div style="font-size:13px;color:#9ca3af;">Sin planificados</div>
-            {% endfor %}
-        </div>
-        <div>
-            <div style="font-size:12px;text-transform:uppercase;color:#b91c1c;font-weight:700;margin-bottom:8px;">Urgencias ({{ jornada_hoy.urgencias|length }})</div>
-            {% for item in jornada_hoy.urgencias %}
-            <div style="padding:8px 12px;border:1px solid #fecaca;border-radius:8px;margin-bottom:6px;background:#fef2f2;">
-                <strong style="color:#b91c1c;">{{ item.sucursal | replace('Sucursal ', 'Suc ') }}</strong>
-                <span style="font-size:12px;color:#9ca3af;margin-left:8px;">#{{ item.ticket_id }}</span>
-            </div>
-            {% else %}
-            <div style="font-size:13px;color:#9ca3af;">Sin urgencias</div>
-            {% endfor %}
-        </div>
+    {% if jornada_hoy.cambio_ruta %}<div style="padding:8px 18px;background:#fffbeb;border-bottom:1px solid #fde68a;font-size:13px;color:#b45309;">Cambio de ruta: {{ jornada_hoy.cambio_ruta }}</div>{% endif %}
+    {% if jornada_hoy.observaciones %}<div style="padding:8px 18px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">{{ jornada_hoy.observaciones }}</div>{% endif %}
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="background:#f3f4f6;text-align:left;">
+                <th style="padding:8px 12px;">#</th>
+                <th style="padding:8px 12px;">Sucursal</th>
+                <th style="padding:8px 12px;">Ciudad</th>
+                <th style="padding:8px 12px;">Camioneta</th>
+                <th style="padding:8px 12px;">Tickets</th>
+                <th style="padding:8px 12px;">Estado</th>
+                <th style="padding:8px 12px;">Accion</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in jornada_hoy.get('paradas', []) %}
+        <tr style="border-top:1px solid #f3f4f6;background:{% if p.estado_parada == 'completado' %}#f0fdf4{% elif p.estado_parada == 'en_progreso' %}#fffbeb{% else %}white{% endif %};">
+            <td style="padding:8px 12px;font-weight:700;color:#7c3aed;">{{ p.orden }}</td>
+            <td style="padding:8px 12px;">
+                <strong>{{ p.sucursal }}</strong>
+                {% if p.urgencia %}<span style="background:#fef2f2;color:#b91c1c;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:4px;">Urgencia</span>{% endif %}
+                {% if p.es_shopping %}<span style="background:#fef9c3;color:#854d0e;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:4px;">Shopping</span>{% endif %}
+            </td>
+            <td style="padding:8px 12px;color:#6b7280;font-size:12px;">{{ p.ciudad or p.direccion or '—' }}</td>
+            <td style="padding:8px 12px;"><span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">{{ p.camioneta }}</span></td>
+            <td style="padding:8px 12px;">
+                {% for tid in p.tickets %}
+                <a href="/admin/ticket/{{ tid }}" style="background:#eff6ff;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-size:12px;text-decoration:none;margin-right:2px;">#{{ tid }}</a>
+                {% endfor %}
+            </td>
+            <td style="padding:8px 12px;">
+                {% if p.estado_parada == 'completado' %}
+                <span style="background:#dcfce7;color:#166534;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;">Completado</span>
+                {% elif p.estado_parada == 'en_progreso' %}
+                <span style="background:#fef9c3;color:#854d0e;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;">En progreso</span>
+                {% else %}
+                <span style="background:#f3f4f6;color:#6b7280;padding:3px 8px;border-radius:6px;font-size:12px;">Pendiente</span>
+                {% endif %}
+            </td>
+            <td style="padding:8px 12px;">
+                {% if p.estado_parada != 'en_progreso' %}
+                <form method="POST" action="/admin/ceyh/jornada/{{ jornada_hoy.id }}/parada/{{ p.orden }}/estado" style="display:inline;">
+                    <input type="hidden" name="estado_parada" value="en_progreso">
+                    <button type="submit" style="background:#f59e0b;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">Iniciar</button>
+                </form>
+                {% endif %}
+                {% if p.estado_parada != 'completado' %}
+                <form method="POST" action="/admin/ceyh/jornada/{{ jornada_hoy.id }}/parada/{{ p.orden }}/estado" style="display:inline;margin-left:4px;">
+                    <input type="hidden" name="estado_parada" value="completado">
+                    <button type="submit" style="background:#16a34a;color:white;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">Listo</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="padding:16px;text-align:center;color:#9ca3af;">Sin paradas registradas</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
     </div>
-    {% if jornada_hoy.cambio_ruta %}<div style="margin-top:10px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:#b45309;">⚠️ Cambio: {{ jornada_hoy.cambio_ruta }}</div>{% endif %}
-    {% if jornada_hoy.observaciones %}<div style="margin-top:8px;font-size:13px;color:#6b7280;">{{ jornada_hoy.observaciones }}</div>{% endif %}
-    <!-- Modificar ruta -->
-    <details style="margin-top:14px;">
-        <summary style="font-size:13px;color:#7c3aed;font-weight:600;padding:8px 0;border-top:1px solid #ede9fe;">Modificar ruta de hoy</summary>
-        <form method="POST" action="{{ url_for('admin_ceyh_jornada_modificar', jid=jornada_hoy.id) }}" style="display:grid;gap:10px;padding-top:12px;">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-                <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label><input type="text" name="camioneta" value="{{ jornada_hoy.camioneta }}"></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Cuadrilla</label><input type="text" name="cuadrilla" value="{{ jornada_hoy.cuadrilla }}"></div>
+    <!-- Agregar parada al mediodía -->
+    <details style="padding:12px 18px;border-top:1px solid #ede9fe;">
+        <summary style="font-size:13px;color:#7c3aed;font-weight:600;cursor:pointer;">+ Agregar parada urgente</summary>
+        <form method="POST" action="/admin/ceyh/jornada/{{ jornada_hoy.id }}/agregar_parada" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;">
+            <div class="form-group" style="margin-bottom:0;"><label>Sucursal</label><input type="text" name="sucursal" placeholder="Nro sucursal" required></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label>
+                <select name="camioneta"><option>AA1</option><option>AA2</option><option>Gral</option></select>
             </div>
-            <div class="form-group" style="margin-bottom:0;"><label>Cambio del día</label><input type="text" name="cambio_ruta" placeholder="Ej: se priorizó Suc 188 y se pasó 141 para mañana"></div>
-            <div class="form-group" style="margin-bottom:0;"><label>Observaciones</label><input type="text" name="observaciones" value="{{ jornada_hoy.observaciones or '' }}"></div>
-            <div><button type="submit" class="btn" style="background:#7c3aed;color:white;">Guardar cambios</button></div>
+            <div class="form-group" style="margin-bottom:0;"><label>IDs tickets (separados por coma)</label><input type="text" name="ticket_ids" placeholder="Ej: 452, 453"></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Nota cambio de ruta</label><input type="text" name="cambio_ruta" placeholder="Opcional"></div>
+            <div><button type="submit" class="btn" style="background:#7c3aed;color:white;margin-top:6px;">Agregar</button></div>
         </form>
     </details>
 </div>
 {% else %}
 <div class="card" style="border-left:4px solid #e5e7eb;padding:16px;text-align:center;">
     <div style="color:#9ca3af;font-size:13px;margin-bottom:12px;">Sin ruta cargada para hoy</div>
-    <a href="#armar-jornada" onclick="document.getElementById('armar-jornada').open=true" style="color:#7c3aed;font-size:13px;font-weight:600;">+ Armar ruta del día ↓</a>
+    <a href="#armar-jornada" onclick="document.getElementById('armar-jornada').open=true" style="color:#7c3aed;font-size:13px;font-weight:600;">+ Armar ruta del dia</a>
 </div>
 {% endif %}
 
@@ -127,38 +158,128 @@
 
 <!-- FORMULARIOS (colapsables) -->
 <details id="armar-jornada" style="margin-top:8px;">
-    <summary style="font-size:14px;font-weight:700;color:#7c3aed;padding:14px 18px;background:#faf5ff;border:1px solid #ede9fe;border-radius:12px;">Armar ruta del día</summary>
+    <summary style="font-size:14px;font-weight:700;color:#7c3aed;padding:14px 18px;background:#faf5ff;border:1px solid #ede9fe;border-radius:12px;">Armar recorrido del dia</summary>
     <div class="card" style="border-top:none;border-radius:0 0 12px 12px;border-left:4px solid #7c3aed;padding:18px;">
-        <p style="margin:0 0 14px;color:#6b7280;font-size:13px;">Definí qué trabajos estaban planificados y qué urgencias se sumaron.</p>
-        <form method="POST" action="{{ url_for('admin_ceyh_jornada') }}">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
-                <div class="form-group" style="margin-bottom:0;"><label>Fecha</label><input type="date" name="fecha" value="{{ (jornada_hoy.fecha if jornada_hoy else '') or '' }}"></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label><input type="text" name="camioneta" placeholder="Ej: Móvil 1"></div>
-                <div class="form-group" style="margin-bottom:0;"><label>Cuadrilla</label><input type="text" name="cuadrilla" placeholder="Ej: Gastón / Juan"></div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+        <form method="POST" action="{{ url_for('admin_ceyh_jornada') }}" id="form-jornada">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px;">
                 <div class="form-group" style="margin-bottom:0;">
-                    <label>Planificados del día</label>
-                    <select name="ticket_ids" multiple style="min-height:180px;">
-                        {% for t in activos %}
-                        <option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal | replace('Sucursal ', 'Suc ') }} — P{{ t.prioridad }} — {{ t.subcategoria }}</option>
-                        {% endfor %}
-                    </select>
+                    <label>Fecha</label>
+                    <input type="date" name="fecha" value="{{ hoy }}">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
-                    <label>Urgencias</label>
-                    <select name="urgencia_ids" multiple style="min-height:180px;">
-                        {% for t in activos if t.prioridad == 1 or t.estado_operativo_ceyh == 'Demorado' %}
-                        <option value="{{ t.id }}">#{{ t.id }} — {{ t.sucursal | replace('Sucursal ', 'Suc ') }} — P{{ t.prioridad }}</option>
-                        {% endfor %}
-                    </select>
+                    <label>Observaciones generales</label>
+                    <input type="text" name="observaciones" placeholder="Ej: Lluvia prevista, camioneta AA2 en taller...">
                 </div>
             </div>
-            <div class="form-group" style="margin-top:10px;"><label>Observaciones</label><input type="text" name="observaciones" placeholder="Ej: priorizar zona norte, pasar por Dabra primero"></div>
-            <button type="submit" class="btn" style="background:#7c3aed;color:white;">Guardar ruta</button>
+
+            {% if sugerido %}
+            <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Orden sugerido segun prioridad. Podes quitar paradas o cambiar la camioneta antes de publicar.</p>
+            <div style="overflow-x:auto;margin-bottom:14px;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tabla-recorrido">
+                <thead>
+                    <tr style="background:#f3f4f6;text-align:left;">
+                        <th style="padding:7px 10px;">#</th>
+                        <th style="padding:7px 10px;">Sucursal</th>
+                        <th style="padding:7px 10px;">Direccion</th>
+                        <th style="padding:7px 10px;">Tickets</th>
+                        <th style="padding:7px 10px;">Prioridad</th>
+                        <th style="padding:7px 10px;">Dias espera</th>
+                        <th style="padding:7px 10px;">Shopping</th>
+                        <th style="padding:7px 10px;">Camioneta</th>
+                        <th style="padding:7px 10px;">Quitar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for p in sugerido %}
+                <tr data-suc="{{ p.sucursal }}" style="border-top:1px solid #f3f4f6;background:{% if p.prioridad_max == 1 %}#fef2f2{% elif p.es_shopping %}#fefce8{% elif p.prioridad_max == 2 %}#eff6ff{% else %}white{% endif %};">
+                    <td style="padding:7px 10px;font-weight:700;color:#7c3aed;" class="orden-num">{{ p.orden }}</td>
+                    <td style="padding:7px 10px;">
+                        <strong>{{ p.sucursal }}</strong>
+                        {% if p.ciudad %}<br><span style="font-size:11px;color:#9ca3af;">{{ p.ciudad }}</span>{% endif %}
+                    </td>
+                    <td style="padding:7px 10px;font-size:12px;color:#6b7280;">{{ p.direccion or '—' }}</td>
+                    <td style="padding:7px 10px;">
+                        {% for tid in p.tickets %}<span style="background:#f3f4f6;padding:2px 5px;border-radius:4px;font-size:11px;margin-right:2px;">#{{ tid }}</span>{% endfor %}
+                        <br><span style="font-size:11px;color:#9ca3af;">{{ p.num_tickets }} ticket{{ 's' if p.num_tickets != 1 }}</span>
+                    </td>
+                    <td style="padding:7px 10px;">
+                        {% if p.prioridad_max == 1 %}<span style="background:#fef2f2;color:#b91c1c;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;">Urgente</span>
+                        {% elif p.prioridad_max == 2 %}<span style="background:#fef9c3;color:#854d0e;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;">Alta</span>
+                        {% elif p.prioridad_max == 3 %}<span style="background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:5px;font-size:12px;">Media</span>
+                        {% else %}<span style="background:#f3f4f6;color:#6b7280;padding:2px 7px;border-radius:5px;font-size:12px;">Baja</span>{% endif %}
+                    </td>
+                    <td style="padding:7px 10px;text-align:center;">{{ p.dias_espera_max }}d</td>
+                    <td style="padding:7px 10px;text-align:center;">
+                        {% if p.es_shopping %}
+                        <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                            <input type="checkbox" class="shopping-avisado" data-suc="{{ p.sucursal }}"> Avisado
+                        </label>
+                        <span style="font-size:11px;color:#854d0e;font-weight:600;">Shopping</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="padding:7px 10px;">
+                        <select class="camioneta-select" data-suc="{{ p.sucursal }}" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;">
+                            <option value="AA1" {% if p.camioneta == 'AA1' %}selected{% endif %}>AA1</option>
+                            <option value="AA2" {% if p.camioneta == 'AA2' %}selected{% endif %}>AA2</option>
+                            <option value="Gral" {% if p.camioneta == 'Gral' %}selected{% endif %}>Gral</option>
+                        </select>
+                    </td>
+                    <td style="padding:7px 10px;">
+                        <button type="button" class="btn-quitar" data-suc="{{ p.sucursal }}" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:5px;padding:3px 8px;font-size:12px;cursor:pointer;">x</button>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;border:1px dashed #e5e7eb;border-radius:8px;margin-bottom:14px;">Sin tickets CEYH activos para sugerir recorrido.</div>
+            {% endif %}
+
+            <input type="hidden" name="paradas_json" id="paradas_json">
+            <button type="submit" class="btn" style="background:#7c3aed;color:white;" onclick="return prepararEnvio()">Publicar recorrido</button>
         </form>
     </div>
 </details>
+
+<script>
+var sugerido = {{ sugerido | tojson }};
+
+function prepararEnvio() {
+    var paradas = [];
+    var rows = document.querySelectorAll('#tabla-recorrido tbody tr');
+    rows.forEach(function(row, idx) {
+        var suc = row.dataset.suc;
+        if (!suc) return;
+        var p = null;
+        for (var i = 0; i < sugerido.length; i++) {
+            if (String(sugerido[i].sucursal) === String(suc)) { p = sugerido[i]; break; }
+        }
+        if (!p) return;
+        var sel = row.querySelector('.camioneta-select');
+        var camioneta = sel ? sel.value : p.camioneta;
+        var chk = row.querySelector('.shopping-avisado');
+        var avisado = chk ? chk.checked : false;
+        var copia = JSON.parse(JSON.stringify(p));
+        copia.camioneta = camioneta;
+        copia.shopping_avisado = avisado;
+        copia.orden = idx + 1;
+        paradas.push(copia);
+    });
+    document.getElementById('paradas_json').value = JSON.stringify(paradas);
+    return true;
+}
+
+document.querySelectorAll('.btn-quitar').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        this.closest('tr').remove();
+        document.querySelectorAll('#tabla-recorrido tbody tr').forEach(function(row, idx) {
+            var cell = row.querySelector('.orden-num');
+            if (cell) cell.textContent = idx + 1;
+        });
+    });
+});
+</script>
 
 <details style="margin-top:4px;">
     <summary style="font-size:14px;font-weight:700;color:#1d4ed8;padding:14px 18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;">Registrar retiro en Dabra Central</summary>

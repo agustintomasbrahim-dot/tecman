@@ -15,3 +15,7 @@ services:
         value: "agustintomasbrahim@gmail.com"
       - key: GMAIL_APP_PASSWORD
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_TOKEN_JSON
+        sync: false

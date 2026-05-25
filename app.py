@@ -145,6 +145,16 @@ PRIORIDADES = {
 
 ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
 
+import pathlib as _pathlib
+_SUCURSALES_INFRA_FILE = _pathlib.Path(__file__).parent / "data" / "sucursales_infra.json"
+_SUCURSALES_INFRA = {}
+_SHOPPINGS_IDS = set()
+try:
+    _SUCURSALES_INFRA = json.loads(_SUCURSALES_INFRA_FILE.read_text())
+    _SHOPPINGS_IDS = {int(k) for k, v in _SUCURSALES_INFRA.items() if "Centro Comercial" in (v.get("segmentacion") or "")}
+except Exception:
+    pass
+
 _ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
@@ -1205,6 +1215,70 @@ def _normalize_ceyh_ticket(ticket):
     ticket.setdefault("fecha_objetivo", "")
     ticket.setdefault("estado_operativo_ceyh", "Pendiente")
     return ticket
+
+
+def sugerir_recorrido_ceyh(tickets):
+    """Agrupa tickets CEYH activos por sucursal y sugiere un orden de visita."""
+    import datetime as _dt
+    activos = [t for t in tickets if es_ticket_ceyh(t) and t.get("estado") not in ("Resuelto", "Cerrado")]
+    por_suc = {}
+    for t in activos:
+        suc = str(t.get("sucursal", "")).strip()
+        if not suc:
+            continue
+        por_suc.setdefault(suc, []).append(t)
+
+    hoy = _dt.date.today()
+    paradas = []
+    for suc, tks in por_suc.items():
+        prioridad_max = min((int(t.get("prioridad") or 4) for t in tks), default=4)
+        num_tickets = len(tks)
+        # días desde creación del ticket más viejo
+        dias_max = 0
+        for t in tks:
+            try:
+                creado = _dt.date.fromisoformat(str(t.get("creado", ""))[:10])
+                dias_max = max(dias_max, (hoy - creado).days)
+            except Exception:
+                pass
+        try:
+            suc_int = int(suc)
+        except ValueError:
+            suc_int = 0
+        es_shopping = suc_int in _SHOPPINGS_IDS
+        infra = _SUCURSALES_INFRA.get(suc, {})
+        # AA si algún ticket es de Aire Acondicionado
+        tiene_aa = any("Aire" in (t.get("categoria") or "") for t in tks)
+        camioneta_sugerida = "AA1" if tiene_aa else "Gral"
+        paradas.append({
+            "sucursal": suc,
+            "camioneta": camioneta_sugerida,
+            "tickets": [t.get("id") for t in tks],
+            "prioridad_max": prioridad_max,
+            "num_tickets": num_tickets,
+            "dias_espera_max": dias_max,
+            "es_shopping": es_shopping,
+            "shopping_avisado": False,
+            "direccion": infra.get("direccion", ""),
+            "ciudad": infra.get("ciudad", ""),
+            "estado_parada": "pendiente",
+            "urgencia": False,
+        })
+
+    # Ordenar: urgente → shopping avisado → por prioridad/tickets/días
+    def _sort_key(p):
+        return (
+            0 if p["prioridad_max"] == 1 else 1,  # urgente primero
+            0 if (p["es_shopping"] and p["shopping_avisado"]) else 1,
+            p["prioridad_max"],
+            -p["num_tickets"],
+            -p["dias_espera_max"],
+        )
+    paradas.sort(key=_sort_key)
+    for i, p in enumerate(paradas, start=1):
+        p["orden"] = i
+    return paradas
+
 
 def _expand_permisos_para_sucursales(items):
     expanded = []
@@ -2280,6 +2354,8 @@ def admin_ceyh():
     derivados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
     terminados.sort(key=lambda t: t.get("actualizado") or "", reverse=True)
 
+    sugerido = sugerir_recorrido_ceyh(tickets)
+
     return render_template(
         "admin_ceyh.html",
         activos=activos,
@@ -2293,6 +2369,8 @@ def admin_ceyh():
         en_ruta=en_ruta,
         demorados=demorados,
         prioridades=PRIORIDADES,
+        sugerido=sugerido,
+        hoy=datetime.date.today().isoformat(),
     )
 
 
@@ -2366,57 +2444,27 @@ def admin_ceyh_jornada():
     tickets = load_tickets()
     data = load_ceyh_jornadas()
     fecha = request.form.get("fecha", datetime.date.today().isoformat()).strip() or datetime.date.today().isoformat()
-    camioneta = request.form.get("camioneta", "").strip()
-    cuadrilla = request.form.get("cuadrilla", "").strip()
-    ticket_ids = request.form.getlist("ticket_ids")
-    urgencias_ids = request.form.getlist("urgencia_ids")
+    paradas_raw = request.form.get("paradas_json", "[]")
+    try:
+        paradas = json.loads(paradas_raw)
+    except Exception:
+        paradas = []
 
-    planificados = []
-    for idx, tid in enumerate(ticket_ids, start=1):
-        t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
-        if not t:
-            continue
-        planificados.append({
-            "ticket_id": t.get("id"),
-            "sucursal": t.get("sucursal", ""),
-            "prioridad": t.get("prioridad", 4),
-            "tipo": t.get("subcategoria") or t.get("categoria", ""),
-            "orden": idx,
-            "estado_jornada": "planificado",
-        })
-        _normalize_ceyh_ticket(t)
-        t["estado_operativo_ceyh"] = "Planificado"
-        t["actualizado"] = datetime.datetime.now().isoformat()
-
-    urgencias = []
-    for idx, tid in enumerate(urgencias_ids, start=1):
-        t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
-        if not t:
-            continue
-        urgencias.append({
-            "ticket_id": t.get("id"),
-            "sucursal": t.get("sucursal", ""),
-            "prioridad": t.get("prioridad", 4),
-            "tipo": t.get("subcategoria") or t.get("categoria", ""),
-            "orden": idx,
-            "estado_jornada": "urgencia_agregada",
-        })
-        _normalize_ceyh_ticket(t)
-        t["estado_operativo_ceyh"] = "Planificado"
-        t.setdefault("notas", []).append({
-            "autor": session.get("nombre", "Admin"),
-            "fecha": datetime.datetime.now().isoformat(),
-            "texto": "Agregado a jornada CEYH como urgencia",
-        })
-        t["actualizado"] = datetime.datetime.now().isoformat()
+    # Normalizar y marcar tickets como Planificado
+    for i, p in enumerate(paradas, start=1):
+        p["orden"] = i
+        p.setdefault("estado_parada", "pendiente")
+        for tid in p.get("tickets", []):
+            t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
+            if t:
+                _normalize_ceyh_ticket(t)
+                t["estado_operativo_ceyh"] = "Planificado"
+                t["actualizado"] = datetime.datetime.now().isoformat()
 
     jornada = {
         "id": uuid.uuid4().hex[:12],
         "fecha": fecha,
-        "camioneta": camioneta,
-        "cuadrilla": cuadrilla,
-        "planificados": planificados,
-        "urgencias": urgencias,
+        "paradas": paradas,
         "observaciones": request.form.get("observaciones", "").strip(),
         "estado": "abierta",
         "created_at": datetime.datetime.now().isoformat(),
@@ -2426,6 +2474,80 @@ def admin_ceyh_jornada():
     save_ceyh_jornadas(data)
     save_tickets(tickets)
     flash("Jornada CEYH creada")
+    return redirect(url_for("admin_ceyh"))
+
+
+@app.route("/admin/ceyh/jornada/<jid>/parada/<int:orden>/estado", methods=["POST"])
+@admin_required
+def admin_ceyh_parada_estado(jid, orden):
+    data = load_ceyh_jornadas()
+    jornada = next((j for j in data.get("jornadas", []) if j.get("id") == jid), None)
+    if not jornada:
+        return {"error": "no encontrada"}, 404
+    nuevo_estado = request.form.get("estado_parada", "pendiente")
+    for p in jornada.get("paradas", []):
+        if p.get("orden") == orden:
+            p["estado_parada"] = nuevo_estado
+            break
+    jornada["updated_at"] = datetime.datetime.now().isoformat()
+    save_ceyh_jornadas(data)
+    # Actualizar estado_operativo_ceyh de los tickets
+    tickets = load_tickets()
+    mapa = {"en_progreso": "En ruta", "completado": "Terminado", "pendiente": "Planificado"}
+    for p in jornada.get("paradas", []):
+        if p.get("orden") == orden:
+            for tid in p.get("tickets", []):
+                t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
+                if t:
+                    _normalize_ceyh_ticket(t)
+                    t["estado_operativo_ceyh"] = mapa.get(nuevo_estado, "Planificado")
+                    t["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    return redirect(url_for("admin_ceyh"))
+
+
+@app.route("/admin/ceyh/jornada/<jid>/agregar_parada", methods=["POST"])
+@admin_required
+def admin_ceyh_agregar_parada(jid):
+    data = load_ceyh_jornadas()
+    jornada = next((j for j in data.get("jornadas", []) if j.get("id") == jid), None)
+    if not jornada:
+        flash("Jornada no encontrada")
+        return redirect(url_for("admin_ceyh"))
+    sucursal = request.form.get("sucursal", "").strip()
+    camioneta = request.form.get("camioneta", "Gral").strip()
+    ticket_ids_raw = request.form.get("ticket_ids", "")
+    ticket_ids = [x.strip() for x in ticket_ids_raw.split(",") if x.strip()]
+    if not sucursal or not ticket_ids:
+        flash("Faltan datos para agregar parada")
+        return redirect(url_for("admin_ceyh"))
+    paradas = jornada.setdefault("paradas", [])
+    max_orden = max((p.get("orden", 0) for p in paradas), default=0)
+    infra = _SUCURSALES_INFRA.get(sucursal, {})
+    try:
+        suc_int = int(sucursal)
+    except ValueError:
+        suc_int = 0
+    nueva_parada = {
+        "orden": max_orden + 1,
+        "sucursal": sucursal,
+        "camioneta": camioneta,
+        "tickets": [int(tid) for tid in ticket_ids if tid.isdigit()],
+        "prioridad_max": 3,
+        "num_tickets": len(ticket_ids),
+        "es_shopping": suc_int in _SHOPPINGS_IDS,
+        "shopping_avisado": False,
+        "direccion": infra.get("direccion", ""),
+        "ciudad": infra.get("ciudad", ""),
+        "estado_parada": "pendiente",
+        "urgencia": True,
+    }
+    paradas.append(nueva_parada)
+    jornada["updated_at"] = datetime.datetime.now().isoformat()
+    if request.form.get("cambio_ruta"):
+        jornada["cambio_ruta"] = request.form.get("cambio_ruta")
+    save_ceyh_jornadas(data)
+    flash(f"Parada sucursal {sucursal} agregada al recorrido")
     return redirect(url_for("admin_ceyh"))
 
 
@@ -2913,6 +3035,39 @@ def prov_login_required(f):
             return redirect(url_for("prov_login"))
         return f(*args, **kwargs)
     return decorated
+
+
+@app.route("/proveedor/ceyh/parada/<jid>/<int:orden>/estado", methods=["POST"])
+@prov_login_required
+def prov_ceyh_parada_estado(jid, orden):
+    if session.get("prov_nombre") != "CEYH":
+        return "No autorizado", 403
+    data = load_ceyh_jornadas()
+    jornada = next((j for j in data.get("jornadas", []) if j.get("id") == jid), None)
+    if not jornada:
+        return "No encontrada", 404
+    nuevo_estado = request.form.get("estado_parada", "en_progreso")
+    if nuevo_estado not in ("pendiente", "en_progreso", "completado"):
+        nuevo_estado = "en_progreso"
+    for p in jornada.get("paradas", []):
+        if p.get("orden") == orden:
+            p["estado_parada"] = nuevo_estado
+            break
+    jornada["updated_at"] = datetime.datetime.now().isoformat()
+    save_ceyh_jornadas(data)
+    # Actualizar estado operativo de tickets
+    tickets = load_tickets()
+    mapa = {"en_progreso": "En ruta", "completado": "Terminado", "pendiente": "Planificado"}
+    for p in jornada.get("paradas", []):
+        if p.get("orden") == orden:
+            for tid in p.get("tickets", []):
+                t = next((x for x in tickets if str(x.get("id")) == str(tid)), None)
+                if t:
+                    _normalize_ceyh_ticket(t)
+                    t["estado_operativo_ceyh"] = mapa.get(nuevo_estado, "En ruta")
+                    t["actualizado"] = datetime.datetime.now().isoformat()
+    save_tickets(tickets)
+    return redirect(url_for("prov_panel"))
 
 
 @app.route("/proveedor/login", methods=["GET", "POST"])

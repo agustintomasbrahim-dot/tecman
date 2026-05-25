@@ -1,0 +1,1019 @@
+{
+  "11": {
+    "num": 11,
+    "banda": "MV",
+    "tienda": "Moron Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Morón",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. 25 De Mayo 127"
+  },
+  "14": {
+    "num": 14,
+    "banda": "DX",
+    "tienda": "Shop.Soleil",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "San Isidro",
+    "provincia": "Buenos Aires",
+    "direccion": "B. Irigoyen 2647"
+  },
+  "20": {
+    "num": 20,
+    "banda": "DX",
+    "tienda": "Dexter Pompeya",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Saenz 1109"
+  },
+  "23": {
+    "num": 23,
+    "banda": "DX",
+    "tienda": "Moreno",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Moreno",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Libertador 84"
+  },
+  "28": {
+    "num": 28,
+    "banda": "DX",
+    "tienda": "San Martin",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Martin",
+    "provincia": "Buenos Aires",
+    "direccion": "Belgrano 3301"
+  },
+  "35": {
+    "num": 35,
+    "banda": "MV",
+    "tienda": "Dexter Merlo",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Merlo",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Libertador 736"
+  },
+  "36": {
+    "num": 36,
+    "banda": "DX",
+    "tienda": "Flores I",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Rivadavia 6658"
+  },
+  "43": {
+    "num": 43,
+    "banda": "MV",
+    "tienda": "Moov Terrazas de mayo",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "Buenos Aires",
+    "direccion": "Ruta 202 Y Ruta 8"
+  },
+  "49": {
+    "num": 49,
+    "banda": "MV",
+    "tienda": "Moov Alto Avellaneda",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Avellaneda",
+    "provincia": "Buenos Aires",
+    "direccion": "Guemes 897"
+  },
+  "51": {
+    "num": 51,
+    "banda": "DX",
+    "tienda": "San Miguel II",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Miguel",
+    "provincia": "Buenos Aires",
+    "direccion": "Pte. Peron 1550"
+  },
+  "52": {
+    "num": 52,
+    "banda": "MV",
+    "tienda": "Moov Lomas",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Lomas de Zamora",
+    "provincia": "Buenos Aires",
+    "direccion": "Laprida 279"
+  },
+  "53": {
+    "num": 53,
+    "banda": "DX",
+    "tienda": "Shop Unicenter",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Martinez",
+    "provincia": "Buenos Aires",
+    "direccion": "Parana 3745"
+  },
+  "54": {
+    "num": 54,
+    "banda": "DX",
+    "tienda": "Dexter Berazategui",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Berazategui",
+    "provincia": "Buenos Aires",
+    "direccion": "Calle 14 4796"
+  },
+  "58": {
+    "num": 58,
+    "banda": "DX",
+    "tienda": "Dexter Plaza Oeste",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Morón",
+    "provincia": "Buenos Aires",
+    "direccion": "Juan Manuel de Rosas 658"
+  },
+  "65": {
+    "num": 65,
+    "banda": "DX",
+    "tienda": "Dexter Quilmes",
+    "segmentacion": "Centro Comercial",
+    "ciudad": "Quilmes",
+    "provincia": "Buenos Aires",
+    "direccion": "Av.Calchaqui 3950"
+  },
+  "76": {
+    "num": 76,
+    "banda": "MV",
+    "tienda": "Corner Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "9 De Julio 101"
+  },
+  "77": {
+    "num": 77,
+    "banda": "MV",
+    "tienda": "Dexter Lanus",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Lanus",
+    "provincia": "Buenos Aires",
+    "direccion": "9 De Julio 1164"
+  },
+  "78": {
+    "num": 78,
+    "banda": "DX",
+    "tienda": "Dexter Cordoba II",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "San Martin 174"
+  },
+  "80": {
+    "num": 80,
+    "banda": "DX",
+    "tienda": "Campana",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Campana",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Agustin Rocca 179"
+  },
+  "82": {
+    "num": 82,
+    "banda": "DX",
+    "tienda": "Zarate Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Zarate",
+    "provincia": "Buenos Aires",
+    "direccion": "Justa Lima De Atucha 150"
+  },
+  "83": {
+    "num": 83,
+    "banda": "DX",
+    "tienda": "Solano",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Quilmes",
+    "provincia": "Buenos Aires",
+    "direccion": "AV .844 2575"
+  },
+  "91": {
+    "num": 91,
+    "banda": "MV",
+    "tienda": "Junin",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Junin",
+    "provincia": "Buenos Aires",
+    "direccion": "Roque Saenz Peña 90"
+  },
+  "92": {
+    "num": 92,
+    "banda": "DX",
+    "tienda": "Tandil",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Tandil",
+    "provincia": "Buenos Aires",
+    "direccion": "San Martin 646"
+  },
+  "102": {
+    "num": 102,
+    "banda": "MV",
+    "tienda": "Florida II Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Florida 444"
+  },
+  "111": {
+    "num": 111,
+    "banda": "DX",
+    "tienda": "San Fernando II",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Fernando",
+    "provincia": "Buenos Aires",
+    "direccion": "Constitucion 729"
+  },
+  "114": {
+    "num": 114,
+    "banda": "SC",
+    "tienda": "Santa Fe II",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Santa Fe Ciudad",
+    "provincia": "Santa Fe",
+    "direccion": "San Martin 2384"
+  },
+  "116": {
+    "num": 116,
+    "banda": "DX",
+    "tienda": "San Nicolas",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "SAN NICOLAS",
+    "provincia": "Buenos Aires",
+    "direccion": "Mitre 232"
+  },
+  "120": {
+    "num": 120,
+    "banda": "DX",
+    "tienda": "Catamarca",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Fernando del Valle de Catamarca",
+    "provincia": "Catamarca",
+    "direccion": "Rivadavia 830"
+  },
+  "121": {
+    "num": 121,
+    "banda": "MV",
+    "tienda": "Abasto Moov",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Corriente 3247"
+  },
+  "123": {
+    "num": 123,
+    "banda": "DX",
+    "tienda": "Cordoba",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "Av. Fuerza Area 2216"
+  },
+  "124": {
+    "num": 124,
+    "banda": "DX",
+    "tienda": "Cordoba",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "Av. Emilio Olmos 1"
+  },
+  "125": {
+    "num": 125,
+    "banda": "DX",
+    "tienda": "Parque Brown",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Francisco Fernandez De La Cruz 4602"
+  },
+  "126": {
+    "num": 126,
+    "banda": "MV",
+    "tienda": "Salta II Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Salta Ciudad",
+    "provincia": "Salta",
+    "direccion": "Florida 101"
+  },
+  "127": {
+    "num": 127,
+    "banda": "MV",
+    "tienda": "Alto Rosario Shopping Moov",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Rosario",
+    "provincia": "Santa Fe",
+    "direccion": "Junin 501"
+  },
+  "128": {
+    "num": 128,
+    "banda": "DX",
+    "tienda": "Portal Los Andes Jumbo Mendoza",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Godoy Cruz",
+    "provincia": "Mendoza",
+    "direccion": "Balcarse 897"
+  },
+  "132": {
+    "num": 132,
+    "banda": "DX",
+    "tienda": "Dexter Mendoza Plaza",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Mendoza Ciudad",
+    "provincia": "Mendoza",
+    "direccion": "Av. De Acceso Este 3280"
+  },
+  "133": {
+    "num": 133,
+    "banda": "DX",
+    "tienda": "Dexter Neuquen",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Neuquen",
+    "provincia": "Neuquen",
+    "direccion": "Perito Moreno 60"
+  },
+  "134": {
+    "num": 134,
+    "banda": "SC",
+    "tienda": "Stock Center Neuquen II",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Neuquen",
+    "provincia": "Neuquen",
+    "direccion": "Juan Julián Lastra 2400"
+  },
+  "139": {
+    "num": 139,
+    "banda": "DX",
+    "tienda": "Salta III",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Salta Ciudad",
+    "provincia": "Salta",
+    "direccion": "Alberdi 97"
+  },
+  "141": {
+    "num": 141,
+    "banda": "DX",
+    "tienda": "Escobar",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Belen de Escobar",
+    "provincia": "Buenos Aires",
+    "direccion": "Colectora Panamericana Y Ruta 25"
+  },
+  "142": {
+    "num": 142,
+    "banda": "DX",
+    "tienda": "Florencio Varela",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Florencio Varela",
+    "provincia": "Buenos Aires",
+    "direccion": "Monteagudo 3323"
+  },
+  "145": {
+    "num": 145,
+    "banda": "MV",
+    "tienda": "Mendoza Capital Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Mendoza Ciudad",
+    "provincia": "Mendoza",
+    "direccion": "Av. San Martin 1298"
+  },
+  "146": {
+    "num": 146,
+    "banda": "DX",
+    "tienda": "La Rioja",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "La Rioja",
+    "provincia": "La Rioja",
+    "direccion": "Laprida Y Artigas"
+  },
+  "147": {
+    "num": 147,
+    "banda": "DX",
+    "tienda": "Palmas Del Pilar",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Pilar",
+    "provincia": "Buenos Aires",
+    "direccion": "Las Magnolias 754"
+  },
+  "148": {
+    "num": 148,
+    "banda": "MV",
+    "tienda": "San Martin Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Martin",
+    "provincia": "Buenos Aires",
+    "direccion": "Belgrano 3461"
+  },
+  "156": {
+    "num": 156,
+    "banda": "DX",
+    "tienda": "Dexter Abasto",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Corriente 3247"
+  },
+  "157": {
+    "num": 157,
+    "banda": "SC",
+    "tienda": "Jumbo Dexter Factory (S.Martin)",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "San Martin",
+    "provincia": "Buenos Aires",
+    "direccion": "San Lorenzo 3773 San Martin Loc 1002"
+  },
+  "158": {
+    "num": 158,
+    "banda": "DX",
+    "tienda": "La Rioja Centro",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "La Rioja",
+    "provincia": "La Rioja",
+    "direccion": "Pelaguido B. Luna 587"
+  },
+  "159": {
+    "num": 159,
+    "banda": "MV",
+    "tienda": "San Juan Centro",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Ciudad de San Juan",
+    "provincia": "San Juan",
+    "direccion": "Peatonal Rivadavia 215"
+  },
+  "160": {
+    "num": 160,
+    "banda": "DX",
+    "tienda": "Trelew",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Trelew",
+    "provincia": "Chubut",
+    "direccion": "Av. Hipolito Yrigoyen Y Ruta Provincial 7"
+  },
+  "165": {
+    "num": 165,
+    "banda": "MV",
+    "tienda": "Moov Cabildo",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Cabildo 2160"
+  },
+  "166": {
+    "num": 166,
+    "banda": "MV",
+    "tienda": "Rosario Centro Moov",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Rosario",
+    "provincia": "Santa Fe",
+    "direccion": "Cordoba 1280"
+  },
+  "167": {
+    "num": 167,
+    "banda": "DX",
+    "tienda": "Dexter Lomas",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Lomas de Zamora",
+    "provincia": "Buenos Aires",
+    "direccion": "Carlos Pellegrini 90"
+  },
+  "170": {
+    "num": 170,
+    "banda": "DX",
+    "tienda": "Dexter Caballito(Mudanza)",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Rivadavia 5265"
+  },
+  "171": {
+    "num": 171,
+    "banda": "SC",
+    "tienda": "Stock San Miguel",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Miguel",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Presidente Peron 1418"
+  },
+  "172": {
+    "num": 172,
+    "banda": "DX",
+    "tienda": "San Juan",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Ciudad de San Juan",
+    "provincia": "San Juan",
+    "direccion": "Peatonal Rivadavia 137"
+  },
+  "173": {
+    "num": 173,
+    "banda": "SC",
+    "tienda": "Stock Tucuman Peatonal",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Miguel de Tucuman",
+    "provincia": "Tucuman",
+    "direccion": "Muñecas 246"
+  },
+  "176": {
+    "num": 176,
+    "banda": "SC",
+    "tienda": "Stock General Paz",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Saenz Peña",
+    "provincia": "Buenos Aires",
+    "direccion": "Gral. Paz 201"
+  },
+  "177": {
+    "num": 177,
+    "banda": "SC",
+    "tienda": "Stock San Justo",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "La Matanza",
+    "provincia": "Buenos Aires",
+    "direccion": "Rivera Indarte 3386"
+  },
+  "178": {
+    "num": 178,
+    "banda": "DX",
+    "tienda": "Dexer La Paz Parana Shopping",
+    "segmentacion": "Centro Comercial Otros",
+    "ciudad": "Parana",
+    "provincia": "Entre Rios",
+    "direccion": "Venezuela 31"
+  },
+  "183": {
+    "num": 183,
+    "banda": "DX",
+    "tienda": "Dexter Floyco",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Florida 395"
+  },
+  "184": {
+    "num": 184,
+    "banda": "DX",
+    "tienda": "Stock Cabildo Y Juramento",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Cabildo 2080"
+  },
+  "185": {
+    "num": 185,
+    "banda": "SC",
+    "tienda": "Stock Parque Brown",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Francisco Fernandez De La Cruz 4602"
+  },
+  "186": {
+    "num": 186,
+    "banda": "DX",
+    "tienda": "Dexter Panamericana",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Martinez",
+    "provincia": "Buenos Aires",
+    "direccion": "Cangallo 2098"
+  },
+  "187": {
+    "num": 187,
+    "banda": "SC",
+    "tienda": "Stock Lomas Center (Jumbo",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Lomas de Zamora",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Antartida Argentina 703"
+  },
+  "188": {
+    "num": 188,
+    "banda": "MV",
+    "tienda": "Moov Quilmes",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Quilmes",
+    "provincia": "Buenos Aires",
+    "direccion": "Peatonal Rivadavia 174"
+  },
+  "190": {
+    "num": 190,
+    "banda": "SC",
+    "tienda": "Stock Shop.Soleil",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "San Isidro",
+    "provincia": "Buenos Aires",
+    "direccion": "Bernardo De Irigoyen 2647"
+  },
+  "191": {
+    "num": 191,
+    "banda": "DX",
+    "tienda": "Dexter Tucuman II",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Miguel de Tucuman",
+    "provincia": "Tucuman",
+    "direccion": "Muñecas 184"
+  },
+  "192": {
+    "num": 192,
+    "banda": "DX",
+    "tienda": "Dexter Jumbo II San Martin",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "San Martin",
+    "provincia": "Buenos Aires",
+    "direccion": "San Lorenzo 3773"
+  },
+  "193": {
+    "num": 193,
+    "banda": "SC",
+    "tienda": "Stock Salta",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Salta Ciudad",
+    "provincia": "Salta",
+    "direccion": "Peatonal Florida 160"
+  },
+  "194": {
+    "num": 194,
+    "banda": "SC",
+    "tienda": "Stock Calchaqui",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Quilmes",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Calchaqui 4005"
+  },
+  "195": {
+    "num": 195,
+    "banda": "SC",
+    "tienda": "Stock Gaona",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Ituzaingó",
+    "provincia": "Buenos Aires",
+    "direccion": "Pte. Peron 6641"
+  },
+  "196": {
+    "num": 196,
+    "banda": "DX",
+    "tienda": "Dexter Gral Pacheco",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Pacheco",
+    "provincia": "Buenos Aires",
+    "direccion": "Hipolito Yrigoyen 685"
+  },
+  "198": {
+    "num": 198,
+    "banda": "SC",
+    "tienda": "Stock Center Monte Grande",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Esteban Echevarria",
+    "provincia": "Buenos Aires",
+    "direccion": "Boulevard Buenos Aires 351"
+  },
+  "199": {
+    "num": 199,
+    "banda": "SC",
+    "tienda": "Nike Unicenter",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Martinez",
+    "provincia": "Buenos Aires",
+    "direccion": "Parana 3745"
+  },
+  "200": {
+    "num": 200,
+    "banda": "MV",
+    "tienda": "Moov Caballito",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Rivadavia 5101"
+  },
+  "202": {
+    "num": 202,
+    "banda": "SC",
+    "tienda": "Stock Pilar-La Lonja/ Magnolias",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Pilar",
+    "provincia": "Buenos Aires",
+    "direccion": "Las Magnolias 677"
+  },
+  "203": {
+    "num": 203,
+    "banda": "SC",
+    "tienda": "Stock Cordoba",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "Colon 4294"
+  },
+  "204": {
+    "num": 204,
+    "banda": "SC",
+    "tienda": "Stock Terrazas San Miguel",
+    "segmentacion": "Centro Comercial Otros",
+    "ciudad": "Polvorines",
+    "provincia": "Buenos Aires",
+    "direccion": "Ruta 202 Y Ruta 8"
+  },
+  "205": {
+    "num": 205,
+    "banda": "DX",
+    "tienda": "Dexter Alto Neuquen Irsa",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Neuquen",
+    "provincia": "Neuquen",
+    "direccion": "Av. Doctor Ramon Y Ruta 7"
+  },
+  "206": {
+    "num": 206,
+    "banda": "DX",
+    "tienda": "Dexter Mendoza Iv",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Ciudad de Mendoza",
+    "provincia": "Mendoza",
+    "direccion": "Av. San Martin 1528"
+  },
+  "207": {
+    "num": 207,
+    "banda": "DX",
+    "tienda": "San Luis Ii",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Ciudad de San Luis",
+    "provincia": "San Luis",
+    "direccion": "Rivadavia 678"
+  },
+  "208": {
+    "num": 208,
+    "banda": "SC",
+    "tienda": "Stock Panamericana",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Vicente Lopez",
+    "provincia": "Buenos Aires",
+    "direccion": "Esteban Echeverria 3850"
+  },
+  "209": {
+    "num": 209,
+    "banda": "SC",
+    "tienda": "Stock Gaona Ii (Ituzaingo)",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Ituzaingó",
+    "provincia": "Buenos Aires",
+    "direccion": "Lazo 3772 (de la guitarra 3701)"
+  },
+  "210": {
+    "num": 210,
+    "banda": "MV",
+    "tienda": "Moov Parana - Entre Rios",
+    "segmentacion": "Centro Comercial Otros",
+    "ciudad": "Parana",
+    "provincia": "Entre Rios",
+    "direccion": "Venezuela 31"
+  },
+  "211": {
+    "num": 211,
+    "banda": "DX",
+    "tienda": "Dexter Moron",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Moron",
+    "provincia": "Buenos Aires",
+    "direccion": "Don Bosco 3822"
+  },
+  "212": {
+    "num": 212,
+    "banda": "DX",
+    "tienda": "Dexter Catamarca",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Fernando del Valle de Catamarca",
+    "provincia": "Catamarca",
+    "direccion": "Rivadavia 642"
+  },
+  "213": {
+    "num": 213,
+    "banda": "DX",
+    "tienda": "Dexter Sg Congreso",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Rivadavia 2250"
+  },
+  "214": {
+    "num": 214,
+    "banda": "MV",
+    "tienda": "Moov San Fernando",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Fernando",
+    "provincia": "Buenos Aires",
+    "direccion": "Constitución 552"
+  },
+  "215": {
+    "num": 215,
+    "banda": "MV",
+    "tienda": "Moov Cordoba",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "Obispo Trejo 335"
+  },
+  "216": {
+    "num": 216,
+    "banda": "DX",
+    "tienda": "Quilmes Dexter",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Quilmes",
+    "provincia": "Buenos Aires",
+    "direccion": "Peatonal Rivadavia 125"
+  },
+  "217": {
+    "num": 217,
+    "banda": "DX",
+    "tienda": "Bahia Blanca",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Bahia Blanca",
+    "provincia": "Buenos Aires",
+    "direccion": "Donado 28"
+  },
+  "219": {
+    "num": 219,
+    "banda": "MV",
+    "tienda": "Moov Unicenter",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Martinez",
+    "provincia": "Buenos Aires",
+    "direccion": "Parana 3745"
+  },
+  "220": {
+    "num": 220,
+    "banda": "DX",
+    "tienda": "Corrientes",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Corrientes Cap",
+    "provincia": "Corrientes",
+    "direccion": "Junin 1385"
+  },
+  "221": {
+    "num": 221,
+    "banda": "MV",
+    "tienda": "Moov Flores",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Rivadavia 6426"
+  },
+  "222": {
+    "num": 222,
+    "banda": "DX",
+    "tienda": "Moron Dexter",
+    "segmentacion": "Mega Tienda en Accesos",
+    "ciudad": "Morón",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Cañada De Juan Ruiz 700"
+  },
+  "223": {
+    "num": 223,
+    "banda": "MV",
+    "tienda": "Moov Jose C Paz",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Jose C PAZ",
+    "provincia": "Buenos Aires",
+    "direccion": "Presidente Yrigoyen 1851"
+  },
+  "224": {
+    "num": 224,
+    "banda": "MV",
+    "tienda": "Moov Resistencia",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Resistencia",
+    "provincia": "Chaco",
+    "direccion": "Juan Domingo Perón 102"
+  },
+  "226": {
+    "num": 226,
+    "banda": "MV",
+    "tienda": "Moov Santa Fe",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Santa Fe Ciudad",
+    "provincia": "Santa Fe",
+    "direccion": "San Martin 2335"
+  },
+  "228": {
+    "num": 228,
+    "banda": "MV",
+    "tienda": "Moov Florencio Varela",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Florencio Varela",
+    "provincia": "Buenos Aires",
+    "direccion": "Monteagudo 3205"
+  },
+  "229": {
+    "num": 229,
+    "banda": "MV",
+    "tienda": "Moov Santiago Del Estero",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Ciudad de Santiago del Estero",
+    "provincia": "Santiago del Estero",
+    "direccion": "Peatonal Tucuman 121"
+  },
+  "230": {
+    "num": 230,
+    "banda": "MV",
+    "tienda": "Moov Tucuman",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Miguel de Tucuman",
+    "provincia": "Tucuman",
+    "direccion": "Muñecas 112"
+  },
+  "231": {
+    "num": 231,
+    "banda": "MV",
+    "tienda": "Moov Neuquen",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Neuquen",
+    "provincia": "Neuquen",
+    "direccion": "Juan Julián Lastra 2400"
+  },
+  "232": {
+    "num": 232,
+    "banda": "MV",
+    "tienda": "Moov Moreno",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Moreno",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Mitre 2729"
+  },
+  "233": {
+    "num": 233,
+    "banda": "DX",
+    "tienda": "Cordoba",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Cordoba Capital",
+    "provincia": "Cordoba",
+    "direccion": "9 De Julio 54"
+  },
+  "234": {
+    "num": 234,
+    "banda": "MV",
+    "tienda": "Parque Brown Local 1124",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "CABA",
+    "provincia": "CABA",
+    "direccion": "Av. Francisco Fernandez De La Cruz 4602"
+  },
+  "235": {
+    "num": 235,
+    "banda": "SC",
+    "tienda": "Stock Center Jujuy",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "San Salvador de Jujuy",
+    "provincia": "Jujuy",
+    "direccion": "Belgrano 823"
+  },
+  "236": {
+    "num": 236,
+    "banda": "MV",
+    "tienda": "Mendoza Plaza Shopping",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Mendoza Ciudad",
+    "provincia": "Mendoza",
+    "direccion": "Av. De Acceso Este 3280"
+  },
+  "237": {
+    "num": 237,
+    "banda": "DX",
+    "tienda": "Dexter Canning",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Canning",
+    "provincia": "Buenos Aires",
+    "direccion": "Av Pedro Dreyer 4670 - Local 1048"
+  },
+  "238": {
+    "num": 238,
+    "banda": "DX",
+    "tienda": "Alto Avellaneda Moov (N00L042)",
+    "segmentacion": "Centro Comercial Irsa",
+    "ciudad": "Avellaneda",
+    "provincia": "Buenos Aires",
+    "direccion": "Guemes 897"
+  },
+  "239": {
+    "num": 239,
+    "banda": "DX",
+    "tienda": "Dexter MDP Indep",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Mar Del plata",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. Independencia 2521"
+  },
+  "240": {
+    "num": 240,
+    "banda": "DX",
+    "tienda": "Dexter MDP Centro",
+    "segmentacion": "Tienda a la Calle",
+    "ciudad": "Mar Del plata",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. LURO 2983"
+  },
+  "241": {
+    "num": 241,
+    "banda": "MV",
+    "tienda": "MOOV MDP Centro",
+    "segmentacion": "Centro Comercial Cencosud",
+    "ciudad": "Mar Del plata",
+    "provincia": "Buenos Aires",
+    "direccion": "Av. LURO 2983"
+  }
+}
