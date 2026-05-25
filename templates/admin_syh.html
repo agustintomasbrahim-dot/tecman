@@ -183,6 +183,11 @@ function toggleAlerta(header) {
 
 <!-- Table -->
 <div class="card" style="padding: 0; overflow-x: auto;">
+    <div onclick="toggleTabla()" style="padding: 14px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; border-bottom: 1px solid #e2e8f0;">
+        <span style="font-weight: 700; color: #374151; font-size: 14px;">Detalle por sucursal</span>
+        <span id="tabla-arrow" style="font-size: 11px; color: #9ca3af;">▼ Ver tabla</span>
+    </div>
+    <div id="tabla-syh" style="display: none; overflow-x: auto;">
     <table>
         <thead>
             <tr>
@@ -242,5 +247,15 @@ function toggleAlerta(header) {
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
+<script>
+function toggleTabla() {
+    var t = document.getElementById('tabla-syh');
+    var a = document.getElementById('tabla-arrow');
+    var open = t.style.display !== 'none';
+    t.style.display = open ? 'none' : 'block';
+    a.textContent = open ? '▼ Ver tabla' : '▲ Ocultar';
+}
+</script>
 {% endblock %}
