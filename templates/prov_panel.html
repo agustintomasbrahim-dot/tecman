@@ -7,12 +7,27 @@
     <a href="{{ url_for('prov_logout') }}" style="margin-left: auto;">Salir ({{ session.prov_nombre }})</a>
 </div>
 
+{% if session.prov_nombre == 'CEYH' %}
+<meta http-equiv="refresh" content="120">
+{% endif %}
+
 {% if session.prov_nombre == 'CEYH' and jornadas_hoy %}
 {% for j in jornadas_hoy %}
+{% set urgencias = j.get('paradas', []) | selectattr('urgencia') | list %}
+{% set normales = j.get('paradas', []) | rejectattr('urgencia') | list %}
+{% set paradas_ordenadas = urgencias + normales %}
+
+{% if urgencias %}
+<div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <span style="font-size:18px;">🚨</span>
+    <span style="color:#b91c1c;font-weight:700;font-size:13px;">Nuevas paradas urgentes agregadas — revisá el recorrido</span>
+</div>
+{% endif %}
+
 <div class="card" style="margin-bottom:16px;border-left:4px solid #7c3aed;padding:0;overflow:hidden;">
     <div style="padding:12px 16px;background:#faf5ff;border-bottom:1px solid #ede9fe;">
         <strong style="color:#7c3aed;font-size:14px;">Recorrido de hoy</strong>
-        {% if j.cambio_ruta %}<div style="margin-top:6px;font-size:12px;color:#b45309;">Cambio: {{ j.cambio_ruta }}</div>{% endif %}
+        {% if j.cambio_ruta %}<div style="margin-top:6px;font-size:12px;color:#b45309;">📝 Cambio: {{ j.cambio_ruta }}</div>{% endif %}
         {% if j.observaciones %}<div style="font-size:12px;color:#6b7280;margin-top:4px;">{{ j.observaciones }}</div>{% endif %}
     </div>
     <div style="overflow-x:auto;">
@@ -28,12 +43,13 @@
             </tr>
         </thead>
         <tbody>
-        {% for p in j.get('paradas', []) %}
-        <tr style="border-top:1px solid #f3f4f6;background:{% if p.estado_parada == 'completado' %}#f0fdf4{% elif p.estado_parada == 'en_progreso' %}#fffbeb{% else %}white{% endif %};">
-            <td style="padding:8px 10px;font-weight:700;color:#7c3aed;">{{ p.orden }}</td>
+        {% for p in paradas_ordenadas %}
+        <tr style="border-top:1px solid #f3f4f6;background:{% if p.urgencia %}#fff5f5{% elif p.estado_parada == 'completado' %}#f0fdf4{% elif p.estado_parada == 'en_progreso' %}#fffbeb{% else %}white{% endif %};">
+            <td style="padding:8px 10px;font-weight:700;color:{% if p.urgencia %}#b91c1c{% else %}#7c3aed{% endif %};">{{ p.orden }}</td>
             <td style="padding:8px 10px;">
                 <strong>{{ p.sucursal }}</strong>
-                {% if p.urgencia %}<span style="background:#fef2f2;color:#b91c1c;font-size:11px;padding:2px 5px;border-radius:4px;margin-left:4px;">Urgencia</span>{% endif %}
+                {% if p.urgencia %}<span style="background:#dc2626;color:white;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700;">🚨 URGENTE</span>{% endif %}
+                {% if p.es_shopping %}<span style="background:#fef9c3;color:#854d0e;font-size:11px;padding:2px 5px;border-radius:4px;margin-left:4px;">Shopping</span>{% endif %}
                 {% if p.direccion %}<br><span style="font-size:11px;color:#9ca3af;">{{ p.direccion }}</span>{% endif %}
             </td>
             <td style="padding:8px 10px;"><span style="background:#f3f4f6;color:#374151;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:600;">{{ p.camioneta }}</span></td>

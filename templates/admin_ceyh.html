@@ -105,19 +105,22 @@
         </tbody>
     </table>
     </div>
-    <!-- Agregar parada al mediodía -->
-    <details style="padding:12px 18px;border-top:1px solid #ede9fe;">
-        <summary style="font-size:13px;color:#7c3aed;font-weight:600;cursor:pointer;">+ Agregar parada urgente</summary>
-        <form method="POST" action="/admin/ceyh/jornada/{{ jornada_hoy.id }}/agregar_parada" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;">
-            <div class="form-group" style="margin-bottom:0;"><label>Sucursal</label><input type="text" name="sucursal" placeholder="Nro sucursal" required></div>
-            <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label>
-                <select name="camioneta"><option>AA1</option><option>AA2</option><option>Gral</option></select>
-            </div>
-            <div class="form-group" style="margin-bottom:0;"><label>IDs tickets (separados por coma)</label><input type="text" name="ticket_ids" placeholder="Ej: 452, 453"></div>
-            <div class="form-group" style="margin-bottom:0;"><label>Nota cambio de ruta</label><input type="text" name="cambio_ruta" placeholder="Opcional"></div>
-            <div><button type="submit" class="btn" style="background:#7c3aed;color:white;margin-top:6px;">Agregar</button></div>
-        </form>
-    </details>
+    <!-- Botón urgencia prominente -->
+    <div style="padding:14px 18px;border-top:2px solid #fee2e2;background:#fff5f5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:#b91c1c;">🚨 Agregar parada urgente</span>
+        <button type="button" onclick="document.getElementById('form-urgencia-{{ jornada_hoy.id }}').style.display = document.getElementById('form-urgencia-{{ jornada_hoy.id }}').style.display === 'none' ? 'grid' : 'none'" style="background:#dc2626;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">
+            + Nueva urgencia
+        </button>
+    </div>
+    <form id="form-urgencia-{{ jornada_hoy.id }}" method="POST" action="/admin/ceyh/jornada/{{ jornada_hoy.id }}/agregar_parada" style="display:none;padding:14px 18px;background:#fff5f5;border-top:1px solid #fecaca;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;">
+        <div class="form-group" style="margin-bottom:0;"><label>Sucursal</label><input type="text" name="sucursal" placeholder="Nro sucursal" required></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Camioneta</label>
+            <select name="camioneta"><option>AA1</option><option>AA2</option><option>Gral</option></select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;"><label>IDs tickets (coma)</label><input type="text" name="ticket_ids" placeholder="Ej: 452, 453"></div>
+        <div class="form-group" style="margin-bottom:0;"><label>Nota</label><input type="text" name="cambio_ruta" placeholder="Motivo de la urgencia"></div>
+        <div><button type="submit" style="background:#dc2626;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;margin-top:6px;">Confirmar urgencia</button></div>
+    </form>
 </div>
 {% else %}
 <div class="card" style="border-left:4px solid #e5e7eb;padding:16px;text-align:center;">
