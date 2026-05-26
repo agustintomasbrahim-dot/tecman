@@ -1221,6 +1221,14 @@ def sugerir_recorrido_ceyh(tickets):
     """Agrupa tickets CEYH activos por sucursal y sugiere un orden de visita."""
     import datetime as _dt
     activos = [t for t in tickets if es_ticket_ceyh(t) and t.get("estado") not in ("Resuelto", "Cerrado")]
+    _pmap_sug = {"alta": 1, "media": 2, "baja": 3}
+    def _prio_sug(t):
+        p = t.get("prioridad")
+        try:
+            return int(p) if p is not None else 4
+        except (ValueError, TypeError):
+            return _pmap_sug.get(str(p).lower(), 4)
+
     por_suc = {}
     for t in activos:
         suc = str(t.get("sucursal", "")).strip()
@@ -1231,7 +1239,7 @@ def sugerir_recorrido_ceyh(tickets):
     hoy = _dt.date.today()
     paradas = []
     for suc, tks in por_suc.items():
-        prioridad_max = min((int(t.get("prioridad") or 4) for t in tks), default=4)
+        prioridad_max = min((_prio_sug(t) for t in tks), default=4)
         num_tickets = len(tks)
         # días desde creación del ticket más viejo
         dias_max = 0
