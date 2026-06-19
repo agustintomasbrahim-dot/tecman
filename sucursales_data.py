@@ -74,7 +74,6 @@ SUCURSALES_INFO = {
     "186": {"marca": "DX", "tienda": "Dexter Panamericana", "ciudad": "Martinez", "provincia": "Buenos Aires", "direccion": "Campiclo 2098", "lat": -34.5087, "lng": -58.5225},
     "187": {"marca": "SC", "tienda": "Stock Center Lomas Center", "ciudad": "Lomas de Zamora", "provincia": "Buenos Aires", "direccion": "Av. Antartida Argentina 705", "lat": -34.7613, "lng": -58.3997},
     "188": {"marca": "MV", "tienda": "Moov Quilmes", "ciudad": "Quilmes", "provincia": "Buenos Aires", "direccion": "Patrioal Rivadavia 216", "lat": -34.7299, "lng": -58.2534},
-    "190": {"marca": "SC", "tienda": "Stock Center Soleil", "ciudad": "San Isidro", "provincia": "Buenos Aires", "direccion": "Bernardo De Irigoyen 2647", "lat": -34.4724, "lng": -58.5118},
     "191": {"marca": "DX", "tienda": "Dexter Tucuman", "ciudad": "San Miguel de Tucuman", "provincia": "Tucuman", "direccion": "Muñecas 184", "lat": -26.8083, "lng": -65.2176},
     "192": {"marca": "DX", "tienda": "Dexter Portal San Martin", "ciudad": "San Martin", "provincia": "Buenos Aires", "direccion": "San Lorenzo 3771", "lat": -34.5700, "lng": -58.5340},
     "193": {"marca": "SC", "tienda": "Stock Center Salta", "ciudad": "Salta Ciudad", "provincia": "Salta", "direccion": "Patriotal Florida 160", "lat": -24.7859, "lng": -65.4117},

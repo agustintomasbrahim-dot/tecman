@@ -593,15 +593,6 @@
     "provincia": "Buenos Aires",
     "direccion": "Peatonal Rivadavia 174"
   },
-  "190": {
-    "num": 190,
-    "banda": "SC",
-    "tienda": "Stock Shop.Soleil",
-    "segmentacion": "Centro Comercial Irsa",
-    "ciudad": "San Isidro",
-    "provincia": "Buenos Aires",
-    "direccion": "Bernardo De Irigoyen 2647"
-  },
   "191": {
     "num": 191,
     "banda": "DX",
@@ -862,15 +853,6 @@
     "ciudad": "Morón",
     "provincia": "Buenos Aires",
     "direccion": "Av. Cañada De Juan Ruiz 700"
-  },
-  "223": {
-    "num": 223,
-    "banda": "MV",
-    "tienda": "Moov Jose C Paz",
-    "segmentacion": "Tienda a la Calle",
-    "ciudad": "Jose C PAZ",
-    "provincia": "Buenos Aires",
-    "direccion": "Presidente Yrigoyen 1851"
   },
   "224": {
     "num": 224,

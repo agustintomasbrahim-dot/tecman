@@ -231,8 +231,7 @@ SUCURSAL_EMAILS = {
     "185": "suc185@grupodabra.com.ar",
     "186": "suc186@grupodabra.com.ar",
     "187": "suc187@grupodabra.com.ar",
-    "188": "suc188@grupodabra.com.ar",
-    "190": "suc190@grupodabra.com.ar",
+    "188": "suc188@grupodabra.com.ar": "suc190@grupodabra.com.ar",
     "191": "suc191@grupodabra.com.ar",
     "192": "suc192@grupodabra.com.ar",
     "193": "suc193@grupodabra.com.ar",
@@ -261,8 +260,7 @@ SUCURSAL_EMAILS = {
     "219": "suc219@grupodabra.com.ar",
     "220": "suc220@grupodabra.com.ar",
     "221": "suc221@grupodabra.com.ar",
-    "222": "suc222@grupodabra.com.ar",
-    "223": "suc223@grupodabra.com.ar",
+    "222": "suc222@grupodabra.com.ar": "suc223@grupodabra.com.ar",
     "224": "suc224@grupodabra.com.ar",
     "226": "suc226@grupodabra.com.ar",
     "228": "suc228@grupodabra.com.ar",
@@ -1489,9 +1487,9 @@ PROVEEDOR_USERS = {
 
 # Proveedores database
 PROVEEDORES = [
-    {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","190","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
-    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","028","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","190","192","194","195","196","198","199","200","202","204","208","209","211","213","214","216","219","221","222","228","232","234","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
-    {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "General", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "sucursales": ["011","023","036","077","147","176","177","183","186","198","209","211","213","222","223","234"]},
+    {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
+    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","028","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","192","194","195","196","198","199","200","202","204","208","209","211","213","214","216","219","221","222","228","232","234","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
+    {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "General", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "sucursales": ["011","023","036","077","147","176","177","183","186","198","209","211","213","222","234"]},
     {"nombre": "Angel JYS", "zona": "AMBA", "tipo": "General", "tel": "113560-9316", "sucursales": ["Zona Norte AMBA"]},
     {"nombre": "Jorge (Limpieza vidrios)", "zona": "AMBA", "tipo": "Limpieza", "tel": "115182-7823", "sucursales": ["AMBA general"]},
     {"nombre": "Polaris", "zona": "AMBA", "tipo": "General", "tel": "11 6527-7128", "contacto": "Lucas", "fijo": True, "sucursales": ["171","183","184"]},
@@ -1518,7 +1516,7 @@ PROVEEDORES = [
     {"nombre": "Atila Generaciones", "zona": "AMBA", "tipo": "Grupos electrogenos", "tel": "115318-3306", "contacto": "Waldo", "fijo": True, "sucursales": ["195","208","211","Garin"]},
     {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"]},
     # --- Proveedores de fumigacion por sucursal ---
-    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","190","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"], "mostrar_sucursal": False},
+    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"], "mostrar_sucursal": False},
     {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "sucursales": ["011","058","065","077","080","082","083","142","173","188","191","194","195","209","211","216","222","230"], "mostrar_sucursal": False},
     {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "sucursales": ["076","078","123","124","203","215","233"], "mostrar_sucursal": False},
     {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "sucursales": ["222"]},
