@@ -1,0 +1,41 @@
+{
+  "nombre": "Piloto operativo CEYH",
+  "fecha_definicion": "2026-07-02",
+  "criterio": "Seleccion automatica de 5 sucursales activas cubiertas por proveedor fijo CEYH, priorizando sucursales con datos ya cargados para probar tickets, proveedor, S&H y seguimiento sin abrir el sistema a toda la red.",
+  "proveedor": "CEYH",
+  "estado": "preparado",
+  "sucursales": [
+    {
+      "numero": "195",
+      "nombre": "Sucursal 195",
+      "motivo": "CEYH fijo; seleccionada por definicion operativa para el piloto."
+    },
+    {
+      "numero": "213",
+      "nombre": "Sucursal 213",
+      "motivo": "CEYH fijo; seleccionada por definicion operativa para el piloto."
+    },
+    {
+      "numero": "014",
+      "nombre": "Sucursal 014",
+      "motivo": "CEYH fijo y habilitacion cargada; sirve para validar carga/respuesta de sucursal."
+    },
+    {
+      "numero": "211",
+      "nombre": "Sucursal 211",
+      "motivo": "CEYH fijo; seleccionada por definicion operativa para el piloto."
+    },
+    {
+      "numero": "036",
+      "nombre": "Sucursal 036",
+      "motivo": "CEYH fijo y con gestion S&H cargada; util para probar cruce entre mantenimiento y S&H."
+    }
+  ],
+  "reglas_piloto": [
+    "No abrir el sistema a las 111 sucursales hasta cerrar la prueba.",
+    "Crear tickets reales solamente para estas 5 sucursales durante el piloto.",
+    "CEYH debe actualizar cada ticket desde el portal proveedor.",
+    "Admin debe revisar diariamente tickets sin movimiento, bloqueos y cierres.",
+    "Al final de la semana, medir cantidad de tickets creados, tiempos de respuesta, bloqueos y errores de uso."
+  ]
+}

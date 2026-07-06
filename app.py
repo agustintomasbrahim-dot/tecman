@@ -231,7 +231,7 @@ SUCURSAL_EMAILS = {
     "185": "suc185@grupodabra.com.ar",
     "186": "suc186@grupodabra.com.ar",
     "187": "suc187@grupodabra.com.ar",
-    "188": "suc188@grupodabra.com.ar": "suc190@grupodabra.com.ar",
+    "188": "suc188@grupodabra.com.ar",
     "191": "suc191@grupodabra.com.ar",
     "192": "suc192@grupodabra.com.ar",
     "193": "suc193@grupodabra.com.ar",
@@ -260,7 +260,7 @@ SUCURSAL_EMAILS = {
     "219": "suc219@grupodabra.com.ar",
     "220": "suc220@grupodabra.com.ar",
     "221": "suc221@grupodabra.com.ar",
-    "222": "suc222@grupodabra.com.ar": "suc223@grupodabra.com.ar",
+    "222": "suc222@grupodabra.com.ar",
     "224": "suc224@grupodabra.com.ar",
     "226": "suc226@grupodabra.com.ar",
     "228": "suc228@grupodabra.com.ar",
@@ -1029,7 +1029,7 @@ def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
 
 def enviar_alertas_matafuegos_email():
     alertas = load_alertas_syh().get("alertas", [])
-    alertas_mat = [a for a in alertas if a.get("tipo_alerta") != "habilitacion"]
+    alertas_mat = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) != "habilitacion"]
     if not alertas_mat:
         return {"sent": 0, "reason": "no_alertas"}
 
@@ -1464,25 +1464,26 @@ _PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
 
 # Proveedor login
 PROVEEDOR_USERS = {
-    "ceyh": {"password": _PROVEEDOR_PWD, "nombre": "CEYH"},
-    "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda"},
-    "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)"},
-    "ismael": {"password": _PROVEEDOR_PWD, "nombre": "Ismael Allende (JRF)"},
-    "escalmeca": {"password": _PROVEEDOR_PWD, "nombre": "Escalmeca / Mauricio"},
+    "ceyh": {"password": _PROVEEDOR_PWD, "nombre": "CEYH", "tipo_cuenta": "abono_fijo", "proveedores": ["CEYH"]},
+    "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda", "tipo_cuenta": "abono_fijo", "proveedores": ["Gustavo Avellaneda"]},
+    "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)", "tipo_cuenta": "abono_fijo", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
+    "ismael": {"password": _PROVEEDOR_PWD, "nombre": "Ismael Allende (JRF)", "tipo_cuenta": "abono_fijo", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
+    "escalmeca": {"password": _PROVEEDOR_PWD, "nombre": "Escalmeca / Mauricio", "tipo_cuenta": "abono_fijo", "proveedores": ["Escalmeca / Mauricio"]},
     "adriel": {"password": _PROVEEDOR_PWD, "nombre": "Adriel (Pintor)"},
     "oscar": {"password": _PROVEEDOR_PWD, "nombre": "Oscar San Juan"},
     "jose": {"password": _PROVEEDOR_PWD, "nombre": "Jose Sanchez"},
     "blanco": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Blanco"},
     "nestor": {"password": _PROVEEDOR_PWD, "nombre": "Nestor Raul Diaz"},
-    "federico": {"password": _PROVEEDOR_PWD, "nombre": "Federico Confort"},
+    "federico": {"password": _PROVEEDOR_PWD, "nombre": "Federico Confort", "tipo_cuenta": "abono_fijo", "proveedores": ["Federico Confort"]},
     "javier": {"password": _PROVEEDOR_PWD, "nombre": "Javier"},
     "nicolas": {"password": _PROVEEDOR_PWD, "nombre": "Nicolas Audio"},
     "frattini": {"password": _PROVEEDOR_PWD, "nombre": "Cesar Frattini (No Bugs)"},
-    "polaris": {"password": _PROVEEDOR_PWD, "nombre": "Polaris"},
-    "astronovo": {"password": _PROVEEDOR_PWD, "nombre": "Astronovo"},
+    "polaris": {"password": _PROVEEDOR_PWD, "nombre": "Polaris", "tipo_cuenta": "abono_fijo", "proveedores": ["Polaris"]},
+    "astronovo": {"password": _PROVEEDOR_PWD, "nombre": "Astronovo", "tipo_cuenta": "abono_fijo", "proveedores": ["Astronovo AM", "Astronovo HV"]},
     "geronimo": {"password": _PROVEEDOR_PWD, "nombre": "Geronimo - Leo"},
     "croacia": {"password": _PROVEEDOR_PWD, "nombre": "Croacia"},
     "microglobal": {"password": _PROVEEDOR_PWD, "nombre": "Martin Microglobal"},
+    "atila": {"password": _PROVEEDOR_PWD, "nombre": "Atila Generaciones", "tipo_cuenta": "abono_fijo", "proveedores": ["Atila Generaciones"]},
 }
 
 # Proveedores database
@@ -1495,12 +1496,12 @@ PROVEEDORES = [
     {"nombre": "Polaris", "zona": "AMBA", "tipo": "General", "tel": "11 6527-7128", "contacto": "Lucas", "fijo": True, "sucursales": ["171","183","184"]},
     {"nombre": "Astronovo AM", "zona": "AMBA", "tipo": "General", "tel": "11 5182-3968", "contacto": "Dylan", "fijo": True, "sucursales": ["186"]},
     {"nombre": "Astronovo HV", "zona": "AMBA", "tipo": "General", "tel": "11 3813-9215", "contacto": "Horacio", "fijo": True, "sucursales": ["176"]},
-    {"nombre": "Escalmeca / Mauricio", "zona": "AMBA", "tipo": "Escaleras mecanicas", "tel": "115308-9834", "sucursales": ["183","184","186"], "monto": "$688.000 + IVA/mes", "incluye": "Mantenimiento preventivo de 8 escaleras mecanicas en 3 sucursales, lubricacion, engrase, limpieza, desarme parcial", "no_incluye": "-"},
+    {"nombre": "Escalmeca / Mauricio", "zona": "AMBA", "tipo": "Escaleras mecanicas", "tel": "115308-9834", "fijo": True, "sucursales": ["183","184","186"], "monto": "$688.000 + IVA/mes", "incluye": "Mantenimiento preventivo de 8 escaleras mecanicas en 3 sucursales, lubricacion, engrase, limpieza, desarme parcial", "no_incluye": "-"},
     {"nombre": "L&G (Geronimo)", "zona": "AMBA", "tipo": "Tecnicos", "tel": "54 9 2236 69-2804", "contacto": "Geronimo", "fijo": False, "sucursales": ["092","217","239","240"]},
     {"nombre": "Nicolas Audio", "zona": "Nacional", "tipo": "Audio", "tel": "-", "sucursales": ["036","049","053","065","077","083","091","092","125","127","128","141","148","156","165","166","167","176","177","183","186","194","200","202","210","211","213","216","226"]},
-    {"nombre": "Gustavo Avellaneda", "zona": "Cordoba", "tipo": "General", "tel": "0351-320-1198", "sucursales": ["076","078","123","124","203","215","224","233"], "monto": "$1.800.000/mes", "incluye": "Limpieza canaletas/techos, filtros AA, destapes, plomeria menor, albañileria menor, pintura menor, luminarias, cerraduras, arranque semanal generadores, mantenimiento AA planificado", "no_incluye": "Combustible, pintura grande, zingueria, techos, albañileria mayor"},
+    {"nombre": "Gustavo Avellaneda", "zona": "Cordoba", "tipo": "General", "tel": "0351-320-1198", "fijo": True, "sucursales": ["076","078","123","124","203","215","224","233"], "monto": "$1.800.000/mes", "incluye": "Limpieza canaletas/techos, filtros AA, destapes, plomeria menor, albañileria menor, pintura menor, luminarias, cerraduras, arranque semanal generadores, mantenimiento AA planificado", "no_incluye": "Combustible, pintura grande, zingueria, techos, albañileria mayor"},
     {"nombre": "Adriel (Pintor)", "zona": "Cordoba", "tipo": "Pintura", "tel": "351-860-2101", "sucursales": ["076","078","123","124","203","215","233"]},
-    {"nombre": "Julio Fuga (JRF)", "zona": "NOA", "tipo": "Electrico + AA + Gral", "tel": "0381-454-5659", "sucursales": ["120","126","128","132","135","139","145","146","158","173","191","193","206","207","212","229","230","234","235","236"], "monto": "$2.050.000 + IVA/mes + San Luis/Mendoza $1.200.000", "incluye": "Mto electrico preventivo (luminarias, tableros, bornes, termicas), mto AA (filtros, evaporadora, condensadora, desagues, plaquetas), 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
+    {"nombre": "Julio Fuga (JRF)", "zona": "NOA", "tipo": "Electrico + AA + Gral", "tel": "0381-454-5659", "fijo": True, "sucursales": ["120","126","128","132","135","139","145","146","158","173","191","193","206","207","212","229","230","234","235","236"], "monto": "$2.050.000 + IVA/mes + San Luis/Mendoza $1.200.000", "incluye": "Mto electrico preventivo (luminarias, tableros, bornes, termicas), mto AA (filtros, evaporadora, condensadora, desagues, plaquetas), 3 personas/visita, 2 urgencias/mes/suc", "no_incluye": "-"},
     {"nombre": "Oscar San Juan", "zona": "San Juan", "tipo": "General", "tel": "0264-498-5365", "sucursales": ["159","172"]},
     {"nombre": "Jose Sanchez", "zona": "San Juan", "tipo": "General", "tel": "0264-504-1961", "sucursales": ["159","172"]},
     {"nombre": "Majo / Nivelar Construcciones", "zona": "Chaco/Corrientes", "tipo": "General / Construccion", "tel": "54 9 364 430-2787", "contacto": "Maria Jose", "fijo": False, "sucursales": ["220","224"]},
@@ -1550,6 +1551,29 @@ PROVEEDORES = [
 ]
 
 ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
+
+
+def _proveedor_nombres_usuario(user=None):
+    info = PROVEEDOR_USERS.get(user or session.get("prov_user"), {})
+    nombres = list(info.get("proveedores") or [])
+    if info.get("nombre") and info["nombre"] not in nombres:
+        nombres.append(info["nombre"])
+    return nombres
+
+
+def _proveedores_abono_usuario(user=None):
+    nombres = set(_proveedor_nombres_usuario(user))
+    return [p for p in PROVEEDORES if p.get("fijo") and p.get("nombre") in nombres]
+
+
+def _ticket_es_de_proveedor(ticket, nombres):
+    campos = (
+        ticket.get("asignado"),
+        ticket.get("asignado_proveedor"),
+        ticket.get("proveedor_nombre"),
+        ticket.get("proveedor_presupuesto"),
+    )
+    return any(v in nombres for v in campos if v)
 
 
 # --- Helpers ---
@@ -3084,6 +3108,7 @@ def prov_login():
         if user in PROVEEDOR_USERS and PROVEEDOR_USERS[user]["password"] == pwd:
             session["prov_user"] = user
             session["prov_nombre"] = PROVEEDOR_USERS[user]["nombre"]
+            session["prov_tipo_cuenta"] = PROVEEDOR_USERS[user].get("tipo_cuenta", "proveedor")
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template("prov_login.html")
@@ -3093,6 +3118,7 @@ def prov_login():
 def prov_logout():
     session.pop("prov_user", None)
     session.pop("prov_nombre", None)
+    session.pop("prov_tipo_cuenta", None)
     return redirect(url_for("prov_login"))
 
 
@@ -3101,8 +3127,13 @@ def prov_logout():
 def prov_panel():
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
+    nombres_proveedor = _proveedor_nombres_usuario()
+    proveedores_abono = _proveedores_abono_usuario()
+    sucursales_abono = sorted({
+        s for p in proveedores_abono for s in p.get("sucursales", [])
+    })
     jornadas_hoy = []
-    mis_tickets = [t for t in tickets if t.get("asignado") == prov_nombre and t["estado"] not in ("Cerrado",)]
+    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t["estado"] not in ("Cerrado",)]
     pendientes_todo = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
     trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
     pendientes = [t for t in pendientes_todo if t.get("tipo") != "trabajo_proveedor"]
@@ -3111,7 +3142,7 @@ def prov_panel():
     # Notifications for provider
     notif_prov = []
     for t in tickets:
-        if t.get("asignado") == prov_nombre:
+        if _ticket_es_de_proveedor(t, nombres_proveedor):
             for n in t.get("notificaciones_prov", []):
                 notif_prov.append({"ticket_id": t["id"], "sucursal": t["sucursal"], **n})
     notif_prov.sort(key=lambda x: x.get("fecha", ""), reverse=True)
@@ -3136,6 +3167,8 @@ def prov_panel():
         notificaciones=notif_prov,
         retiros_ceyh=retiros_ceyh,
         jornadas_hoy=jornadas_hoy,
+        proveedores_abono=proveedores_abono,
+        sucursales_abono=sucursales_abono,
     )
 
 
@@ -3146,6 +3179,9 @@ def prov_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    nombres_proveedor = _proveedor_nombres_usuario()
+    if not _ticket_es_de_proveedor(ticket, nombres_proveedor):
+        return render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
@@ -6693,8 +6729,8 @@ def api_resumen():
     def mini(t):
         return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("fecha") or "")[:10]}
     alertas = load_alertas_syh().get("alertas", [])
-    alertas_mat = [a for a in alertas if a.get("tipo_alerta") != "habilitacion" and a.get("estado") in ("Vencidos", "Próximo a vencer")]
-    alertas_hab = [a for a in alertas if a.get("tipo_alerta") == "habilitacion" and a.get("estado") in ("Vencida", "Próxima a vencer")]
+    alertas_mat = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) != "habilitacion" and a.get("estado") in ("Vencidos", "Próximo a vencer", "Proximo a vencer")]
+    alertas_hab = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) == "habilitacion" and a.get("estado") in ("Vencida", "Próxima a vencer", "Proxima a vencer")]
     def mini_alerta(a):
         return {"sucursal": a.get("sucursal_num"), "estado": a.get("estado"), "tipos": a.get("tipos"), "proximo_vto": a.get("proximo_vto")}
     return jsonify({

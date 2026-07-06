@@ -110,7 +110,7 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div>
         <h2>{{ session.prov_nombre }}</h2>
-        <p style="color: #64748b;">Portal de proveedor</p>
+        <p style="color: #64748b;">Portal de proveedor{% if session.prov_tipo_cuenta == 'abono_fijo' %} · abono fijo{% endif %}</p>
     </div>
     <div style="display: flex; gap: 12px;">
         <div class="stat-card" style="min-width: 100px;">
@@ -123,6 +123,29 @@
         </div>
     </div>
 </div>
+
+{% if proveedores_abono %}
+<div class="card" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 16px;">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+            <h3 style="font-size:14px;color:#92400e;margin-bottom:6px;">Cobertura de abono</h3>
+            {% for p in proveedores_abono %}
+            <div style="font-size:13px;color:#374151;margin-top:4px;">
+                <strong>{{ p.nombre }}</strong> · {{ p.tipo }} · {{ p.zona }}
+                {% if p.monto %}<span style="color:#6b7280;"> · {{ p.monto }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div style="text-align:right;min-width:140px;">
+            <div style="font-size:24px;font-weight:800;color:#f59e0b;">{{ sucursales_abono|length }}</div>
+            <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;">Sucursales cubiertas</div>
+        </div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:#6b7280;line-height:1.45;">
+        El abono cubre mano de obra y visitas segun contrato. Materiales, consumibles, trabajos fuera de alcance u horario se informan como presupuesto adicional.
+    </div>
+</div>
+{% endif %}
 
 {% if session.prov_nombre == 'CEYH' and retiros_ceyh %}
 <h3 style="color: #1d4ed8; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">&#128230; Retiros en Dabra Central</h3>
