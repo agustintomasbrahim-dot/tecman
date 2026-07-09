@@ -6037,23 +6037,6 @@ def admin_notif_leer_todas():
     return redirect(request.referrer or url_for("admin_panel"))
 
 
-@app.route("/admin/maintenance/clear-tickets-20260709", methods=["POST"])
-@admin_required
-def admin_maintenance_clear_tickets_20260709():
-    backup_dir = DATA_DIR / "backups"
-    backup_dir.mkdir(exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = backup_dir / f"tickets_antes_limpieza_{timestamp}.json"
-    if TICKETS_FILE.exists():
-        shutil.copy2(TICKETS_FILE, backup_file)
-    save_tickets([])
-    return jsonify({
-        "ok": True,
-        "message": "tickets cleared",
-        "backup": str(backup_file),
-    })
-
-
 @app.route("/admin/comprobantes/eliminar/<cid>", methods=["POST"])
 @admin_required
 def admin_comprobantes_eliminar(cid):
