@@ -9,6 +9,7 @@ import datetime
 import shutil
 import smtplib
 import ssl
+import copy
 from pathlib import Path
 from functools import wraps
 from email.mime.multipart import MIMEMultipart
@@ -160,6 +161,7 @@ _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar")
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
+AGUSTIN_EMAIL = os.environ.get("AGUSTIN_EMAIL", "agustintomasbrahim@gmail.com")
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -1027,6 +1029,21 @@ def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
         server.sendmail(GMAIL_USER, recipients, msg.as_bytes())
 
 
+def _unique_recipients(*addresses):
+    recipients = []
+    seen = set()
+    for address in addresses:
+        if not address:
+            continue
+        for item in (address if isinstance(address, (list, tuple, set)) else str(address).split(",")):
+            email = str(item).strip()
+            key = email.lower()
+            if email and key not in seen:
+                recipients.append(email)
+                seen.add(key)
+    return recipients
+
+
 def enviar_alertas_matafuegos_email():
     alertas = load_alertas_syh().get("alertas", [])
     alertas_mat = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) != "habilitacion"]
@@ -1078,7 +1095,10 @@ def enviar_alertas_matafuegos_email():
           <p style='margin-top:16px;color:#6b7280;font-size:13px;'>Generado automáticamente por Tecman.</p>
         </div>
         """
-        _smtp_send(PATRICIA_EMAIL, f"Tecman - Resumen alertas matafuegos ({len(pendientes)} alertas, {len(por_sucursal)} sucursales)", html_patricia)
+        resumen_recipients = _unique_recipients(PATRICIA_EMAIL, AGUSTIN_EMAIL)
+        if not resumen_recipients:
+            raise RuntimeError("PATRICIA_EMAIL/AGUSTIN_EMAIL no configurados")
+        _smtp_send(resumen_recipients, f"Tecman - Resumen alertas matafuegos ({len(pendientes)} alertas, {len(por_sucursal)} sucursales)", html_patricia)
 
         for a, stamp in pendientes:
             sent_map[a.get("id")] = stamp
@@ -1566,6 +1586,16 @@ def _proveedores_abono_usuario(user=None):
     return [p for p in PROVEEDORES if p.get("fijo") and p.get("nombre") in nombres]
 
 
+def _proveedores_sin_montos(proveedores):
+    """Oculta importes contractuales en vistas no administrativas."""
+    visibles = []
+    for proveedor in proveedores:
+        p = copy.deepcopy(proveedor)
+        p.pop("monto", None)
+        visibles.append(p)
+    return visibles
+
+
 def _ticket_es_de_proveedor(ticket, nombres):
     campos = (
         ticket.get("asignado"),
@@ -1896,7 +1926,7 @@ def suc_panel():
         "suc_panel.html",
         tickets=mis_tickets,
         prioridades=PRIORIDADES,
-        mis_proveedores=mis_proveedores,
+        mis_proveedores=_proveedores_sin_montos(mis_proveedores),
         notificaciones=notificaciones,
         mi_stock_insumos=mi_stock_insumos,
         mi_stock_manten=mi_stock_manten,
@@ -2031,7 +2061,7 @@ def suc_proveedores():
                     continue
                 mis_proveedores.append(p)
                 break
-    return render_template("suc_proveedores.html", mis_proveedores=mis_proveedores)
+    return render_template("suc_proveedores.html", mis_proveedores=_proveedores_sin_montos(mis_proveedores))
 
 
 @app.route("/nuevo", methods=["GET", "POST"])
@@ -3128,7 +3158,7 @@ def prov_panel():
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
     nombres_proveedor = _proveedor_nombres_usuario()
-    proveedores_abono = _proveedores_abono_usuario()
+    proveedores_abono = _proveedores_sin_montos(_proveedores_abono_usuario())
     sucursales_abono = sorted({
         s for p in proveedores_abono for s in p.get("sucursales", [])
     })
@@ -6672,7 +6702,7 @@ def admin_syh_enviar_alertas():
     reason = result.get("reason", "")
     sent = result.get("sent", 0)
     if reason == "ok":
-        flash(f"Alertas enviadas: {sent} sucursal(es) notificadas + resumen a Patricia.")
+        flash(f"Alertas enviadas: {sent} sucursal(es) notificadas + resumen a Patricia y Agustín.")
     elif reason == "no_alertas":
         flash("No hay alertas de matafuegos activas.")
     elif reason == "sin_cambios":
