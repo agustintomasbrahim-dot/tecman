@@ -172,12 +172,52 @@
     <div class="ticket-description-box">{{ ticket.descripcion }}</div>
 
     {% if ticket.fotos %}
-    <h3 class="ticket-section-title" style="margin-top: 18px;">Fotos</h3>
+    <h3 class="ticket-section-title" style="margin-top: 18px;">Fotos y videos</h3>
     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
         {% for foto in ticket.fotos %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-lg" controls preload="metadata"></video>
+        {% else %}
         <a href="/static/uploads/{{ foto }}" target="_blank">
             <img src="/static/uploads/{{ foto }}" class="foto-thumb" alt="Foto" style="width: 120px; height: 120px;">
         </a>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if ticket.fotos_antes is defined and ticket.fotos_antes %}
+    <h3 class="ticket-section-title" style="margin-top: 18px;">Antes del trabajo</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for foto in ticket.fotos_antes %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-lg" controls preload="metadata"></video>
+        {% else %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-lg"></a>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if ticket.fotos_despues is defined and ticket.fotos_despues %}
+    <h3 class="ticket-section-title" style="margin-top: 18px;">Despues del trabajo</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for foto in ticket.fotos_despues %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-lg" controls preload="metadata"></video>
+        {% else %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-lg"></a>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if ticket.fotos_trabajo is defined and ticket.fotos_trabajo %}
+    <h3 class="ticket-section-title" style="margin-top: 18px;">Trabajo equipo central</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for foto in ticket.fotos_trabajo %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-lg" controls preload="metadata"></video>
+        {% else %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-lg"></a>
+        {% endif %}
         {% endfor %}
     </div>
     {% endif %}

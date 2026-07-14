@@ -52,7 +52,11 @@
     {% if ticket.fotos %}
     <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px;">
         {% for foto in ticket.fotos %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+        {% else %}
         <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endif %}
         {% endfor %}
     </div>
     {% endif %}
@@ -72,10 +76,14 @@
 <!-- Fotos antes/despues -->
 {% if ticket.fotos_antes is defined and ticket.fotos_antes %}
 <div class="card">
-    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos ANTES</h3>
+    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos y videos ANTES</h3>
     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
         {% for foto in ticket.fotos_antes %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+        {% else %}
         <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -83,10 +91,14 @@
 
 {% if ticket.fotos_despues is defined and ticket.fotos_despues %}
 <div class="card">
-    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos DESPUES</h3>
+    <h3 style="margin-bottom: 8px; font-size: 14px; color: #6b7280;">Fotos y videos DESPUES</h3>
     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
         {% for foto in ticket.fotos_despues %}
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+        {% else %}
         <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="foto-thumb"></a>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -146,7 +158,11 @@
         {% if nota.fotos is defined %}
         <div style="margin-top: 6px; display: flex; gap: 4px;">
             {% for foto in nota.fotos %}
-            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+            {% if is_video_file(foto) %}
+            <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+            {% else %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb"></a>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}

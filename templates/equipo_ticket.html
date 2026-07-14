@@ -64,10 +64,14 @@
 <!-- Fotos iniciales del ticket -->
 {% if ticket.fotos %}
 <div class="card" style="padding: 14px;">
-    <h4 style="color: #ea580c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos de la sucursal</h4>
+    <h4 style="color: #ea580c; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos y videos de la sucursal</h4>
     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
         {% for foto in ticket.fotos %}
-        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 96px; height: 96px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb;"></a>
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-md" controls preload="metadata"></video>
+        {% else %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-md"></a>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -76,10 +80,14 @@
 <!-- Fotos del trabajo realizado -->
 {% if ticket.fotos_trabajo %}
 <div class="card" style="padding: 14px;">
-    <h4 style="color: #059669; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos del trabajo</h4>
+    <h4 style="color: #059669; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Fotos y videos del trabajo</h4>
     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
         {% for foto in ticket.fotos_trabajo %}
-        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 96px; height: 96px; border-radius: 6px; object-fit: cover; border: 1px solid #e5e7eb;"></a>
+        {% if is_video_file(foto) %}
+        <video src="/static/uploads/{{ foto }}" class="media-thumb-md" controls preload="metadata"></video>
+        {% else %}
+        <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-md"></a>
+        {% endif %}
         {% endfor %}
     </div>
 </div>
@@ -112,12 +120,12 @@
 </div>
 {% endif %}
 
-<!-- Subir foto del trabajo -->
+<!-- Subir archivo del trabajo -->
 <div class="card">
-    <h3 style="margin-bottom: 10px;">&#128247; Subir foto del trabajo</h3>
+    <h3 style="margin-bottom: 10px;">&#128247; Subir foto o video del trabajo</h3>
     <form method="POST" action="{{ url_for('equipo_ticket_foto', ticket_id=ticket.id) }}" enctype="multipart/form-data">
-        <input type="file" name="foto" accept="image/*" capture="environment" required style="padding: 8px; width: 100%; margin-bottom: 8px;">
-        <button type="submit" class="btn btn-block" style="background: #ea580c; color: white;">Subir foto</button>
+        <input type="file" name="foto" accept="{{ media_accept }}" required style="padding: 8px; width: 100%; margin-bottom: 8px;">
+        <button type="submit" class="btn btn-block" style="background: #ea580c; color: white;">Subir archivo</button>
     </form>
 </div>
 
@@ -146,7 +154,11 @@
             {% if nota.fotos is defined %}
             <div style="margin-top: 6px; display: flex; gap: 4px;">
                 {% for foto in nota.fotos %}
-                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+                {% if is_video_file(foto) %}
+                <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+                {% else %}
+                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb"></a>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}

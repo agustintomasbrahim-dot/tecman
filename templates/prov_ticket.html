@@ -116,7 +116,11 @@
         {% if fotos_antes %}
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
             {% for foto in fotos_antes %}
-            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover;"></a>
+            {% if is_video_file(foto) %}
+            <video src="/static/uploads/{{ foto }}" class="media-thumb-md" controls preload="metadata"></video>
+            {% else %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-md"></a>
+            {% endif %}
             {% endfor %}
         </div>
         {% else %}<p style="color: #475569; font-size: 13px;">Sin fotos</p>{% endif %}
@@ -126,7 +130,11 @@
         {% if fotos_despues %}
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
             {% for foto in fotos_despues %}
-            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover;"></a>
+            {% if is_video_file(foto) %}
+            <video src="/static/uploads/{{ foto }}" class="media-thumb-md" controls preload="metadata"></video>
+            {% else %}
+            <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb-md"></a>
+            {% endif %}
             {% endfor %}
         </div>
         {% else %}<p style="color: #475569; font-size: 13px;">Sin fotos</p>{% endif %}
@@ -230,14 +238,14 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="accion" value="foto_antes">
-                <label style="color: #e63946; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto ANTES</label>
-                <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
+                <label style="color: #e63946; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto o video ANTES</label>
+                <input type="file" name="foto" accept="{{ media_accept }}" style="padding: 8px; width: 100%;" required>
                 <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="accion" value="foto_despues">
-                <label style="color: #374151; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto DESPUES</label>
-                <input type="file" name="foto" accept="image/*" capture="environment" style="padding: 8px; width: 100%;" required>
+                <label style="color: #374151; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto o video DESPUES</label>
+                <input type="file" name="foto" accept="{{ media_accept }}" style="padding: 8px; width: 100%;" required>
                 <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
         </div>
@@ -256,7 +264,7 @@
                 </div>
                 <div>
                     <label style="color: #94a3b8; font-size: 12px;">Archivo (opcional)</label>
-                    <input type="file" name="archivo_presupuesto" accept="image/*,.pdf" style="padding: 8px; width: 100%;">
+                    <input type="file" name="archivo_presupuesto" accept="{{ ticket_attachment_accept }}" style="padding: 8px; width: 100%;">
                 </div>
             </div>
             <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 10px;">Enviar presupuesto</button>
@@ -270,7 +278,7 @@
             <textarea name="informe" placeholder="Descripcion del trabajo, materiales usados, observaciones tecnicas..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 100px; font-size: 15px;" required></textarea>
             <div style="margin-top: 10px;">
                 <label style="color: #94a3b8; font-size: 12px;">Adjuntar archivo (opcional)</label>
-                <input type="file" name="archivo_informe" accept="image/*,.pdf" style="padding: 8px;">
+                <input type="file" name="archivo_informe" accept="{{ ticket_attachment_accept }}" style="padding: 8px;">
             </div>
             <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 10px;">Enviar informe</button>
         </form>
@@ -311,7 +319,11 @@
             {% if nota.fotos is defined %}
             <div style="margin-top: 6px; display: flex; gap: 4px;">
                 {% for foto in nota.fotos %}
-                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" style="width: 60px; height: 60px; border-radius: 4px; object-fit: cover;"></a>
+                {% if is_video_file(foto) %}
+                <video src="/static/uploads/{{ foto }}" class="media-thumb" controls preload="metadata"></video>
+                {% else %}
+                <a href="/static/uploads/{{ foto }}" target="_blank"><img src="/static/uploads/{{ foto }}" class="media-thumb"></a>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
@@ -396,7 +408,7 @@
                     </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <div style="width: 28px; height: 28px; border-radius: 50%; background: #e63946; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;">3</div>
-                        <span style="color: #1a1a2e; font-size: 13px;">Adjunta el archivo del presupuesto (PDF o foto)</span>
+                        <span style="color: #1a1a2e; font-size: 13px;">Adjunta el archivo del presupuesto (PDF, foto o video corto)</span>
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">

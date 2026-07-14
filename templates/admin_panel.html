@@ -191,7 +191,11 @@ function toggleNotif() {
             {% if t.fotos %}
             <div style="margin-top: 8px;">
                 {% for foto in t.fotos[:2] %}
-                <img src="/static/uploads/{{ foto }}" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid #e5e7eb;">
+                {% if is_video_file(foto) %}
+                <video src="/static/uploads/{{ foto }}" class="media-thumb-sm" preload="metadata" muted></video>
+                {% else %}
+                <img src="/static/uploads/{{ foto }}" class="media-thumb-sm">
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}

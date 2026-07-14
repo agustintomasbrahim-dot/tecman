@@ -112,8 +112,8 @@
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
-                    <label>Archivo (PDF o foto)</label>
-                    <input type="file" name="ppto_archivo_{{ n }}" accept=".pdf,.jpg,.jpeg,.png" style="padding:8px;">
+                    <label>Archivo (PDF, foto o video corto)</label>
+                    <input type="file" name="ppto_archivo_{{ n }}" accept="{{ ticket_attachment_accept }}" style="padding:8px;">
                 </div>
             </div>
             {% endfor %}
@@ -127,9 +127,9 @@
 
 
         <div class="form-group">
-            <label>Fotos (opcional, max 3)</label>
-            <input type="file" name="fotos" multiple accept="image/*" capture="environment" style="padding: 10px;">
-            <small style="color: #475569; display: block; margin-top: 6px;">Puede sacar fotos directamente desde la camara del celular</small>
+            <label>Fotos o videos cortos (opcional, max 3)</label>
+            <input type="file" name="fotos" multiple accept="{{ media_accept }}" style="padding: 10px;">
+            <small style="color: #475569; display: block; margin-top: 6px;">Puede sacar fotos o subir videos cortos desde el celular</small>
         </div>
 
         <button type="submit" class="btn btn-primary btn-block" style="font-size: 18px; padding: 16px; margin-top: 8px;">

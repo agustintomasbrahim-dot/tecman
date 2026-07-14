@@ -18,9 +18,36 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, Response
+from werkzeug.exceptions import RequestEntityTooLarge
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
+app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
+MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+TICKET_ATTACHMENT_EXTENSIONS = MEDIA_EXTENSIONS | {".pdf"}
+MEDIA_ACCEPT = "image/*,video/mp4,video/quicktime,video/webm"
+TICKET_ATTACHMENT_ACCEPT = f"{MEDIA_ACCEPT},.pdf"
+
+
+def is_video_file(filename):
+    return Path(str(filename or "")).suffix.lower() in VIDEO_EXTENSIONS
+
+
+@app.context_processor
+def inject_upload_helpers():
+    return {
+        "is_video_file": is_video_file,
+        "media_accept": MEDIA_ACCEPT,
+        "ticket_attachment_accept": TICKET_ATTACHMENT_ACCEPT,
+    }
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def archivo_demasiado_grande(error):
+    return render_template("error.html", mensaje="El archivo es demasiado grande. Subi videos cortos de hasta 60 MB."), 413
 
 # PostgreSQL via SQLAlchemy (dual-write con fallback a JSON)
 _DB_URL = os.environ.get("DATABASE_URL", "")
@@ -2076,7 +2103,7 @@ def nuevo_ticket():
         for f in request.files.getlist("fotos"):
             if f and f.filename:
                 ext = Path(f.filename).suffix.lower()
-                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                if ext in MEDIA_EXTENSIONS:
                     fname = f"{tid}_{uuid.uuid4().hex[:8]}{ext}"
                     f.save(str(UPLOADS_DIR / fname))
                     fotos.append(fname)
@@ -2096,7 +2123,7 @@ def nuevo_ticket():
             archivo_nombre = ""
             if f_pres and f_pres.filename:
                 ext = Path(f_pres.filename).suffix.lower()
-                if ext in (".pdf", ".jpg", ".jpeg", ".png"):
+                if ext in TICKET_ATTACHMENT_EXTENSIONS:
                     archivo = f"{tid}_ppto_suc_{n}_{uuid.uuid4().hex[:8]}{ext}"
                     f_pres.save(str(UPLOADS_DIR / archivo))
                     archivo_nombre = f_pres.filename
@@ -3288,7 +3315,7 @@ def prov_ticket(ticket_id):
             f = request.files.get("foto")
             if f and f.filename:
                 ext = Path(f.filename).suffix.lower()
-                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                if ext in MEDIA_EXTENSIONS:
                     fname = f"{ticket_id}_antes_{uuid.uuid4().hex[:8]}{ext}"
                     f.save(str(UPLOADS_DIR / fname))
                     if "fotos_antes" not in ticket:
@@ -3297,14 +3324,14 @@ def prov_ticket(ticket_id):
                     ticket["notas"].append({
                         "autor": prov_nombre,
                         "fecha": datetime.datetime.now().isoformat(),
-                        "texto": "Subio foto ANTES del trabajo",
+                        "texto": "Subio archivo ANTES del trabajo",
                         "fotos": [fname],
                     })
         elif accion == "foto_despues":
             f = request.files.get("foto")
             if f and f.filename:
                 ext = Path(f.filename).suffix.lower()
-                if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+                if ext in MEDIA_EXTENSIONS:
                     fname = f"{ticket_id}_despues_{uuid.uuid4().hex[:8]}{ext}"
                     f.save(str(UPLOADS_DIR / fname))
                     if "fotos_despues" not in ticket:
@@ -3313,7 +3340,7 @@ def prov_ticket(ticket_id):
                     ticket["notas"].append({
                         "autor": prov_nombre,
                         "fecha": datetime.datetime.now().isoformat(),
-                        "texto": "Subio foto DESPUES del trabajo",
+                        "texto": "Subio archivo DESPUES del trabajo",
                         "fotos": [fname],
                     })
         elif accion == "no_se_pudo":
@@ -3333,9 +3360,13 @@ def prov_ticket(ticket_id):
             f = request.files.get("archivo_presupuesto")
             if f and f.filename:
                 ext = Path(f.filename).suffix.lower()
-                fname = f"{ticket_id}_ppto_{uuid.uuid4().hex[:8]}{ext}"
-                f.save(str(UPLOADS_DIR / fname))
-                archivo = fname
+                if ext in TICKET_ATTACHMENT_EXTENSIONS:
+                    fname = f"{ticket_id}_ppto_{uuid.uuid4().hex[:8]}{ext}"
+                    f.save(str(UPLOADS_DIR / fname))
+                    archivo = fname
+                else:
+                    flash("Formato no soportado")
+                    return redirect(url_for("prov_ticket", ticket_id=ticket_id))
             if detalle:
                 if "presupuestos" not in ticket:
                     ticket["presupuestos"] = []
@@ -3357,9 +3388,13 @@ def prov_ticket(ticket_id):
             f = request.files.get("archivo_informe")
             if f and f.filename:
                 ext = Path(f.filename).suffix.lower()
-                fname = f"{ticket_id}_informe_{uuid.uuid4().hex[:8]}{ext}"
-                f.save(str(UPLOADS_DIR / fname))
-                archivo = fname
+                if ext in TICKET_ATTACHMENT_EXTENSIONS:
+                    fname = f"{ticket_id}_informe_{uuid.uuid4().hex[:8]}{ext}"
+                    f.save(str(UPLOADS_DIR / fname))
+                    archivo = fname
+                else:
+                    flash("Formato no soportado")
+                    return redirect(url_for("prov_ticket", ticket_id=ticket_id))
             if informe_texto:
                 if "informes" not in ticket:
                     ticket["informes"] = []
@@ -4070,7 +4105,7 @@ def equipo_ticket_foto(ticket_id):
         return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
 
     ext = Path(f.filename).suffix.lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+    if ext not in MEDIA_EXTENSIONS:
         flash("Formato no soportado")
         return redirect(url_for("equipo_ticket", ticket_id=ticket_id))
 
@@ -4081,7 +4116,7 @@ def equipo_ticket_foto(ticket_id):
     ticket.setdefault("notas", []).append({
         "autor": autor,
         "fecha": datetime.datetime.now().isoformat(),
-        "texto": "Subio foto del trabajo",
+        "texto": "Subio archivo del trabajo",
         "fotos": [rel],
     })
     ticket["actualizado"] = datetime.datetime.now().isoformat()
