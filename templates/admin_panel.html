@@ -188,9 +188,10 @@ function toggleNotif() {
                     <span style="font-size: 13px; font-weight: 700; color: #0ea5e9;">#{{ t.id }}</span>
                 </div>
             </div>
-            {% if t.fotos %}
+            {% set ticket_media = (t.fotos or []) + (t.fotos_antes or []) + (t.fotos_despues or []) + (t.fotos_trabajo or []) %}
+            {% if ticket_media %}
             <div style="margin-top: 8px;">
-                {% for foto in t.fotos[:2] %}
+                {% for foto in ticket_media[:2] %}
                 {% if is_video_file(foto) %}
                 <video src="/static/uploads/{{ foto }}" class="media-thumb-sm" preload="metadata" muted></video>
                 {% else %}
