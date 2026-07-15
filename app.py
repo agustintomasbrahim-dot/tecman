@@ -357,7 +357,8 @@ ENTRA_CLIENT_ID = (os.environ.get("ENTRA_CLIENT_ID") or os.environ.get("AZURE_CL
 ENTRA_CLIENT_SECRET = (os.environ.get("ENTRA_CLIENT_SECRET") or os.environ.get("AZURE_CLIENT_SECRET") or "").strip()
 ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or os.environ.get("AZURE_REDIRECT_URI") or "").strip()
 ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
-ENTRA_SCOPES = ["openid", "profile", "email", "User.Read"]
+ENTRA_AUTH_SCOPES = ["openid", "profile", "email", "User.Read"]
+ENTRA_TOKEN_SCOPES = ["User.Read"]
 LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
 LOCAL_LOGIN_MAX_ATTEMPTS = 8
 LOCAL_LOCK_MINUTES = 15
@@ -3035,7 +3036,7 @@ def entra_start():
         "response_type": "code",
         "redirect_uri": ENTRA_REDIRECT_URI,
         "response_mode": "query",
-        "scope": " ".join(ENTRA_SCOPES),
+        "scope": " ".join(ENTRA_AUTH_SCOPES),
         "state": state,
         "nonce": nonce,
     }
@@ -3060,7 +3061,7 @@ def entra_callback():
     try:
         result = _create_msal_app().acquire_token_by_authorization_code(
             code,
-            scopes=ENTRA_SCOPES,
+            scopes=ENTRA_TOKEN_SCOPES,
             redirect_uri=ENTRA_REDIRECT_URI,
         )
         if result.get("error"):
