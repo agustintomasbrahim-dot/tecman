@@ -10,8 +10,17 @@ import shutil
 import smtplib
 import ssl
 import copy
+import time
+import secrets
+import hashlib
+import requests
+import bcrypt
+import jwt
+import msal
 from pathlib import Path
 from functools import wraps
+from urllib.parse import urlencode
+from jwt import PyJWKClient
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -20,9 +29,21 @@ from email import encoders
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, Response
 from werkzeug.exceptions import RequestEntityTooLarge
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "true" if os.environ.get("RENDER") else "false").lower() == "true"
+app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(minutes=int(os.environ.get("SESSION_LIFETIME_MINUTES", "480")))
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
@@ -59,7 +80,9 @@ if _DB_URL:
         from models import (db, TicketDB, MatafuegoDB, HabilitacionDB, ComprobanteDB,
                             StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                             VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
-                            CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
+                            CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB,
+                            UserDB, AuthIdentityDB, LocalCredentialDB,
+                            PasswordResetTokenDB, AuthAuditEventDB)
         app.config["SQLALCHEMY_DATABASE_URI"] = _DB_URL
         app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         db.init_app(app)
@@ -97,6 +120,9 @@ ALERTAS_SYH_DISPATCH_FILE = DATA_DIR / "alertas_syh_dispatch.json"
 PRESUPUESTOS_FILE = DATA_DIR / "presupuestos.json"
 CEYH_RETIROS_FILE = DATA_DIR / "ceyh_retiros.json"
 CEYH_JORNADAS_FILE = DATA_DIR / "ceyh_jornadas.json"
+USERS_FILE = DATA_DIR / "users.json"
+PASSWORD_RESET_TOKENS_FILE = DATA_DIR / "password_reset_tokens.json"
+AUTH_AUDIT_FILE = DATA_DIR / "auth_audit_events.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -325,6 +351,688 @@ COMPRAS_USERS = {
 EQUIPO_USERS = {
     "equipo": {"password": _CENTRAL_PWD, "nombre": "Equipo Central", "rol": "equipo_central"},
 }
+
+ENTRA_TENANT_ID = (os.environ.get("ENTRA_TENANT_ID") or os.environ.get("AZURE_TENANT_ID") or "").strip()
+ENTRA_CLIENT_ID = (os.environ.get("ENTRA_CLIENT_ID") or os.environ.get("AZURE_CLIENT_ID") or "").strip()
+ENTRA_CLIENT_SECRET = (os.environ.get("ENTRA_CLIENT_SECRET") or os.environ.get("AZURE_CLIENT_SECRET") or "").strip()
+ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or os.environ.get("AZURE_REDIRECT_URI") or "").strip()
+ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
+ENTRA_SCOPES = ["openid", "profile", "email", "User.Read"]
+LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
+LOCAL_LOGIN_MAX_ATTEMPTS = 8
+LOCAL_LOCK_MINUTES = 15
+RESET_TOKEN_MINUTES = 30
+_LOGIN_BUCKETS = {}
+_OPENID_CONFIG_CACHE = {"loaded_at": 0, "data": None}
+
+
+def _now_utc():
+    return datetime.datetime.utcnow()
+
+
+def _hash_password(password):
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(password, password_hash):
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except ValueError:
+        return False
+
+
+def _hash_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": csrf_token}
+
+
+def _validate_csrf():
+    token = session.get("_csrf_token")
+    submitted = request.form.get("_csrf_token", "")
+    return bool(token and submitted and secrets.compare_digest(token, submitted))
+
+
+def _load_users_json():
+    if USERS_FILE.exists():
+        try:
+            return json.loads(USERS_FILE.read_text())
+        except Exception:
+            return {"users": []}
+    return {"users": []}
+
+
+def _save_users_json(data):
+    USERS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _load_reset_tokens_json():
+    if PASSWORD_RESET_TOKENS_FILE.exists():
+        try:
+            return json.loads(PASSWORD_RESET_TOKENS_FILE.read_text())
+        except Exception:
+            return {"tokens": []}
+    return {"tokens": []}
+
+
+def _save_reset_tokens_json(data):
+    PASSWORD_RESET_TOKENS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _load_audit_json():
+    if AUTH_AUDIT_FILE.exists():
+        try:
+            return json.loads(AUTH_AUDIT_FILE.read_text())
+        except Exception:
+            return {"events": []}
+    return {"events": []}
+
+
+def _save_audit_json(data):
+    AUTH_AUDIT_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _split_name(full_name):
+    parts = (full_name or "").strip().split()
+    if not parts:
+        return "", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
+
+
+def _audit_event(event_type, user=None, provider=None, details=None):
+    safe_details = details or {}
+    user_id = _auth_user_id(user) if user else None
+    if USE_DB:
+        db.session.add(AuthAuditEventDB(
+            user_id=user_id,
+            event_type=event_type,
+            provider=provider,
+            ip_address=request.remote_addr if request else None,
+            user_agent=(request.headers.get("User-Agent", "")[:255] if request else ""),
+            details=safe_details,
+        ))
+        db.session.commit()
+        return
+    data = _load_audit_json()
+    data.setdefault("events", []).append({
+        "id": uuid.uuid4().hex,
+        "user_id": user_id,
+        "event_type": event_type,
+        "provider": provider,
+        "ip_address": request.remote_addr if request else None,
+        "user_agent": (request.headers.get("User-Agent", "")[:255] if request else ""),
+        "details": safe_details,
+        "created_at": _now_utc().isoformat(),
+    })
+    data["events"] = data["events"][-1000:]
+    _save_audit_json(data)
+
+
+def _user_to_session(user, method):
+    if USE_DB:
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "session_version": user.session_version,
+        }
+    return {
+        "id": user.get("id"),
+        "username": user.get("username"),
+        "email": user.get("email"),
+        "name": user.get("name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+        "role": user.get("role"),
+        "session_version": user.get("session_version", 1),
+    }
+
+
+def _set_admin_session(user, method):
+    info = _user_to_session(user, method)
+    username = info.get("username") or (info.get("email") or "").split("@")[0] or info.get("id")
+    session.clear()
+    session.permanent = True
+    session["user"] = username
+    session["nombre"] = info.get("name") or username
+    session["rol"] = info.get("role") or "admin"
+    session["auth_user_id"] = info.get("id")
+    session["auth_provider"] = method
+    session["auth_session_version"] = info.get("session_version", 1)
+
+
+def _find_db_user(identifier=None, entra_object_id=None, email=None):
+    if not USE_DB:
+        return None
+    q = UserDB.query
+    if entra_object_id:
+        identity = AuthIdentityDB.query.filter_by(provider="entra", provider_subject=entra_object_id).first()
+        if identity:
+            return UserDB.query.get(identity.user_id)
+    if email:
+        user = q.filter(db.func.lower(UserDB.email) == email.lower()).first()
+        if user:
+            return user
+    if identifier:
+        ident = identifier.lower()
+        return q.filter(
+            (db.func.lower(UserDB.username) == ident) |
+            (db.func.lower(UserDB.email) == ident)
+        ).first()
+    return None
+
+
+def _find_json_user(identifier=None, entra_object_id=None, email=None):
+    data = _load_users_json()
+    for user in data.get("users", []):
+        identities = user.get("auth_identities", [])
+        if entra_object_id and any(i.get("provider") == "entra" and i.get("provider_subject") == entra_object_id for i in identities):
+            return user
+    for user in data.get("users", []):
+        if email and (user.get("email") or "").lower() == email.lower():
+            return user
+    for user in data.get("users", []):
+        ident = (identifier or "").lower()
+        if ident and ((user.get("username") or "").lower() == ident or (user.get("email") or "").lower() == ident):
+            return user
+    return None
+
+
+def _find_auth_user(identifier=None, entra_object_id=None, email=None):
+    if USE_DB:
+        return _find_db_user(identifier=identifier, entra_object_id=entra_object_id, email=email)
+    return _find_json_user(identifier=identifier, entra_object_id=entra_object_id, email=email)
+
+
+def _save_json_user(updated):
+    data = _load_users_json()
+    users = data.setdefault("users", [])
+    for idx, user in enumerate(users):
+        if user.get("id") == updated.get("id"):
+            users[idx] = updated
+            _save_users_json(data)
+            return
+    users.append(updated)
+    _save_users_json(data)
+
+
+def _auth_user_status(user):
+    return user.status if USE_DB else user.get("status", "active")
+
+
+def _auth_user_role(user):
+    return user.role if USE_DB else user.get("role", "admin")
+
+
+def _auth_user_id(user):
+    return user.id if USE_DB else user.get("id")
+
+
+def _list_auth_users():
+    if USE_DB:
+        return UserDB.query.order_by(UserDB.created_at.asc()).all()
+    return _load_users_json().get("users", [])
+
+
+def _auth_provider_label(user):
+    has_local = _auth_user_allows_provider(user, "local")
+    has_entra = _auth_user_allows_provider(user, "entra")
+    if has_local and has_entra:
+        return "both"
+    if has_entra:
+        return "entra"
+    if has_local:
+        return "local"
+    return "-"
+
+
+def _auth_user_rows():
+    rows = []
+    for user in _list_auth_users():
+        if USE_DB:
+            identity = AuthIdentityDB.query.filter_by(user_id=user.id, provider="entra").first()
+            credential = LocalCredentialDB.query.get(user.id)
+            rows.append({
+                "id": user.id,
+                "name": user.name,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+                "auth_provider": _auth_provider_label(user),
+                "status": user.status,
+                "must_change_password": user.must_change_password,
+                "entra_object_id": identity.provider_subject if identity else "",
+                "locked_until": credential.locked_until if credential else None,
+                "failed_attempts": credential.failed_attempts if credential else 0,
+                "last_login_at": user.last_login_at,
+            })
+        else:
+            credential = user.get("local_credentials") or {}
+            identity = next((i for i in user.get("auth_identities", []) if i.get("provider") == "entra"), {})
+            rows.append({
+                "id": user.get("id"),
+                "name": user.get("name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                "username": user.get("username"),
+                "email": user.get("email"),
+                "role": user.get("role"),
+                "auth_provider": _auth_provider_label(user),
+                "status": user.get("status"),
+                "must_change_password": user.get("must_change_password"),
+                "entra_object_id": identity.get("provider_subject"),
+                "locked_until": credential.get("locked_until"),
+                "failed_attempts": credential.get("failed_attempts", 0),
+                "last_login_at": user.get("last_login_at"),
+            })
+    return rows
+
+
+def _recent_auth_events(limit=50):
+    if USE_DB:
+        return AuthAuditEventDB.query.order_by(AuthAuditEventDB.created_at.desc()).limit(limit).all()
+    return list(reversed(_load_audit_json().get("events", [])[-limit:]))
+
+
+def _auth_user_locked_until(user):
+    if USE_DB:
+        credential = LocalCredentialDB.query.get(user.id) if user else None
+        value = credential.locked_until if credential else None
+    else:
+        value = (user.get("local_credentials") or {}).get("locked_until") if user else None
+    if isinstance(value, str):
+        try:
+            return datetime.datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return value
+
+
+def _auth_user_must_change_password(user):
+    return bool(user.must_change_password if USE_DB else user.get("must_change_password", False))
+
+
+def _mark_login_success(user, method):
+    now = _now_utc()
+    if USE_DB:
+        user.last_login_at = now
+        if method == "local":
+            credential = LocalCredentialDB.query.get(user.id)
+            if credential:
+                credential.failed_attempts = 0
+                credential.locked_until = None
+        else:
+            identity = AuthIdentityDB.query.filter_by(user_id=user.id, provider=method).first()
+            if identity:
+                identity.last_login_at = now
+        db.session.commit()
+    else:
+        user["last_login_at"] = now.isoformat()
+        if method == "local":
+            user.setdefault("local_credentials", {})["failed_attempts"] = 0
+            user.setdefault("local_credentials", {})["locked_until"] = None
+        else:
+            for identity in user.get("auth_identities", []):
+                if identity.get("provider") == method:
+                    identity["last_login_at"] = now.isoformat()
+        _save_json_user(user)
+    _audit_event("login_success", user=user, provider=method)
+
+
+def _mark_login_failure(user):
+    if not user:
+        _audit_event("login_failed", details={"reason": "unknown_user"})
+        return
+    if USE_DB:
+        credential = LocalCredentialDB.query.get(user.id)
+        if credential:
+            credential.failed_attempts = (credential.failed_attempts or 0) + 1
+            if credential.failed_attempts >= 5:
+                credential.locked_until = _now_utc() + datetime.timedelta(minutes=LOCAL_LOCK_MINUTES)
+                _audit_event("user_locked", user=user, provider="local")
+        db.session.commit()
+    else:
+        credential = user.setdefault("local_credentials", {})
+        credential["failed_attempts"] = int(credential.get("failed_attempts", 0)) + 1
+        if credential["failed_attempts"] >= 5:
+            credential["locked_until"] = (_now_utc() + datetime.timedelta(minutes=LOCAL_LOCK_MINUTES)).isoformat()
+            _audit_event("user_locked", user=user, provider="local")
+        _save_json_user(user)
+    _audit_event("login_failed", user=user, provider="local")
+
+
+def _rate_limit_key(identifier):
+    return f"{request.remote_addr or 'unknown'}:{(identifier or '').lower()}"
+
+
+def _local_login_rate_limited(identifier):
+    key = _rate_limit_key(identifier)
+    now = time.time()
+    bucket = [t for t in _LOGIN_BUCKETS.get(key, []) if now - t < LOCAL_LOGIN_WINDOW_SECONDS]
+    _LOGIN_BUCKETS[key] = bucket
+    if len(bucket) >= LOCAL_LOGIN_MAX_ATTEMPTS:
+        return True
+    bucket.append(now)
+    return False
+
+
+def _seed_auth_users():
+    """Crea usuarios locales equivalentes a los accesos admin actuales si no existen."""
+    if USE_DB:
+        changed = False
+        for username, info in ADMINS.items():
+            if _find_db_user(identifier=username):
+                continue
+            first_name, last_name = _split_name(info["nombre"])
+            user = UserDB(
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                role=info["rol"],
+                status="active",
+                must_change_password=False,
+            )
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(LocalCredentialDB(user_id=user.id, password_hash=_hash_password(info["password"])))
+            changed = True
+        if changed:
+            db.session.commit()
+        return
+    data = _load_users_json()
+    users = data.setdefault("users", [])
+    existing = {(u.get("username") or "").lower() for u in users}
+    changed = False
+    for username, info in ADMINS.items():
+        if username.lower() in existing:
+            continue
+        users.append({
+            "id": uuid.uuid4().hex,
+            "username": username,
+            "email": "",
+            "first_name": _split_name(info["nombre"])[0],
+            "last_name": _split_name(info["nombre"])[1],
+            "role": info["rol"],
+            "status": "active",
+            "must_change_password": False,
+            "session_version": 1,
+            "auth_identities": [],
+            "local_credentials": {
+                "password_hash": _hash_password(info["password"]),
+                "failed_attempts": 0,
+                "locked_until": None,
+                "password_changed_at": _now_utc().isoformat(),
+            },
+            "created_at": _now_utc().isoformat(),
+        })
+        changed = True
+    if changed:
+        _save_users_json(data)
+
+
+def _session_auth_is_valid():
+    auth_user_id = session.get("auth_user_id")
+    if not auth_user_id:
+        return True
+    user = None
+    if USE_DB:
+        user = UserDB.query.get(auth_user_id)
+        if not user:
+            return False
+        return user.status == "active" and user.session_version == session.get("auth_session_version")
+    for item in _load_users_json().get("users", []):
+        if item.get("id") == auth_user_id:
+            user = item
+            break
+    return bool(user and user.get("status") == "active" and user.get("session_version", 1) == session.get("auth_session_version"))
+
+
+def _entra_is_configured():
+    return all([ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ENTRA_REDIRECT_URI])
+
+
+def _openid_config():
+    if not ENTRA_TENANT_ID:
+        raise RuntimeError("ENTRA_TENANT_ID no configurado")
+    now = time.time()
+    if _OPENID_CONFIG_CACHE["data"] and now - _OPENID_CONFIG_CACHE["loaded_at"] < 3600:
+        return _OPENID_CONFIG_CACHE["data"]
+    url = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0/.well-known/openid-configuration"
+    resp = requests.get(url, timeout=8)
+    resp.raise_for_status()
+    data = resp.json()
+    _OPENID_CONFIG_CACHE.update({"loaded_at": now, "data": data})
+    return data
+
+
+def _validate_entra_id_token(id_token, expected_nonce):
+    config = _openid_config()
+    signing_key = PyJWKClient(config["jwks_uri"]).get_signing_key_from_jwt(id_token)
+    claims = jwt.decode(
+        id_token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=ENTRA_CLIENT_ID,
+        issuer=f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0",
+        options={"require": ["exp", "iat", "iss", "aud"]},
+        leeway=60,
+    )
+    if claims.get("tid") != ENTRA_TENANT_ID:
+        raise ValueError("Tenant no autorizado")
+    if claims.get("nonce") != expected_nonce:
+        raise ValueError("Nonce inválido")
+    object_id = claims.get("oid") or claims.get("sub")
+    email = claims.get("preferred_username") or claims.get("email") or claims.get("upn")
+    return {
+        "object_id": object_id,
+        "tenant_id": claims.get("tid"),
+        "email": email,
+        "name": claims.get("name") or email or object_id,
+        "claims": claims,
+    }
+
+
+def _create_msal_app():
+    return msal.ConfidentialClientApplication(
+        ENTRA_CLIENT_ID,
+        authority=ENTRA_AUTHORITY,
+        client_credential=ENTRA_CLIENT_SECRET,
+    )
+
+
+def _auth_user_allows_provider(user, provider):
+    if not user:
+        return False
+    if USE_DB:
+        if provider == "local":
+            return LocalCredentialDB.query.get(user.id) is not None
+        return AuthIdentityDB.query.filter_by(user_id=user.id, provider=provider).first() is not None
+    if provider == "local":
+        return bool((user.get("local_credentials") or {}).get("password_hash"))
+    return any(i.get("provider") == provider for i in user.get("auth_identities", []))
+
+
+def _create_reset_token(user):
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
+    expires_at = _now_utc() + datetime.timedelta(minutes=RESET_TOKEN_MINUTES)
+    user_id = user.id if USE_DB else user.get("id")
+    if USE_DB:
+        db.session.add(PasswordResetTokenDB(user_id=user_id, token_hash=token_hash, expires_at=expires_at))
+        db.session.commit()
+    else:
+        data = _load_reset_tokens_json()
+        data.setdefault("tokens", []).append({
+            "id": uuid.uuid4().hex,
+            "user_id": user_id,
+            "token_hash": token_hash,
+            "expires_at": expires_at.isoformat(),
+            "used_at": None,
+            "created_at": _now_utc().isoformat(),
+        })
+        _save_reset_tokens_json(data)
+    return token
+
+
+def _send_password_reset(user, token):
+    email = user.email if USE_DB else user.get("email")
+    if not email:
+        return False
+    reset_url = url_for("password_reset", token=token, _external=True)
+    html = f"""
+    <p>Recibimos una solicitud para recuperar tu contraseña de Tecman.</p>
+    <p><a href="{reset_url}">Crear nueva contraseña</a></p>
+    <p>Este enlace vence en {RESET_TOKEN_MINUTES} minutos. Si no fuiste vos, ignorá este mensaje.</p>
+    """
+    try:
+        _smtp_send(email, "Tecman - Recuperar contraseña", html)
+        return True
+    except Exception:
+        return False
+
+
+def _lookup_reset_token(token):
+    token_hash = _hash_token(token)
+    now = _now_utc()
+    if USE_DB:
+        row = PasswordResetTokenDB.query.filter_by(token_hash=token_hash).first()
+        if not row or row.used_at or row.expires_at < now:
+            return None, None
+        return row, UserDB.query.get(row.user_id)
+    data = _load_reset_tokens_json()
+    for row in data.get("tokens", []):
+        try:
+            expires_at = datetime.datetime.fromisoformat(row.get("expires_at"))
+        except Exception:
+            continue
+        if row.get("token_hash") == token_hash and not row.get("used_at") and expires_at >= now:
+            return row, next((u for u in _load_users_json().get("users", []) if u.get("id") == row.get("user_id")), None)
+    return None, None
+
+
+def _set_user_password(user, new_password, must_change=False):
+    now = _now_utc()
+    if USE_DB:
+        credential = LocalCredentialDB.query.get(user.id)
+        if not credential:
+            credential = LocalCredentialDB(user_id=user.id, password_hash=_hash_password(new_password))
+            db.session.add(credential)
+        else:
+            credential.password_hash = _hash_password(new_password)
+        credential.failed_attempts = 0
+        credential.locked_until = None
+        credential.password_changed_at = now
+        user.must_change_password = bool(must_change)
+        user.session_version = (user.session_version or 1) + 1
+        db.session.commit()
+        _audit_event("password_changed", user=user, provider="local")
+        return
+    credential = user.setdefault("local_credentials", {})
+    credential["password_hash"] = _hash_password(new_password)
+    credential["failed_attempts"] = 0
+    credential["locked_until"] = None
+    credential["password_changed_at"] = now.isoformat()
+    user["must_change_password"] = bool(must_change)
+    user["session_version"] = int(user.get("session_version", 1)) + 1
+    _save_json_user(user)
+    _audit_event("password_changed", user=user, provider="local")
+
+
+def _create_auth_user(form):
+    username = form.get("username", "").strip().lower() or None
+    email = form.get("email", "").strip().lower() or None
+    name = form.get("name", "").strip()
+    first_name, last_name = _split_name(name)
+    role = form.get("role", "admin").strip() or "admin"
+    auth_provider = form.get("auth_provider", "local").strip()
+    status = form.get("status", "active").strip()
+    entra_object_id = form.get("entra_object_id", "").strip() or None
+    password = form.get("password", "")
+    must_change = bool(form.get("must_change_password"))
+    if auth_provider not in ("local", "entra", "both"):
+        raise ValueError("Proveedor invalido")
+    if status not in ("active", "blocked", "disabled"):
+        raise ValueError("Estado invalido")
+    if not name:
+        raise ValueError("El nombre es obligatorio")
+    if auth_provider in ("local", "both") and len(password) < 10:
+        raise ValueError("La contraseña local debe tener al menos 10 caracteres")
+    if auth_provider in ("entra", "both") and not (email or entra_object_id):
+        raise ValueError("Para Entra hace falta email u object ID")
+    if USE_DB:
+        user = UserDB(
+            id=uuid.uuid4().hex,
+            username=username,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            status=status,
+            must_change_password=must_change,
+        )
+        db.session.add(user)
+        db.session.flush()
+        if auth_provider in ("local", "both"):
+            db.session.add(LocalCredentialDB(user_id=user.id, password_hash=_hash_password(password)))
+        if auth_provider in ("entra", "both"):
+            db.session.add(AuthIdentityDB(
+                user_id=user.id,
+                provider="entra",
+                provider_subject=entra_object_id or email,
+                tenant_id=ENTRA_TENANT_ID,
+            ))
+        db.session.commit()
+        _audit_event("user_created", user=user, details={"role": role, "auth_provider": auth_provider, "status": status})
+        return user
+    user = {
+        "id": uuid.uuid4().hex,
+        "username": username or "",
+        "email": email or "",
+        "first_name": first_name,
+        "last_name": last_name,
+        "role": role,
+        "status": status,
+        "must_change_password": must_change,
+        "session_version": 1,
+        "auth_identities": [],
+        "created_at": _now_utc().isoformat(),
+    }
+    if auth_provider in ("local", "both"):
+        user["local_credentials"] = {
+            "password_hash": _hash_password(password),
+            "failed_attempts": 0,
+            "locked_until": None,
+            "password_changed_at": _now_utc().isoformat(),
+        }
+    if auth_provider in ("entra", "both"):
+        user["auth_identities"].append({
+            "id": uuid.uuid4().hex,
+            "provider": "entra",
+            "provider_subject": entra_object_id or email,
+            "tenant_id": ENTRA_TENANT_ID,
+            "created_at": _now_utc().isoformat(),
+            "last_login_at": None,
+        })
+    _save_json_user(user)
+    _audit_event("user_created", user=user, details={"role": role, "auth_provider": auth_provider, "status": status})
+    return user
+
+
+with app.app_context():
+    _seed_auth_users()
 
 SYH_FILE = DATA_DIR / "syh.json"
 
@@ -1803,7 +2511,8 @@ def any_session_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         has_session = any(k in session for k in ("user", "suc_user", "prov_user", "equipo_user", "compras_user", "syh_user"))
-        if not has_session:
+        if not has_session or not _session_auth_is_valid():
+            session.clear()
             return render_template("error.html", mensaje="Acceso restringido."), 403
         return f(*args, **kwargs)
     return decorated
@@ -1813,7 +2522,8 @@ def login_required(f):
     """Permite acceso a cualquier usuario logueado (admin o tecnico)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user" not in session:
+        if "user" not in session or not _session_auth_is_valid():
+            session.clear()
             return redirect(url_for("admin_login"))
         return f(*args, **kwargs)
     return decorated
@@ -1823,7 +2533,8 @@ def admin_required(f):
     """Solo permite acceso a usuarios con rol 'admin'."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user" not in session:
+        if "user" not in session or not _session_auth_is_valid():
+            session.clear()
             return redirect(url_for("admin_login"))
         if session.get("rol") != "admin":
             return render_template("error.html", mensaje="Acceso restringido. Solo administradores."), 403
@@ -2262,19 +2973,233 @@ def confirmar_recepcion(ticket_id):
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        user = request.form.get("usuario", "").lower()
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
+        generic_error = "Usuario o contraseña incorrectos"
+        if _local_login_rate_limited(user):
+            flash(generic_error)
+            return render_template("admin_login.html", entra_enabled=_entra_is_configured())
+
+        auth_user = _find_auth_user(identifier=user)
+        locked_until = _auth_user_locked_until(auth_user) if auth_user else None
+        if locked_until and locked_until > _now_utc():
+            flash(generic_error)
+            return render_template("admin_login.html", entra_enabled=_entra_is_configured())
+
+        if (
+            auth_user
+            and _auth_user_status(auth_user) == "active"
+            and _auth_user_allows_provider(auth_user, "local")
+            and _verify_password(
+                pwd,
+                (LocalCredentialDB.query.get(auth_user.id).password_hash if USE_DB else (auth_user.get("local_credentials") or {}).get("password_hash")),
+            )
+        ):
+            _mark_login_success(auth_user, "local")
+            _set_admin_session(auth_user, "local")
+            if _auth_user_must_change_password(auth_user):
+                return redirect(url_for("password_change"))
+            return redirect(url_for("admin_panel"))
+
+        _mark_login_failure(auth_user)
+
+        # Compatibilidad temporal con las credenciales legacy por variable de entorno.
         if user in ADMINS and ADMINS[user]["password"] == pwd:
-            session["user"] = user
-            session["nombre"] = ADMINS[user]["nombre"]
-            session["rol"] = ADMINS[user]["rol"]
+            legacy = _find_auth_user(identifier=user)
+            if legacy:
+                _mark_login_success(legacy, "local")
+                _set_admin_session(legacy, "local")
+            else:
+                session["user"] = user
+                session["nombre"] = ADMINS[user]["nombre"]
+                session["rol"] = ADMINS[user]["rol"]
+                session["auth_provider"] = "legacy"
             return redirect(url_for("admin_panel"))
         flash("Usuario o contraseña incorrectos")
-    return render_template("admin_login.html")
+    return render_template("admin_login.html", entra_enabled=_entra_is_configured())
+
+
+@app.route("/auth/entra/start")
+def entra_start():
+    if not _entra_is_configured():
+        flash("El inicio con Microsoft todavia no esta configurado.")
+        return redirect(url_for("admin_login"))
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    session["entra_state"] = state
+    session["entra_nonce"] = nonce
+    params = {
+        "client_id": ENTRA_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": ENTRA_REDIRECT_URI,
+        "response_mode": "query",
+        "scope": " ".join(ENTRA_SCOPES),
+        "state": state,
+        "nonce": nonce,
+    }
+    return redirect(f"{ENTRA_AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}")
+
+
+@app.route("/auth/entra/callback")
+@app.route("/auth/callback")
+def entra_callback():
+    if not _entra_is_configured():
+        return render_template("error.html", mensaje="El inicio con Microsoft no esta configurado."), 500
+    if request.args.get("error"):
+        flash("No se pudo completar el ingreso con Microsoft.")
+        return redirect(url_for("admin_login"))
+    expected_state = session.pop("entra_state", None)
+    expected_nonce = session.pop("entra_nonce", None)
+    if not expected_state or request.args.get("state") != expected_state:
+        return render_template("error.html", mensaje="Solicitud de autenticacion invalida."), 400
+    code = request.args.get("code")
+    if not code:
+        return render_template("error.html", mensaje="Microsoft no devolvio un codigo de autorizacion."), 400
+    try:
+        result = _create_msal_app().acquire_token_by_authorization_code(
+            code,
+            scopes=ENTRA_SCOPES,
+            redirect_uri=ENTRA_REDIRECT_URI,
+        )
+        id_token = result.get("id_token")
+        if not id_token:
+            raise ValueError("Token de identidad ausente")
+        identity = _validate_entra_id_token(id_token, expected_nonce)
+    except Exception:
+        return render_template("error.html", mensaje="No se pudo validar la identidad de Microsoft."), 401
+
+    auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
+    if not auth_user or _auth_user_status(auth_user) != "active":
+        return render_template(
+            "error.html",
+            mensaje="Tu identidad fue validada correctamente, pero tu cuenta todavía no tiene acceso a esta aplicación. Contactá al administrador.",
+        ), 403
+
+    if USE_DB:
+        if identity["email"] and not auth_user.email:
+            auth_user.email = identity["email"]
+        existing_identity = AuthIdentityDB.query.filter_by(user_id=auth_user.id, provider="entra").first()
+        if not existing_identity:
+            db.session.add(AuthIdentityDB(
+                user_id=auth_user.id,
+                provider="entra",
+                provider_subject=identity["object_id"],
+                tenant_id=identity["tenant_id"],
+                last_login_at=_now_utc(),
+            ))
+        else:
+            existing_identity.provider_subject = identity["object_id"]
+            existing_identity.tenant_id = identity["tenant_id"]
+            existing_identity.last_login_at = _now_utc()
+        db.session.commit()
+    else:
+        if identity["email"] and not auth_user.get("email"):
+            auth_user["email"] = identity["email"]
+        identities = auth_user.setdefault("auth_identities", [])
+        existing_identity = next((i for i in identities if i.get("provider") == "entra"), None)
+        if not existing_identity:
+            identities.append({
+                "id": uuid.uuid4().hex,
+                "provider": "entra",
+                "provider_subject": identity["object_id"],
+                "tenant_id": identity["tenant_id"],
+                "created_at": _now_utc().isoformat(),
+                "last_login_at": _now_utc().isoformat(),
+            })
+        else:
+            existing_identity["provider_subject"] = identity["object_id"]
+            existing_identity["tenant_id"] = identity["tenant_id"]
+            existing_identity["last_login_at"] = _now_utc().isoformat()
+        _save_json_user(auth_user)
+
+    _mark_login_success(auth_user, "entra")
+    _set_admin_session(auth_user, "entra")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/password/forgot", methods=["GET", "POST"])
+def password_forgot():
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        identifier = request.form.get("usuario", "").strip()
+        user = _find_auth_user(identifier=identifier)
+        if user and _auth_user_status(user) == "active" and _auth_user_allows_provider(user, "local"):
+            token = _create_reset_token(user)
+            _send_password_reset(user, token)
+            _audit_event("password_reset_requested", user=user, provider="local")
+        flash("Si la cuenta existe y esta habilitada, te vamos a enviar instrucciones para recuperar el acceso.")
+        return redirect(url_for("admin_login"))
+    return render_template("password_forgot.html")
+
+
+@app.route("/password/reset/<token>", methods=["GET", "POST"])
+def password_reset(token):
+    reset_row, user = _lookup_reset_token(token)
+    if not reset_row or not user:
+        return render_template("error.html", mensaje="El enlace de recuperacion no es valido o vencio."), 400
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if len(password) < 10 or password != confirm:
+            flash("La contraseña debe tener al menos 10 caracteres y coincidir.")
+            return render_template("password_reset.html", token=token)
+        _set_user_password(user, password, must_change=False)
+        if USE_DB:
+            reset_row.used_at = _now_utc()
+            db.session.commit()
+        else:
+            data = _load_reset_tokens_json()
+            for row in data.get("tokens", []):
+                if row.get("id") == reset_row.get("id"):
+                    row["used_at"] = _now_utc().isoformat()
+            _save_reset_tokens_json(data)
+        session.clear()
+        _audit_event("password_reset_completed", user=user, provider="local")
+        flash("Contraseña actualizada. Volve a ingresar.")
+        return redirect(url_for("admin_login"))
+    return render_template("password_reset.html", token=token)
+
+
+@app.route("/password/change", methods=["GET", "POST"])
+def password_change():
+    if "auth_user_id" not in session:
+        return redirect(url_for("admin_login"))
+    user = UserDB.query.get(session["auth_user_id"]) if USE_DB else next(
+        (u for u in _load_users_json().get("users", []) if u.get("id") == session["auth_user_id"]),
+        None,
+    )
+    if not user:
+        session.clear()
+        return redirect(url_for("admin_login"))
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if len(password) < 10 or password != confirm:
+            flash("La contraseña debe tener al menos 10 caracteres y coincidir.")
+            return render_template("password_change.html")
+        _set_user_password(user, password, must_change=False)
+        _set_admin_session(user, "local")
+        flash("Contraseña actualizada.")
+        return redirect(url_for("admin_panel"))
+    return render_template("password_change.html")
 
 
 @app.route("/admin/logout", methods=["GET", "POST"])
 def admin_logout():
+    user = None
+    if session.get("auth_user_id"):
+        if USE_DB:
+            user = UserDB.query.get(session.get("auth_user_id"))
+        else:
+            user = next((u for u in _load_users_json().get("users", []) if u.get("id") == session.get("auth_user_id")), None)
+    _audit_event("logout", user=user, provider=session.get("auth_provider"))
     session.clear()
     return redirect(url_for("admin_login"))
 
@@ -2407,6 +3332,92 @@ def admin_panel():
         tickets_rita_pendientes=tickets_rita_pendientes,
         es_rita=es_rita,
     )
+
+
+@app.route("/admin/usuarios", methods=["GET", "POST"])
+@admin_required
+def admin_usuarios():
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        try:
+            _create_auth_user(request.form)
+            flash("Usuario creado")
+        except Exception as e:
+            flash(str(e))
+        return redirect(url_for("admin_usuarios"))
+    return render_template("admin_usuarios.html", usuarios=_auth_user_rows(), eventos=_recent_auth_events(), use_db=USE_DB)
+
+
+@app.route("/admin/usuarios/<user_id>/accion", methods=["POST"])
+@admin_required
+def admin_usuarios_accion(user_id):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida."), 400
+    action = request.form.get("action")
+    user = UserDB.query.get(user_id) if USE_DB else next((u for u in _load_users_json().get("users", []) if u.get("id") == user_id), None)
+    if not user:
+        flash("Usuario no encontrado")
+        return redirect(url_for("admin_usuarios"))
+    try:
+        if USE_DB:
+            credential = LocalCredentialDB.query.get(user.id)
+            if action == "enable":
+                user.status = "active"
+                _audit_event("user_enabled", user=user)
+            elif action == "disable":
+                user.status = "disabled"
+                user.session_version = (user.session_version or 1) + 1
+                _audit_event("user_disabled", user=user)
+            elif action == "block":
+                user.status = "blocked"
+                user.session_version = (user.session_version or 1) + 1
+                _audit_event("user_blocked", user=user)
+            elif action == "unblock":
+                user.status = "active"
+                if credential:
+                    credential.failed_attempts = 0
+                    credential.locked_until = None
+                _audit_event("user_unblocked", user=user)
+            elif action == "force_password_change":
+                user.must_change_password = True
+                _audit_event("force_password_change", user=user)
+            elif action == "revoke_sessions":
+                user.session_version = (user.session_version or 1) + 1
+                _audit_event("sessions_revoked", user=user)
+            else:
+                raise ValueError("Acción inválida")
+            db.session.commit()
+        else:
+            if action == "enable":
+                user["status"] = "active"
+                _audit_event("user_enabled", user=user)
+            elif action == "disable":
+                user["status"] = "disabled"
+                user["session_version"] = int(user.get("session_version", 1)) + 1
+                _audit_event("user_disabled", user=user)
+            elif action == "block":
+                user["status"] = "blocked"
+                user["session_version"] = int(user.get("session_version", 1)) + 1
+                _audit_event("user_blocked", user=user)
+            elif action == "unblock":
+                user["status"] = "active"
+                user.setdefault("local_credentials", {})["failed_attempts"] = 0
+                user.setdefault("local_credentials", {})["locked_until"] = None
+                _audit_event("user_unblocked", user=user)
+            elif action == "force_password_change":
+                user["must_change_password"] = True
+                _audit_event("force_password_change", user=user)
+            elif action == "revoke_sessions":
+                user["session_version"] = int(user.get("session_version", 1)) + 1
+                _audit_event("sessions_revoked", user=user)
+            else:
+                raise ValueError("Acción inválida")
+            _save_json_user(user)
+        flash("Acción aplicada")
+    except Exception as e:
+        flash(str(e))
+    return redirect(url_for("admin_usuarios"))
 
 
 @app.route("/admin/ceyh")

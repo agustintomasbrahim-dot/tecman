@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Usuarios{% endblock %}
+{% block content %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Dashboard</a>
+    <a href="{{ url_for('admin_usuarios') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Usuarios</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+
+<div class="card">
+    <h2>Usuarios</h2>
+    <p style="color:#6b7280;font-size:13px;margin-top:4px;">Cuentas autorizadas para ingreso local, Microsoft Entra ID o ambos.</p>
+    <div style="overflow-x:auto;margin-top:16px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Usuario</th>
+                    <th>Email</th>
+                    <th>Rol</th>
+                    <th>Auth</th>
+                    <th>Estado</th>
+                    <th>Seguridad</th>
+                    <th>Entra Object ID</th>
+                    <th>Último acceso</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>{{ u.name }}</td>
+                    <td>{{ u.username or '-' }}</td>
+                    <td>{{ u.email or '-' }}</td>
+                    <td>{{ u.role }}</td>
+                    <td>{{ u.auth_provider }}</td>
+                    <td>{{ u.status }}</td>
+                    <td>
+                        <div style="font-size:12px;color:#6b7280;">Intentos: {{ u.failed_attempts or 0 }}</div>
+                        {% if u.locked_until %}<div style="font-size:12px;color:#b45309;">Bloqueado hasta {{ u.locked_until }}</div>{% endif %}
+                        {% if u.must_change_password %}<div style="font-size:12px;color:#b45309;">Debe cambiar contraseña</div>{% endif %}
+                    </td>
+                    <td style="font-family:monospace;font-size:11px;">{{ u.entra_object_id or '-' }}</td>
+                    <td>{{ u.last_login_at or '-' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin_usuarios_accion', user_id=u.id) }}" style="display:flex;gap:4px;flex-wrap:wrap;">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            {% if u.status != 'active' %}
+                            <button class="btn btn-sm btn-success" name="action" value="enable" type="submit">Habilitar</button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline" name="action" value="disable" type="submit">Deshabilitar</button>
+                            <button class="btn btn-sm btn-outline" name="action" value="block" type="submit">Bloquear</button>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline" name="action" value="unblock" type="submit">Desbloquear</button>
+                            <button class="btn btn-sm btn-outline" name="action" value="force_password_change" type="submit">Forzar cambio</button>
+                            <button class="btn btn-sm btn-outline" name="action" value="revoke_sessions" type="submit">Revocar sesiones</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Crear usuario</h3>
+    <form method="POST" style="margin-top:16px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+            <div class="form-group">
+                <label>Nombre</label>
+                <input type="text" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>Usuario local</label>
+                <input type="text" name="username" autocapitalize="none" autocorrect="off">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" autocapitalize="none" autocorrect="off">
+            </div>
+            <div class="form-group">
+                <label>Rol</label>
+                <select name="role">
+                    <option value="admin">admin</option>
+                    <option value="tecnico">tecnico</option>
+                    <option value="syh">syh</option>
+                    <option value="equipo_central">equipo_central</option>
+                    <option value="compras">compras</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Método</label>
+                <select name="auth_provider">
+                    <option value="local">local</option>
+                    <option value="entra">entra</option>
+                    <option value="both">both</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Estado</label>
+                <select name="status">
+                    <option value="active">active</option>
+                    <option value="blocked">blocked</option>
+                    <option value="disabled">disabled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Entra Object ID</label>
+                <input type="text" name="entra_object_id" autocapitalize="none" autocorrect="off">
+            </div>
+            <div class="form-group">
+                <label>Contraseña local</label>
+                <input type="password" name="password" minlength="10">
+            </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;color:#6b7280;font-size:13px;margin:4px 0 16px;">
+            <input type="checkbox" name="must_change_password" value="1" style="width:auto;">
+            Cambiar contraseña en el primer ingreso
+        </label>
+        <button type="submit" class="btn btn-primary">Crear usuario</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Auditoría reciente</h3>
+    <div style="overflow-x:auto;margin-top:16px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Evento</th>
+                    <th>Usuario</th>
+                    <th>Método</th>
+                    <th>IP</th>
+                    <th>Detalle</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in eventos %}
+                <tr>
+                    <td>{{ e.created_at }}</td>
+                    <td>{{ e.event_type }}</td>
+                    <td>{{ e.user_id or '-' }}</td>
+                    <td>{{ e.provider or '-' }}</td>
+                    <td>{{ e.ip_address or '-' }}</td>
+                    <td style="font-size:12px;color:#6b7280;">{{ e.details or {} }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

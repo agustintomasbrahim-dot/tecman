@@ -17,5 +17,15 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: ENTRA_TENANT_ID
+        sync: false
+      - key: ENTRA_CLIENT_ID
+        sync: false
+      - key: ENTRA_CLIENT_SECRET
+        sync: false
+      - key: ENTRA_REDIRECT_URI
+        sync: false
+      - key: SESSION_LIFETIME_MINUTES
+        value: "480"
       - key: GOOGLE_TOKEN_JSON
         sync: false

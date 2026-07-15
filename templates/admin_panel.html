@@ -300,6 +300,7 @@ function toggleNotif() {
             <a class="admin-group-link" href="{{ url_for('admin_mapa') }}"><span>Mapa</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_exportar') }}"><span>Exportar</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_syh_docs') }}"><span>Gestión docs S&H</span><span>›</span></a>
+            {% if session.rol == "admin" %}<a class="admin-group-link" href="{{ url_for('admin_usuarios') }}"><span>Usuarios</span><span>›</span></a>{% endif %}
         </div>
     </div>
 </div>

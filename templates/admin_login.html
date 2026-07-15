@@ -8,16 +8,30 @@
         <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Acceso administradores</p>
     </div>
     <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-            <label>Usuario</label>
-            <input type="text" name="usuario" required autocapitalize="none">
+            <label>Usuario o correo electrónico</label>
+            <input type="text" name="usuario" required autocapitalize="none" autocorrect="off">
         </div>
         <div class="form-group">
-            <label>Contrasena</label>
+            <label>Contraseña</label>
             <input type="password" name="password" required>
         </div>
         <button type="submit" class="btn btn-block" style="background: #6d28d9; color: white;">Ingresar</button>
     </form>
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0;color:#9ca3af;font-size:12px;">
+        <div style="height:1px;background:#e5e7eb;flex:1;"></div>
+        <span>o</span>
+        <div style="height:1px;background:#e5e7eb;flex:1;"></div>
+    </div>
+    {% if entra_enabled %}
+    <a href="{{ url_for('entra_start') }}" class="btn btn-block" style="background:#111827;color:white;">Ingresar con Microsoft</a>
+    {% else %}
+    <button type="button" class="btn btn-block" style="background:#f3f4f6;color:#9ca3af;cursor:not-allowed;" disabled>Ingresar con Microsoft</button>
+    {% endif %}
+    <div style="text-align: center; margin-top: 14px;">
+        <a href="{{ url_for('password_forgot') }}" style="color: #6d28d9; font-size: 12px; text-decoration: none;">Olvidé mi contraseña</a>
+    </div>
     <div style="text-align: center; margin-top: 16px;">
         <a href="{{ url_for('index') }}" style="color: #9ca3af; font-size: 12px; text-decoration: none;">&larr; Volver</a>
     </div>
