@@ -3063,11 +3063,30 @@ def entra_callback():
             scopes=ENTRA_SCOPES,
             redirect_uri=ENTRA_REDIRECT_URI,
         )
+        if result.get("error"):
+            error_code = result.get("error", "unknown_error")
+            error_description = (result.get("error_description") or "")[:600]
+            app.logger.warning(
+                "Entra token exchange failed: %s - %s",
+                error_code,
+                error_description,
+            )
+            if error_code == "invalid_client":
+                mensaje = (
+                    "Microsoft rechazó la credencial de la aplicación. "
+                    "Revisá que AZURE_CLIENT_SECRET sea el valor del secreto, no el Secret ID."
+                )
+            elif error_code == "invalid_grant":
+                mensaje = "Microsoft rechazó el código de inicio. Volvé al login e intentá nuevamente."
+            else:
+                mensaje = f"Microsoft rechazó el inicio de sesión ({error_code})."
+            return render_template("error.html", mensaje=mensaje), 401
         id_token = result.get("id_token")
         if not id_token:
             raise ValueError("Token de identidad ausente")
         identity = _validate_entra_id_token(id_token, expected_nonce)
     except Exception:
+        app.logger.exception("Entra identity validation failed")
         return render_template("error.html", mensaje="No se pudo validar la identidad de Microsoft."), 401
 
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
