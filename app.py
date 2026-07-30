@@ -362,6 +362,7 @@ ENTRA_AUTH_SCOPES = ["openid", "profile", "email", *ENTRA_GRAPH_SCOPES]
 ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
 ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
 ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
+ENTRA_AUTH_PROMPT = (os.environ.get("ENTRA_AUTH_PROMPT") or "select_account").strip()
 LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
 LOCAL_LOGIN_MAX_ATTEMPTS = 8
 LOCAL_LOCK_MINUTES = 15
@@ -3197,6 +3198,8 @@ def entra_start():
         "state": state,
         "nonce": nonce,
     }
+    if ENTRA_AUTH_PROMPT:
+        params["prompt"] = ENTRA_AUTH_PROMPT
     return redirect(f"{ENTRA_AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}")
 
 
