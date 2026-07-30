@@ -2716,19 +2716,18 @@ def filtrar_stock_laura(stock):
 def index():
     if "suc_user" in session:
         return redirect(url_for("suc_panel"))
+    if _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
+        return redirect(url_for("entra_start"))
     return redirect(url_for("suc_login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def suc_login():
+    if request.method == "GET" and _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
+        return redirect(url_for("entra_start"))
     if request.method == "POST":
         if ENTRA_SUCURSALES_GROUP_ID:
-            flash("El ingreso de sucursales se realiza con Microsoft.")
-            return render_template(
-                "suc_login.html",
-                entra_enabled=_entra_is_configured(),
-                local_login_enabled=False,
-            )
+            return redirect(url_for("entra_start"))
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
