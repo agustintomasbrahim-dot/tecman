@@ -359,6 +359,8 @@ ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or os.environ.get("AZ
 ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
 ENTRA_AUTH_SCOPES = ["openid", "profile", "email", "User.Read"]
 ENTRA_TOKEN_SCOPES = ["User.Read"]
+ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
+ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
 LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
 LOCAL_LOGIN_MAX_ATTEMPTS = 8
 LOCAL_LOCK_MINUTES = 15
@@ -844,6 +846,28 @@ def _validate_entra_id_token(id_token, expected_nonce):
         "name": claims.get("name") or email or object_id,
         "claims": claims,
     }
+
+
+def _entra_group_ids(identity):
+    groups = (identity.get("claims") or {}).get("groups") or []
+    if not isinstance(groups, list):
+        return set()
+    return {str(group_id).strip().lower() for group_id in groups if group_id}
+
+
+def _entra_claims_have_group_overage(identity):
+    claims = identity.get("claims") or {}
+    claim_names = claims.get("_claim_names") or {}
+    return bool(claims.get("hasgroups") or claim_names.get("groups"))
+
+
+def _entra_role_from_groups(identity):
+    groups = _entra_group_ids(identity)
+    if ENTRA_SUPER_ADMIN_GROUP_ID and ENTRA_SUPER_ADMIN_GROUP_ID in groups:
+        return "admin"
+    if ENTRA_SUCURSALES_GROUP_ID and ENTRA_SUCURSALES_GROUP_ID in groups:
+        return "sucursal"
+    return None
 
 
 def _create_msal_app():
@@ -2207,6 +2231,41 @@ for suc in SUCURSALES:
     elif suc == "Garin":
         SUCURSAL_USERS["garin"] = {"password": f"{_SUC_PREFIX}garin", "sucursal": suc}
 
+
+def _sucursal_user_from_entra_email(email):
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return None
+    local_part = email.split("@", 1)[0]
+    direct_matches = [local_part]
+    if local_part.startswith("suc") and local_part[3:].isdigit():
+        direct_matches.append(f"suc{local_part[3:].zfill(3)}")
+    if local_part.isdigit():
+        direct_matches.append(f"suc{local_part.zfill(3)}")
+    for candidate in direct_matches:
+        if candidate in SUCURSAL_USERS:
+            return candidate
+    for suc_num, suc_email in SUCURSAL_EMAILS.items():
+        if email == (suc_email or "").strip().lower():
+            candidate = f"suc{str(suc_num).zfill(3)}"
+            if candidate in SUCURSAL_USERS:
+                return candidate
+    return None
+
+
+def _set_sucursal_session_from_entra(identity):
+    suc_user = _sucursal_user_from_entra_email(identity.get("email"))
+    if not suc_user:
+        return False
+    session.clear()
+    session.permanent = True
+    session["suc_user"] = suc_user
+    session["suc_nombre"] = SUCURSAL_USERS[suc_user]["sucursal"]
+    session["auth_provider"] = "entra"
+    session["nombre"] = identity.get("name") or identity.get("email") or session["suc_nombre"]
+    return True
+
+
 # Auto-assignment rules
 ASIGNACION_DEFAULT = "Agustín Brahim"
 
@@ -3090,12 +3149,47 @@ def entra_callback():
         app.logger.exception("Entra identity validation failed")
         return render_template("error.html", mensaje="No se pudo validar la identidad de Microsoft."), 401
 
+    entra_role = _entra_role_from_groups(identity)
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
-    if not auth_user or _auth_user_status(auth_user) != "active":
+    if not entra_role and _entra_claims_have_group_overage(identity):
+        return render_template(
+            "error.html",
+            mensaje=(
+                "Microsoft valido tu identidad, pero no envio la lista de grupos en el token. "
+                "Hay que habilitar el claim groups para la aplicacion Tecman o reducir la asignacion de grupos."
+            ),
+        ), 403
+    if not entra_role and (not auth_user or _auth_user_status(auth_user) != "active"):
         return render_template(
             "error.html",
             mensaje="Tu identidad fue validada correctamente, pero tu cuenta todavía no tiene acceso a esta aplicación. Contactá al administrador.",
         ), 403
+
+    if entra_role == "sucursal":
+        if _set_sucursal_session_from_entra(identity):
+            _audit_event("login_success", provider="entra", details={"role": "sucursal", "source": "entra_group"})
+            return redirect(url_for("suc_panel"))
+        return render_template(
+            "error.html",
+            mensaje="Tu usuario pertenece al grupo de sucursales, pero no pude identificar la sucursal desde el correo de Microsoft.",
+        ), 403
+
+    if entra_role == "admin" and not auth_user:
+        session.clear()
+        session.permanent = True
+        email = identity.get("email") or ""
+        session["user"] = email.split("@")[0] if email else identity["object_id"]
+        session["nombre"] = identity.get("name") or email or "Super admin"
+        session["rol"] = "admin"
+        session["auth_provider"] = "entra"
+        _audit_event("login_success", provider="entra", details={"role": "admin", "source": "entra_group"})
+        return redirect(url_for("admin_panel"))
+
+    if entra_role == "admin" and auth_user and _auth_user_role(auth_user) != "admin":
+        if USE_DB:
+            auth_user.role = "admin"
+        else:
+            auth_user["role"] = "admin"
 
     if USE_DB:
         if identity["email"] and not auth_user.email:
