@@ -2293,6 +2293,8 @@ def _sucursal_user_from_entra_email(email):
 
 
 def _set_sucursal_session_from_entra(identity, suc_user=None):
+    if identity.get("entra_role") != "sucursal":
+        return False
     suc_user = suc_user or _sucursal_user_from_entra_email(identity.get("email"))
     if not suc_user:
         return False
@@ -2315,12 +2317,15 @@ def _set_pending_sucursal_entra(identity):
         "email": identity.get("email") or "",
         "name": identity.get("name") or identity.get("email") or "",
         "object_id": identity.get("object_id") or "",
+        "entra_role": "sucursal",
     }
 
 
 def _pending_sucursal_entra_identity():
     pending = session.get("pending_entra_sucursal") or {}
     if not pending.get("object_id"):
+        return None
+    if pending.get("entra_role") != "sucursal":
         return None
     return pending
 
@@ -2672,7 +2677,9 @@ def suc_login_required(f):
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
             return redirect(url_for("suc_login"))
-        if session.get("auth_provider") == "entra" and session.get("entra_role") != "sucursal":
+        if ENTRA_SUCURSALES_GROUP_ID and (
+            session.get("auth_provider") != "entra" or session.get("entra_role") != "sucursal"
+        ):
             session.clear()
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
@@ -2731,6 +2738,13 @@ def index():
 @app.route("/login", methods=["GET", "POST"])
 def suc_login():
     if request.method == "POST":
+        if ENTRA_SUCURSALES_GROUP_ID:
+            flash("El ingreso de sucursales se realiza con Microsoft.")
+            return render_template(
+                "suc_login.html",
+                entra_enabled=_entra_is_configured(),
+                local_login_enabled=False,
+            )
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
@@ -2738,7 +2752,11 @@ def suc_login():
             session["suc_nombre"] = SUCURSAL_USERS[user]["sucursal"]
             return redirect(url_for("suc_panel"))
         flash("Usuario o contraseña incorrectos")
-    return render_template("suc_login.html", entra_enabled=_entra_is_configured())
+    return render_template(
+        "suc_login.html",
+        entra_enabled=_entra_is_configured(),
+        local_login_enabled=not bool(ENTRA_SUCURSALES_GROUP_ID),
+    )
 
 
 @app.route("/logout", methods=["GET", "POST"])
@@ -2762,6 +2780,7 @@ def suc_seleccionar():
             "email": pending.get("email"),
             "name": pending.get("name"),
             "object_id": pending.get("object_id"),
+            "entra_role": pending.get("entra_role"),
         }
         if _set_sucursal_session_from_entra(identity, suc_user=suc_user):
             _audit_event("login_success", provider="entra", details={"role": "sucursal", "source": "entra_group_select"})
@@ -3249,6 +3268,7 @@ def entra_callback():
         return render_template("error.html", mensaje="No se pudo validar la identidad de Microsoft."), 401
 
     entra_role = _entra_role_from_groups(identity)
+    identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(

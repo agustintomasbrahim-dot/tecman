@@ -5,8 +5,11 @@
     <div style="text-align: center; margin-bottom: 20px;">
         <div style="font-size: 32px; margin-bottom: 8px;">&#127978;</div>
         <h2 style="font-size: 18px;">Ingreso Sucursal</h2>
-        <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Ingrese sus credenciales</p>
+        <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">
+            {% if local_login_enabled %}Ingrese sus credenciales{% else %}Ingreso habilitado por grupo de Microsoft{% endif %}
+        </p>
     </div>
+    {% if local_login_enabled %}
     <form method="POST">
         <div class="form-group">
             <label>Usuario</label>
@@ -23,8 +26,9 @@
         <span>o</span>
         <div style="height:1px;background:#e5e7eb;flex:1;"></div>
     </div>
+    {% endif %}
     {% if entra_enabled %}
-    <a href="{{ url_for('entra_start') }}" class="btn btn-block" style="background:#111827;color:white;">Ingresar con Microsoft</a>
+    <a href="{{ url_for('entra_start') }}" class="btn {% if not local_login_enabled %}btn-primary{% endif %} btn-block" {% if local_login_enabled %}style="background:#111827;color:white;"{% endif %}>Ingresar con Microsoft</a>
     {% else %}
     <button type="button" class="btn btn-block" style="background:#f3f4f6;color:#9ca3af;cursor:not-allowed;" disabled>Ingresar con Microsoft</button>
     {% endif %}
