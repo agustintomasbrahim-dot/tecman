@@ -2720,7 +2720,12 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
+def login_landing():
+    return redirect(url_for("index"))
+
+
+@app.route("/sucursal/login", methods=["GET", "POST"])
 def suc_login():
     if request.method == "GET" and _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
         return redirect(url_for("entra_start", portal="sucursal"))
