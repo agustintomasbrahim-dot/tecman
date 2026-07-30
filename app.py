@@ -2301,6 +2301,7 @@ def _set_sucursal_session_from_entra(identity):
     session["suc_user"] = suc_user
     session["suc_nombre"] = SUCURSAL_USERS[suc_user]["sucursal"]
     session["auth_provider"] = "entra"
+    session["entra_role"] = "sucursal"
     session["nombre"] = identity.get("name") or identity.get("email") or session["suc_nombre"]
     return True
 
@@ -2624,6 +2625,9 @@ def login_required(f):
         if "user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("admin_login"))
+        if session.get("auth_provider") == "entra" and session.get("entra_role") != "admin":
+            session.clear()
+            return redirect(url_for("admin_login"))
         return f(*args, **kwargs)
     return decorated
 
@@ -2633,6 +2637,9 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user" not in session or not _session_auth_is_valid():
+            session.clear()
+            return redirect(url_for("admin_login"))
+        if session.get("auth_provider") == "entra" and session.get("entra_role") != "admin":
             session.clear()
             return redirect(url_for("admin_login"))
         if session.get("rol") != "admin":
@@ -2645,6 +2652,9 @@ def suc_login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
+            return redirect(url_for("suc_login"))
+        if session.get("auth_provider") == "entra" and session.get("entra_role") != "sucursal":
+            session.clear()
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
     return decorated
@@ -2709,7 +2719,7 @@ def suc_login():
             session["suc_nombre"] = SUCURSAL_USERS[user]["sucursal"]
             return redirect(url_for("suc_panel"))
         flash("Usuario o contraseña incorrectos")
-    return render_template("suc_login.html")
+    return render_template("suc_login.html", entra_enabled=_entra_is_configured())
 
 
 @app.route("/logout", methods=["GET", "POST"])
@@ -3199,6 +3209,11 @@ def entra_callback():
                 "Revisa que la aplicacion tenga admin consent para GroupMember.Read.All o que el token incluya el claim groups."
             ),
         ), 403
+    if _entra_configured_access_group_ids() and not entra_role:
+        return render_template(
+            "error.html",
+            mensaje="Tu identidad Microsoft esta validada, pero no pertenece a un grupo de acceso habilitado para Tecman.",
+        ), 403
     if not entra_role and (not auth_user or _auth_user_status(auth_user) != "active"):
         return render_template(
             "error.html",
@@ -3222,6 +3237,7 @@ def entra_callback():
         session["nombre"] = identity.get("name") or email or "Super admin"
         session["rol"] = "admin"
         session["auth_provider"] = "entra"
+        session["entra_role"] = "admin"
         _audit_event("login_success", provider="entra", details={"role": "admin", "source": "entra_group"})
         return redirect(url_for("admin_panel"))
 
@@ -3270,6 +3286,8 @@ def entra_callback():
 
     _mark_login_success(auth_user, "entra")
     _set_admin_session(auth_user, "entra")
+    if entra_role == "admin":
+        session["entra_role"] = "admin"
     return redirect(url_for("admin_panel"))
 
 
