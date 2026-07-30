@@ -357,8 +357,9 @@ ENTRA_CLIENT_ID = (os.environ.get("ENTRA_CLIENT_ID") or os.environ.get("AZURE_CL
 ENTRA_CLIENT_SECRET = (os.environ.get("ENTRA_CLIENT_SECRET") or os.environ.get("AZURE_CLIENT_SECRET") or "").strip()
 ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or os.environ.get("AZURE_REDIRECT_URI") or "").strip()
 ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
-ENTRA_AUTH_SCOPES = ["openid", "profile", "email", "User.Read"]
-ENTRA_TOKEN_SCOPES = ["User.Read"]
+ENTRA_GRAPH_SCOPES = ["User.Read", "GroupMember.Read.All"]
+ENTRA_AUTH_SCOPES = ["openid", "profile", "email", *ENTRA_GRAPH_SCOPES]
+ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
 ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
 ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
 LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
@@ -850,9 +851,47 @@ def _validate_entra_id_token(id_token, expected_nonce):
 
 def _entra_group_ids(identity):
     groups = (identity.get("claims") or {}).get("groups") or []
-    if not isinstance(groups, list):
+    group_ids = set()
+    if isinstance(groups, list):
+        group_ids.update(str(group_id).strip().lower() for group_id in groups if group_id)
+    group_ids.update(_entra_group_ids_from_graph(identity))
+    return group_ids
+
+
+def _entra_configured_access_group_ids():
+    return [
+        group_id
+        for group_id in (ENTRA_SUPER_ADMIN_GROUP_ID, ENTRA_SUCURSALES_GROUP_ID)
+        if group_id
+    ]
+
+
+def _entra_group_ids_from_graph(identity):
+    access_token = identity.get("access_token")
+    group_ids = _entra_configured_access_group_ids()
+    if not access_token or not group_ids:
         return set()
-    return {str(group_id).strip().lower() for group_id in groups if group_id}
+    try:
+        resp = requests.post(
+            "https://graph.microsoft.com/v1.0/me/checkMemberGroups",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json={"groupIds": group_ids},
+            timeout=8,
+        )
+        if resp.status_code >= 400:
+            identity["group_lookup_error"] = f"{resp.status_code}: {resp.text[:300]}"
+            return set()
+        values = (resp.json() or {}).get("value") or []
+        if not isinstance(values, list):
+            return set()
+        return {str(group_id).strip().lower() for group_id in values if group_id}
+    except Exception as exc:
+        identity["group_lookup_error"] = str(exc)
+        app.logger.exception("Entra group lookup failed")
+        return set()
 
 
 def _entra_claims_have_group_overage(identity):
@@ -3145,18 +3184,19 @@ def entra_callback():
         if not id_token:
             raise ValueError("Token de identidad ausente")
         identity = _validate_entra_id_token(id_token, expected_nonce)
+        identity["access_token"] = result.get("access_token")
     except Exception:
         app.logger.exception("Entra identity validation failed")
         return render_template("error.html", mensaje="No se pudo validar la identidad de Microsoft."), 401
 
     entra_role = _entra_role_from_groups(identity)
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
-    if not entra_role and _entra_claims_have_group_overage(identity):
+    if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(
             "error.html",
             mensaje=(
-                "Microsoft valido tu identidad, pero no envio la lista de grupos en el token. "
-                "Hay que habilitar el claim groups para la aplicacion Tecman o reducir la asignacion de grupos."
+                "Microsoft valido tu identidad, pero Tecman no pudo confirmar tus grupos de Entra ID. "
+                "Revisa que la aplicacion tenga admin consent para GroupMember.Read.All o que el token incluya el claim groups."
             ),
         ), 403
     if not entra_role and (not auth_user or _auth_user_status(auth_user) != "active"):
