@@ -2717,18 +2717,16 @@ def filtrar_stock_laura(stock):
 def index():
     if "suc_user" in session:
         return redirect(url_for("suc_panel"))
-    if _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
-        return redirect(url_for("entra_start"))
-    return redirect(url_for("suc_login"))
+    return render_template("index.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
 def suc_login():
     if request.method == "GET" and _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
-        return redirect(url_for("entra_start"))
+        return redirect(url_for("entra_start", portal="sucursal"))
     if request.method == "POST":
         if ENTRA_SUCURSALES_GROUP_ID:
-            return redirect(url_for("entra_start"))
+            return redirect(url_for("entra_start", portal="sucursal"))
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
@@ -3189,6 +3187,11 @@ def entra_start():
     nonce = secrets.token_urlsafe(24)
     session["entra_state"] = state
     session["entra_nonce"] = nonce
+    requested_portal = request.args.get("portal", "").strip().lower()
+    if requested_portal in ("admin", "sucursal"):
+        session["entra_requested_portal"] = requested_portal
+    else:
+        session.pop("entra_requested_portal", None)
     params = {
         "client_id": ENTRA_CLIENT_ID,
         "response_type": "code",
@@ -3213,6 +3216,7 @@ def entra_callback():
         return redirect(url_for("admin_login"))
     expected_state = session.pop("entra_state", None)
     expected_nonce = session.pop("entra_nonce", None)
+    requested_portal = session.pop("entra_requested_portal", None)
     if not expected_state or request.args.get("state") != expected_state:
         return render_template("error.html", mensaje="Solicitud de autenticacion invalida."), 400
     code = request.args.get("code")
@@ -3271,6 +3275,16 @@ def entra_callback():
         return render_template(
             "error.html",
             mensaje="Tu identidad fue validada correctamente, pero tu cuenta todavía no tiene acceso a esta aplicación. Contactá al administrador.",
+        ), 403
+    if requested_portal == "admin" and entra_role != "admin":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo super admin de Tecman.",
+        ), 403
+    if requested_portal == "sucursal" and entra_role != "sucursal":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo de sucursales de Tecman.",
         ), 403
 
     if entra_role == "sucursal":
