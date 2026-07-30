@@ -2292,18 +2292,22 @@ def _sucursal_user_from_entra_email(email):
     return None
 
 
+def _sucursal_session_is_general():
+    return bool(session.get("suc_general"))
+
+
+def _session_sucursal_label(default="Portal Sucursales"):
+    return session.get("suc_nombre") or default
+
+
 def _set_sucursal_session_from_entra(identity, suc_user=None):
     if identity.get("entra_role") != "sucursal":
         return False
-    suc_user = suc_user or _sucursal_user_from_entra_email(identity.get("email"))
-    if not suc_user:
-        return False
-    if suc_user not in SUCURSAL_USERS:
-        return False
     session.clear()
     session.permanent = True
-    session["suc_user"] = suc_user
-    session["suc_nombre"] = SUCURSAL_USERS[suc_user]["sucursal"]
+    session["suc_user"] = "entra_sucursales"
+    session["suc_nombre"] = "Portal Sucursales"
+    session["suc_general"] = True
     session["auth_provider"] = "entra"
     session["entra_role"] = "sucursal"
     session["nombre"] = identity.get("name") or identity.get("email") or session["suc_nombre"]
@@ -2743,6 +2747,7 @@ def suc_login():
 def suc_logout():
     session.pop("suc_user", None)
     session.pop("suc_nombre", None)
+    session.pop("suc_general", None)
     return redirect(url_for("suc_login"))
 
 
@@ -2758,19 +2763,21 @@ def suc_seleccionar():
 @suc_login_required
 def suc_panel():
     tickets = load_tickets()
-    mis_tickets = [t for t in tickets if t["sucursal"] == session["suc_nombre"]]
+    is_general = _sucursal_session_is_general()
+    mis_tickets = list(tickets) if is_general else [t for t in tickets if t["sucursal"] == session["suc_nombre"]]
     mis_tickets.sort(key=lambda t: t["creado"], reverse=True)
 
     # Find providers for this sucursal
-    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
     mis_proveedores = []
-    for p in PROVEEDORES:
-        for s in p["sucursales"]:
-            if s == suc_num or s == suc_num.lstrip("0"):
-                if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
-                    continue
-                mis_proveedores.append(p)
-                break
+    if not is_general:
+        for p in PROVEEDORES:
+            for s in p["sucursales"]:
+                if s == suc_num or s == suc_num.lstrip("0"):
+                    if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                        continue
+                    mis_proveedores.append(p)
+                    break
 
     # Notifications
     notificaciones = []
@@ -2781,18 +2788,26 @@ def suc_panel():
 
     # Stock recibido por esta sucursal
     stock = load_stock()
-    mi_stock = stock.get("sucursales", {}).get(session["suc_nombre"], {}) or {}
+    if is_general:
+        mi_stock = {}
+        for items_suc in (stock.get("sucursales", {}) or {}).values():
+            for item, cant in (items_suc or {}).items():
+                mi_stock[item] = mi_stock.get(item, 0) + cant
+    else:
+        mi_stock = stock.get("sucursales", {}).get(session["suc_nombre"], {}) or {}
     # Separar por tipo (insumos de compras vs mantenimiento)
     mi_stock_insumos = {k: v for k, v in mi_stock.items() if _es_insumo_compras(k)}
     mi_stock_manten = {k: v for k, v in mi_stock.items() if not _es_insumo_compras(k)}
 
-    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    habs_all = load_habilitaciones().get("habilitaciones", [])
+    habs = [_enrich_habilitacion(h) for h in habs_all if is_general or h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
-    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos_all = load_matafuegos().get("matafuegos", [])
+    matafuegos = [_enrich_matafuego(m) for m in matafuegos_all if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
-    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if is_general or p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
-    estado_syh = load_syh().get(suc_num, {})
+    estado_syh = {} if is_general else load_syh().get(suc_num, {})
 
     return render_template(
         "suc_panel.html",
@@ -2813,14 +2828,15 @@ def suc_panel():
 @app.route("/suc/syh")
 @suc_login_required
 def suc_syh():
-    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
+    is_general = _sucursal_session_is_general()
+    suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
     syh_data = load_syh()
-    estado = syh_data.get(suc_num, {})
-    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    estado = {} if is_general else syh_data.get(suc_num, {})
+    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if is_general or h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
-    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
-    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if is_general or p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     return render_template(
         "suc_syh.html",
@@ -2835,8 +2851,9 @@ def suc_syh():
 @app.route("/suc/matafuegos")
 @suc_login_required
 def suc_matafuegos():
-    suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
-    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    is_general = _sucursal_session_is_general()
+    suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     resumen = _resumen_matafuegos_sucursal(matafuegos)
     return render_template("suc_matafuegos.html", matafuegos_suc=matafuegos, resumen_matafuegos=resumen, hoy=datetime.date.today().isoformat())
@@ -2846,6 +2863,7 @@ def suc_matafuegos():
 @suc_login_required
 def suc_permiso_fao(permiso_id):
     suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
+    is_general = _sucursal_session_is_general()
     data = load_permisos()
     updated = False
     for p in data.get("permisos", []):
@@ -2853,11 +2871,11 @@ def suc_permiso_fao(permiso_id):
             continue
         if p.get("sucursales"):
             for d in p.get("sucursales", []):
-                if d.get("sucursal_num") == suc_num:
+                if is_general or d.get("sucursal_num") == suc_num:
                     d["fao_estado"] = "Contamos FAO"
                     d["fao_fecha"] = datetime.datetime.now().isoformat()
                     updated = True
-        elif p.get("sucursal_num") == suc_num:
+        elif is_general or p.get("sucursal_num") == suc_num:
             p["fao_estado"] = "Contamos FAO"
             p["fao_fecha"] = datetime.datetime.now().isoformat()
             updated = True
@@ -2872,7 +2890,8 @@ def suc_matafuego_mantenimiento(mid):
     data = load_matafuegos()
     items = data.get("matafuegos", [])
     suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
-    matafuego = next((m for m in items if m.get("id") == mid and (m.get("sucursal") == session.get("suc_nombre") or m.get("sucursal_num") == suc_num)), None)
+    is_general = _sucursal_session_is_general()
+    matafuego = next((m for m in items if m.get("id") == mid and (is_general or m.get("sucursal") == session.get("suc_nombre") or m.get("sucursal_num") == suc_num)), None)
     if not matafuego:
         flash("Matafuego no encontrado")
         return redirect(url_for("suc_panel"))
@@ -2898,7 +2917,7 @@ def suc_matafuego_mantenimiento(mid):
         nuevo_ticket_id = max([t.get("id", 0) for t in tickets] + [0]) + 1
         tickets.append({
             "id": nuevo_ticket_id,
-            "sucursal": session["suc_nombre"],
+            "sucursal": matafuego.get("sucursal") or session["suc_nombre"],
             "categoria": "Seguridad e Higiene",
             "subcategoria": "Matafuego rechazado",
             "descripcion": observacion or f"Matafuego rechazado en {matafuego.get('ubicacion') or 'sin ubicación'}",
@@ -2924,6 +2943,8 @@ def suc_matafuego_mantenimiento(mid):
 @app.route("/mis-proveedores")
 @suc_login_required
 def suc_proveedores():
+    if _sucursal_session_is_general():
+        return render_template("suc_proveedores.html", mis_proveedores=_proveedores_sin_montos(PROVEEDORES))
     suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
     mis_proveedores = []
     for p in PROVEEDORES:
@@ -2942,6 +2963,10 @@ def nuevo_ticket():
     if request.method == "POST":
         tickets = load_tickets()
         tid = next_ticket_id(tickets)
+        sucursal_ticket = request.form.get("sucursal", "").strip() if _sucursal_session_is_general() else session.get("suc_nombre", "").strip()
+        if not sucursal_ticket:
+            flash("Seleccione una sucursal")
+            return redirect(url_for("nuevo_ticket"))
 
         # Handle photo uploads
         fotos = []
@@ -2974,7 +2999,7 @@ def nuevo_ticket():
                     archivo_nombre = f_pres.filename
             if prov or archivo:
                 presupuestos_suc.append({
-                    "autor": session.get("suc_nombre", "Sucursal"),
+                    "autor": _session_sucursal_label("Portal Sucursales"),
                     "fecha": datetime.datetime.now().isoformat(),
                     "detalle": request.form.get("descripcion", "").strip(),
                     "proveedor": prov,
@@ -2985,7 +3010,7 @@ def nuevo_ticket():
         proveedor_presupuesto = presupuestos_suc[0]["proveedor"] if presupuestos_suc else ""
         ticket = {
             "id": tid,
-            "sucursal": session.get("suc_nombre", request.form.get("sucursal", "")),
+            "sucursal": sucursal_ticket,
             "categoria": categoria,
             "subcategoria": subcategoria,
             "descripcion": request.form.get("descripcion", ""),
@@ -2994,7 +3019,7 @@ def nuevo_ticket():
             "solicitante": f"{solicitante_nombre} {solicitante_apellido}".strip(),
             "prioridad": auto_priority(categoria, subcategoria),
             "estado": "Nuevo",
-            "asignado": auto_assign(subcategoria, session.get("suc_nombre", request.form.get("sucursal", "")), categoria),
+            "asignado": auto_assign(subcategoria, sucursal_ticket, categoria),
             "fotos": fotos,
             "observaciones": "",
             "creado": datetime.datetime.now().isoformat(),
@@ -3056,7 +3081,7 @@ def confirmar_recepcion(ticket_id):
     if not ticket:
         return "Ticket no encontrado", 404
 
-    if ticket.get("sucursal") != session.get("suc_nombre"):
+    if not _sucursal_session_is_general() and ticket.get("sucursal") != session.get("suc_nombre"):
         return render_template("error.html", mensaje="No tenés permiso para confirmar este ticket."), 403
 
     if "notas" not in ticket:
@@ -3077,7 +3102,7 @@ def confirmar_recepcion(ticket_id):
         nota_texto += f": {comentario}"
 
     nota = {
-        "autor": session.get("suc_nombre", "Sucursal"),
+        "autor": _session_sucursal_label("Portal Sucursales"),
         "fecha": datetime.datetime.now().isoformat(),
         "texto": nota_texto,
     }
@@ -3252,10 +3277,7 @@ def entra_callback():
             return redirect(url_for("suc_panel"))
         return render_template(
             "error.html",
-            mensaje=(
-                "Tu cuenta Microsoft pertenece al grupo de sucursales, pero Tecman no pudo identificar que sucursal corresponde a esa cuenta. "
-                "Usa una cuenta 365 de sucursal registrada, por ejemplo suc014@..., o pedile al administrador que cargue el mail de esa sucursal."
-            ),
+            mensaje="Tu identidad Microsoft esta validada, pero no tiene rol de sucursal autorizado.",
         ), 403
 
     if entra_role == "admin" and not auth_user:
@@ -6214,11 +6236,12 @@ def suc_syh_asistencia():
     new_id = next_ticket_id(tickets)
     motivo = request.form.get("motivo", "").strip() or "Asistencia S&H"
     comentario = request.form.get("comentario", "").strip()
+    sucursal = request.form.get("sucursal", "").strip() or _session_sucursal_label("Portal Sucursales")
     now_iso = datetime.datetime.now().isoformat()
     nuevo = {
         "id": new_id,
         "tipo": "syh_asistencia",
-        "sucursal": session.get("suc_nombre", ""),
+        "sucursal": sucursal,
         "descripcion": comentario or motivo,
         "estado": "Nuevo",
         "asignado": "Patricia",
@@ -6228,15 +6251,15 @@ def suc_syh_asistencia():
         "categoria": "Seguridad e Higiene",
         "subcategoria": motivo,
         "fotos": [],
-        "notas": [{"autor": session.get("suc_nombre", "Sucursal"), "fecha": now_iso, "texto": f"Solicitud de asistencia S&H: {motivo}" + (f" - {comentario}" if comentario else "")}],
+        "notas": [{"autor": _session_sucursal_label("Portal Sucursales"), "fecha": now_iso, "texto": f"Solicitud de asistencia S&H: {motivo}" + (f" - {comentario}" if comentario else "")}],
     }
     tickets.append(nuevo)
     save_tickets(tickets)
     agregar_notif_admin(
         titulo=f"🧯 Asistencia S&H solicitada #{new_id}",
-        detalle=f"{session.get('suc_nombre', 'Sucursal')} solicitó asistencia. Motivo: {motivo}" + (f"\nDetalle: {comentario}" if comentario else ""),
+        detalle=f"{sucursal} solicitó asistencia. Motivo: {motivo}" + (f"\nDetalle: {comentario}" if comentario else ""),
         tipo="syh",
-        autor=session.get("suc_nombre", "Sucursal"),
+        autor=_session_sucursal_label("Portal Sucursales"),
         link=url_for("admin_ticket", ticket_id=new_id),
     )
     flash("Solicitud de asistencia enviada")

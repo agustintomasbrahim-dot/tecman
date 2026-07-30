@@ -12,7 +12,7 @@
 <div class="card">
     <h2 style="margin-bottom: 20px;">Nuevo ticket de mantenimiento</h2>
     <form method="POST" enctype="multipart/form-data">
-        {% if session.suc_nombre %}
+        {% if session.suc_nombre and not session.suc_general %}
         <div class="info-box" style="margin-bottom: 18px;">
             &#127978; {{ session.suc_nombre }}
         </div>

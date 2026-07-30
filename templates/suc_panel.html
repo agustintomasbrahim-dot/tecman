@@ -187,7 +187,7 @@
             {% for t in tickets %}
             <tr style="cursor: pointer;" onclick="window.location='/estado/{{ t.id }}'">
                 <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
-                <td>{% if t.categoria == 'Materiales' %}{{ t.categoria_mat or t.subcategoria }}{% if t.subitem_mat %}<div style="font-size:12px;color:#6b7280;">{{ t.subitem_mat }}{% if t.cantidad_mat %} · x{{ t.cantidad_mat }}{% endif %}</div>{% elif t.cantidad_mat %}<div style="font-size:12px;color:#6b7280;">Cantidad: x{{ t.cantidad_mat }}</div>{% endif %}{% else %}{{ t.subcategoria }}{% endif %}{% if t.categoria == 'Presupuestos' and t.zona_afectada %}<div style="font-size:12px;color:#6b7280;">Zona: {{ t.zona_afectada }}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
+                <td>{% if session.suc_general %}<div style="font-size:12px;color:#6b7280;font-weight:600;">{{ t.sucursal }}</div>{% endif %}{% if t.categoria == 'Materiales' %}{{ t.categoria_mat or t.subcategoria }}{% if t.subitem_mat %}<div style="font-size:12px;color:#6b7280;">{{ t.subitem_mat }}{% if t.cantidad_mat %} · x{{ t.cantidad_mat }}{% endif %}</div>{% elif t.cantidad_mat %}<div style="font-size:12px;color:#6b7280;">Cantidad: x{{ t.cantidad_mat }}</div>{% endif %}{% else %}{{ t.subcategoria }}{% endif %}{% if t.categoria == 'Presupuestos' and t.zona_afectada %}<div style="font-size:12px;color:#6b7280;">Zona: {{ t.zona_afectada }}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
                 <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
                 <td>
                     <span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span>
