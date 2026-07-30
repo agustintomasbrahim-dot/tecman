@@ -2716,7 +2716,7 @@ def filtrar_stock_laura(stock):
 def index():
     if "suc_user" in session:
         return redirect(url_for("suc_panel"))
-    return render_template("index.html", sucursales=SUCURSALES)
+    return redirect(url_for("suc_login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
