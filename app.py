@@ -4431,7 +4431,7 @@ def prov_logout():
     session.pop("prov_user", None)
     session.pop("prov_nombre", None)
     session.pop("prov_tipo_cuenta", None)
-    return redirect(url_for("prov_login"))
+    return redirect(url_for("login_landing"))
 
 
 @app.route("/proveedor")
