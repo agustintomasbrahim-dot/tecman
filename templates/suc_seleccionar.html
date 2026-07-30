@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Seleccionar sucursal{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 520px; margin: 48px auto;">
+    <div style="text-align: center; margin-bottom: 22px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">&#127978;</div>
+        <h2 style="font-size: 18px;">Seleccionar sucursal</h2>
+        <p style="color: #6b7280; font-size: 13px; margin-top: 6px;">
+            {{ pending.name or pending.email }} ingreso con Microsoft como grupo sucursales.
+        </p>
+    </div>
+    <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Sucursal</label>
+            <select name="suc_user" required>
+                <option value="">Elegir sucursal...</option>
+                {% for suc in sucursales %}
+                <option value="{{ suc.user }}">{{ suc.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Ingresar al modulo de sucursales</button>
+    </form>
+    <div style="text-align: center; margin-top: 16px;">
+        <a href="{{ url_for('suc_logout') }}" style="color: #9ca3af; font-size: 12px; text-decoration: none;">&larr; Volver</a>
+    </div>
+</div>
+{% endblock %}

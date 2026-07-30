@@ -2292,9 +2292,11 @@ def _sucursal_user_from_entra_email(email):
     return None
 
 
-def _set_sucursal_session_from_entra(identity):
-    suc_user = _sucursal_user_from_entra_email(identity.get("email"))
+def _set_sucursal_session_from_entra(identity, suc_user=None):
+    suc_user = suc_user or _sucursal_user_from_entra_email(identity.get("email"))
     if not suc_user:
+        return False
+    if suc_user not in SUCURSAL_USERS:
         return False
     session.clear()
     session.permanent = True
@@ -2304,6 +2306,23 @@ def _set_sucursal_session_from_entra(identity):
     session["entra_role"] = "sucursal"
     session["nombre"] = identity.get("name") or identity.get("email") or session["suc_nombre"]
     return True
+
+
+def _set_pending_sucursal_entra(identity):
+    session.clear()
+    session.permanent = True
+    session["pending_entra_sucursal"] = {
+        "email": identity.get("email") or "",
+        "name": identity.get("name") or identity.get("email") or "",
+        "object_id": identity.get("object_id") or "",
+    }
+
+
+def _pending_sucursal_entra_identity():
+    pending = session.get("pending_entra_sucursal") or {}
+    if not pending.get("object_id"):
+        return None
+    return pending
 
 
 # Auto-assignment rules
@@ -2726,7 +2745,37 @@ def suc_login():
 def suc_logout():
     session.pop("suc_user", None)
     session.pop("suc_nombre", None)
+    session.pop("pending_entra_sucursal", None)
     return redirect(url_for("suc_login"))
+
+
+@app.route("/suc/seleccionar", methods=["GET", "POST"])
+def suc_seleccionar():
+    pending = _pending_sucursal_entra_identity()
+    if not pending:
+        return redirect(url_for("suc_login"))
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+        suc_user = request.form.get("suc_user", "").strip().lower()
+        identity = {
+            "email": pending.get("email"),
+            "name": pending.get("name"),
+            "object_id": pending.get("object_id"),
+        }
+        if _set_sucursal_session_from_entra(identity, suc_user=suc_user):
+            _audit_event("login_success", provider="entra", details={"role": "sucursal", "source": "entra_group_select"})
+            return redirect(url_for("suc_panel"))
+        flash("Seleccioná una sucursal válida.")
+    sucursal_options = [
+        {"user": user, "nombre": data["sucursal"]}
+        for user, data in sorted(SUCURSAL_USERS.items(), key=lambda item: item[1]["sucursal"])
+    ]
+    return render_template(
+        "suc_seleccionar.html",
+        sucursales=sucursal_options,
+        pending=pending,
+    )
 
 
 @app.route("/mi-panel")
@@ -3224,10 +3273,8 @@ def entra_callback():
         if _set_sucursal_session_from_entra(identity):
             _audit_event("login_success", provider="entra", details={"role": "sucursal", "source": "entra_group"})
             return redirect(url_for("suc_panel"))
-        return render_template(
-            "error.html",
-            mensaje="Tu usuario pertenece al grupo de sucursales, pero no pude identificar la sucursal desde el correo de Microsoft.",
-        ), 403
+        _set_pending_sucursal_entra(identity)
+        return redirect(url_for("suc_seleccionar"))
 
     if entra_role == "admin" and not auth_user:
         session.clear()
