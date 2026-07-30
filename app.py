@@ -2662,9 +2662,7 @@ def suc_login_required(f):
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
             return redirect(url_for("suc_login"))
-        if ENTRA_SUCURSALES_GROUP_ID and (
-            session.get("auth_provider") != "entra" or session.get("entra_role") != "sucursal"
-        ):
+        if session.get("auth_provider") == "entra" and session.get("entra_role") != "sucursal":
             session.clear()
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
@@ -2727,11 +2725,7 @@ def login_landing():
 
 @app.route("/sucursal/login", methods=["GET", "POST"])
 def suc_login():
-    if request.method == "GET" and _entra_is_configured() and ENTRA_SUCURSALES_GROUP_ID:
-        return redirect(url_for("entra_start", portal="sucursal"))
     if request.method == "POST":
-        if ENTRA_SUCURSALES_GROUP_ID:
-            return redirect(url_for("entra_start", portal="sucursal"))
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
@@ -2742,7 +2736,7 @@ def suc_login():
     return render_template(
         "suc_login.html",
         entra_enabled=_entra_is_configured(),
-        local_login_enabled=not bool(ENTRA_SUCURSALES_GROUP_ID),
+        local_login_enabled=True,
     )
 
 

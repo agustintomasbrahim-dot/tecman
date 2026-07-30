@@ -28,7 +28,7 @@
     </div>
     {% endif %}
     {% if entra_enabled %}
-    <a href="{{ url_for('entra_start') }}" class="btn {% if not local_login_enabled %}btn-primary{% endif %} btn-block" {% if local_login_enabled %}style="background:#111827;color:white;"{% endif %}>Ingresar con Microsoft</a>
+    <a href="{{ url_for('entra_start', portal='sucursal') }}" class="btn {% if not local_login_enabled %}btn-primary{% endif %} btn-block" {% if local_login_enabled %}style="background:#111827;color:white;"{% endif %}>Ingresar con Microsoft</a>
     {% else %}
     <button type="button" class="btn btn-block" style="background:#f3f4f6;color:#9ca3af;cursor:not-allowed;" disabled>Ingresar con Microsoft</button>
     {% endif %}
