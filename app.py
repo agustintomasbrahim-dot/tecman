@@ -217,6 +217,11 @@ PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
 AGUSTIN_EMAIL = os.environ.get("AGUSTIN_EMAIL", "agustintomasbrahim@gmail.com")
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_USER = os.environ.get("SMTP_USER") or GMAIL_USER
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or GMAIL_APP_PASSWORD
+MAIL_FROM = os.environ.get("MAIL_FROM") or SMTP_USER or GMAIL_USER
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 SUCURSAL_EMAILS = {
@@ -1808,10 +1813,10 @@ def _telegram_notify(mensaje):
 
 
 def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        raise RuntimeError("GMAIL_USER y GMAIL_APP_PASSWORD no configurados")
+    if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD or not MAIL_FROM:
+        raise RuntimeError("SMTP_HOST/SMTP_USER/SMTP_PASSWORD/MAIL_FROM no configurados")
     msg = MIMEMultipart()
-    msg["From"] = GMAIL_USER
+    msg["From"] = MAIL_FROM
     msg["To"] = to if isinstance(to, str) else ", ".join(to)
     msg["Subject"] = subject
     msg.attach(MIMEText(html, "html"))
@@ -1823,10 +1828,16 @@ def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
         part.add_header("Content-Disposition", f'attachment; filename="{attachment_name or Path(attachment_path).name}"')
         msg.attach(part)
     ctx = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=ctx) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        recipients = [to] if isinstance(to, str) else to
-        server.sendmail(GMAIL_USER, recipients, msg.as_bytes())
+    recipients = [to] if isinstance(to, str) else to
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(MAIL_FROM, recipients, msg.as_bytes())
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls(context=ctx)
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(MAIL_FROM, recipients, msg.as_bytes())
 
 
 def _unique_recipients(*addresses):
