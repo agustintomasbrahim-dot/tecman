@@ -39,7 +39,9 @@ if load_dotenv:
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
-app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024
+MAX_UPLOAD_BYTES = 60 * 1024 * 1024
+MAX_UPLOAD_MB = MAX_UPLOAD_BYTES // (1024 * 1024)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "true" if os.environ.get("RENDER") else "false").lower() == "true"
@@ -63,12 +65,14 @@ def inject_upload_helpers():
         "is_video_file": is_video_file,
         "media_accept": MEDIA_ACCEPT,
         "ticket_attachment_accept": TICKET_ATTACHMENT_ACCEPT,
+        "max_upload_bytes": MAX_UPLOAD_BYTES,
+        "max_upload_mb": MAX_UPLOAD_MB,
     }
 
 
 @app.errorhandler(RequestEntityTooLarge)
 def archivo_demasiado_grande(error):
-    return render_template("error.html", mensaje="El archivo es demasiado grande. Subi videos cortos de hasta 60 MB."), 413
+    return render_template("error.html", mensaje=f"El archivo o video excede el limite de {MAX_UPLOAD_MB} MB. Subi un video mas corto o comprimido."), 413
 
 # PostgreSQL via SQLAlchemy (dual-write con fallback a JSON)
 _DB_URL = os.environ.get("DATABASE_URL", "")
@@ -144,6 +148,15 @@ PRESUPUESTOS_DIR = UPLOADS_DIR / "presupuestos"
 PRESUPUESTOS_DIR.mkdir(parents=True, exist_ok=True)
 REQUISICIONES_DIR = UPLOADS_DIR / "requisiciones"
 REQUISICIONES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.before_request
+def serve_persistent_uploads_from_static_path():
+    if not request.path.startswith("/static/uploads/"):
+        return None
+    filename = request.path.removeprefix("/static/uploads/")
+    return send_from_directory(str(UPLOADS_DIR), filename)
+
 
 # --- Data ---
 

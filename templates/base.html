@@ -192,8 +192,42 @@
         {% block content %}{% endblock %}
     </div>
     <script>
+    var TECMAN_MAX_UPLOAD_BYTES = {{ max_upload_bytes }};
+    var TECMAN_MAX_UPLOAD_MB = {{ max_upload_mb }};
+    var TECMAN_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm'];
+
+    function tecmanIsVideoFile(file) {
+        var name = (file.name || '').toLowerCase();
+        var type = (file.type || '').toLowerCase();
+        return type.indexOf('video/') === 0 || TECMAN_VIDEO_EXTENSIONS.some(function(ext) {
+            return name.endsWith(ext);
+        });
+    }
+
+    function tecmanFormatSize(bytes) {
+        return Math.round((bytes / 1024 / 1024) * 10) / 10 + ' MB';
+    }
+
     document.querySelectorAll('form').forEach(function(form) {
-        form.addEventListener('submit', function() {
+        form.addEventListener('submit', function(event) {
+            var fileInputs = Array.prototype.slice.call(form.querySelectorAll('input[type="file"]'));
+            for (var i = 0; i < fileInputs.length; i++) {
+                var input = fileInputs[i];
+                var files = Array.prototype.slice.call(input.files || []);
+                for (var j = 0; j < files.length; j++) {
+                    var file = files[j];
+                    if (file.size <= TECMAN_MAX_UPLOAD_BYTES) continue;
+                    event.preventDefault();
+                    if (tecmanIsVideoFile(file)) {
+                        alert('El video "' + file.name + '" pesa ' + tecmanFormatSize(file.size) + ' y excede el limite de ' + TECMAN_MAX_UPLOAD_MB + ' MB. Subi un video mas corto o comprimido.');
+                    } else {
+                        alert('El archivo "' + file.name + '" pesa ' + tecmanFormatSize(file.size) + ' y excede el limite de ' + TECMAN_MAX_UPLOAD_MB + ' MB.');
+                    }
+                    input.value = '';
+                    return;
+                }
+            }
+
             var btn = form.querySelector('button[type="submit"], input[type="submit"]');
             if (!btn) return;
             var texto = (btn.innerText || btn.value || '').trim().toLowerCase();
