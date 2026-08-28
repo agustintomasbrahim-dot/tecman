@@ -159,12 +159,19 @@ def build_tickets(input_path: Path, start_id: int, only_open: bool) -> tuple[lis
         for row_number, row in enumerate(rows[header_idx + 1 :], start=header_idx + 2):
             if not any(clean(cell) for cell in row[:12]):
                 continue
+            first_value = clean(row[0] if row else "")
+            if first_value.lower().startswith(("proveedor", "celu", "sucursales")):
+                skipped["fila_contacto"] += 1
+                continue
             sucursal, sucursal_num = norm_sucursal(row[idx_suc] if idx_suc is not None else None)
             description = clean(row[idx_solicitud] if idx_solicitud is not None else "")
             invgate_id = clean(row[idx_ticket] if idx_ticket is not None else "")
             estado_original = clean(row[idx_estado] if idx_estado is not None else "")
             if not (sucursal and (description or invgate_id or estado_original)):
                 skipped["fila_sin_ticket"] += 1
+                continue
+            if not sucursal_num and not invgate_id:
+                skipped["fila_sucursal_no_mapeable_sin_ticket"] += 1
                 continue
 
             estado = map_estado(estado_original)
