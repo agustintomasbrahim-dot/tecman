@@ -8139,6 +8139,74 @@ def api_backup_data():
     )
 
 
+@app.route("/api/import-tickets", methods=["POST"])
+def api_import_tickets():
+    secret = os.environ.get("BACKUP_SECRET", "")
+    if not secret or request.args.get("token") != secret:
+        return Response("Forbidden", status=403)
+
+    payload = request.get_json(silent=True)
+    incoming = payload.get("tickets") if isinstance(payload, dict) else payload
+    if not isinstance(incoming, list) or not all(isinstance(t, dict) for t in incoming):
+        return jsonify({"error": "Body must be a JSON array of tickets or {tickets: [...]}"}), 400
+
+    only_open = request.args.get("only_open", "1") != "0"
+    if only_open:
+        incoming = [
+            t for t in incoming
+            if t.get("estado") not in ("Cerrado", "Resuelto", "Rechazado")
+        ]
+
+    missing_required = [
+        t.get("id")
+        for t in incoming
+        if not t.get("sucursal") or not t.get("descripcion") or not t.get("estado")
+    ]
+    if missing_required:
+        return jsonify({"error": "Tickets missing sucursal/descripcion/estado", "ids": missing_required[:20]}), 400
+
+    existing = load_tickets()
+    mode = request.args.get("mode", "merge")
+    if mode not in ("merge", "replace"):
+        return jsonify({"error": "mode must be merge or replace"}), 400
+
+    def key(ticket):
+        return (
+            str(ticket.get("origen", "")),
+            str(ticket.get("invgate_ticket_id", "")),
+            str(ticket.get("invgate_hoja", "")),
+            str(ticket.get("invgate_fila_excel", "")),
+        )
+
+    if mode == "merge":
+        seen = {key(t) for t in existing}
+        to_add = [t for t in incoming if key(t) not in seen]
+        final_tickets = existing + to_add
+    else:
+        to_add = incoming
+        final_tickets = incoming
+
+    result = {
+        "mode": mode,
+        "dry_run": request.args.get("dry_run", "0") == "1",
+        "existing": len(existing),
+        "incoming": len(incoming),
+        "to_add": len(to_add),
+        "final": len(final_tickets),
+    }
+    if result["dry_run"]:
+        return jsonify(result)
+
+    backups_dir = DATA_DIR / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backups_dir / f"tickets_backup_pre_import_{ts}.json"
+    backup_path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_tickets(final_tickets)
+    result["backup"] = str(backup_path)
+    return jsonify(result)
+
+
 # ENDPOINT TEMPORAL DEMO — eliminar después de la presentación con Fuga
 @app.route("/admin/crear-demo-fuga")
 @admin_required
