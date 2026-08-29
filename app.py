@@ -3281,6 +3281,15 @@ def entra_callback():
     entra_role = _entra_role_from_groups(identity)
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
+    if (
+        not entra_role
+        and auth_user
+        and _auth_user_status(auth_user) == "active"
+        and _auth_user_role(auth_user) == "admin"
+        and _auth_user_allows_provider(auth_user, "entra")
+    ):
+        entra_role = "admin"
+        identity["entra_role"] = "admin"
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(
             "error.html",
