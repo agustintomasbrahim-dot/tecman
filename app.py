@@ -357,7 +357,7 @@ ADMINS = {
     "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin"},
     "jonathan": {"password": _ADMIN_PWD, "nombre": "Jonatan", "rol": "tecnico"},
     "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
-    "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin"},
+    "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin", "email": "rrobles@grupodexter.com.ar"},
 }
 
 # Portal de Compras (Laura). Portal separado del de admin.
@@ -757,11 +757,25 @@ def _seed_auth_users():
     if USE_DB:
         changed = False
         for username, info in ADMINS.items():
-            if _find_db_user(identifier=username):
+            existing = _find_db_user(identifier=username)
+            email = (info.get("email") or "").strip().lower()
+            if existing:
+                if email and not existing.email:
+                    existing.email = email
+                    changed = True
+                if email and not AuthIdentityDB.query.filter_by(user_id=existing.id, provider="entra").first():
+                    db.session.add(AuthIdentityDB(
+                        user_id=existing.id,
+                        provider="entra",
+                        provider_subject=email,
+                        tenant_id=ENTRA_TENANT_ID,
+                    ))
+                    changed = True
                 continue
             first_name, last_name = _split_name(info["nombre"])
             user = UserDB(
                 username=username,
+                email=email,
                 first_name=first_name,
                 last_name=last_name,
                 role=info["rol"],
@@ -771,28 +785,57 @@ def _seed_auth_users():
             db.session.add(user)
             db.session.flush()
             db.session.add(LocalCredentialDB(user_id=user.id, password_hash=_hash_password(info["password"])))
+            if email:
+                db.session.add(AuthIdentityDB(
+                    user_id=user.id,
+                    provider="entra",
+                    provider_subject=email,
+                    tenant_id=ENTRA_TENANT_ID,
+                ))
             changed = True
         if changed:
             db.session.commit()
         return
     data = _load_users_json()
     users = data.setdefault("users", [])
-    existing = {(u.get("username") or "").lower() for u in users}
     changed = False
     for username, info in ADMINS.items():
-        if username.lower() in existing:
+        email = (info.get("email") or "").strip().lower()
+        existing = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
+        if existing:
+            if email and not existing.get("email"):
+                existing["email"] = email
+                changed = True
+            identities = existing.setdefault("auth_identities", [])
+            if email and not any(i.get("provider") == "entra" for i in identities):
+                identities.append({
+                    "id": uuid.uuid4().hex,
+                    "provider": "entra",
+                    "provider_subject": email,
+                    "tenant_id": ENTRA_TENANT_ID,
+                    "created_at": _now_utc().isoformat(),
+                    "last_login_at": None,
+                })
+                changed = True
             continue
         users.append({
             "id": uuid.uuid4().hex,
             "username": username,
-            "email": "",
+            "email": email,
             "first_name": _split_name(info["nombre"])[0],
             "last_name": _split_name(info["nombre"])[1],
             "role": info["rol"],
             "status": "active",
             "must_change_password": False,
             "session_version": 1,
-            "auth_identities": [],
+            "auth_identities": ([{
+                "id": uuid.uuid4().hex,
+                "provider": "entra",
+                "provider_subject": email,
+                "tenant_id": ENTRA_TENANT_ID,
+                "created_at": _now_utc().isoformat(),
+                "last_login_at": None,
+            }] if email else []),
             "local_credentials": {
                 "password_hash": _hash_password(info["password"]),
                 "failed_attempts": 0,
