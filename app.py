@@ -1672,16 +1672,16 @@ def sync_alertas_matafuegos():
         }
         if aid not in prev_map:
             agregar_notif_admin(
-                f"🚨 Matafuegos {alerta['estado'].lower()} - Sucursal {suc_num}",
-                f"{alerta['cantidad']} cargado(s) · {alerta['tipos']} · Próximo vencimiento: {alerta['proximo_vto'] or '-'}\nAvisar a Patricia y sucursal.",
+                f"Matafuegos: revisar Sucursal {suc_num}",
+                f"{alerta['estado']} · Vto: {alerta['proximo_vto'] or '-'} · Revisar y corregir desde Tecman.",
                 tipo="syh_matafuegos",
                 autor="Sistema",
                 link="/admin/syh",
             )
         elif prev_map[aid].get("proximo_vto") != alerta.get("proximo_vto") or prev_map[aid].get("tipos") != alerta.get("tipos"):
             agregar_notif_admin(
-                f"🔄 Actualización matafuegos - Sucursal {suc_num}",
-                f"Estado: {alerta['estado']} · {alerta['cantidad']} cargado(s) · {alerta['tipos']} · Próximo vencimiento: {alerta['proximo_vto'] or '-'}",
+                f"Matafuegos: actualizar Sucursal {suc_num}",
+                f"{alerta['estado']} · Vto: {alerta['proximo_vto'] or '-'} · Revisar y corregir desde Tecman.",
                 tipo="syh_matafuegos",
                 autor="Sistema",
                 link="/admin/syh",
@@ -2826,6 +2826,7 @@ def suc_panel():
     matafuegos_all = load_matafuegos().get("matafuegos", [])
     matafuegos = [_enrich_matafuego(m) for m in matafuegos_all if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
+    resumen_matafuegos = _resumen_matafuegos_sucursal(matafuegos)
     permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if is_general or p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     estado_syh = {} if is_general else load_syh().get(suc_num, {})
@@ -2840,6 +2841,7 @@ def suc_panel():
         mi_stock_manten=mi_stock_manten,
         habilitaciones_suc=habs,
         matafuegos_suc=matafuegos,
+        resumen_matafuegos=resumen_matafuegos,
         permisos_suc=permisos,
         estado_syh=estado_syh,
         hoy=datetime.date.today().isoformat(),
