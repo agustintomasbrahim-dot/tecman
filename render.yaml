@@ -9,8 +9,20 @@ services:
         value: 3.11.0
       - key: SECRET_KEY
         generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: COMPRAS_PASSWORD
+        sync: false
+      - key: CENTRAL_PASSWORD
+        sync: false
+      - key: PROVEEDOR_PASSWORD
+        sync: false
+      - key: SUCURSAL_PASSWORD_PREFIX
+        sync: false
       - key: RENDER
         value: "true"
+      - key: BACKUP_SECRET
+        sync: false
       - key: GMAIL_USER
         value: "agustintomasbrahim@gmail.com"
       - key: GMAIL_APP_PASSWORD
@@ -38,4 +50,8 @@ services:
       - key: SESSION_LIFETIME_MINUTES
         value: "480"
       - key: GOOGLE_TOKEN_JSON
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
         sync: false
