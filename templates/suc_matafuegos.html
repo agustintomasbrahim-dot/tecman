@@ -27,7 +27,7 @@
 {% if resumen_matafuegos.estado in ['Vencidos', 'Proximo a vencer'] %}
 <div class="card" style="border-left:4px solid {% if resumen_matafuegos.estado == 'Vencidos' %}#dc2626{% else %}#d97706{% endif %};">
     <div style="font-weight:700;color:{% if resumen_matafuegos.estado == 'Vencidos' %}#991b1b{% else %}#92400e{% endif %};">Matafuegos: revisar vencimientos</div>
-    <div style="font-size:13px;color:#374151;margin-top:4px;">Tenés matafuegos vencidos o próximos a vencer. Revisalos y cargá la corrección.</div>
+    <div style="font-size:13px;color:#374151;margin-top:4px;">Según el relevamiento, hay vencidos o próximos a vencer. Revisalos y cargá la corrección.</div>
 </div>
 {% endif %}
 
