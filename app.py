@@ -877,7 +877,7 @@ def _seed_auth_users():
             username = email.split("@", 1)[0]
             first_name, last_name = _split_name(info.get("nombre") or username)
             if existing:
-                if existing.role != "supervisor":
+                if existing.role not in ("admin", "supervisor"):
                     existing.role = "supervisor"
                     changed = True
                 if not existing.username:
@@ -973,7 +973,7 @@ def _seed_auth_users():
             None,
         )
         if existing:
-            if existing.get("role") != "supervisor":
+            if existing.get("role") not in ("admin", "supervisor"):
                 existing["role"] = "supervisor"
                 changed = True
             if not existing.get("email"):
