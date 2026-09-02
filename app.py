@@ -3550,6 +3550,9 @@ def entra_callback():
     entra_role = _entra_role_from_groups(identity)
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
+    if requested_portal == "supervisor" and _supervisor_for_email(identity.get("email")):
+        entra_role = "supervisor"
+        identity["entra_role"] = "supervisor"
     if (
         auth_user
         and _auth_user_status(auth_user) == "active"
