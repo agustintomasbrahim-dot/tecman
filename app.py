@@ -1846,12 +1846,12 @@ def _sumar_un_anio(fecha):
 
 
 def _fecha_control_matafuego(item):
-    fecha_carga = _parse_fecha_matafuego(item.get("fecha_carga"))
-    if fecha_carga:
-        return _sumar_un_anio(fecha_carga), "fecha_carga"
     fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento"))
     if fecha_venc:
         return fecha_venc, "fecha_vencimiento"
+    fecha_carga = _parse_fecha_matafuego(item.get("fecha_carga"))
+    if fecha_carga:
+        return _sumar_un_anio(fecha_carga), "fecha_carga"
     return None, "sin_fecha"
 
 
@@ -1875,6 +1875,8 @@ def _enrich_matafuego(m):
     x["fecha_control_calc"] = fecha_control.isoformat() if fecha_control else ""
     x["fuente_control"] = fuente_control
     x["estado_calc"] = _estado_matafuego(fecha_control, x.get("estado_manual", ""))
+    fecha_venc = _parse_fecha_matafuego(x.get("fecha_vencimiento"))
+    x["fecha_vencimiento_input"] = fecha_venc.isoformat() if fecha_venc else ""
     return x
 
 def _stats_matafuegos(items):
@@ -6750,6 +6752,27 @@ def admin_syh_matafuegos_eliminar(mid):
     if len(data["matafuegos"]) < antes:
         save_matafuegos(data)
         flash("Matafuego eliminado")
+    return redirect(url_for("admin_syh_matafuegos"))
+
+
+@app.route("/admin/syh/matafuegos/<mid>/vencimiento", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_actualizar_vencimiento(mid):
+    data = load_matafuegos()
+    nuevo_vencimiento = request.form.get("fecha_vencimiento", "").strip()
+    for item in data.get("matafuegos", []):
+        if item.get("id") != mid:
+            continue
+        anterior = item.get("fecha_vencimiento", "")
+        item["fecha_vencimiento"] = nuevo_vencimiento
+        item["fecha_vencimiento_editado_por"] = session.get("nombre", "")
+        item["fecha_vencimiento_editado_at"] = datetime.datetime.now().isoformat()
+        item["fecha_vencimiento_anterior"] = anterior
+        save_matafuegos(data)
+        sync_alertas_syh()
+        flash("Vencimiento de matafuego actualizado")
+        return redirect(url_for("admin_syh_matafuegos", sucursal=request.args.get("sucursal", "")))
+    flash("Matafuego no encontrado")
     return redirect(url_for("admin_syh_matafuegos"))
 
 
