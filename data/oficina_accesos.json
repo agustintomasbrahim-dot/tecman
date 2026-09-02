@@ -1,14 +1,17 @@
 {
   "sede": "Central - Dabra",
-  "updated_at": "2026-09-02T11:50:05-03:00",
+  "updated_at": "2026-09-02T12:04:06-03:00",
   "sectores": [
-    "Compras",
-    "Sistemas",
+    "Cuentas a pagar",
     "Cajas",
-    "Administracion",
-    "Deposito",
-    "Banos / espacios comunes",
-    "Otro"
+    "Marcas propias",
+    "Marketing",
+    "Compras",
+    "Compras no productivas",
+    "Sistemas",
+    "Tesoreria",
+    "Finanzas",
+    "Talento"
   ],
   "usuarios": [
     {

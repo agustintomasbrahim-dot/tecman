@@ -746,13 +746,16 @@ def _supervisor_for_identity(identity):
 
 OFICINA_CENTRAL_LABEL = "Central - Dabra"
 OFICINA_DEFAULT_SECTORES = [
-    "Compras",
-    "Sistemas",
+    "Cuentas a pagar",
     "Cajas",
-    "Administracion",
-    "Deposito",
-    "Banos / espacios comunes",
-    "Otro",
+    "Marcas propias",
+    "Marketing",
+    "Compras",
+    "Compras no productivas",
+    "Sistemas",
+    "Tesoreria",
+    "Finanzas",
+    "Talento",
 ]
 
 
@@ -2566,11 +2569,19 @@ for suc in SUCURSALES:
 
 _OFICINA_PWD = os.environ.get("OFICINA_PASSWORD", f"{_SUC_PREFIX}oficina")
 OFICINA_LOCAL_USERS = {
-    "compras": {"password": _OFICINA_PWD, "nombre": "Compras", "sector": "Compras"},
-    "sistemas": {"password": _OFICINA_PWD, "nombre": "Sistemas", "sector": "Sistemas"},
+    "cuentas": {"password": _OFICINA_PWD, "nombre": "Cuentas a pagar", "sector": "Cuentas a pagar"},
+    "cuentasapagar": {"password": _OFICINA_PWD, "nombre": "Cuentas a pagar", "sector": "Cuentas a pagar"},
     "cajas": {"password": _OFICINA_PWD, "nombre": "Cajas", "sector": "Cajas"},
-    "administracion": {"password": _OFICINA_PWD, "nombre": "Administracion", "sector": "Administracion"},
-    "deposito": {"password": _OFICINA_PWD, "nombre": "Deposito", "sector": "Deposito"},
+    "marcas": {"password": _OFICINA_PWD, "nombre": "Marcas propias", "sector": "Marcas propias"},
+    "marcaspropias": {"password": _OFICINA_PWD, "nombre": "Marcas propias", "sector": "Marcas propias"},
+    "marketing": {"password": _OFICINA_PWD, "nombre": "Marketing", "sector": "Marketing"},
+    "compras": {"password": _OFICINA_PWD, "nombre": "Compras", "sector": "Compras"},
+    "comprasnoprod": {"password": _OFICINA_PWD, "nombre": "Compras no productivas", "sector": "Compras no productivas"},
+    "comprasnoproductivas": {"password": _OFICINA_PWD, "nombre": "Compras no productivas", "sector": "Compras no productivas"},
+    "sistemas": {"password": _OFICINA_PWD, "nombre": "Sistemas", "sector": "Sistemas"},
+    "tesoreria": {"password": _OFICINA_PWD, "nombre": "Tesoreria", "sector": "Tesoreria"},
+    "finanzas": {"password": _OFICINA_PWD, "nombre": "Finanzas", "sector": "Finanzas"},
+    "talento": {"password": _OFICINA_PWD, "nombre": "Talento", "sector": "Talento"},
 }
 
 
