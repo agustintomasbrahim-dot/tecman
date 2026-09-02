@@ -3013,6 +3013,11 @@ def suc_login():
     )
 
 
+@app.route("/supervisor/login")
+def supervisor_login():
+    return render_template("supervisor_login.html", entra_enabled=_entra_is_configured())
+
+
 @app.route("/logout", methods=["GET", "POST"])
 def suc_logout():
     session.pop("suc_user", None)
@@ -3475,7 +3480,7 @@ def entra_start():
     session["entra_state"] = state
     session["entra_nonce"] = nonce
     requested_portal = request.args.get("portal", "").strip().lower()
-    if requested_portal in ("admin", "sucursal"):
+    if requested_portal in ("admin", "sucursal", "supervisor"):
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
@@ -3584,6 +3589,11 @@ def entra_callback():
         return render_template(
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo de sucursales de Tecman.",
+        ), 403
+    if requested_portal == "supervisor" and entra_role != "supervisor":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada como supervisor en Tecman.",
         ), 403
 
     if entra_role in ("sucursal", "supervisor"):

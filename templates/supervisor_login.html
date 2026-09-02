@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Supervisores{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 48px auto;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">&#128188;</div>
+        <h2 style="font-size: 18px;">Portal Supervisores</h2>
+        <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Ingreso con cuenta Microsoft autorizada</p>
+    </div>
+    {% if entra_enabled %}
+    <a href="{{ url_for('entra_start', portal='supervisor') }}" class="btn btn-primary btn-block" style="background:#2563eb;color:white;">Ingresar con Microsoft</a>
+    {% else %}
+    <button type="button" class="btn btn-block" style="background:#f3f4f6;color:#9ca3af;cursor:not-allowed;" disabled>Ingresar con Microsoft</button>
+    {% endif %}
+    <div style="text-align: center; margin-top: 16px;">
+        <a href="{{ url_for('index') }}" style="color: #9ca3af; font-size: 12px; text-decoration: none;">&larr; Volver</a>
+    </div>
+</div>
+{% endblock %}
