@@ -1,6 +1,33 @@
 {
+  "updated_at": "2026-09-02T16:17:14-03:00",
+  "sedes": {
+    "Central - Dabra": [
+      "Cuentas a pagar",
+      "Cajas",
+      "Marcas propias",
+      "Marketing",
+      "Compras",
+      "Compras no productivas",
+      "Sistemas",
+      "Tesoreria",
+      "Finanzas",
+      "Talento",
+      "Riesgo / Tarjetas",
+      "Legales",
+      "Ecommerce",
+      "Deposito Central",
+      "Seguridad / Auditoria",
+      "Negocios",
+      "Supply chain",
+      "Estrategia",
+      "Directorio"
+    ],
+    "Garin": [
+      "Oficinas",
+      "Deposito"
+    ]
+  },
   "sede": "Central - Dabra",
-  "updated_at": "2026-09-02T12:04:06-03:00",
   "sectores": [
     "Cuentas a pagar",
     "Cajas",
@@ -11,13 +38,341 @@
     "Sistemas",
     "Tesoreria",
     "Finanzas",
-    "Talento"
+    "Talento",
+    "Riesgo / Tarjetas",
+    "Legales",
+    "Ecommerce",
+    "Deposito Central",
+    "Seguridad / Auditoria",
+    "Negocios",
+    "Supply chain",
+    "Estrategia",
+    "Directorio"
   ],
   "usuarios": [
     {
       "nombre": "Agustin Brahim",
       "email": "abrahim@grupodexter.com.ar",
+      "sede": "Central - Dabra",
       "sector": "Todos"
+    },
+    {
+      "nombre": "Bibiana Gausach",
+      "email": "bgausach@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Cuentas a pagar"
+    },
+    {
+      "nombre": "Andrea Kairuz",
+      "email": "akairuz@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Cuentas a pagar"
+    },
+    {
+      "nombre": "Miriam Killian",
+      "email": "mkillian@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Cajas"
+    },
+    {
+      "nombre": "Paula Pertosa",
+      "email": "ppertosa@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Cajas"
+    },
+    {
+      "nombre": "Madeleine Morando",
+      "email": "mmorando@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Marcas propias"
+    },
+    {
+      "nombre": "Ayelen Valsecchi",
+      "email": "avalsecchi@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Marcas propias"
+    },
+    {
+      "nombre": "Daniel Abet",
+      "email": "dabet@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Marketing"
+    },
+    {
+      "nombre": "Agustina Martinez",
+      "email": "amartinez@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Marketing"
+    },
+    {
+      "nombre": "Laura Peronace",
+      "email": "lperonace@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Compras no productivas"
+    },
+    {
+      "nombre": "Gaston Peirano",
+      "email": "gpeirano@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Compras no productivas"
+    },
+    {
+      "nombre": "Alejandro Ayerra",
+      "email": "aayerra@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Sistemas"
+    },
+    {
+      "nombre": "Aramis Vives",
+      "email": "avives@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Sistemas"
+    },
+    {
+      "nombre": "Adrian Pedrozo",
+      "email": "apedrozo@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Sistemas"
+    },
+    {
+      "nombre": "Javier Castellanos",
+      "email": "jcastellanos@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Sistemas"
+    },
+    {
+      "nombre": "Alejandra Ardino",
+      "email": "aardino@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Tesoreria"
+    },
+    {
+      "nombre": "Claudio Bidetti",
+      "email": "cbidetti@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Tesoreria"
+    },
+    {
+      "nombre": "Natalia Pascua",
+      "email": "npascua@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Tesoreria"
+    },
+    {
+      "nombre": "Rocio Bender",
+      "email": "rbender@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Finanzas"
+    },
+    {
+      "nombre": "Florencia Lectour",
+      "email": "flectour@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Riesgo / Tarjetas"
+    },
+    {
+      "nombre": "Marian Cabrera",
+      "email": "mcabrera@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Riesgo / Tarjetas"
+    },
+    {
+      "nombre": "Juan Loffreda",
+      "email": "jloffreda@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Legales"
+    },
+    {
+      "nombre": "Carlos Javier Vizcay",
+      "email": "cviscaybello@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Legales"
+    },
+    {
+      "nombre": "Maira Gallardo",
+      "email": "mgallardo@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Talento"
+    },
+    {
+      "nombre": "Anabella Karaguezian",
+      "email": "akaraguezian@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Talento"
+    },
+    {
+      "nombre": "Matias Acevedo",
+      "email": "macevedo@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Talento"
+    },
+    {
+      "nombre": "Mariana Jaromin",
+      "email": "mjaromin@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Talento"
+    },
+    {
+      "nombre": "Sandra Caimer",
+      "email": "scaimer@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Talento"
+    },
+    {
+      "nombre": "Martin Ghiglione",
+      "email": "mghiglione@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Ecommerce"
+    },
+    {
+      "nombre": "Ezequiel Bataglia",
+      "email": "ebattaglia@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Ecommerce"
+    },
+    {
+      "nombre": "Catalina Leva",
+      "email": "cleva@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Ecommerce"
+    },
+    {
+      "nombre": "Tomas Magallanes",
+      "email": "tmagallanes@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Ecommerce"
+    },
+    {
+      "nombre": "Marianela Malagrida",
+      "email": "mmalagrida@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Ecommerce"
+    },
+    {
+      "nombre": "Federico Becker",
+      "email": "fbecker@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Deposito Central"
+    },
+    {
+      "nombre": "Esteban Arellano",
+      "email": "earellano@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Deposito Central"
+    },
+    {
+      "nombre": "Daniel Caire",
+      "email": "dcaire@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Juan Carlos Etchepare",
+      "email": "jcetchepare@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Jose Quijada",
+      "email": "jquijada@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Eduardo Donato",
+      "email": "edonato@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Lorena Benitez",
+      "email": "lbenitez@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Claudio Medina",
+      "email": "cmedina@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "David Terra",
+      "email": "dterra@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Danilo Chapelet",
+      "email": "dchapelet@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Seguridad / Auditoria"
+    },
+    {
+      "nombre": "Yenifer Aguiar",
+      "email": "yaguiar@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Negocios"
+    },
+    {
+      "nombre": "Marina Suriano",
+      "email": "msuriano@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Negocios"
+    },
+    {
+      "nombre": "Debora Torres",
+      "email": "dtorres@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Supply chain"
+    },
+    {
+      "nombre": "Sofia Rossi",
+      "email": "srossi@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Estrategia"
+    },
+    {
+      "nombre": "Gonzalo Toledo",
+      "email": "gtoledo@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Estrategia"
+    },
+    {
+      "nombre": "Nestor Agüero",
+      "email": "naguero@grupodexter.com.ar",
+      "sede": "Garin",
+      "sector": "Deposito"
+    },
+    {
+      "nombre": "Matias Miño",
+      "email": "mmino@grupodexter.com.ar",
+      "sede": "Garin",
+      "sector": "Deposito"
+    },
+    {
+      "nombre": "Mariano Romero",
+      "email": "mromero@grupodexter.com.ar",
+      "sede": "Garin",
+      "sector": "Deposito"
+    },
+    {
+      "nombre": "Gabriel Riche",
+      "email": "griche@grupodexter.com.ar",
+      "sede": "Garin",
+      "sector": "Deposito"
+    },
+    {
+      "nombre": "Pablo Abal",
+      "email": "pabal@grupodexter.com.ar",
+      "sede": "Garin",
+      "sector": "Deposito"
+    },
+    {
+      "nombre": "Gabriela Vazquez",
+      "email": "gvazquez@grupodexter.com.ar",
+      "sede": "Central - Dabra",
+      "sector": "Directorio"
     }
   ]
 }

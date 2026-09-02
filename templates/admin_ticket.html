@@ -142,8 +142,8 @@
     </div>
 
     <div class="ticket-meta-grid">
-        <div class="ticket-meta-item"><div class="label">Sucursal</div><div class="value">{% if session.nombre == 'Rita' or ticket.origen == 'oficina_dabra' %}{{ ticket.sucursal }}{% else %}<a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a>{% endif %}</div></div>
-        {% if ticket.sector_oficina %}<div class="ticket-meta-item"><div class="label">Sector</div><div class="value">{{ ticket.sector_oficina }}</div></div>{% endif %}
+        <div class="ticket-meta-item"><div class="label">Sucursal</div><div class="value">{% if session.nombre == 'Rita' or ticket.origen in ['oficina', 'oficina_dabra'] %}{{ ticket.sucursal }}{% else %}<a href="{{ url_for('admin_sucursal', suc_num=ticket.sucursal.replace('Sucursal ', '')) }}" style="color: #e63946; text-decoration: none;">{{ ticket.sucursal }}</a>{% endif %}</div></div>
+        {% if ticket.sector_oficina %}<div class="ticket-meta-item"><div class="label">Área / zona</div><div class="value">{{ ticket.sector_oficina }}</div></div>{% endif %}
         <div class="ticket-meta-item"><div class="label">Categoría</div><div class="value">{{ ticket.categoria }} &raquo; {{ ticket.subcategoria }}</div></div>
         <div class="ticket-meta-item"><div class="label">Solicitante</div><div class="value">{{ ticket.solicitante or '-' }}</div></div>
         {% if session.nombre != 'Rita' %}<div class="ticket-meta-item"><div class="label">Asignado</div><div class="value">{{ ticket.asignado }}</div></div>{% endif %}

@@ -14,11 +14,11 @@
     <form method="POST" enctype="multipart/form-data">
         {% if session.oficina_user %}
         <div class="info-box" style="margin-bottom: 18px;">
-            &#127970; Oficina Dabra - Central
+            &#127970; {{ session.oficina_sede or session.suc_nombre }}
         </div>
         {% if session.oficina_sector == 'Todos' %}
         <div class="form-group">
-            <label>Sector *</label>
+            <label>Área / zona *</label>
             <select name="sector_oficina" required>
                 <option value="">Seleccionar sector...</option>
                 {% for sector in oficina_sectores %}
@@ -28,7 +28,7 @@
         </div>
         {% else %}
         <div class="info-box" style="margin-bottom: 18px;">
-            Sector: {{ session.oficina_sector }}
+            Área / zona: {{ session.oficina_sector }}
         </div>
         <input type="hidden" name="sector_oficina" value="{{ session.oficina_sector }}">
         {% endif %}

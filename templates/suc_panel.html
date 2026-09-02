@@ -21,11 +21,11 @@
 @media (max-width: 900px) { .suc-top-grid { grid-template-columns: 1fr; } }
 </style>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-    <h2>{% if session.oficina_user %}Oficina Dabra{% else %}{{ session.suc_nombre }}{% endif %}</h2>
+    <h2>{% if session.oficina_user %}{{ session.oficina_sede or session.suc_nombre }}{% else %}{{ session.suc_nombre }}{% endif %}</h2>
     <span style="color: #6b7280;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
 </div>
 {% if session.oficina_user %}
-<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Sector: {{ session.oficina_sector }}</div>
+<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Área / zona: {{ session.oficina_sector }}</div>
 {% endif %}
 
 {% if not session.oficina_user %}
@@ -48,7 +48,7 @@
         <a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="font-size: 16px; padding: 14px; margin-bottom: 10px;">
             + Crear nuevo ticket
         </a>
-        <p style="font-size:12px; color:#6b7280; margin:0;">{% if session.oficina_user %}Usá este botón para reportar problemas del predio central.{% else %}Usá este botón para reportar problemas, pedir materiales o cargar un nuevo reclamo.{% endif %}</p>
+        <p style="font-size:12px; color:#6b7280; margin:0;">{% if session.oficina_user %}Usá este botón para reportar problemas de la sede.{% else %}Usá este botón para reportar problemas, pedir materiales o cargar un nuevo reclamo.{% endif %}</p>
     </div>
     <div class="card" style="margin-bottom:0;">
         <h3 style="margin-bottom: 10px;">Resumen rápido</h3>
@@ -59,8 +59,8 @@
             <div class="suc-mini-card"><div class="suc-mini-label">Matafuegos</div><div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div></div>
             <div class="suc-mini-card" style="cursor:pointer;" onclick="var s=document.getElementById('stock-recibido');if(s){s.open=true;s.scrollIntoView({behavior:'smooth'});}"><div class="suc-mini-label">Stock recibido</div><div class="suc-mini-value">{{ (mi_stock_insumos|length if mi_stock_insumos else 0) + (mi_stock_manten|length if mi_stock_manten else 0) }}</div><div style="font-size:12px;color:#6b7280;margin-top:4px;">Ver detalle →</div></div>
             {% else %}
-            <div class="suc-mini-card"><div class="suc-mini-label">Sede</div><div class="suc-mini-value">Central</div></div>
-            <div class="suc-mini-card"><div class="suc-mini-label">Sector</div><div class="suc-mini-value">{{ session.oficina_sector }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Sede</div><div class="suc-mini-value">{{ session.oficina_sede or session.suc_nombre }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Área / zona</div><div class="suc-mini-value">{{ session.oficina_sector }}</div></div>
             <div class="suc-mini-card"><div class="suc-mini-label">Acceso</div><div class="suc-mini-value">Oficina</div></div>
             {% endif %}
         </div>

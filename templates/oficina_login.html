@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Tecman - Oficina Dabra{% endblock %}
+{% block title %}Tecman - Oficinas{% endblock %}
 {% block content %}
 <div style="max-width: 420px; margin: 60px auto;">
     <div class="card">
         <div style="text-align: center; margin-bottom: 24px;">
             <div style="font-size: 40px; margin-bottom: 12px;">&#127970;</div>
-            <h2>Oficina Dabra</h2>
-            <p style="color: #6b7280; margin-top: 6px;">Predio central y sectores internos</p>
+            <h2>Oficinas</h2>
+            <p style="color: #6b7280; margin-top: 6px;">Dabra Central y Garin</p>
         </div>
 
         {% if entra_enabled %}
@@ -16,9 +16,10 @@
 
         <form method="POST">
             <div class="form-group">
-                <label>Sector</label>
+                <label>Sector / zona</label>
                 <select name="usuario" required>
                     <option value="">Seleccionar sector...</option>
+                    <optgroup label="Central - Dabra">
                     <option value="cuentasapagar">Cuentas a pagar</option>
                     <option value="cajas">Cajas</option>
                     <option value="marcaspropias">Marcas propias</option>
@@ -29,6 +30,11 @@
                     <option value="tesoreria">Tesoreria</option>
                     <option value="finanzas">Finanzas</option>
                     <option value="talento">Talento</option>
+                    </optgroup>
+                    <optgroup label="Garin">
+                    <option value="garinoficinas">Oficinas</option>
+                    <option value="garindeposito">Deposito</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="form-group">

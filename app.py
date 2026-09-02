@@ -745,6 +745,7 @@ def _supervisor_for_identity(identity):
 
 
 OFICINA_CENTRAL_LABEL = "Central - Dabra"
+OFICINA_GARIN_LABEL = "Garin"
 OFICINA_DEFAULT_SECTORES = [
     "Cuentas a pagar",
     "Cajas",
@@ -756,7 +757,20 @@ OFICINA_DEFAULT_SECTORES = [
     "Tesoreria",
     "Finanzas",
     "Talento",
+    "Riesgo / Tarjetas",
+    "Legales",
+    "Ecommerce",
+    "Deposito Central",
+    "Seguridad / Auditoria",
+    "Negocios",
+    "Supply chain",
+    "Estrategia",
+    "Directorio",
 ]
+OFICINA_DEFAULT_SEDES = {
+    OFICINA_CENTRAL_LABEL: list(OFICINA_DEFAULT_SECTORES),
+    OFICINA_GARIN_LABEL: ["Oficinas", "Deposito"],
+}
 
 
 def load_oficina_accesos():
@@ -766,6 +780,7 @@ def load_oficina_accesos():
                 data = json.loads(path.read_text(encoding="utf-8"))
                 data.setdefault("sede", OFICINA_CENTRAL_LABEL)
                 data.setdefault("sectores", list(OFICINA_DEFAULT_SECTORES))
+                data.setdefault("sedes", dict(OFICINA_DEFAULT_SEDES))
                 data.setdefault("usuarios", [])
                 return data
             except (json.JSONDecodeError, OSError):
@@ -773,12 +788,15 @@ def load_oficina_accesos():
     return {
         "sede": OFICINA_CENTRAL_LABEL,
         "sectores": list(OFICINA_DEFAULT_SECTORES),
+        "sedes": dict(OFICINA_DEFAULT_SEDES),
         "usuarios": [],
     }
 
 
-def _oficina_sectores():
-    sectores = load_oficina_accesos().get("sectores") or OFICINA_DEFAULT_SECTORES
+def _oficina_sectores(sede=None):
+    data = load_oficina_accesos()
+    sede = (sede or data.get("sede") or OFICINA_CENTRAL_LABEL).strip()
+    sectores = (data.get("sedes") or {}).get(sede) or data.get("sectores") or OFICINA_DEFAULT_SECTORES
     return [str(s).strip() for s in sectores if str(s).strip()]
 
 
@@ -2584,6 +2602,8 @@ OFICINA_LOCAL_USERS = {
     "tesoreria": {"password": _OFICINA_PWD, "nombre": "Tesoreria", "sector": "Tesoreria"},
     "finanzas": {"password": _OFICINA_PWD, "nombre": "Finanzas", "sector": "Finanzas"},
     "talento": {"password": _OFICINA_PWD, "nombre": "Talento", "sector": "Talento"},
+    "garinoficinas": {"password": _OFICINA_PWD, "nombre": "Garin - Oficinas", "sede": OFICINA_GARIN_LABEL, "sector": "Oficinas"},
+    "garindeposito": {"password": _OFICINA_PWD, "nombre": "Garin - Deposito", "sede": OFICINA_GARIN_LABEL, "sector": "Deposito"},
 }
 
 
@@ -2661,6 +2681,13 @@ def _sucursal_session_can_access_value(value):
 
 
 def _sucursal_session_can_access_item(item):
+    if session.get("oficina_user") and isinstance(item, dict):
+        if not _sucursal_session_can_access_value(item.get("sucursal_num") or item.get("sucursal")):
+            return False
+        sector = (session.get("oficina_sector") or "").strip()
+        if sector and sector != "Todos":
+            return (item.get("sector_oficina") or "").strip() == sector
+        return True
     return _sucursal_session_can_access_value(
         item.get("sucursal_num") or item.get("sucursal") if isinstance(item, dict) else item
     )
@@ -2700,15 +2727,17 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
     return True
 
 
-def _set_oficina_session(nombre, email="", sector="Todos", provider="local"):
+def _set_oficina_session(nombre, email="", sector="Todos", sede=OFICINA_CENTRAL_LABEL, provider="local"):
     sector = (sector or "Todos").strip()
+    sede = (sede or OFICINA_CENTRAL_LABEL).strip()
     session.clear()
     session.permanent = True
     session["suc_user"] = (email or nombre or "oficina").split("@", 1)[0]
-    session["suc_nombre"] = OFICINA_CENTRAL_LABEL
+    session["suc_nombre"] = sede
     session["oficina_user"] = session["suc_user"]
+    session["oficina_sede"] = sede
     session["oficina_sector"] = sector
-    session["nombre"] = nombre or email or "Oficina Dabra"
+    session["nombre"] = nombre or email or sede
     session["auth_provider"] = provider
     if provider == "entra":
         session["entra_role"] = "oficina"
@@ -2723,6 +2752,7 @@ def _set_oficina_session_from_entra(identity):
         access.get("nombre") or identity.get("name") or identity.get("email"),
         email=access.get("email") or identity.get("email"),
         sector=access.get("sector") or "Todos",
+        sede=access.get("sede") or OFICINA_CENTRAL_LABEL,
         provider="entra",
     )
 
@@ -3174,7 +3204,12 @@ def oficina_login():
         pwd = request.form.get("password", "")
         info = OFICINA_LOCAL_USERS.get(user)
         if info and info["password"] == pwd:
-            _set_oficina_session(info["nombre"], sector=info["sector"], provider="local")
+            _set_oficina_session(
+                info["nombre"],
+                sector=info["sector"],
+                sede=info.get("sede", OFICINA_CENTRAL_LABEL),
+                provider="local",
+            )
             return redirect(url_for("suc_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template(
@@ -3191,6 +3226,7 @@ def suc_logout():
     session.pop("suc_nombre", None)
     session.pop("suc_general", None)
     session.pop("oficina_user", None)
+    session.pop("oficina_sede", None)
     session.pop("oficina_sector", None)
     return redirect(url_for("oficina_login" if was_oficina else "suc_login"))
 
@@ -3494,7 +3530,8 @@ def nuevo_ticket():
         }
         if sector_oficina:
             ticket["sector_oficina"] = sector_oficina
-            ticket["origen"] = "oficina_dabra"
+            ticket["sede_oficina"] = session.get("oficina_sede") or session.get("suc_nombre")
+            ticket["origen"] = "oficina"
 
         if categoria == "Materiales":
             ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
@@ -3529,7 +3566,7 @@ def nuevo_ticket():
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
         material_categorias=MATERIAL_CATEGORIAS,
-        oficina_sectores=_oficina_sectores(),
+        oficina_sectores=_oficina_sectores(session.get("oficina_sede")),
     )
 
 
@@ -3785,7 +3822,7 @@ def entra_callback():
     if requested_portal == "oficina" and entra_role != "oficina":
         return render_template(
             "error.html",
-            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Oficina Dabra.",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Oficinas.",
         ), 403
 
     if entra_role == "oficina":
