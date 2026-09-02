@@ -225,6 +225,7 @@ except Exception:
 _ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
+_SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
 COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar")
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
 AGUSTIN_EMAIL = os.environ.get("AGUSTIN_EMAIL", "agustintomasbrahim@gmail.com")
@@ -5882,7 +5883,7 @@ def admin_exportar():
 # --- Routes: Seguridad e Higiene ---
 
 SYH_USERS = {
-    "patricia": {"password": "syh2026", "nombre": "Patricia"},
+    "patricia": {"password": _SYH_PWD, "nombre": "Patricia"},
 }
 
 def syh_login_required(f):
@@ -8275,6 +8276,8 @@ def api_import_tickets():
 @app.route("/admin/crear-demo-fuga")
 @admin_required
 def admin_crear_demo_fuga():
+    if os.environ.get("ENABLE_DEMO_FUGA", "").lower() != "true":
+        return render_template("error.html", mensaje="Endpoint de demo deshabilitado."), 404
     tickets = load_tickets()
     ahora = datetime.datetime.now().isoformat()
     demo = [
