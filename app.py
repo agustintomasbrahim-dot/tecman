@@ -668,10 +668,11 @@ def _auth_user_rows():
 
 
 def load_supervisores_sucursales():
+    seeded = _load_supervisores_file()
     if USE_DB and "_db_cfg_get" in globals():
-        seeded = _load_supervisores_file()
-        return _db_cfg_get("supervisores_sucursales", seeded)
-    return _load_supervisores_file()
+        stored = _db_cfg_get("supervisores_sucursales", seeded)
+        return _merge_supervisores_sucursales(stored, seeded)
+    return seeded
 
 
 def _load_supervisores_file():
@@ -682,6 +683,23 @@ def _load_supervisores_file():
             except (json.JSONDecodeError, OSError):
                 pass
     return {"supervisores": []}
+
+
+def _merge_supervisores_sucursales(primary, fallback):
+    merged = {
+        "source": (primary or {}).get("source") or (fallback or {}).get("source", ""),
+        "updated_at": (primary or {}).get("updated_at") or (fallback or {}).get("updated_at", ""),
+        "supervisores": [],
+    }
+    seen = set()
+    for source in (primary, fallback):
+        for item in (source or {}).get("supervisores", []):
+            email = (item.get("email") or "").strip().lower()
+            if not email or email in seen:
+                continue
+            merged["supervisores"].append(item)
+            seen.add(email)
+    return merged
 
 
 def _supervisores_by_email():
@@ -695,6 +713,33 @@ def _supervisores_by_email():
 
 def _supervisor_for_email(email):
     return _supervisores_by_email().get((email or "").strip().lower())
+
+
+def _identity_email_candidates(identity):
+    claims = identity.get("claims") or {}
+    candidates = [
+        identity.get("email"),
+        claims.get("preferred_username"),
+        claims.get("email"),
+        claims.get("upn"),
+        claims.get("unique_name"),
+    ]
+    normalized = []
+    seen = set()
+    for email in candidates:
+        value = (email or "").strip().lower()
+        if value and value not in seen:
+            normalized.append(value)
+            seen.add(value)
+    return normalized
+
+
+def _supervisor_for_identity(identity):
+    for email in _identity_email_candidates(identity):
+        supervisor = _supervisor_for_email(email)
+        if supervisor:
+            return supervisor
+    return None
 
 
 def _recent_auth_events(limit=50):
@@ -2558,7 +2603,7 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
     session["entra_role"] = identity.get("entra_role")
     session["nombre"] = identity.get("name") or identity.get("email") or "Portal Sucursales"
     if identity.get("entra_role") == "supervisor":
-        supervisor = _supervisor_for_email(identity.get("email"))
+        supervisor = _supervisor_for_identity(identity)
         if not supervisor:
             return False
         scope_nums = [
@@ -3550,7 +3595,7 @@ def entra_callback():
     entra_role = _entra_role_from_groups(identity)
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
-    if requested_portal == "supervisor" and _supervisor_for_email(identity.get("email")):
+    if requested_portal == "supervisor" and _supervisor_for_identity(identity):
         entra_role = "supervisor"
         identity["entra_role"] = "supervisor"
     if (
