@@ -1,0 +1,20 @@
+{
+  "sede": "Central - Dabra",
+  "updated_at": "2026-09-02T11:50:05-03:00",
+  "sectores": [
+    "Compras",
+    "Sistemas",
+    "Cajas",
+    "Administracion",
+    "Deposito",
+    "Banos / espacios comunes",
+    "Otro"
+  ],
+  "usuarios": [
+    {
+      "nombre": "Agustin Brahim",
+      "email": "abrahim@grupodexter.com.ar",
+      "sector": "Todos"
+    }
+  ]
+}

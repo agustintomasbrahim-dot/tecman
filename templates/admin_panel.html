@@ -239,7 +239,7 @@ function toggleNotif() {
             <tr style="cursor: pointer;" onclick="window.location='/admin/ticket/{{ t.id }}'">
                 <td style="font-weight: 600; color: #0ea5e9;">{{ t.id }}</td>
                 <td>{{ t.sucursal | replace('Sucursal ', 'S') }}</td>
-                <td>{{ t.subcategoria }}{% if t.categoria == 'Presupuestos' %}<div style="font-size:11px;color:#6b7280;">{{ t.estado_presupuesto or 'Nuevo' }}{% if t.requiere_requisicion %} · Rita pendiente{% endif %}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
+                <td>{% if t.sector_oficina %}<div style="font-size:11px;color:#0f766e;font-weight:700;">{{ t.sector_oficina }}</div>{% endif %}{{ t.subcategoria }}{% if t.categoria == 'Presupuestos' %}<div style="font-size:11px;color:#6b7280;">{{ t.estado_presupuesto or 'Nuevo' }}{% if t.requiere_requisicion %} · Rita pendiente{% endif %}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
                 <td><span class="badge badge-p{{ t.prioridad }}">{{ t.prioridad }}</span></td>
                 <td><span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span></td>
                 <td style="color: #6b7280;">{{ t.asignado }}</td>

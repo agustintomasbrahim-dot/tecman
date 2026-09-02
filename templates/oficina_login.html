@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Oficina Dabra{% endblock %}
+{% block content %}
+<div style="max-width: 420px; margin: 60px auto;">
+    <div class="card">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="font-size: 40px; margin-bottom: 12px;">&#127970;</div>
+            <h2>Oficina Dabra</h2>
+            <p style="color: #6b7280; margin-top: 6px;">Predio central y sectores internos</p>
+        </div>
+
+        {% if entra_enabled %}
+        <a href="{{ url_for('entra_start', portal='oficina') }}" class="btn btn-primary btn-block" style="background:#0f766e;color:white;">Ingresar con Microsoft</a>
+        <div style="height: 1px; background: #e5e7eb; margin: 22px 0;"></div>
+        {% endif %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label>Sector</label>
+                <select name="usuario" required>
+                    <option value="">Seleccionar sector...</option>
+                    <option value="compras">Compras</option>
+                    <option value="sistemas">Sistemas</option>
+                    <option value="cajas">Cajas</option>
+                    <option value="administracion">Administracion</option>
+                    <option value="deposito">Deposito</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-block" style="background:#111827;color:white;">Entrar</button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="{{ url_for('index') }}" style="color: #6b7280; font-size: 13px;">Volver</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

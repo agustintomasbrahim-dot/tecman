@@ -129,6 +129,8 @@ PASSWORD_RESET_TOKENS_FILE = DATA_DIR / "password_reset_tokens.json"
 AUTH_AUDIT_FILE = DATA_DIR / "auth_audit_events.json"
 SUPERVISORES_FILE = DATA_DIR / "supervisores_sucursales.json"
 REPO_SUPERVISORES_FILE = Path(__file__).parent / "data" / "supervisores_sucursales.json"
+OFICINA_ACCESOS_FILE = DATA_DIR / "oficina_accesos.json"
+REPO_OFICINA_ACCESOS_FILE = Path(__file__).parent / "data" / "oficina_accesos.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -739,6 +741,59 @@ def _supervisor_for_identity(identity):
         supervisor = _supervisor_for_email(email)
         if supervisor:
             return supervisor
+    return None
+
+
+OFICINA_CENTRAL_LABEL = "Central - Dabra"
+OFICINA_DEFAULT_SECTORES = [
+    "Compras",
+    "Sistemas",
+    "Cajas",
+    "Administracion",
+    "Deposito",
+    "Banos / espacios comunes",
+    "Otro",
+]
+
+
+def load_oficina_accesos():
+    for path in (OFICINA_ACCESOS_FILE, REPO_OFICINA_ACCESOS_FILE):
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                data.setdefault("sede", OFICINA_CENTRAL_LABEL)
+                data.setdefault("sectores", list(OFICINA_DEFAULT_SECTORES))
+                data.setdefault("usuarios", [])
+                return data
+            except (json.JSONDecodeError, OSError):
+                pass
+    return {
+        "sede": OFICINA_CENTRAL_LABEL,
+        "sectores": list(OFICINA_DEFAULT_SECTORES),
+        "usuarios": [],
+    }
+
+
+def _oficina_sectores():
+    sectores = load_oficina_accesos().get("sectores") or OFICINA_DEFAULT_SECTORES
+    return [str(s).strip() for s in sectores if str(s).strip()]
+
+
+def _oficina_by_email():
+    mapping = {}
+    for item in load_oficina_accesos().get("usuarios", []):
+        email = (item.get("email") or "").strip().lower()
+        if email:
+            mapping[email] = item
+    return mapping
+
+
+def _oficina_for_identity(identity):
+    rows = _oficina_by_email()
+    for email in _identity_email_candidates(identity):
+        access = rows.get(email)
+        if access:
+            return access
     return None
 
 
@@ -2509,6 +2564,15 @@ for suc in SUCURSALES:
     elif suc == "Garin":
         SUCURSAL_USERS["garin"] = {"password": f"{_SUC_PREFIX}garin", "sucursal": suc}
 
+_OFICINA_PWD = os.environ.get("OFICINA_PASSWORD", f"{_SUC_PREFIX}oficina")
+OFICINA_LOCAL_USERS = {
+    "compras": {"password": _OFICINA_PWD, "nombre": "Compras", "sector": "Compras"},
+    "sistemas": {"password": _OFICINA_PWD, "nombre": "Sistemas", "sector": "Sistemas"},
+    "cajas": {"password": _OFICINA_PWD, "nombre": "Cajas", "sector": "Cajas"},
+    "administracion": {"password": _OFICINA_PWD, "nombre": "Administracion", "sector": "Administracion"},
+    "deposito": {"password": _OFICINA_PWD, "nombre": "Deposito", "sector": "Deposito"},
+}
+
 
 def _sucursal_user_from_entra_email(email):
     email = (email or "").strip().lower()
@@ -2621,6 +2685,33 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
     session["suc_user"] = "entra_sucursales"
     session["suc_nombre"] = "Portal Sucursales"
     return True
+
+
+def _set_oficina_session(nombre, email="", sector="Todos", provider="local"):
+    sector = (sector or "Todos").strip()
+    session.clear()
+    session.permanent = True
+    session["suc_user"] = (email or nombre or "oficina").split("@", 1)[0]
+    session["suc_nombre"] = OFICINA_CENTRAL_LABEL
+    session["oficina_user"] = session["suc_user"]
+    session["oficina_sector"] = sector
+    session["nombre"] = nombre or email or "Oficina Dabra"
+    session["auth_provider"] = provider
+    if provider == "entra":
+        session["entra_role"] = "oficina"
+    return True
+
+
+def _set_oficina_session_from_entra(identity):
+    access = _oficina_for_identity(identity)
+    if not access:
+        return False
+    return _set_oficina_session(
+        access.get("nombre") or identity.get("name") or identity.get("email"),
+        email=access.get("email") or identity.get("email"),
+        sector=access.get("sector") or "Todos",
+        provider="entra",
+    )
 
 
 # Auto-assignment rules
@@ -2970,7 +3061,7 @@ def suc_login_required(f):
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
             return redirect(url_for("suc_login"))
-        if session.get("auth_provider") == "entra" and session.get("entra_role") not in ("sucursal", "supervisor"):
+        if session.get("auth_provider") == "entra" and session.get("entra_role") not in ("sucursal", "supervisor", "oficina"):
             session.clear()
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
@@ -3063,12 +3154,32 @@ def supervisor_login():
     return render_template("supervisor_login.html", entra_enabled=_entra_is_configured())
 
 
+@app.route("/oficina/login", methods=["GET", "POST"])
+def oficina_login():
+    if request.method == "POST":
+        user = request.form.get("usuario", "").lower().strip()
+        pwd = request.form.get("password", "")
+        info = OFICINA_LOCAL_USERS.get(user)
+        if info and info["password"] == pwd:
+            _set_oficina_session(info["nombre"], sector=info["sector"], provider="local")
+            return redirect(url_for("suc_panel"))
+        flash("Usuario o contraseña incorrectos")
+    return render_template(
+        "oficina_login.html",
+        entra_enabled=_entra_is_configured(),
+        sectores=_oficina_sectores(),
+    )
+
+
 @app.route("/logout", methods=["GET", "POST"])
 def suc_logout():
+    was_oficina = bool(session.get("oficina_user"))
     session.pop("suc_user", None)
     session.pop("suc_nombre", None)
     session.pop("suc_general", None)
-    return redirect(url_for("suc_login"))
+    session.pop("oficina_user", None)
+    session.pop("oficina_sector", None)
+    return redirect(url_for("oficina_login" if was_oficina else "suc_login"))
 
 
 @app.route("/suc/seleccionar", methods=["GET", "POST"])
@@ -3318,6 +3429,14 @@ def nuevo_ticket():
         solicitante_nombre = request.form.get("solicitante_nombre", "").strip()
         solicitante_apellido = request.form.get("solicitante_apellido", "").strip()
         zona_afectada = request.form.get("zona_afectada", "").strip()
+        sector_oficina = ""
+        if session.get("oficina_user"):
+            sector_oficina = request.form.get("sector_oficina", "").strip()
+            if session.get("oficina_sector") and session.get("oficina_sector") != "Todos":
+                sector_oficina = session.get("oficina_sector")
+            if not sector_oficina:
+                flash("Seleccione un sector")
+                return redirect(url_for("nuevo_ticket"))
 
         presupuestos_suc = []
         for n in range(1, 4):
@@ -3360,6 +3479,9 @@ def nuevo_ticket():
             "creado": datetime.datetime.now().isoformat(),
             "actualizado": datetime.datetime.now().isoformat(),
         }
+        if sector_oficina:
+            ticket["sector_oficina"] = sector_oficina
+            ticket["origen"] = "oficina_dabra"
 
         if categoria == "Materiales":
             ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
@@ -3394,6 +3516,7 @@ def nuevo_ticket():
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
         material_categorias=MATERIAL_CATEGORIAS,
+        oficina_sectores=_oficina_sectores(),
     )
 
 
@@ -3525,7 +3648,7 @@ def entra_start():
     session["entra_state"] = state
     session["entra_nonce"] = nonce
     requested_portal = request.args.get("portal", "").strip().lower()
-    if requested_portal in ("admin", "sucursal", "supervisor"):
+    if requested_portal in ("admin", "sucursal", "supervisor", "oficina"):
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
@@ -3598,6 +3721,9 @@ def entra_callback():
     if requested_portal == "supervisor" and _supervisor_for_identity(identity):
         entra_role = "supervisor"
         identity["entra_role"] = "supervisor"
+    if requested_portal == "oficina" and _oficina_for_identity(identity):
+        entra_role = "oficina"
+        identity["entra_role"] = "oficina"
     if (
         auth_user
         and _auth_user_status(auth_user) == "active"
@@ -3642,6 +3768,20 @@ def entra_callback():
         return render_template(
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada como supervisor en Tecman.",
+        ), 403
+    if requested_portal == "oficina" and entra_role != "oficina":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Oficina Dabra.",
+        ), 403
+
+    if entra_role == "oficina":
+        if _set_oficina_session_from_entra(identity):
+            _audit_event("login_success", user=auth_user, provider="entra", details={"role": "oficina", "source": "oficina_allowlist"})
+            return redirect(url_for("suc_panel"))
+        return render_template(
+            "error.html",
+            mensaje="Tu identidad Microsoft esta validada, pero no tiene sector de oficina autorizado.",
         ), 403
 
     if entra_role in ("sucursal", "supervisor"):

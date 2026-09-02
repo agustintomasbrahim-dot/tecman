@@ -12,7 +12,27 @@
 <div class="card">
     <h2 style="margin-bottom: 20px;">Nuevo ticket de mantenimiento</h2>
     <form method="POST" enctype="multipart/form-data">
-        {% if session.suc_nombre and not session.suc_general %}
+        {% if session.oficina_user %}
+        <div class="info-box" style="margin-bottom: 18px;">
+            &#127970; Oficina Dabra - Central
+        </div>
+        {% if session.oficina_sector == 'Todos' %}
+        <div class="form-group">
+            <label>Sector *</label>
+            <select name="sector_oficina" required>
+                <option value="">Seleccionar sector...</option>
+                {% for sector in oficina_sectores %}
+                <option value="{{ sector }}">{{ sector }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% else %}
+        <div class="info-box" style="margin-bottom: 18px;">
+            Sector: {{ session.oficina_sector }}
+        </div>
+        <input type="hidden" name="sector_oficina" value="{{ session.oficina_sector }}">
+        {% endif %}
+        {% elif session.suc_nombre and not session.suc_general %}
         <div class="info-box" style="margin-bottom: 18px;">
             &#127978; {{ session.suc_nombre }}
         </div>

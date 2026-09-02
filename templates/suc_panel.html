@@ -3,9 +3,11 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('suc_panel') }}">Inicio</a>
+    {% if not session.oficina_user %}
     <a href="{{ url_for('suc_syh') }}">Seguridad e Higiene</a>
     <a href="{{ url_for('suc_panel') }}#stock-recibido">Stock recibido</a>
     <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
+    {% endif %}
     <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
     <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir ({{ session.suc_nombre }})</a>
 </div>
@@ -19,10 +21,14 @@
 @media (max-width: 900px) { .suc-top-grid { grid-template-columns: 1fr; } }
 </style>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-    <h2>{{ session.suc_nombre }}</h2>
+    <h2>{% if session.oficina_user %}Oficina Dabra{% else %}{{ session.suc_nombre }}{% endif %}</h2>
     <span style="color: #6b7280;">{{ tickets|length }} ticket{{ 's' if tickets|length != 1 }}</span>
 </div>
+{% if session.oficina_user %}
+<div style="color:#6b7280;font-size:13px;margin-bottom:14px;">Sector: {{ session.oficina_sector }}</div>
+{% endif %}
 
+{% if not session.oficina_user %}
 {% if resumen_matafuegos and resumen_matafuegos.estado in ['Vencidos', 'Proximo a vencer'] %}
 <div class="card" style="border-left:4px solid {% if resumen_matafuegos.estado == 'Vencidos' %}#dc2626{% else %}#d97706{% endif %}; margin-bottom:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -34,6 +40,7 @@
     </div>
 </div>
 {% endif %}
+{% endif %}
 
 <div id="inicio-sucursal" class="suc-top-grid">
     <div class="card" style="margin-bottom:0;">
@@ -41,19 +48,26 @@
         <a href="{{ url_for('nuevo_ticket') }}" class="btn btn-primary btn-block" style="font-size: 16px; padding: 14px; margin-bottom: 10px;">
             + Crear nuevo ticket
         </a>
-        <p style="font-size:12px; color:#6b7280; margin:0;">Usá este botón para reportar problemas, pedir materiales o cargar un nuevo reclamo.</p>
+        <p style="font-size:12px; color:#6b7280; margin:0;">{% if session.oficina_user %}Usá este botón para reportar problemas del predio central.{% else %}Usá este botón para reportar problemas, pedir materiales o cargar un nuevo reclamo.{% endif %}</p>
     </div>
     <div class="card" style="margin-bottom:0;">
         <h3 style="margin-bottom: 10px;">Resumen rápido</h3>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
             <div class="suc-mini-card"><div class="suc-mini-label">Tickets abiertos</div><div class="suc-mini-value">{{ tickets|length }}</div></div>
+            {% if not session.oficina_user %}
             <div class="suc-mini-card"><div class="suc-mini-label">Permisos</div><div class="suc-mini-value">{{ permisos_suc|length if permisos_suc else 0 }}</div></div>
             <div class="suc-mini-card"><div class="suc-mini-label">Matafuegos</div><div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div></div>
             <div class="suc-mini-card" style="cursor:pointer;" onclick="var s=document.getElementById('stock-recibido');if(s){s.open=true;s.scrollIntoView({behavior:'smooth'});}"><div class="suc-mini-label">Stock recibido</div><div class="suc-mini-value">{{ (mi_stock_insumos|length if mi_stock_insumos else 0) + (mi_stock_manten|length if mi_stock_manten else 0) }}</div><div style="font-size:12px;color:#6b7280;margin-top:4px;">Ver detalle →</div></div>
+            {% else %}
+            <div class="suc-mini-card"><div class="suc-mini-label">Sede</div><div class="suc-mini-value">Central</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Sector</div><div class="suc-mini-value">{{ session.oficina_sector }}</div></div>
+            <div class="suc-mini-card"><div class="suc-mini-label">Acceso</div><div class="suc-mini-value">Oficina</div></div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+{% if not session.oficina_user %}
 <div class="card" style="margin-bottom: 16px;">
     <h3 style="margin-bottom: 12px;">Estado del local</h3>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
@@ -99,7 +113,9 @@
         </div>
     </div>
 </div>
+{% endif %}
 
+{% if not session.oficina_user %}
 {% if permisos_suc %}
 <div id="permisos-sucursal" class="card" style="margin-bottom: 16px; border-left: 4px solid #7c3aed;">
     <h3 style="margin-bottom: 12px; font-size: 15px;">📋 Permisos</h3>
@@ -125,7 +141,9 @@
     {% endfor %}
 </div>
 {% endif %}
+{% endif %}
 
+{% if not session.oficina_user %}
 {% if mi_stock_insumos or mi_stock_manten %}
 <details id="stock-recibido" class="card" style="margin-bottom: 16px;">
     <summary style="cursor:pointer; list-style:none; display:flex; justify-content:space-between; align-items:center;">
@@ -166,6 +184,7 @@
     </div>
 </details>
 {% endif %}
+{% endif %}
 
 {% if notificaciones %}
 <div class="card" style="border-left: 4px solid #e63946; margin-bottom: 16px;">
@@ -199,7 +218,7 @@
             {% for t in tickets %}
             <tr style="cursor: pointer;" onclick="window.location='/estado/{{ t.id }}'">
                 <td style="font-weight: 600; color: #e63946;">{{ t.id }}</td>
-                <td>{% if session.suc_general %}<div style="font-size:12px;color:#6b7280;font-weight:600;">{{ t.sucursal }}</div>{% endif %}{% if t.categoria == 'Materiales' %}{{ t.categoria_mat or t.subcategoria }}{% if t.subitem_mat %}<div style="font-size:12px;color:#6b7280;">{{ t.subitem_mat }}{% if t.cantidad_mat %} · x{{ t.cantidad_mat }}{% endif %}</div>{% elif t.cantidad_mat %}<div style="font-size:12px;color:#6b7280;">Cantidad: x{{ t.cantidad_mat }}</div>{% endif %}{% else %}{{ t.subcategoria }}{% endif %}{% if t.categoria == 'Presupuestos' and t.zona_afectada %}<div style="font-size:12px;color:#6b7280;">Zona: {{ t.zona_afectada }}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
+                <td>{% if session.suc_general %}<div style="font-size:12px;color:#6b7280;font-weight:600;">{{ t.sucursal }}</div>{% endif %}{% if t.sector_oficina %}<div style="font-size:12px;color:#0f766e;font-weight:600;">{{ t.sector_oficina }}</div>{% endif %}{% if t.categoria == 'Materiales' %}{{ t.categoria_mat or t.subcategoria }}{% if t.subitem_mat %}<div style="font-size:12px;color:#6b7280;">{{ t.subitem_mat }}{% if t.cantidad_mat %} · x{{ t.cantidad_mat }}{% endif %}</div>{% elif t.cantidad_mat %}<div style="font-size:12px;color:#6b7280;">Cantidad: x{{ t.cantidad_mat }}</div>{% endif %}{% else %}{{ t.subcategoria }}{% endif %}{% if t.categoria == 'Presupuestos' and t.zona_afectada %}<div style="font-size:12px;color:#6b7280;">Zona: {{ t.zona_afectada }}</div>{% endif %}{% if t.fotos %} &#128247;{% endif %}</td>
                 <td><span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span></td>
                 <td>
                     <span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span>
