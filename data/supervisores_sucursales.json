@@ -1,0 +1,647 @@
+{
+  "source": "Supervisores_sucursales_y_zonas---de7cf510-005f-4942-bb60-cd418a8a60fe.xlsx",
+  "updated_at": "2026-09-02T10:57:31",
+  "supervisores": [
+    {
+      "nombre": "Balesteros Diego",
+      "email": "dbalestero@grupodexter.com.ar",
+      "gerente_comercial": "Ventresca Jorge",
+      "sucursales": [
+        {
+          "num": "043",
+          "label": "Sucursal 043",
+          "tienda": "Moov Terrazas"
+        },
+        {
+          "num": "051",
+          "label": "Sucursal 051",
+          "tienda": "Dexter San Miguel"
+        },
+        {
+          "num": "111",
+          "label": "Sucursal 111",
+          "tienda": "Dexter San Fernando"
+        },
+        {
+          "num": "147",
+          "label": "Sucursal 147",
+          "tienda": "Dexter Plamas del Pilar"
+        },
+        {
+          "num": "165",
+          "label": "Sucursal 165",
+          "tienda": "Moov Cabildo"
+        },
+        {
+          "num": "171",
+          "label": "Sucursal 171",
+          "tienda": "Stock Center San Miguel"
+        },
+        {
+          "num": "184",
+          "label": "Sucursal 184",
+          "tienda": "Dexter Cabildo y Juramento"
+        },
+        {
+          "num": "202",
+          "label": "Sucursal 202",
+          "tienda": "Stock Center Magnolias"
+        },
+        {
+          "num": "204",
+          "label": "Sucursal 204",
+          "tienda": "Stock Center Terrazas"
+        },
+        {
+          "num": "214",
+          "label": "Sucursal 214",
+          "tienda": "Moov San Fernando"
+        },
+        {
+          "num": "220",
+          "label": "Sucursal 220",
+          "tienda": "Dexter SG Corrientes"
+        },
+        {
+          "num": "224",
+          "label": "Sucursal 224",
+          "tienda": "Moov Resistencia"
+        }
+      ]
+    },
+    {
+      "nombre": "Basilico Diego",
+      "email": "dbasilico@grupodexter.com.ar",
+      "gerente_comercial": "Ventresca Jorge",
+      "sucursales": [
+        {
+          "num": "126",
+          "label": "Sucursal 126",
+          "tienda": "Moov Salta"
+        },
+        {
+          "num": "139",
+          "label": "Sucursal 139",
+          "tienda": "Dexter Salta"
+        },
+        {
+          "num": "173",
+          "label": "Sucursal 173",
+          "tienda": "Stock Center Tucumán"
+        },
+        {
+          "num": "191",
+          "label": "Sucursal 191",
+          "tienda": "Dexter Tucumán"
+        },
+        {
+          "num": "193",
+          "label": "Sucursal 193",
+          "tienda": "Stock Center Salta"
+        },
+        {
+          "num": "229",
+          "label": "Sucursal 229",
+          "tienda": "Moov Santiago del Estero"
+        },
+        {
+          "num": "230",
+          "label": "Sucursal 230",
+          "tienda": "Moov Tucuman"
+        },
+        {
+          "num": "235",
+          "label": "Sucursal 235",
+          "tienda": "Stock Center Jujuy"
+        }
+      ]
+    },
+    {
+      "nombre": "Cirrillie Ariel",
+      "email": "acirielli@grupodexter.com.ar",
+      "gerente_comercial": "Procopovich Franco",
+      "sucursales": [
+        {
+          "num": "065",
+          "label": "Sucursal 065",
+          "tienda": "Dexter Quilmes Factory"
+        },
+        {
+          "num": "142",
+          "label": "Sucursal 142",
+          "tienda": "Dexter SG Varela"
+        },
+        {
+          "num": "188",
+          "label": "Sucursal 188",
+          "tienda": "Moov Quilmes"
+        },
+        {
+          "num": "194",
+          "label": "Sucursal 194",
+          "tienda": "Stock Center Calchaquí"
+        },
+        {
+          "num": "216",
+          "label": "Sucursal 216",
+          "tienda": "Dexter SG Quilmes"
+        },
+        {
+          "num": "228",
+          "label": "Sucursal 228",
+          "tienda": "Moov Varela"
+        }
+      ]
+    },
+    {
+      "nombre": "Gallardo Sabrina",
+      "email": "sgallardo@grupodexter.com.ar",
+      "gerente_comercial": "Ventresca Jorge",
+      "sucursales": [
+        {
+          "num": "053",
+          "label": "Sucursal 053",
+          "tienda": "Dexter SG Unicenter"
+        },
+        {
+          "num": "080",
+          "label": "Sucursal 080",
+          "tienda": "Dexter Campana"
+        },
+        {
+          "num": "082",
+          "label": "Sucursal 082",
+          "tienda": "Dexter  Zarate"
+        },
+        {
+          "num": "141",
+          "label": "Sucursal 141",
+          "tienda": "Dexter Escobar"
+        },
+        {
+          "num": "186",
+          "label": "Sucursal 186",
+          "tienda": "Dexter SG Panamericana"
+        },
+        {
+          "num": "208",
+          "label": "Sucursal 208",
+          "tienda": "Stock Center Panamericana"
+        },
+        {
+          "num": "219",
+          "label": "Sucursal 219",
+          "tienda": "Moov Unicenter"
+        }
+      ]
+    },
+    {
+      "nombre": "Hansen Mario",
+      "email": "mhansen@grupodexter.com.ar",
+      "gerente_comercial": "Scoccione javier",
+      "sucursales": [
+        {
+          "num": "020",
+          "label": "Sucursal 020",
+          "tienda": "Dexter Pompeya"
+        },
+        {
+          "num": "052",
+          "label": "Sucursal 052",
+          "tienda": "Moov Lomas"
+        },
+        {
+          "num": "077",
+          "label": "Sucursal 077",
+          "tienda": "Moov Lanús"
+        },
+        {
+          "num": "167",
+          "label": "Sucursal 167",
+          "tienda": "Stock Center Lomas"
+        },
+        {
+          "num": "170",
+          "label": "Sucursal 170",
+          "tienda": "Dexter SG Caballito"
+        },
+        {
+          "num": "187",
+          "label": "Sucursal 187",
+          "tienda": "Stock Center Lomas Center"
+        },
+        {
+          "num": "198",
+          "label": "Sucursal 198",
+          "tienda": "Stock Center Monte Grande"
+        },
+        {
+          "num": "200",
+          "label": "Sucursal 200",
+          "tienda": "Moov Caballito"
+        },
+        {
+          "num": "237",
+          "label": "Sucursal 237",
+          "tienda": "Dexter Portal Canning"
+        }
+      ]
+    },
+    {
+      "nombre": "Jaromin Guillermo",
+      "email": "gjarmomin@grupodexter.com.ar",
+      "gerente_comercial": "Procopovich Franco",
+      "sucursales": [
+        {
+          "num": "054",
+          "label": "Sucursal 054",
+          "tienda": "Dexter Berazategui"
+        },
+        {
+          "num": "083",
+          "label": "Sucursal 083",
+          "tienda": "Dexter Solano"
+        },
+        {
+          "num": "092",
+          "label": "Sucursal 092",
+          "tienda": "Dexter Tandil"
+        },
+        {
+          "num": "133",
+          "label": "Sucursal 133",
+          "tienda": "Dexter Neuquén"
+        },
+        {
+          "num": "134",
+          "label": "Sucursal 134",
+          "tienda": "Stock Center Neuquén"
+        },
+        {
+          "num": "160",
+          "label": "Sucursal 160",
+          "tienda": "Dexter Trelew"
+        },
+        {
+          "num": "177",
+          "label": "Sucursal 177",
+          "tienda": "Stock  Center  San Justo"
+        },
+        {
+          "num": "205",
+          "label": "Sucursal 205",
+          "tienda": "Dexter Alto Comahue"
+        },
+        {
+          "num": "211",
+          "label": "Sucursal 211",
+          "tienda": "DX Villa Luzuriaga"
+        },
+        {
+          "num": "231",
+          "label": "Sucursal 231",
+          "tienda": "Moov Portal Neuquén"
+        }
+      ]
+    },
+    {
+      "nombre": "Paredes Enrique",
+      "email": "eparedes@grupodexter.com.ar",
+      "gerente_comercial": "Procopovich Franco",
+      "sucursales": [
+        {
+          "num": "049",
+          "label": "Sucursal 049",
+          "tienda": "Moov Alto Avellaneda"
+        },
+        {
+          "num": "125",
+          "label": "Sucursal 125",
+          "tienda": "Dexter Parque Brown"
+        },
+        {
+          "num": "128",
+          "label": "Sucursal 128",
+          "tienda": "Dexter Portal de los Andes"
+        },
+        {
+          "num": "132",
+          "label": "Sucursal 132",
+          "tienda": "Dexter Plaza Shopping"
+        },
+        {
+          "num": "145",
+          "label": "Sucursal 145",
+          "tienda": "Moov Mendoza"
+        },
+        {
+          "num": "176",
+          "label": "Sucursal 176",
+          "tienda": "Stock Center Gral Paz"
+        },
+        {
+          "num": "185",
+          "label": "Sucursal 185",
+          "tienda": "Stock Center Parque Brown"
+        },
+        {
+          "num": "206",
+          "label": "Sucursal 206",
+          "tienda": "Dexter Mendoza Centro"
+        },
+        {
+          "num": "234",
+          "label": "Sucursal 234",
+          "tienda": "Moov Parque Brown"
+        },
+        {
+          "num": "236",
+          "label": "Sucursal 236",
+          "tienda": "Moov Mendoza Plaza Shopping"
+        },
+        {
+          "num": "238",
+          "label": "Sucursal 238",
+          "tienda": "Dexter Alto Avellaneda"
+        }
+      ]
+    },
+    {
+      "nombre": "Pasteris Lilian",
+      "email": "lpasteris@grupodexter.com.ar",
+      "gerente_comercial": "Ventresca Jorge",
+      "sucursales": [
+        {
+          "num": "120",
+          "label": "Sucursal 120",
+          "tienda": "Dexter Catamarca Peatonal"
+        },
+        {
+          "num": "146",
+          "label": "Sucursal 146",
+          "tienda": "Dexter SG La Rioja"
+        },
+        {
+          "num": "158",
+          "label": "Sucursal 158",
+          "tienda": "Dexter La Rioja Centro"
+        },
+        {
+          "num": "159",
+          "label": "Sucursal 159",
+          "tienda": "Moov San Juan"
+        },
+        {
+          "num": "172",
+          "label": "Sucursal 172",
+          "tienda": "Dexter SG San Juan"
+        },
+        {
+          "num": "207",
+          "label": "Sucursal 207",
+          "tienda": "Dexter San Luis Rivadavia"
+        },
+        {
+          "num": "212",
+          "label": "Sucursal 212",
+          "tienda": "Dexter Catamarca Plaza"
+        }
+      ]
+    },
+    {
+      "nombre": "Pessina Andres",
+      "email": "apessina@grupodexter.com.ar",
+      "gerente_comercial": "Procopovich Franco",
+      "sucursales": [
+        {
+          "num": "011",
+          "label": "Sucursal 011",
+          "tienda": "Moov Moron"
+        },
+        {
+          "num": "058",
+          "label": "Sucursal 058",
+          "tienda": "Dexter Plaza Oeste"
+        },
+        {
+          "num": "148",
+          "label": "Sucursal 148",
+          "tienda": "Moov San Martin"
+        },
+        {
+          "num": "157",
+          "label": "Sucursal 157",
+          "tienda": "Stock Center Portal San Martin"
+        },
+        {
+          "num": "192",
+          "label": "Sucursal 192",
+          "tienda": "Dexter Portal San Martin"
+        },
+        {
+          "num": "195",
+          "label": "Sucursal 195",
+          "tienda": "Stock Center Gaona I"
+        },
+        {
+          "num": "209",
+          "label": "Sucursal 209",
+          "tienda": "Stock Center Gaona II"
+        },
+        {
+          "num": "217",
+          "label": "Sucursal 217",
+          "tienda": "Dexter SG Bahía Blanca"
+        },
+        {
+          "num": "222",
+          "label": "Sucursal 222",
+          "tienda": "Dexter SG Moron"
+        }
+      ]
+    },
+    {
+      "nombre": "Polizzi fabiana",
+      "email": "fpolizzi@grupodexter.com.ar",
+      "gerente_comercial": "Scoccione javier",
+      "sucursales": [
+        {
+          "num": "036",
+          "label": "Sucursal 036",
+          "tienda": "156"
+        },
+        {
+          "num": "102",
+          "label": "Sucursal 102",
+          "tienda": "Moov Florida"
+        },
+        {
+          "num": "121",
+          "label": "Sucursal 121",
+          "tienda": "Moov Abasto"
+        },
+        {
+          "num": "156",
+          "label": "Sucursal 156",
+          "tienda": "Dexter SG Abasto"
+        },
+        {
+          "num": "183",
+          "label": "Sucursal 183",
+          "tienda": "Dexter SG Floyco"
+        },
+        {
+          "num": "213",
+          "label": "Sucursal 213",
+          "tienda": "Dexter SG Congreso"
+        },
+        {
+          "num": "221",
+          "label": "Sucursal 221",
+          "tienda": "Moov Flores"
+        },
+        {
+          "num": "239",
+          "label": "Sucursal 239",
+          "tienda": "Dexter - MDQ Independencia"
+        },
+        {
+          "num": "240",
+          "label": "Sucursal 240",
+          "tienda": "Dexter MDQ Luro"
+        },
+        {
+          "num": "241",
+          "label": "Sucursal 241",
+          "tienda": "Moov MDQ Luro"
+        }
+      ]
+    },
+    {
+      "nombre": "Salgado Lorena",
+      "email": "lsalgado@grupodexter.com.ar",
+      "gerente_comercial": "Scoccione javier",
+      "sucursales": [
+        {
+          "num": "091",
+          "label": "Sucursal 091",
+          "tienda": "Moov Junin"
+        },
+        {
+          "num": "114",
+          "label": "Sucursal 114",
+          "tienda": "Stock Center Santa Fe"
+        },
+        {
+          "num": "116",
+          "label": "Sucursal 116",
+          "tienda": "Dexter SG San Nicolas"
+        },
+        {
+          "num": "127",
+          "label": "Sucursal 127",
+          "tienda": "Moov Alto Rosario"
+        },
+        {
+          "num": "166",
+          "label": "Sucursal 166",
+          "tienda": "Moov Rosario Peatonal"
+        },
+        {
+          "num": "178",
+          "label": "Sucursal 178",
+          "tienda": "Dexter  Shopping La Paz"
+        },
+        {
+          "num": "210",
+          "label": "Sucursal 210",
+          "tienda": "Moov Shopping La Paz"
+        },
+        {
+          "num": "226",
+          "label": "Sucursal 226",
+          "tienda": "Moov Santa Fe"
+        }
+      ]
+    },
+    {
+      "nombre": "Sierra Jorge",
+      "email": "jsierra@grupodexter.com.ar",
+      "gerente_comercial": "Ventresca Jorge",
+      "sucursales": [
+        {
+          "num": "014",
+          "label": "Sucursal 014",
+          "tienda": "Dexter Soleil"
+        },
+        {
+          "num": "023",
+          "label": "Sucursal 023",
+          "tienda": "Dexter Moreno"
+        },
+        {
+          "num": "035",
+          "label": "Sucursal 035",
+          "tienda": "Moov Merlo"
+        },
+        {
+          "num": "190",
+          "label": "Sucursal 190",
+          "tienda": "Stock Center Soleil"
+        },
+        {
+          "num": "196",
+          "label": "Sucursal 196",
+          "tienda": "Dexter Pacheco"
+        },
+        {
+          "num": "232",
+          "label": "Sucursal 232",
+          "tienda": "Moov Moreno"
+        }
+      ]
+    },
+    {
+      "nombre": "Sosa Ivanna",
+      "email": "isosa@grupodexter.com.ar",
+      "gerente_comercial": "Procopovich Franco",
+      "sucursales": [
+        {
+          "num": "076",
+          "label": "Sucursal 076",
+          "tienda": "Moov Corner Córdoba"
+        },
+        {
+          "num": "078",
+          "label": "Sucursal 078",
+          "tienda": "Dexter Córdoba"
+        },
+        {
+          "num": "123",
+          "label": "Sucursal 123",
+          "tienda": "Dexter Ruta 20"
+        },
+        {
+          "num": "124",
+          "label": "Sucursal 124",
+          "tienda": "Dexter Córdoba"
+        },
+        {
+          "num": "203",
+          "label": "Sucursal 203",
+          "tienda": "Stock Center Córdoba"
+        },
+        {
+          "num": "215",
+          "label": "Sucursal 215",
+          "tienda": "Moov Córdoba II"
+        },
+        {
+          "num": "233",
+          "label": "Sucursal 233",
+          "tienda": "Dexter SG Córdoba 9 de Julio"
+        }
+      ]
+    }
+  ]
+}

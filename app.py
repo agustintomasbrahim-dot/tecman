@@ -127,6 +127,8 @@ CEYH_JORNADAS_FILE = DATA_DIR / "ceyh_jornadas.json"
 USERS_FILE = DATA_DIR / "users.json"
 PASSWORD_RESET_TOKENS_FILE = DATA_DIR / "password_reset_tokens.json"
 AUTH_AUDIT_FILE = DATA_DIR / "auth_audit_events.json"
+SUPERVISORES_FILE = DATA_DIR / "supervisores_sucursales.json"
+REPO_SUPERVISORES_FILE = Path(__file__).parent / "data" / "supervisores_sucursales.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -665,6 +667,36 @@ def _auth_user_rows():
     return rows
 
 
+def load_supervisores_sucursales():
+    if USE_DB and "_db_cfg_get" in globals():
+        seeded = _load_supervisores_file()
+        return _db_cfg_get("supervisores_sucursales", seeded)
+    return _load_supervisores_file()
+
+
+def _load_supervisores_file():
+    for path in (SUPERVISORES_FILE, REPO_SUPERVISORES_FILE):
+        if path.exists():
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+    return {"supervisores": []}
+
+
+def _supervisores_by_email():
+    mapping = {}
+    for item in load_supervisores_sucursales().get("supervisores", []):
+        email = (item.get("email") or "").strip().lower()
+        if email:
+            mapping[email] = item
+    return mapping
+
+
+def _supervisor_for_email(email):
+    return _supervisores_by_email().get((email or "").strip().lower())
+
+
 def _recent_auth_events(limit=50):
     if USE_DB:
         return AuthAuditEventDB.query.order_by(AuthAuditEventDB.created_at.desc()).limit(limit).all()
@@ -755,6 +787,7 @@ def _local_login_rate_limited(identifier):
 
 def _seed_auth_users():
     """Crea usuarios locales equivalentes a los accesos admin actuales si no existen."""
+    supervisor_rows = _supervisores_by_email()
     if USE_DB:
         changed = False
         for username, info in ADMINS.items():
@@ -793,6 +826,44 @@ def _seed_auth_users():
                     provider_subject=email,
                     tenant_id=ENTRA_TENANT_ID,
                 ))
+            changed = True
+        for email, info in supervisor_rows.items():
+            existing = _find_db_user(email=email)
+            username = email.split("@", 1)[0]
+            first_name, last_name = _split_name(info.get("nombre") or username)
+            if existing:
+                if existing.role != "supervisor":
+                    existing.role = "supervisor"
+                    changed = True
+                if not existing.username:
+                    existing.username = username
+                    changed = True
+                if not AuthIdentityDB.query.filter_by(user_id=existing.id, provider="entra").first():
+                    db.session.add(AuthIdentityDB(
+                        user_id=existing.id,
+                        provider="entra",
+                        provider_subject=email,
+                        tenant_id=ENTRA_TENANT_ID,
+                    ))
+                    changed = True
+                continue
+            user = UserDB(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                role="supervisor",
+                status="active",
+                must_change_password=False,
+            )
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(AuthIdentityDB(
+                user_id=user.id,
+                provider="entra",
+                provider_subject=email,
+                tenant_id=ENTRA_TENANT_ID,
+            ))
             changed = True
         if changed:
             db.session.commit()
@@ -843,6 +914,60 @@ def _seed_auth_users():
                 "locked_until": None,
                 "password_changed_at": _now_utc().isoformat(),
             },
+            "created_at": _now_utc().isoformat(),
+        })
+        changed = True
+    for email, info in supervisor_rows.items():
+        username = email.split("@", 1)[0]
+        existing = next(
+            (
+                u for u in users
+                if (u.get("email") or "").lower() == email
+                or (u.get("username") or "").lower() == username
+            ),
+            None,
+        )
+        if existing:
+            if existing.get("role") != "supervisor":
+                existing["role"] = "supervisor"
+                changed = True
+            if not existing.get("email"):
+                existing["email"] = email
+                changed = True
+            if not existing.get("username"):
+                existing["username"] = username
+                changed = True
+            identities = existing.setdefault("auth_identities", [])
+            if not any(i.get("provider") == "entra" for i in identities):
+                identities.append({
+                    "id": uuid.uuid4().hex,
+                    "provider": "entra",
+                    "provider_subject": email,
+                    "tenant_id": ENTRA_TENANT_ID,
+                    "created_at": _now_utc().isoformat(),
+                    "last_login_at": None,
+                })
+                changed = True
+            continue
+        first_name, last_name = _split_name(info.get("nombre") or username)
+        users.append({
+            "id": uuid.uuid4().hex,
+            "username": username,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "role": "supervisor",
+            "status": "active",
+            "must_change_password": False,
+            "session_version": 1,
+            "auth_identities": [{
+                "id": uuid.uuid4().hex,
+                "provider": "entra",
+                "provider_subject": email,
+                "tenant_id": ENTRA_TENANT_ID,
+                "created_at": _now_utc().isoformat(),
+                "last_login_at": None,
+            }],
             "created_at": _now_utc().isoformat(),
         })
         changed = True
@@ -2365,21 +2490,91 @@ def _sucursal_session_is_general():
     return bool(session.get("suc_general"))
 
 
+def _sucursal_num_from_value(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.lower() in ("central - dabra", "central"):
+        return "central"
+    if raw.lower() == "garin":
+        return "garin"
+    raw = raw.replace("Sucursal ", "").replace("Suc ", "").strip()
+    if raw.isdigit():
+        return raw.zfill(3)
+    return raw.lower()
+
+
+def _sucursal_label_from_num(suc_num):
+    key = _sucursal_num_from_value(suc_num)
+    for label in SUCURSALES:
+        if _sucursal_num_from_value(label) == key:
+            return label
+    if key.isdigit():
+        return f"Sucursal {key}"
+    return str(suc_num or "").strip()
+
+
+def _sucursal_session_scope_nums():
+    scope = session.get("suc_scope_nums")
+    if not scope:
+        return None
+    return {_sucursal_num_from_value(s) for s in scope if _sucursal_num_from_value(s)}
+
+
+def _sucursal_session_scope_labels():
+    scope_nums = _sucursal_session_scope_nums()
+    if scope_nums is None:
+        return list(SUCURSALES)
+    return [s for s in SUCURSALES if _sucursal_num_from_value(s) in scope_nums]
+
+
+def _sucursal_session_can_access_value(value):
+    scope_nums = _sucursal_session_scope_nums()
+    value_num = _sucursal_num_from_value(value)
+    if scope_nums is not None:
+        return value_num in scope_nums
+    if _sucursal_session_is_general():
+        return True
+    return value_num == _sucursal_num_from_value(session.get("suc_nombre"))
+
+
+def _sucursal_session_can_access_item(item):
+    return _sucursal_session_can_access_value(
+        item.get("sucursal_num") or item.get("sucursal") if isinstance(item, dict) else item
+    )
+
+
 def _session_sucursal_label(default="Portal Sucursales"):
     return session.get("suc_nombre") or default
 
 
 def _set_sucursal_session_from_entra(identity, suc_user=None):
-    if identity.get("entra_role") != "sucursal":
+    if identity.get("entra_role") not in ("sucursal", "supervisor"):
         return False
     session.clear()
     session.permanent = True
-    session["suc_user"] = "entra_sucursales"
-    session["suc_nombre"] = "Portal Sucursales"
     session["suc_general"] = True
     session["auth_provider"] = "entra"
-    session["entra_role"] = "sucursal"
-    session["nombre"] = identity.get("name") or identity.get("email") or session["suc_nombre"]
+    session["entra_role"] = identity.get("entra_role")
+    session["nombre"] = identity.get("name") or identity.get("email") or "Portal Sucursales"
+    if identity.get("entra_role") == "supervisor":
+        supervisor = _supervisor_for_email(identity.get("email"))
+        if not supervisor:
+            return False
+        scope_nums = [
+            _sucursal_num_from_value(s.get("num") or s.get("label"))
+            for s in supervisor.get("sucursales", [])
+        ]
+        scope_nums = [n for n in scope_nums if n]
+        if not scope_nums:
+            return False
+        session["suc_user"] = (identity.get("email") or "").split("@", 1)[0] or "supervisor"
+        session["suc_nombre"] = supervisor.get("nombre") or session["nombre"]
+        session["suc_scope_nums"] = scope_nums
+        session["suc_scope_labels"] = [_sucursal_label_from_num(n) for n in scope_nums]
+        return True
+    session["suc_user"] = "entra_sucursales"
+    session["suc_nombre"] = "Portal Sucursales"
     return True
 
 
@@ -2523,7 +2718,7 @@ def _ticket_es_de_proveedor(ticket, nombres):
 def _seed_data_dir():
     """Al arrancar en Render, copiar datos iniciales del repo al disco persistente si no existen."""
     repo_data = Path(__file__).parent / "data"
-    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json", "habilitaciones.json", "matafuegos.json", "syh.json", "permisos.json", "alertas_syh.json"]:
+    for fname in ["tickets.json", "stock.json", "stock_movimientos.json", "comprobantes.json", "habilitaciones.json", "matafuegos.json", "syh.json", "permisos.json", "alertas_syh.json", "supervisores_sucursales.json"]:
         dest = DATA_DIR / fname
         src = repo_data / fname
         if not dest.exists() and src.exists():
@@ -2730,7 +2925,7 @@ def suc_login_required(f):
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
             return redirect(url_for("suc_login"))
-        if session.get("auth_provider") == "entra" and session.get("entra_role") != "sucursal":
+        if session.get("auth_provider") == "entra" and session.get("entra_role") not in ("sucursal", "supervisor"):
             session.clear()
             return redirect(url_for("suc_login"))
         return f(*args, **kwargs)
@@ -2839,13 +3034,22 @@ def suc_seleccionar():
 def suc_panel():
     tickets = load_tickets()
     is_general = _sucursal_session_is_general()
-    mis_tickets = list(tickets) if is_general else [t for t in tickets if t["sucursal"] == session["suc_nombre"]]
+    mis_tickets = [t for t in tickets if _sucursal_session_can_access_item(t)]
     mis_tickets.sort(key=lambda t: t["creado"], reverse=True)
 
     # Find providers for this sucursal
     suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
     mis_proveedores = []
-    if not is_general:
+    if _sucursal_session_scope_nums() is not None:
+        scope_nums = _sucursal_session_scope_nums()
+        for p in PROVEEDORES:
+            for s in p["sucursales"]:
+                if _sucursal_num_from_value(s) in scope_nums:
+                    if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                        continue
+                    mis_proveedores.append(p)
+                    break
+    elif not is_general:
         for p in PROVEEDORES:
             for s in p["sucursales"]:
                 if s == suc_num or s == suc_num.lstrip("0"):
@@ -2863,9 +3067,16 @@ def suc_panel():
 
     # Stock recibido por esta sucursal
     stock = load_stock()
+    scope_labels = _sucursal_session_scope_labels()
     if is_general:
         mi_stock = {}
-        for items_suc in (stock.get("sucursales", {}) or {}).values():
+        stock_sucursales = stock.get("sucursales", {}) or {}
+        iterable = (
+            stock_sucursales.values()
+            if _sucursal_session_scope_nums() is None
+            else (stock_sucursales.get(label, {}) for label in scope_labels)
+        )
+        for items_suc in iterable:
             for item, cant in (items_suc or {}).items():
                 mi_stock[item] = mi_stock.get(item, 0) + cant
     else:
@@ -2875,13 +3086,13 @@ def suc_panel():
     mi_stock_manten = {k: v for k, v in mi_stock.items() if not _es_insumo_compras(k)}
 
     habs_all = load_habilitaciones().get("habilitaciones", [])
-    habs = [_enrich_habilitacion(h) for h in habs_all if is_general or h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    habs = [_enrich_habilitacion(h) for h in habs_all if _sucursal_session_can_access_item(h)]
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
     matafuegos_all = load_matafuegos().get("matafuegos", [])
-    matafuegos = [_enrich_matafuego(m) for m in matafuegos_all if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos = [_enrich_matafuego(m) for m in matafuegos_all if _sucursal_session_can_access_item(m)]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     resumen_matafuegos = _resumen_matafuegos_sucursal(matafuegos)
-    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if is_general or p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if _sucursal_session_can_access_item(p)]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     estado_syh = {} if is_general else load_syh().get(suc_num, {})
 
@@ -2909,11 +3120,11 @@ def suc_syh():
     suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
     syh_data = load_syh()
     estado = {} if is_general else syh_data.get(suc_num, {})
-    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if is_general or h.get("sucursal") == session["suc_nombre"] or h.get("sucursal_num") == suc_num]
+    habs = [_enrich_habilitacion(h) for h in load_habilitaciones().get("habilitaciones", []) if _sucursal_session_can_access_item(h)]
     habs.sort(key=lambda h: (ESTADO_HAB_ORDEN.get(h.get("estado"), 99), h.get("fecha_vencimiento", "9999-99-99") or "9999-99-99"))
-    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if _sucursal_session_can_access_item(m)]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
-    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if is_general or p.get("sucursal") == session["suc_nombre"] or p.get("sucursal_num") == suc_num]
+    permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if _sucursal_session_can_access_item(p)]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     return render_template(
         "suc_syh.html",
@@ -2928,9 +3139,7 @@ def suc_syh():
 @app.route("/suc/matafuegos")
 @suc_login_required
 def suc_matafuegos():
-    is_general = _sucursal_session_is_general()
-    suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
-    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if is_general or m.get("sucursal") == session["suc_nombre"] or m.get("sucursal_num") == suc_num]
+    matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if _sucursal_session_can_access_item(m)]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     resumen = _resumen_matafuegos_sucursal(matafuegos)
     return render_template("suc_matafuegos.html", matafuegos_suc=matafuegos, resumen_matafuegos=resumen, hoy=datetime.date.today().isoformat())
@@ -2939,8 +3148,6 @@ def suc_matafuegos():
 @app.route("/suc/permisos/<permiso_id>/fao", methods=["POST"])
 @suc_login_required
 def suc_permiso_fao(permiso_id):
-    suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
-    is_general = _sucursal_session_is_general()
     data = load_permisos()
     updated = False
     for p in data.get("permisos", []):
@@ -2948,11 +3155,11 @@ def suc_permiso_fao(permiso_id):
             continue
         if p.get("sucursales"):
             for d in p.get("sucursales", []):
-                if is_general or d.get("sucursal_num") == suc_num:
+                if _sucursal_session_can_access_item(d):
                     d["fao_estado"] = "Contamos FAO"
                     d["fao_fecha"] = datetime.datetime.now().isoformat()
                     updated = True
-        elif is_general or p.get("sucursal_num") == suc_num:
+        elif _sucursal_session_can_access_item(p):
             p["fao_estado"] = "Contamos FAO"
             p["fao_fecha"] = datetime.datetime.now().isoformat()
             updated = True
@@ -2966,9 +3173,7 @@ def suc_permiso_fao(permiso_id):
 def suc_matafuego_mantenimiento(mid):
     data = load_matafuegos()
     items = data.get("matafuegos", [])
-    suc_num = session.get("suc_nombre", "").replace("Sucursal ", "").strip()
-    is_general = _sucursal_session_is_general()
-    matafuego = next((m for m in items if m.get("id") == mid and (is_general or m.get("sucursal") == session.get("suc_nombre") or m.get("sucursal_num") == suc_num)), None)
+    matafuego = next((m for m in items if m.get("id") == mid and _sucursal_session_can_access_item(m)), None)
     if not matafuego:
         flash("Matafuego no encontrado")
         return redirect(url_for("suc_panel"))
@@ -2987,7 +3192,7 @@ def suc_matafuego_mantenimiento(mid):
         matafuego["estado_manual"] = "rechazado"
         agregar_notif_admin(
             "🚨 Matafuego rechazado",
-            f"Sucursal {suc_num} informó un matafuego rechazado ({matafuego.get('tipo') or 'Sin tipo'} · {matafuego.get('ubicacion') or 'Sin ubicación'}).",
+            f"{matafuego.get('sucursal') or _session_sucursal_label('Portal Sucursales')} informó un matafuego rechazado ({matafuego.get('tipo') or 'Sin tipo'} · {matafuego.get('ubicacion') or 'Sin ubicación'}).",
             tipo="syh_matafuegos"
         )
         tickets = load_tickets()
@@ -3020,13 +3225,14 @@ def suc_matafuego_mantenimiento(mid):
 @app.route("/mis-proveedores")
 @suc_login_required
 def suc_proveedores():
-    if _sucursal_session_is_general():
+    scope_nums = _sucursal_session_scope_nums()
+    if _sucursal_session_is_general() and scope_nums is None:
         return render_template("suc_proveedores.html", mis_proveedores=_proveedores_sin_montos(PROVEEDORES))
     suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
     mis_proveedores = []
     for p in PROVEEDORES:
         for s in p["sucursales"]:
-            if s == suc_num or s == suc_num.lstrip("0"):
+            if (_sucursal_num_from_value(s) in scope_nums) if scope_nums is not None else (s == suc_num or s == suc_num.lstrip("0")):
                 if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
                     continue
                 mis_proveedores.append(p)
@@ -3044,6 +3250,8 @@ def nuevo_ticket():
         if not sucursal_ticket:
             flash("Seleccione una sucursal")
             return redirect(url_for("nuevo_ticket"))
+        if not _sucursal_session_can_access_value(sucursal_ticket):
+            return render_template("error.html", mensaje="No tenés permiso para cargar tickets en esa sucursal."), 403
 
         # Handle photo uploads
         fotos = []
@@ -3131,7 +3339,7 @@ def nuevo_ticket():
     sucursal = request.args.get("sucursal", "")
     return render_template(
         "nuevo_ticket.html",
-        sucursales=SUCURSALES,
+        sucursales=_sucursal_session_scope_labels() if _sucursal_session_is_general() else SUCURSALES,
         categorias=CATEGORIAS,
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
@@ -3158,7 +3366,7 @@ def confirmar_recepcion(ticket_id):
     if not ticket:
         return "Ticket no encontrado", 404
 
-    if not _sucursal_session_is_general() and ticket.get("sucursal") != session.get("suc_nombre"):
+    if not _sucursal_session_can_access_item(ticket):
         return render_template("error.html", mensaje="No tenés permiso para confirmar este ticket."), 403
 
     if "notas" not in ticket:
@@ -3338,14 +3546,17 @@ def entra_callback():
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
     if (
-        not entra_role
-        and auth_user
+        auth_user
         and _auth_user_status(auth_user) == "active"
-        and _auth_user_role(auth_user) == "admin"
         and _auth_user_allows_provider(auth_user, "entra")
     ):
-        entra_role = "admin"
-        identity["entra_role"] = "admin"
+        auth_role = _auth_user_role(auth_user)
+        if auth_role == "supervisor" and entra_role != "admin":
+            entra_role = "supervisor"
+            identity["entra_role"] = "supervisor"
+        elif not entra_role and auth_role == "admin":
+            entra_role = "admin"
+            identity["entra_role"] = "admin"
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(
             "error.html",
@@ -3369,15 +3580,15 @@ def entra_callback():
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo super admin de Tecman.",
         ), 403
-    if requested_portal == "sucursal" and entra_role != "sucursal":
+    if requested_portal == "sucursal" and entra_role not in ("sucursal", "supervisor"):
         return render_template(
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo de sucursales de Tecman.",
         ), 403
 
-    if entra_role == "sucursal":
+    if entra_role in ("sucursal", "supervisor"):
         if _set_sucursal_session_from_entra(identity):
-            _audit_event("login_success", provider="entra", details={"role": "sucursal", "source": "entra_group"})
+            _audit_event("login_success", user=auth_user, provider="entra", details={"role": entra_role, "source": "entra_allowlist" if auth_user else "entra_group"})
             return redirect(url_for("suc_panel"))
         return render_template(
             "error.html",
