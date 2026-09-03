@@ -1907,7 +1907,7 @@ def _sumar_un_anio(fecha):
 
 
 def _fecha_control_matafuego(item):
-    fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento"))
+    fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento_manual") or item.get("fecha_vencimiento"))
     if fecha_venc:
         return fecha_venc, "fecha_vencimiento"
     fecha_carga = _parse_fecha_matafuego(item.get("fecha_carga"))
@@ -1936,8 +1936,12 @@ def _enrich_matafuego(m):
     x["fecha_control_calc"] = fecha_control.isoformat() if fecha_control else ""
     x["fuente_control"] = fuente_control
     x["estado_calc"] = _estado_matafuego(fecha_control, x.get("estado_manual", ""))
-    fecha_venc = _parse_fecha_matafuego(x.get("fecha_vencimiento"))
+    fecha_venc_valor = x.get("fecha_vencimiento_manual") or x.get("fecha_vencimiento")
+    fecha_venc = _parse_fecha_matafuego(fecha_venc_valor)
     x["fecha_vencimiento_input"] = fecha_venc.isoformat() if fecha_venc else ""
+    x["fecha_vencimiento_original"] = x.get("fecha_vencimiento_original") or (
+        x.get("fecha_vencimiento") if x.get("fecha_vencimiento_manual") else ""
+    )
     return x
 
 def _stats_matafuegos(items):
@@ -7178,10 +7182,17 @@ def admin_syh_matafuegos_eliminar(mid):
 def admin_syh_matafuegos_actualizar_vencimiento(mid):
     data = load_matafuegos()
     nuevo_vencimiento = request.form.get("fecha_vencimiento", "").strip()
+    retorno_sucursal = request.form.get("sucursal_actual") or request.args.get("sucursal", "")
+    if nuevo_vencimiento and not _parse_fecha_matafuego(nuevo_vencimiento):
+        flash("Fecha de vencimiento inválida")
+        return redirect(url_for("admin_syh_matafuegos", sucursal=retorno_sucursal))
     for item in data.get("matafuegos", []):
         if item.get("id") != mid:
             continue
-        anterior = item.get("fecha_vencimiento", "")
+        anterior = item.get("fecha_vencimiento_manual") or item.get("fecha_vencimiento", "")
+        if item.get("fecha_vencimiento") and not item.get("fecha_vencimiento_original"):
+            item["fecha_vencimiento_original"] = item.get("fecha_vencimiento", "")
+        item["fecha_vencimiento_manual"] = nuevo_vencimiento
         item["fecha_vencimiento"] = nuevo_vencimiento
         item["fecha_vencimiento_editado_por"] = session.get("nombre", "")
         item["fecha_vencimiento_editado_at"] = datetime.datetime.now().isoformat()
@@ -7189,7 +7200,7 @@ def admin_syh_matafuegos_actualizar_vencimiento(mid):
         save_matafuegos(data)
         sync_alertas_syh()
         flash("Vencimiento de matafuego actualizado")
-        return redirect(url_for("admin_syh_matafuegos", sucursal=request.args.get("sucursal", "")))
+        return redirect(url_for("admin_syh_matafuegos", sucursal=retorno_sucursal))
     flash("Matafuego no encontrado")
     return redirect(url_for("admin_syh_matafuegos"))
 
