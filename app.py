@@ -849,6 +849,17 @@ def _oficina_for_identity(identity):
     return None
 
 
+def _oficina_sede_from_slug(slug):
+    value = (slug or "").strip().lower().replace("_", "-")
+    aliases = {
+        "central": OFICINA_CENTRAL_LABEL,
+        "dabra": OFICINA_CENTRAL_LABEL,
+        "central-dabra": OFICINA_CENTRAL_LABEL,
+        "garin": OFICINA_GARIN_LABEL,
+    }
+    return aliases.get(value)
+
+
 def _recent_auth_events(limit=50):
     if USE_DB:
         return AuthAuditEventDB.query.order_by(AuthAuditEventDB.created_at.desc()).limit(limit).all()
@@ -2779,11 +2790,16 @@ def _set_oficina_session_from_entra(identity):
     access = _oficina_for_identity(identity)
     if not access:
         return False
+    requested_sede = _oficina_sede_from_slug(session.pop("entra_oficina_sede", None))
+    sector = access.get("sector") or "Todos"
+    sede = access.get("sede") or OFICINA_CENTRAL_LABEL
+    if requested_sede and sector == "Todos":
+        sede = requested_sede
     return _set_oficina_session(
         access.get("nombre") or identity.get("name") or identity.get("email"),
         email=access.get("email") or identity.get("email"),
-        sector=access.get("sector") or "Todos",
-        sede=access.get("sede") or OFICINA_CENTRAL_LABEL,
+        sector=sector,
+        sede=sede,
         provider="entra",
     )
 
@@ -3228,13 +3244,31 @@ def supervisor_login():
     return render_template("supervisor_login.html", entra_enabled=_entra_is_configured())
 
 
+@app.route("/oficina")
+def oficina_redirect():
+    return redirect(url_for("oficina_login"))
+
+
 @app.route("/oficina/login", methods=["GET", "POST"])
-def oficina_login():
+@app.route("/oficina/<sede_slug>", methods=["GET", "POST"])
+def oficina_login(sede_slug=None):
+    sede_hint = _oficina_sede_from_slug(sede_slug)
+    if sede_slug and not sede_hint:
+        return render_template("error.html", mensaje="Sede de oficina no encontrada."), 404
     if request.method == "POST":
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         info = OFICINA_LOCAL_USERS.get(user)
+        info_sede = info.get("sede", OFICINA_CENTRAL_LABEL) if info else ""
         if info and info["password"] == pwd:
+            if sede_hint and info_sede != sede_hint:
+                flash("Ese sector pertenece a otra sede.")
+                return render_template(
+                    "oficina_login.html",
+                    entra_enabled=_entra_is_configured(),
+                    sede_hint=sede_hint,
+                    sede_slug=sede_slug,
+                )
             _set_oficina_session(
                 info["nombre"],
                 sector=info["sector"],
@@ -3246,7 +3280,9 @@ def oficina_login():
     return render_template(
         "oficina_login.html",
         entra_enabled=_entra_is_configured(),
-        sectores=_oficina_sectores(),
+        sectores=_oficina_sectores(sede_hint),
+        sede_hint=sede_hint,
+        sede_slug=sede_slug,
     )
 
 
@@ -3733,6 +3769,11 @@ def entra_start():
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
+    requested_sede = _oficina_sede_from_slug(request.args.get("sede"))
+    if requested_portal == "oficina" and requested_sede:
+        session["entra_oficina_sede"] = request.args.get("sede", "").strip().lower()
+    else:
+        session.pop("entra_oficina_sede", None)
     params = {
         "client_id": ENTRA_CLIENT_ID,
         "response_type": "code",
@@ -3758,6 +3799,8 @@ def entra_callback():
     expected_state = session.pop("entra_state", None)
     expected_nonce = session.pop("entra_nonce", None)
     requested_portal = session.pop("entra_requested_portal", None)
+    if requested_portal != "oficina":
+        session.pop("entra_oficina_sede", None)
     if not expected_state or request.args.get("state") != expected_state:
         return render_template("error.html", mensaje="Solicitud de autenticacion invalida."), 400
     code = request.args.get("code")

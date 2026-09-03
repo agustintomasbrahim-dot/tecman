@@ -10,7 +10,11 @@
         </div>
 
         {% if entra_enabled %}
+        {% if sede_slug %}
+        <a href="{{ url_for('entra_start', portal='oficina', sede=sede_slug) }}" class="btn btn-primary btn-block" style="background:#0f766e;color:white;">Ingresar con Microsoft</a>
+        {% else %}
         <a href="{{ url_for('entra_start', portal='oficina') }}" class="btn btn-primary btn-block" style="background:#0f766e;color:white;">Ingresar con Microsoft</a>
+        {% endif %}
         <div style="height: 1px; background: #e5e7eb; margin: 22px 0;"></div>
         {% endif %}
 
@@ -19,6 +23,7 @@
                 <label>Sector / zona</label>
                 <select name="usuario" required>
                     <option value="">Seleccionar sector...</option>
+                    {% if not sede_hint or sede_hint == 'Central - Dabra' %}
                     <optgroup label="Central - Dabra">
                     <option value="cuentasapagar">Cuentas a pagar</option>
                     <option value="cajas">Cajas</option>
@@ -31,10 +36,13 @@
                     <option value="finanzas">Finanzas</option>
                     <option value="talento">Talento</option>
                     </optgroup>
+                    {% endif %}
+                    {% if not sede_hint or sede_hint == 'Garin' %}
                     <optgroup label="Garin">
                     <option value="garinoficinas">Oficinas</option>
                     <option value="garindeposito">Deposito</option>
                     </optgroup>
+                    {% endif %}
                 </select>
             </div>
             <div class="form-group">
