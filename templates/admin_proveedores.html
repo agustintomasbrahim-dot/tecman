@@ -25,6 +25,31 @@
     </div>
 </div>
 
+<div class="card" style="padding: 14px; margin-bottom: 16px;">
+    <form style="display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 8px; align-items: end;">
+        <input type="hidden" name="vista" value="{{ vista }}">
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Buscar</label>
+            <input type="text" name="q" value="{{ filtro_q }}" placeholder="Nombre, rubro, zona, contacto">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Zona</label>
+            <select name="zona">
+                <option value="">Todas</option>
+                {% for z in zonas %}<option value="{{ z }}" {% if z == filtro_zona %}selected{% endif %}>{{ z }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Estado</label>
+            <select name="estado">
+                <option value="">Todos</option>
+                {% for e in estados_proveedor %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+    </form>
+</div>
+
 {% if vista == 'sucursal' %}
 <!-- SEARCH BY SUCURSAL -->
 <div class="card">
@@ -95,6 +120,8 @@
                 <th>Proveedor</th>
                 <th>Zona</th>
                 <th>Tipo</th>
+                <th>Estado</th>
+                <th>Portal</th>
                 <th>Telefono</th>
                 <th>Sucursales</th>
             </tr>
@@ -105,6 +132,21 @@
                 <td style="font-weight: 700; color: #1a1a2e;">{{ p.nombre }}</td>
                 <td><span class="badge" style="background: #dbeafe; color: #1d4ed8;">{{ p.zona }}</span></td>
                 <td><span class="badge" style="background: #ede9fe; color: #6d28d9;">{{ p.tipo }}</span></td>
+                <td>
+                    <span class="badge" style="background:{% if p.estado_operativo == 'Abono mensual' %}#d1fae5{% elif p.estado_operativo == 'Activo frecuente' %}#dbeafe{% elif p.estado_operativo == 'Sin servicio' %}#fee2e2{% else %}#f3f4f6{% endif %};color:{% if p.estado_operativo == 'Abono mensual' %}#065f46{% elif p.estado_operativo == 'Activo frecuente' %}#1d4ed8{% elif p.estado_operativo == 'Sin servicio' %}#991b1b{% else %}#475569{% endif %};">{{ p.estado_operativo }}</span>
+                </td>
+                <td>
+                    {% if p.tiene_portal %}
+                    <span class="badge" style="background:#ecfdf5;color:#047857;">{{ p.portal_user }}</span>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('admin_proveedores_acceso') }}" style="display:grid;gap:4px;min-width:190px;">
+                        <input type="hidden" name="proveedor_nombre" value="{{ p.nombre }}">
+                        <input type="text" name="usuario" placeholder="usuario" style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
+                        <input type="text" name="password" placeholder="clave temporal opcional" style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
+                        <button type="submit" class="btn btn-sm btn-outline">Crear acceso</button>
+                    </form>
+                    {% endif %}
+                </td>
                 <td>
                     {% if p.tel != '-' %}
                     <a href="tel:{{ p.tel }}" style="color: #059669; text-decoration: none;">{{ p.tel }}</a>
@@ -145,6 +187,8 @@
                 <div style="font-weight: 700; font-size: 17px; color: #1a1a2e;">{{ p.nombre }}</div>
                 <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
                     <span class="badge" style="background: #ede9fe; color: #6d28d9;">{{ p.tipo }}</span>
+                    <span class="badge" style="background:{% if p.estado_operativo == 'Abono mensual' %}#d1fae5{% elif p.estado_operativo == 'Activo frecuente' %}#dbeafe{% elif p.estado_operativo == 'Sin servicio' %}#fee2e2{% else %}#f3f4f6{% endif %};color:{% if p.estado_operativo == 'Abono mensual' %}#065f46{% elif p.estado_operativo == 'Activo frecuente' %}#1d4ed8{% elif p.estado_operativo == 'Sin servicio' %}#991b1b{% else %}#475569{% endif %};">{{ p.estado_operativo }}</span>
+                    {% if p.tiene_portal %}<span class="badge" style="background:#ecfdf5;color:#047857;">Portal: {{ p.portal_user }}</span>{% endif %}
                 </div>
                 {% if p.monto is defined and p.monto %}
                 <div style="margin-top: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px;">

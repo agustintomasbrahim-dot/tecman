@@ -289,7 +289,60 @@
 </div>
 {% endif %}
 
-{% if es_presupuesto and session.nombre != 'Rita' %}
+{% if session.nombre != 'Rita' %}
+<div class="card" style="border-left:4px solid #f59e0b;">
+    <h3 style="margin-bottom: 12px; font-size: 15px; color: #92400e;">Proveedor / presupuesto</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px;">
+        <div style="padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;">
+            <div style="font-size:11px;text-transform:uppercase;color:#92400e;font-weight:700;">Proveedor asignado</div>
+            <div style="margin-top:6px;font-weight:700;color:#1f2937;">{{ ticket.asignado_proveedor or ticket.proveedor_nombre or ticket.proveedor_presupuesto or '-' }}</div>
+        </div>
+        <div style="padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;">
+            <div style="font-size:11px;text-transform:uppercase;color:#92400e;font-weight:700;">Estado presupuesto</div>
+            <div style="margin-top:6px;font-weight:700;color:#1f2937;">{{ ticket.estado_presupuesto or 'Sin solicitud' }}</div>
+        </div>
+        <div style="padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;">
+            <div style="font-size:11px;text-transform:uppercase;color:#92400e;font-weight:700;">Canal</div>
+            <div style="margin-top:6px;font-weight:700;color:#1f2937;">Portal Proveedores</div>
+        </div>
+    </div>
+    <form method="POST" style="display:grid;gap:10px;">
+        <input type="hidden" name="accion" value="asignar_proveedor_presupuesto">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Proveedor</label>
+                <input type="text" name="proveedor_presupuesto" list="proveedores-ticket-list" value="{{ ticket.asignado_proveedor or ticket.proveedor_nombre or ticket.proveedor_presupuesto or '' }}" placeholder="Buscar proveedor..." required>
+                <datalist id="proveedores-ticket-list">
+                    {% for p in proveedores_catalogo %}
+                    <option value="{{ p.nombre }}">{{ 'Cubre sucursal - ' if p.cubre_sucursal else '' }}{{ p.tipo }} - {{ p.zona }} - {{ p.estado_operativo }}{% if p.portal_user %} - usuario {{ p.portal_user }}{% endif %}</option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Detalle para el proveedor</label>
+                <input type="text" name="detalle_solicitud_presupuesto" placeholder="Ej: cotizar reparación / enviar fecha y monto">
+            </div>
+        </div>
+        <button type="submit" class="btn" style="background:#f59e0b;color:#111827;">Solicitar presupuesto por portal</button>
+    </form>
+    {% if ticket.presupuestos %}
+    <div style="margin-top:14px;">
+        <h4 style="margin-bottom:8px;color:#475569;">Presupuestos recibidos</h4>
+        <div style="display:grid;gap:8px;">
+            {% for p in ticket.presupuestos %}
+            <div style="padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;">
+                <div style="font-weight:700;color:#111827;">{{ p.proveedor or p.autor or 'Proveedor' }}{% if p.monto %} - ${{ p.monto }}{% endif %}</div>
+                <div style="font-size:13px;color:#6b7280;margin-top:4px;">{{ p.detalle }}</div>
+                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver adjunto' }}</a></div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if (es_presupuesto or ticket.requiere_presupuesto_proveedor or ticket.presupuestos) and session.nombre != 'Rita' %}
 <div class="card" style="border-left:4px solid #7c3aed;">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #6d28d9;">💸 Gestión de presupuesto</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">

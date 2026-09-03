@@ -131,6 +131,7 @@ SUPERVISORES_FILE = DATA_DIR / "supervisores_sucursales.json"
 REPO_SUPERVISORES_FILE = Path(__file__).parent / "data" / "supervisores_sucursales.json"
 OFICINA_ACCESOS_FILE = DATA_DIR / "oficina_accesos.json"
 REPO_OFICINA_ACCESOS_FILE = Path(__file__).parent / "data" / "oficina_accesos.json"
+PROVEEDOR_USERS_FILE = DATA_DIR / "proveedor_users.json"
 
 # Uploads: también en disco persistente en Render
 if IS_CLOUD and Path("/data").exists():
@@ -2822,7 +2823,7 @@ SUCS_SANJUAN = {"159","172"}
 _PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
 
 # Proveedor login
-PROVEEDOR_USERS = {
+DEFAULT_PROVEEDOR_USERS = {
     "ceyh": {"password": _PROVEEDOR_PWD, "nombre": "CEYH", "tipo_cuenta": "abono_fijo", "proveedores": ["CEYH"]},
     "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda", "tipo_cuenta": "abono_fijo", "proveedores": ["Gustavo Avellaneda"]},
     "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)", "tipo_cuenta": "abono_fijo", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
@@ -2844,6 +2845,99 @@ PROVEEDOR_USERS = {
     "microglobal": {"password": _PROVEEDOR_PWD, "nombre": "Martin Microglobal"},
     "atila": {"password": _PROVEEDOR_PWD, "nombre": "Atila Generaciones", "tipo_cuenta": "abono_fijo", "proveedores": ["Atila Generaciones"]},
 }
+
+
+def load_proveedor_users():
+    users = copy.deepcopy(DEFAULT_PROVEEDOR_USERS)
+    if PROVEEDOR_USERS_FILE.exists():
+        try:
+            data = json.loads(PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
+            for username, info in (data.get("users") or {}).items():
+                if username:
+                    users[username.lower().strip()] = info
+        except Exception as exc:
+            print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
+    return users
+
+
+def save_proveedor_users(users):
+    custom_users = {}
+    for username, info in users.items():
+        if username in DEFAULT_PROVEEDOR_USERS and info == DEFAULT_PROVEEDOR_USERS[username]:
+            continue
+        custom_users[username] = info
+    _atomic_write(PROVEEDOR_USERS_FILE, {"users": custom_users})
+
+
+def _proveedor_login_ok(user_info, password):
+    if user_info.get("password_hash"):
+        return _verify_password(password, user_info.get("password_hash"))
+    return bool(user_info.get("password") == password)
+
+
+def _proveedor_account_for_name(nombre, users=None):
+    nombre_norm = (nombre or "").strip().lower()
+    if not nombre_norm:
+        return None, None
+    users = users or load_proveedor_users()
+    for username, info in users.items():
+        nombres = [info.get("nombre", ""), *(info.get("proveedores") or [])]
+        if any((n or "").strip().lower() == nombre_norm for n in nombres):
+            return username, info
+    return None, None
+
+
+def _proveedor_estado_label(proveedor, users=None):
+    if proveedor.get("estado_operativo"):
+        return proveedor["estado_operativo"]
+    if proveedor.get("fijo"):
+        return "Abono mensual"
+    username, _ = _proveedor_account_for_name(proveedor.get("nombre"), users=users)
+    if username:
+        return "Activo frecuente"
+    nombre = (proveedor.get("nombre") or "").lower()
+    sucursales = " ".join(proveedor.get("sucursales") or []).lower()
+    if "sin servicio" in nombre:
+        return "Sin servicio"
+    if "bajo requerimiento" in nombre or "eventual" in sucursales:
+        return "Contacto bajo demanda"
+    return "Ocasional / contacto"
+
+
+def _proveedor_enriquecido(proveedor, users=None):
+    p = copy.deepcopy(proveedor)
+    username, account = _proveedor_account_for_name(p.get("nombre"), users=users)
+    p["portal_user"] = username or ""
+    p["tiene_portal"] = bool(username)
+    p["estado_operativo"] = _proveedor_estado_label(p, users=users)
+    p["tipo_cuenta"] = (account or {}).get("tipo_cuenta") or ("abono_fijo" if p.get("fijo") else "proveedor")
+    return p
+
+
+def _proveedores_enriquecidos(proveedores=None):
+    users = load_proveedor_users()
+    return [_proveedor_enriquecido(p, users=users) for p in (proveedores or PROVEEDORES)]
+
+
+def _proveedores_catalogo_ticket(suc_num=""):
+    suc_num = str(suc_num or "").strip()
+    suc_num_padded = suc_num.zfill(3) if suc_num else ""
+    catalogo = []
+    for p in _proveedores_enriquecidos():
+        sucs = [str(s) for s in p.get("sucursales", [])]
+        cubre_sucursal = bool(suc_num and any(suc_num in s or suc_num_padded in s for s in sucs))
+        item = {
+            "nombre": p.get("nombre", ""),
+            "tipo": p.get("tipo", ""),
+            "zona": p.get("zona", ""),
+            "estado_operativo": p.get("estado_operativo", ""),
+            "tiene_portal": p.get("tiene_portal", False),
+            "portal_user": p.get("portal_user", ""),
+            "cubre_sucursal": cubre_sucursal,
+        }
+        catalogo.append(item)
+    catalogo.sort(key=lambda x: (not x["cubre_sucursal"], x["zona"], x["tipo"], x["nombre"]))
+    return catalogo
 
 # Proveedores database
 PROVEEDORES = [
@@ -2913,7 +3007,7 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 
 
 def _proveedor_nombres_usuario(user=None):
-    info = PROVEEDOR_USERS.get(user or session.get("prov_user"), {})
+    info = load_proveedor_users().get(user or session.get("prov_user"), {})
     nombres = list(info.get("proveedores") or [])
     if info.get("nombre") and info["nombre"] not in nombres:
         nombres.append(info["nombre"])
@@ -4740,6 +4834,44 @@ def admin_ticket(ticket_id):
             flash("Estado del presupuesto actualizado")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
+        if accion == "asignar_proveedor_presupuesto":
+            proveedor = request.form.get("proveedor_presupuesto", "").strip()
+            if proveedor == "__otro__":
+                proveedor = request.form.get("proveedor_otro", "").strip()
+            detalle = request.form.get("detalle_solicitud_presupuesto", "").strip()
+            if not proveedor:
+                flash("Seleccioná un proveedor")
+                return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+            now_iso = datetime.datetime.now().isoformat()
+            ticket["asignado"] = proveedor
+            ticket["asignado_proveedor"] = proveedor
+            ticket["proveedor_nombre"] = proveedor
+            ticket["proveedor_presupuesto"] = proveedor
+            ticket["requiere_presupuesto_proveedor"] = True
+            ticket["estado_presupuesto"] = "Pendiente"
+            ticket["etapa_prov"] = "esperando_presupuesto"
+            if ticket.get("estado") in ("Nuevo", "Abierto", "En progreso"):
+                ticket["estado"] = "Pendiente"
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": now_iso,
+                "texto": f"Presupuesto solicitado a proveedor: {proveedor}" + (f" - {detalle}" if detalle else ""),
+            })
+            ticket.setdefault("notificaciones_prov", []).append({
+                "fecha": now_iso,
+                "texto": "Tenés un ticket asignado para cotizar. Cargá el presupuesto desde el portal.",
+                "leida": False,
+            })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": now_iso,
+                "texto": f"Estamos esperando presupuesto del proveedor {proveedor}.",
+                "leida": False,
+            })
+            ticket["actualizado"] = now_iso
+            save_tickets(tickets)
+            flash(f"Ticket asignado a {proveedor} para presupuesto")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         if accion == "cargar_requisicion":
             req_numero = request.form.get("requisicion_numero", "").strip()
             req_nota = request.form.get("requisicion_nota", "").strip()
@@ -4920,6 +5052,7 @@ def admin_ticket(ticket_id):
         es_ceyh=es_ticket_ceyh(ticket),
         es_presupuesto=(ticket.get("categoria") == "Presupuestos"),
         tiene_abono_suc=bool(get_proveedor_abono_sucursal(_suc_num_at)),
+        proveedores_catalogo=_proveedores_catalogo_ticket(_suc_num_at),
     )
 
 
@@ -4931,41 +5064,105 @@ def admin_proveedores():
     vista = request.args.get("vista", "zona")
     buscar_suc = request.args.get("sucursal", "").replace("Sucursal ", "")
     filtro_zona = request.args.get("zona", "")
+    filtro_estado = request.args.get("estado", "")
+    filtro_q = request.args.get("q", "").strip().lower()
+    proveedores_base = _proveedores_enriquecidos()
 
     # Build sucursal -> proveedores map
     suc_map = {}
-    for p in PROVEEDORES:
+    for p in proveedores_base:
         for s in p["sucursales"]:
             if s not in suc_map:
                 suc_map[s] = []
             suc_map[s].append(p)
 
     # Filter by zone
-    proveedores_filtrados = PROVEEDORES
+    proveedores_filtrados = proveedores_base
     if filtro_zona:
-        proveedores_filtrados = [p for p in PROVEEDORES if p["zona"] == filtro_zona]
+        proveedores_filtrados = [p for p in proveedores_filtrados if p["zona"] == filtro_zona]
+    if filtro_estado:
+        proveedores_filtrados = [p for p in proveedores_filtrados if p.get("estado_operativo") == filtro_estado]
+    if filtro_q:
+        proveedores_filtrados = [
+            p for p in proveedores_filtrados
+            if filtro_q in " ".join([
+                p.get("nombre", ""),
+                p.get("tipo", ""),
+                p.get("zona", ""),
+                p.get("contacto", ""),
+                p.get("tel", ""),
+                p.get("estado_operativo", ""),
+            ]).lower()
+        ]
 
     # Search by sucursal
     resultados_suc = []
     if buscar_suc:
         buscar_suc_padded = buscar_suc.zfill(3)
-        for p in PROVEEDORES:
+        for p in proveedores_base:
             for s in p["sucursales"]:
                 if buscar_suc in s or buscar_suc_padded in s:
                     resultados_suc.append(p)
                     break
 
+    estados_proveedor = sorted(set(p.get("estado_operativo", "") for p in proveedores_base if p.get("estado_operativo")))
+
     return render_template(
         "admin_proveedores.html",
         proveedores=proveedores_filtrados,
         zonas=ZONAS,
+        estados_proveedor=estados_proveedor,
         suc_map=suc_map,
         vista=vista,
         buscar_suc=buscar_suc,
         filtro_zona=filtro_zona,
+        filtro_estado=filtro_estado,
+        filtro_q=request.args.get("q", ""),
         resultados_suc=resultados_suc,
         sucursales=SUCURSALES,
     )
+
+
+@app.route("/admin/proveedores/acceso", methods=["POST"])
+@admin_required
+def admin_proveedores_acceso():
+    proveedor_nombre = request.form.get("proveedor_nombre", "").strip()
+    usuario = request.form.get("usuario", "").lower().strip()
+    password = request.form.get("password", "").strip()
+    if not proveedor_nombre or not usuario:
+        flash("Indicá proveedor y usuario")
+        return redirect(url_for("admin_proveedores", vista="lista"))
+    if len(usuario) < 3 or not usuario.replace("_", "").replace("-", "").isalnum():
+        flash("El usuario debe tener al menos 3 caracteres y usar letras, números, guion o guion bajo")
+        return redirect(url_for("admin_proveedores", vista="lista"))
+    password_generada = False
+    if not password:
+        password = secrets.token_urlsafe(8)
+        password_generada = True
+    elif len(password) < 8:
+        flash("La contraseña debe tener al menos 8 caracteres")
+        return redirect(url_for("admin_proveedores", vista="lista"))
+
+    proveedor = next((p for p in PROVEEDORES if p.get("nombre") == proveedor_nombre), None)
+    if not proveedor:
+        flash("Proveedor no encontrado")
+        return redirect(url_for("admin_proveedores", vista="lista"))
+
+    users = load_proveedor_users()
+    users[usuario] = {
+        "password_hash": _hash_password(password),
+        "nombre": proveedor_nombre,
+        "tipo_cuenta": "abono_fijo" if proveedor.get("fijo") else "proveedor",
+        "proveedores": [proveedor_nombre],
+        "created_at": datetime.datetime.now().isoformat(),
+        "created_by": session.get("nombre", "Admin"),
+    }
+    save_proveedor_users(users)
+    if password_generada:
+        flash(f"Acceso creado para {proveedor_nombre}. Contraseña temporal: {password}")
+    else:
+        flash(f"Acceso creado para {proveedor_nombre}")
+    return redirect(url_for("admin_proveedores", vista="lista", q=proveedor_nombre))
 
 
 # --- Routes: Inventario ---
@@ -5086,14 +5283,17 @@ def prov_ceyh_parada_estado(jid, orden):
 
 
 @app.route("/proveedor/login", methods=["GET", "POST"])
+@app.route("/proveedores/login", methods=["GET", "POST"])
 def prov_login():
     if request.method == "POST":
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
-        if user in PROVEEDOR_USERS and PROVEEDOR_USERS[user]["password"] == pwd:
+        proveedor_users = load_proveedor_users()
+        user_info = proveedor_users.get(user)
+        if user_info and _proveedor_login_ok(user_info, pwd):
             session["prov_user"] = user
-            session["prov_nombre"] = PROVEEDOR_USERS[user]["nombre"]
-            session["prov_tipo_cuenta"] = PROVEEDOR_USERS[user].get("tipo_cuenta", "proveedor")
+            session["prov_nombre"] = user_info["nombre"]
+            session["prov_tipo_cuenta"] = user_info.get("tipo_cuenta", "proveedor")
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template("prov_login.html")
@@ -5108,6 +5308,7 @@ def prov_logout():
 
 
 @app.route("/proveedor")
+@app.route("/proveedores")
 @prov_login_required
 def prov_panel():
     tickets = load_tickets()
