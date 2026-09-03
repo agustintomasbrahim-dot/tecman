@@ -4858,15 +4858,31 @@ def admin_proveedores():
 @app.route("/admin/inventario")
 @admin_required
 def admin_inventario():
+    def render_empty_inventario():
+        return render_template(
+            "admin_inventario.html",
+            inventario=[],
+            total_ge=0,
+            total_respondieron=0,
+            total_sucursales=0,
+            total_persianas=0,
+            total_aires=0,
+        )
+
     if IS_CLOUD:
-        return render_template("admin_inventario.html", inventario=[], total_ge=0, total_respondieron=0, total_sucursales=0, total_persianas=0, total_aires=0)
+        return render_empty_inventario()
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
     from gauth import sheets as get_sheets
 
     SSID = "1nsWmQ1umlOoFLt9C3O1Uhi0SQp02JEQd7PX-btb4pm0"
-    service = get_sheets()
-    meta = service.spreadsheets().get(spreadsheetId=SSID).execute()
+    try:
+        service = get_sheets()
+        meta = service.spreadsheets().get(spreadsheetId=SSID).execute()
+    except Exception as e:
+        print(f"[WARN] Inventario Google Sheets no disponible: {type(e).__name__}")
+        return render_empty_inventario()
+
     sheet_names = [s["properties"]["title"] for s in meta["sheets"]]
 
     inventario = []
