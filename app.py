@@ -383,6 +383,11 @@ ENTRA_REDIRECT_URI = (os.environ.get("ENTRA_REDIRECT_URI") or os.environ.get("AZ
 ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
 ENTRA_GRAPH_SCOPES = ["User.Read", "GroupMember.Read.All"]
 ENTRA_AUTH_SCOPES = ["openid", "profile", "email", *ENTRA_GRAPH_SCOPES]
+FULL_PORTAL_ACCESS_EMAILS = {
+    email.strip().lower()
+    for email in os.environ.get("FULL_PORTAL_ACCESS_EMAILS", "abrahim@grupodexter.com.ar").split(",")
+    if email.strip()
+}
 ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
 ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
 ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
@@ -735,6 +740,10 @@ def _identity_email_candidates(identity):
             normalized.append(value)
             seen.add(value)
     return normalized
+
+
+def _identity_has_full_portal_access(identity):
+    return any(email in FULL_PORTAL_ACCESS_EMAILS for email in _identity_email_candidates(identity))
 
 
 def _supervisor_for_identity(identity):
@@ -3981,10 +3990,17 @@ def entra_callback():
     entra_role = _entra_role_from_groups(identity)
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
-    if requested_portal == "supervisor" and _supervisor_for_identity(identity):
+    full_portal_access = _identity_has_full_portal_access(identity)
+    if full_portal_access and requested_portal == "admin":
+        entra_role = "admin"
+        identity["entra_role"] = "admin"
+    if full_portal_access and requested_portal == "sucursal":
+        entra_role = "sucursal"
+        identity["entra_role"] = "sucursal"
+    if requested_portal == "supervisor" and (full_portal_access or _supervisor_for_identity(identity)):
         entra_role = "supervisor"
         identity["entra_role"] = "supervisor"
-    if requested_portal == "oficina" and _oficina_for_identity(identity):
+    if requested_portal == "oficina" and (full_portal_access or _oficina_for_identity(identity)):
         entra_role = "oficina"
         identity["entra_role"] = "oficina"
     if (
