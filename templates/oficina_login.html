@@ -6,7 +6,7 @@
         <div style="text-align: center; margin-bottom: 24px;">
             <div style="font-size: 40px; margin-bottom: 12px;">&#127970;</div>
             <h2>Oficinas</h2>
-            <p style="color: #6b7280; margin-top: 6px;">Dabra Central y Garin</p>
+            <p style="color: #6b7280; margin-top: 6px;">Ingreso con cuenta Microsoft autorizada</p>
         </div>
 
         {% if entra_enabled %}
@@ -15,9 +15,7 @@
         {% else %}
         <a href="{{ url_for('entra_start', portal='oficina') }}" class="btn btn-primary btn-block" style="background:#0f766e;color:white;">Ingresar con Microsoft</a>
         {% endif %}
-        <div style="height: 1px; background: #e5e7eb; margin: 22px 0;"></div>
-        {% endif %}
-
+        {% else %}
         <form method="POST">
             <div class="form-group">
                 <label>Sector / zona</label>
@@ -51,6 +49,7 @@
             </div>
             <button type="submit" class="btn btn-block" style="background:#111827;color:white;">Entrar</button>
         </form>
+        {% endif %}
 
         <div style="margin-top: 20px; text-align: center;">
             <a href="{{ url_for('index') }}" style="color: #6b7280; font-size: 13px;">Volver</a>

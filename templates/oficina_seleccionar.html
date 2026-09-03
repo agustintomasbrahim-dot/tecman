@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Elegir sede{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('suc_logout') }}" style="margin-left: auto;">Salir</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.sede-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+.sede-option {
+    width:100%;
+    min-height:132px;
+    border:1px solid #e5e7eb;
+    border-radius:8px;
+    background:#fff;
+    color:#111827;
+    font-family:inherit;
+    text-align:left;
+    padding:16px;
+    cursor:pointer;
+    transition:border-color .15s, box-shadow .15s, transform .15s;
+}
+.sede-option:hover { border-color:#0f766e; box-shadow:0 8px 20px rgba(15, 118, 110, .10); transform:translateY(-1px); }
+.sede-name { display:block; font-size:17px; font-weight:800; margin-bottom:8px; }
+.sede-detail { display:block; font-size:13px; line-height:1.35; color:#6b7280; }
+@media (max-width: 640px) { .sede-grid { grid-template-columns:1fr; } .sede-option { min-height:112px; } }
+</style>
+<div style="max-width: 560px; margin: 48px auto;">
+    <div class="card">
+        <div style="margin-bottom: 20px;">
+            <div style="font-size:13px;color:#0f766e;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Oficinas</div>
+            <h2>Elegí la sede</h2>
+            <p style="color:#6b7280;font-size:13px;margin-top:6px;">{{ session.nombre }}</p>
+        </div>
+        <form method="POST">
+            <div class="sede-grid">
+                {% for sede in sedes %}
+                <button class="sede-option" type="submit" name="sede" value="{{ sede.slug }}">
+                    <span class="sede-name">{{ sede.nombre }}</span>
+                    <span class="sede-detail">{{ sede.detalle }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -2769,7 +2769,7 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
     return True
 
 
-def _set_oficina_session(nombre, email="", sector="Todos", sede=OFICINA_CENTRAL_LABEL, provider="local"):
+def _set_oficina_session(nombre, email="", sector="Todos", sede=OFICINA_CENTRAL_LABEL, provider="local", elegir_sede=False):
     sector = (sector or "Todos").strip()
     sede = (sede or OFICINA_CENTRAL_LABEL).strip()
     session.clear()
@@ -2781,6 +2781,10 @@ def _set_oficina_session(nombre, email="", sector="Todos", sede=OFICINA_CENTRAL_
     session["oficina_sector"] = sector
     session["nombre"] = nombre or email or sede
     session["auth_provider"] = provider
+    if sector == "Todos":
+        session["oficina_can_choose_sede"] = True
+    if elegir_sede and sector == "Todos":
+        session["oficina_sede_pendiente"] = True
     if provider == "entra":
         session["entra_role"] = "oficina"
     return True
@@ -2793,6 +2797,7 @@ def _set_oficina_session_from_entra(identity):
     requested_sede = _oficina_sede_from_slug(session.pop("entra_oficina_sede", None))
     sector = access.get("sector") or "Todos"
     sede = access.get("sede") or OFICINA_CENTRAL_LABEL
+    elegir_sede = bool(sector == "Todos" and not requested_sede)
     if requested_sede and sector == "Todos":
         sede = requested_sede
     return _set_oficina_session(
@@ -2801,6 +2806,7 @@ def _set_oficina_session_from_entra(identity):
         sector=sector,
         sede=sede,
         provider="entra",
+        elegir_sede=elegir_sede,
     )
 
 
@@ -3154,6 +3160,11 @@ def suc_login_required(f):
         if session.get("auth_provider") == "entra" and session.get("entra_role") not in ("sucursal", "supervisor", "oficina"):
             session.clear()
             return redirect(url_for("suc_login"))
+        if (
+            session.get("oficina_sede_pendiente")
+            and request.endpoint not in ("oficina_seleccionar", "suc_logout")
+        ):
+            return redirect(url_for("oficina_seleccionar"))
         return f(*args, **kwargs)
     return decorated
 
@@ -3286,6 +3297,32 @@ def oficina_login(sede_slug=None):
     )
 
 
+@app.route("/oficina/seleccionar", methods=["GET", "POST"])
+@suc_login_required
+def oficina_seleccionar():
+    if not session.get("oficina_user"):
+        return redirect(url_for("suc_panel"))
+    if session.get("oficina_sector") != "Todos":
+        session.pop("oficina_sede_pendiente", None)
+        return redirect(url_for("suc_panel"))
+
+    sedes = [
+        {"slug": "dabra", "nombre": OFICINA_CENTRAL_LABEL, "detalle": "Áreas administrativas de Dabra Central"},
+        {"slug": "garin", "nombre": OFICINA_GARIN_LABEL, "detalle": "Oficinas y depósito del CD Garín"},
+    ]
+    if request.method == "POST":
+        sede = _oficina_sede_from_slug(request.form.get("sede"))
+        if not sede:
+            flash("Seleccioná una sede válida.")
+        else:
+            session["oficina_sede"] = sede
+            session["suc_nombre"] = sede
+            session.pop("oficina_sede_pendiente", None)
+            return redirect(url_for("suc_panel"))
+
+    return render_template("oficina_seleccionar.html", sedes=sedes)
+
+
 @app.route("/logout", methods=["GET", "POST"])
 def suc_logout():
     was_oficina = bool(session.get("oficina_user"))
@@ -3295,6 +3332,8 @@ def suc_logout():
     session.pop("oficina_user", None)
     session.pop("oficina_sede", None)
     session.pop("oficina_sector", None)
+    session.pop("oficina_can_choose_sede", None)
+    session.pop("oficina_sede_pendiente", None)
     return redirect(url_for("oficina_login" if was_oficina else "suc_login"))
 
 
@@ -3902,6 +3941,8 @@ def entra_callback():
     if entra_role == "oficina":
         if _set_oficina_session_from_entra(identity):
             _audit_event("login_success", user=auth_user, provider="entra", details={"role": "oficina", "source": "oficina_allowlist"})
+            if session.get("oficina_sede_pendiente"):
+                return redirect(url_for("oficina_seleccionar"))
             return redirect(url_for("suc_panel"))
         return render_template(
             "error.html",
