@@ -774,23 +774,54 @@ OFICINA_DEFAULT_SEDES = {
 
 
 def load_oficina_accesos():
-    for path in (OFICINA_ACCESOS_FILE, REPO_OFICINA_ACCESOS_FILE):
-        if path.exists():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                data.setdefault("sede", OFICINA_CENTRAL_LABEL)
-                data.setdefault("sectores", list(OFICINA_DEFAULT_SECTORES))
-                data.setdefault("sedes", dict(OFICINA_DEFAULT_SEDES))
-                data.setdefault("usuarios", [])
+    stored = _load_oficina_accesos_file(OFICINA_ACCESOS_FILE)
+    seeded = _load_oficina_accesos_file(REPO_OFICINA_ACCESOS_FILE)
+    return _merge_oficina_accesos(stored, seeded)
+
+
+def _load_oficina_accesos_file(path):
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
                 return data
-            except (json.JSONDecodeError, OSError):
-                pass
+        except (json.JSONDecodeError, OSError):
+            pass
     return {
         "sede": OFICINA_CENTRAL_LABEL,
         "sectores": list(OFICINA_DEFAULT_SECTORES),
         "sedes": dict(OFICINA_DEFAULT_SEDES),
         "usuarios": [],
     }
+
+
+def _merge_oficina_accesos(primary, fallback):
+    merged_sedes = dict(OFICINA_DEFAULT_SEDES)
+    for source in (fallback, primary):
+        for sede, sectores in ((source or {}).get("sedes") or {}).items():
+            clean_sede = str(sede or "").strip()
+            if not clean_sede:
+                continue
+            merged_sedes[clean_sede] = [str(s).strip() for s in sectores if str(s).strip()]
+
+    merged = {
+        "updated_at": (primary or {}).get("updated_at") or (fallback or {}).get("updated_at", ""),
+        "sede": (primary or {}).get("sede") or (fallback or {}).get("sede") or OFICINA_CENTRAL_LABEL,
+        "sedes": merged_sedes,
+        "sectores": [],
+        "usuarios": [],
+    }
+    merged["sectores"] = merged_sedes.get(merged["sede"], list(OFICINA_DEFAULT_SECTORES))
+
+    seen = set()
+    for source in (primary, fallback):
+        for item in (source or {}).get("usuarios", []):
+            email = (item.get("email") or "").strip().lower()
+            if not email or email in seen:
+                continue
+            merged["usuarios"].append(item)
+            seen.add(email)
+    return merged
 
 
 def _oficina_sectores(sede=None):
