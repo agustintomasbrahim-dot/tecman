@@ -3893,7 +3893,7 @@ def entra_callback():
         and _auth_user_allows_provider(auth_user, "entra")
     ):
         auth_role = _auth_user_role(auth_user)
-        if auth_role == "supervisor" and entra_role != "admin":
+        if auth_role == "supervisor" and entra_role != "admin" and requested_portal != "oficina":
             entra_role = "supervisor"
             identity["entra_role"] = "supervisor"
         elif not entra_role and auth_role == "admin":
