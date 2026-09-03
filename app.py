@@ -7098,6 +7098,7 @@ def admin_syh():
 def admin_syh_matafuegos():
     data = load_matafuegos()
     items = [_enrich_matafuego(x) for x in data.get("matafuegos", [])]
+    items_all = list(items)
 
     if request.method == "POST":
         sucursal = request.form.get("sucursal", "").strip()
@@ -7125,15 +7126,38 @@ def admin_syh_matafuegos():
         return redirect(url_for("admin_syh_matafuegos"))
 
     filtro_sucursal = request.args.get("sucursal", "").strip()
+    filtro_sucursal_num = _sucursal_num_from_value(filtro_sucursal)
+    sucursales_con_matafuegos = []
+    for suc in SUCURSALES:
+        suc_num = _sucursal_num_from_value(suc)
+        mats_suc = [m for m in items_all if _sucursal_num_from_value(m.get("sucursal_num") or m.get("sucursal")) == suc_num]
+        if not mats_suc:
+            continue
+        resumen = _resumen_matafuegos_sucursal(mats_suc)
+        sucursales_con_matafuegos.append({
+            "label": suc,
+            "num": suc_num,
+            "cantidad": resumen.get("cantidad", 0),
+            "estado": resumen.get("estado", "Sin datos"),
+            "proximo_vto": resumen.get("proximo_vto", ""),
+        })
     if filtro_sucursal:
-        items = [m for m in items if m.get("sucursal") == filtro_sucursal]
+        items = [
+            m for m in items
+            if _sucursal_num_from_value(m.get("sucursal_num") or m.get("sucursal")) == filtro_sucursal_num
+        ]
     items.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_vencimiento", "9999-99-99") or "9999-99-99", m.get("sucursal", "")))
     return render_template(
         "admin_matafuegos.html",
         matafuegos=items,
-        stats=_stats_matafuegos(data.get("matafuegos", [])),
+        stats=_stats_matafuegos(items),
+        stats_global=_stats_matafuegos(items_all),
         sucursales=SUCURSALES,
+        sucursales_options=[{"label": s, "num": _sucursal_num_from_value(s)} for s in SUCURSALES],
+        sucursales_con_matafuegos=sucursales_con_matafuegos,
         filtro_sucursal=filtro_sucursal,
+        filtro_sucursal_num=filtro_sucursal_num,
+        resumen_sucursal=_resumen_matafuegos_sucursal(items) if filtro_sucursal else None,
     )
 
 

@@ -24,6 +24,47 @@
 </div>
 
 <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+        <div>
+            <h3 style="margin:0 0 4px;">Filtrar por sucursal</h3>
+            <div style="font-size:13px;color:#6b7280;">
+                {% if filtro_sucursal %}
+                    Mostrando {{ filtro_sucursal }}{% if resumen_sucursal %}: {{ resumen_sucursal.cantidad }} matafuegos{% endif %}
+                {% else %}
+                    Mostrando todas las sucursales: {{ stats_global.total }} matafuegos cargados
+                {% endif %}
+            </div>
+        </div>
+        {% if filtro_sucursal %}
+        <a href="{{ url_for('admin_syh_matafuegos') }}" class="btn btn-outline btn-sm">Ver todas</a>
+        {% endif %}
+    </div>
+    <form method="GET" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="form-group" style="margin-bottom:0;min-width:220px;">
+            <label>Sucursal</label>
+            <select name="sucursal">
+                <option value="">Todas</option>
+                {% for s in sucursales_options %}
+                <option value="{{ s.label }}" {% if filtro_sucursal_num == s.num %}selected{% endif %}>{{ s.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Buscar</button>
+    </form>
+    {% if sucursales_con_matafuegos %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px;">
+        {% for s in sucursales_con_matafuegos %}
+        <a href="{{ url_for('admin_syh_matafuegos', sucursal=s.label) }}" style="display:block;text-decoration:none;border:1px solid {% if filtro_sucursal_num == s.num %}#2563eb{% else %}#e5e7eb{% endif %};border-radius:8px;padding:9px 10px;background:{% if filtro_sucursal_num == s.num %}#eff6ff{% else %}#fff{% endif %};">
+            <div style="font-weight:800;color:#111827;font-size:14px;">{{ s.label.replace('Sucursal ', 'Suc. ') }}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:3px;">{{ s.cantidad }} cargado{% if s.cantidad != 1 %}s{% endif %}</div>
+            <div style="font-size:11px;margin-top:5px;color:{% if s.estado == 'Vencidos' %}#dc2626{% elif s.estado == 'Proximo a vencer' %}#d97706{% elif s.estado == 'Al dia' %}#059669{% else %}#6b7280{% endif %};font-weight:700;">{{ s.estado }}</div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px;">
     <h3 style="margin-bottom:12px;">Cargar matafuego</h3>
     <form method="POST">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
