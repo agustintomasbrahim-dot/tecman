@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Tecman - Contabilidad{% endblock %}
+{% block title %}{% if session.rol == 'tecnico' %}Tecman - Facturas / Remitos{% else %}Tecman - Contabilidad{% endif %}{% endblock %}
 {% block nav %}
 <div class="nav">
     {% if session.rol == "tecnico" %}
