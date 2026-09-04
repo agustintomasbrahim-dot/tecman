@@ -4,3 +4,13 @@ __pycache__/
 *.pyo
 static/uploads/*
 !static/uploads/.gitkeep
+.run/
+
+# Runtime/auth data and migration artifacts must stay off git.
+data/users.json
+data/password_reset_tokens.json
+data/auth_audit_events.json
+data/alertas_syh_dispatch.json
+data/backups/
+data/*backup*.json
+data/*migration_draft.json
