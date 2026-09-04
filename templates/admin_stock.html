@@ -25,7 +25,7 @@
 
 {% if session.rol != 'admin' %}
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #3b82f6; background: #eff6ff;">
-    <h3 style="margin-bottom: 10px; font-size: 15px; color: #1d4ed8;">Uso de stock para Jonatan</h3>
+    <h3 style="margin-bottom: 10px; font-size: 15px; color: #1d4ed8;">Uso de stock técnico</h3>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 13px;">
         <div><strong>1.</strong> Revisar stock disponible</div>
         <div><strong>2.</strong> Transferir a sucursal si ya está definido</div>
@@ -54,7 +54,7 @@
 </div>
 
 {% if session.rol == 'admin' %}
-<!-- Agregar item (SOLO ADMIN - Jonathan no lo ve) -->
+<!-- Agregar item (SOLO ADMIN) -->
 <div class="card">
     <h3 style="margin-bottom: 12px;">Agregar al stock</h3>
     <form method="POST" action="{{ url_for('stock_add') }}" id="stock-add-form">

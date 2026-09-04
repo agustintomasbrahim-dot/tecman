@@ -361,10 +361,11 @@ SUCURSAL_EMAILS = {
 ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
     "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin"},
-    "jonathan": {"password": _ADMIN_PWD, "nombre": "Jonatan", "rol": "tecnico"},
+    "esoria": {"password": _ADMIN_PWD, "nombre": "Soria", "rol": "tecnico", "email": "esoria@grupodexter.com.ar"},
     "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
     "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin", "email": "rrobles@grupodexter.com.ar"},
 }
+LEGACY_DISABLED_USERNAMES = {"jonathan"}
 
 # Portal de Compras (Laura). Portal separado del de admin.
 COMPRAS_USERS = {
@@ -963,6 +964,12 @@ def _seed_auth_users():
     supervisor_rows = _supervisores_by_email()
     if USE_DB:
         changed = False
+        for username in LEGACY_DISABLED_USERNAMES:
+            legacy = _find_db_user(identifier=username)
+            if legacy and legacy.status == "active":
+                legacy.status = "disabled"
+                legacy.session_version = (legacy.session_version or 1) + 1
+                changed = True
         for username, info in ADMINS.items():
             existing = _find_db_user(identifier=username)
             email = (info.get("email") or "").strip().lower()
@@ -1044,6 +1051,12 @@ def _seed_auth_users():
     data = _load_users_json()
     users = data.setdefault("users", [])
     changed = False
+    for username in LEGACY_DISABLED_USERNAMES:
+        legacy = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
+        if legacy and legacy.get("status") == "active":
+            legacy["status"] = "disabled"
+            legacy["session_version"] = int(legacy.get("session_version", 1)) + 1
+            changed = True
     for username, info in ADMINS.items():
         email = (info.get("email") or "").strip().lower()
         existing = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
@@ -3196,9 +3209,9 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
 
     # By category
     if subcategoria == "Luminarias":
-        return "Jonatan"
+        return "Soria"
     if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
-        return "Jonatan"
+        return "Soria"
     if categoria == "Seguridad e Higiene":
         return "Patricia"
     if categoria == "Presupuestos":
@@ -4224,7 +4237,7 @@ def admin_logout():
 @app.route("/admin")
 @login_required
 def admin_panel():
-    # Jonathan (tecnico) va directo a sus pedidos
+    # El rol tecnico va directo a sus pedidos
     if session.get("rol") == "tecnico":
         return redirect(url_for("admin_pedidos"))
     sync_alertas_syh()
@@ -7313,13 +7326,13 @@ def admin_syh_edit(suc_num):
     )
 
 
-# --- Routes: Jonathan - Pedidos de materiales ---
+# --- Routes: Tecnico - Pedidos de materiales ---
 
 @app.route("/admin/pedidos")
 @login_required
 def admin_pedidos():
     tickets = load_tickets()
-    # Filter material tickets assigned to Jonathan
+    # Filter material tickets
     pedidos = [t for t in tickets if (t.get("categoria") in ("Materiales", "Solicitud de materiales") or t.get("tipo") == "materiales") and t["estado"] not in ("Cerrado",)]
     pendientes = [t for t in pedidos if t["estado"] in ("Nuevo", "Abierto")]
     en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Materiales recibidos", "Pendiente")]
@@ -7447,7 +7460,7 @@ def admin_pedido(ticket_id):
             ticket["estado"] = "En progreso"
             ticket["metodo_envio"] = metodo_envio
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonatan"),
+                "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Cuento con material. Envio: {metodo_envio}",
             })
@@ -7457,7 +7470,7 @@ def admin_pedido(ticket_id):
             ticket["estado"] = "Pendiente"
             ticket["detalle_compras"] = detalle  # internal only
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonatan"),
+                "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": "Pedido realizado a compras",
             })
@@ -7481,11 +7494,11 @@ def admin_pedido(ticket_id):
                 "item": item,
                 "cantidad": cantidad,
                 "detalle": detalle_extra,
-                "agregado_por": session.get("nombre", "Jonatan"),
+                "agregado_por": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
             })
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonatan"),
+                "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Agregó material complementario desde stock: {item} x{cantidad}" + (f" ({detalle_extra})" if detalle_extra else ""),
             })
@@ -7512,13 +7525,13 @@ def admin_pedido(ticket_id):
                 "cantidad": cantidad,
                 "requisicion": requisicion,
                 "detalle": detalle,
-                "pedido_por": session.get("nombre", "Jonatan"),
+                "pedido_por": session.get("nombre", "Soria"),
                 "estado": "Pendiente compras",
                 "fecha": datetime.datetime.now().isoformat(),
             })
             ticket["estado"] = "Pendiente"
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonatan"),
+                "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Derivó a Compras: {item} x{cantidad} | Requisición: {requisicion}" + (f" ({detalle})" if detalle else ""),
             })
@@ -7620,7 +7633,7 @@ def admin_pedido(ticket_id):
                     sin_trazabilidad_fifo=sin_trazabilidad or None,
                 )
             ticket["notas"].append({
-                "autor": session.get("nombre", "Jonatan"),
+                "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}{imputacion_txt}",
             })
