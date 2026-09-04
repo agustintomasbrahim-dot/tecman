@@ -2,6 +2,13 @@
 {% block title %}Tecman - Contabilidad{% endblock %}
 {% block nav %}
 <div class="nav">
+    {% if session.rol == "tecnico" %}
+    <a href="{{ url_for('admin_materiales') }}">Inicio</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Facturas / Remitos</a>
+    <a href="{{ url_for('admin_stock_movimientos') }}">Movimientos</a>
+    {% else %}
     <a href="{{ url_for('admin_panel') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
@@ -9,6 +16,7 @@
     <a href="{{ url_for('admin_comprobantes') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Comprobantes</a>
     <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
     <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
+    {% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
@@ -16,10 +24,12 @@
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
     <div style="display: flex; align-items: center; gap: 12px;">
-        <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Inicio</a>
-        <h2 style="margin: 0;">Contabilidad</h2>
+        <a href="{{ url_for('admin_materiales' if session.rol == 'tecnico' else 'admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Inicio</a>
+        <h2 style="margin: 0;">{% if session.rol == 'tecnico' %}Facturas / Remitos{% else %}Contabilidad{% endif %}</h2>
     </div>
+    {% if session.rol == "admin" %}
     <a href="{{ url_for('admin_comprobantes_reporte', tipo=filtro_tipo, proveedor=filtro_proveedor, desde=filtro_desde, hasta=filtro_hasta) }}" class="btn btn-outline">&#128190; Descargar reporte CSV</a>
+    {% endif %}
 </div>
 
 <div class="stats">
@@ -45,7 +55,7 @@
 <div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed #e5e7eb;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
         <label style="font-weight: 600; color: #374151; font-size: 14px; margin: 0;">Ítems del comprobante</label>
-        <span style="font-size: 11px; color: #9ca3af;">Se suman al stock central.</span>
+        <span style="font-size: 11px; color: #9ca3af;">Remitos suman stock; facturas actualizan precio.</span>
     </div>
     <div class="items-container" data-key="{{ key }}"></div>
     <button type="button" class="btn btn-outline" onclick="agregarItemFactura(this)" style="margin-top: 8px;">+ Agregar ítem</button>
@@ -149,12 +159,12 @@
         <div class="comp-card" data-panel="factura" onclick="compSeleccionar('factura')">
             <span class="icon">📄</span>
             <div class="title">Factura</div>
-            <div class="desc">Solo archivo + comentario</div>
+            <div class="desc">Archivo, precio y comentario</div>
         </div>
         <div class="comp-card" data-panel="remito-total" onclick="compSeleccionar('remito-total')">
             <span class="icon">📦</span>
             <div class="title">Remito total</div>
-            <div class="desc">Proveedor · suma al stock</div>
+            <div class="desc">Proveedor · suma stock</div>
         </div>
         <div class="comp-card" data-panel="remito-parcial" onclick="compSeleccionar('remito-parcial')">
             <span class="icon">📦</span>
@@ -536,9 +546,11 @@ document.querySelectorAll('#comp-carga-card form').forEach(function(form) {
                     {% if c.tipo == 'remito_interno' %}
                     <a href="{{ url_for('admin_comprobantes_imprimir', cid=c.id) }}" target="_blank" class="btn btn-sm" style="background: #dbeafe; color: #1d4ed8; text-decoration: none; margin-right: 4px;">🖨️ Imprimir</a>
                     {% endif %}
+                    {% if session.rol == "admin" %}
                     <form method="POST" action="{{ url_for('admin_comprobantes_eliminar', cid=c.id) }}" style="display: inline;" onsubmit="return confirm('Eliminar este comprobante?');">
                         <button type="submit" class="btn btn-sm" style="background: #fee2e2; color: #dc2626;">Eliminar</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% if c.tipo == 'remito_interno' and (c.destino or c.retiro_tipo) %}

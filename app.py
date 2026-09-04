@@ -4443,9 +4443,9 @@ def admin_logout():
 @app.route("/admin")
 @login_required
 def admin_panel():
-    # El rol tecnico va directo a sus pedidos
+    # El rol tecnico trabaja en el perfil operativo de materiales.
     if session.get("rol") == "tecnico":
-        return redirect(url_for("admin_pedidos"))
+        return redirect(url_for("admin_materiales"))
     sync_alertas_syh()
     tickets = load_tickets()
     tickets_operativos = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
@@ -4571,6 +4571,41 @@ def admin_panel():
         materiales_resumen=materiales_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
+    )
+
+
+@app.route("/admin/materiales")
+@login_required
+def admin_materiales():
+    if session.get("rol") != "tecnico":
+        return redirect(url_for("admin_panel"))
+
+    tickets = load_tickets()
+    materiales = _material_dashboard(tickets)
+    stock = load_stock()
+    central = stock.get("central", {})
+    total_items = sum(v.get("cantidad", 0) for v in central.values())
+    stock_bajo = [
+        {"item": item, "cantidad": info.get("cantidad", 0)}
+        for item, info in central.items()
+        if info.get("cantidad", 0) <= 2
+    ]
+    stock_bajo.sort(key=lambda x: (x["cantidad"], x["item"]))
+
+    comprobantes = [
+        c for c in load_comprobantes().get("comprobantes", [])
+        if c.get("tipo") in ("factura", "remito_proveedor", "remito_interno")
+    ]
+    comprobantes.sort(key=lambda c: c.get("created_at") or c.get("fecha", ""), reverse=True)
+    recientes = comprobantes[:6]
+
+    return render_template(
+        "admin_materiales.html",
+        materiales=materiales,
+        stock_items=len(central),
+        total_items=total_items,
+        stock_bajo=stock_bajo[:8],
+        comprobantes_recientes=recientes,
     )
 
 
@@ -5009,6 +5044,10 @@ def admin_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if session.get("rol") == "tecnico":
+        if _is_material_ticket(ticket):
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+        return render_template("error.html", mensaje="Acceso restringido. Solo pedidos de materiales."), 403
     ticket = _normalize_ceyh_ticket(ticket)
 
     if request.method == "POST":
@@ -8645,7 +8684,7 @@ def admin_comprobantes_eliminar(cid):
 
 
 @app.route("/api/destino-direccion")
-@admin_required
+@login_required
 def api_destino_direccion():
     destino = request.args.get("destino", "").strip()
     return jsonify({"direccion": _direccion_para_destino(destino)})

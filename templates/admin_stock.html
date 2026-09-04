@@ -2,14 +2,22 @@
 {% block title %}Tecman - Stock{% endblock %}
 {% block nav %}
 <div class="nav">
+    {% if session.rol == "tecnico" %}
+    <a href="{{ url_for('admin_materiales') }}">Inicio</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Facturas / Remitos</a>
+    <a href="{{ url_for('admin_stock_movimientos') }}">Movimientos</a>
+    {% else %}
     <a href="{{ url_for('admin_panel') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Tickets</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_proveedores') }}">Proveedores</a>{% endif %}
+    <a href="{{ url_for('admin_proveedores') }}">Proveedores</a>
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
     <a href="{{ url_for('admin_comprobantes') }}">Contabilidad</a>
-    {% if session.rol == "admin" %}<a href="{{ url_for('admin_contable_reporte') }}">Contable</a>{% endif %}
+    <a href="{{ url_for('admin_contable_reporte') }}">Contable</a>
     <a href="{{ url_for('admin_mapa') }}">Mapa</a>
     <a href="{{ url_for('admin_syh') }}">S&H</a>
+    {% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
@@ -19,7 +27,7 @@
     <h2>Stock / Deposito</h2>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="{{ url_for('admin_stock_movimientos') }}" class="btn" style="background: #f3f4f6; color: #374151;">Ver historial de movimientos</a>
-        {% if session.rol != 'admin' %}<a href="{{ url_for('admin_pedidos') }}" class="btn" style="background: #dbeafe; color: #1d4ed8;">Ir a Pedidos</a>{% endif %}
+        {% if session.rol != 'admin' %}<a href="{{ url_for('admin_comprobantes') }}" class="btn" style="background: #dcfce7; color: #166534;">Cargar factura/remito</a><a href="{{ url_for('admin_pedidos') }}" class="btn" style="background: #dbeafe; color: #1d4ed8;">Ir a Pedidos</a>{% endif %}
     </div>
 </div>
 
@@ -29,7 +37,7 @@
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 13px;">
         <div><strong>1.</strong> Revisar stock disponible</div>
         <div><strong>2.</strong> Transferir a sucursal si ya está definido</div>
-        <div><strong>3.</strong> Si falta material, seguir por <strong>Pedidos</strong> o <strong>Contabilidad</strong></div>
+        <div><strong>3.</strong> Si entra material, cargar <strong>Factura/Remito</strong></div>
     </div>
 </div>
 {% endif %}
@@ -223,7 +231,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 {% if session.rol != 'admin' %}
 <div class="card" style="background: #eff6ff; border-left: 4px solid #3b82f6;">
     <p style="color: #1e40af; font-size: 13px; margin: 0;">
-        <strong>ℹ️ Nota:</strong> para cargar stock al depósito ir a <a href="{{ url_for('admin_comprobantes') }}" style="color: #1d4ed8; font-weight: 600;">Contabilidad</a> y registrar la factura o remito de proveedor. Los egresos se registran automáticamente al marcar pedidos como enviados.
+        <strong>ℹ️ Nota:</strong> para cargar stock al depósito ir a <a href="{{ url_for('admin_comprobantes') }}" style="color: #1d4ed8; font-weight: 600;">Facturas / Remitos</a> y registrar el remito de proveedor. Los egresos se registran automáticamente al marcar pedidos como enviados.
     </p>
 </div>
 {% endif %}

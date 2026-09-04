@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Materiales{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_materiales') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Inicio</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+    <a href="{{ url_for('admin_stock') }}">Stock</a>
+    <a href="{{ url_for('admin_comprobantes') }}">Facturas / Remitos</a>
+    <a href="{{ url_for('admin_stock_movimientos') }}">Movimientos</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<style>
+    .mat-head { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .mat-head p { margin-top:4px; color:#64748b; font-size:13px; }
+    .mat-actions { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin:16px 0; }
+    .mat-action { display:block; color:#0f172a; text-decoration:none; border:1px solid #e5e7eb; border-radius:8px; padding:16px; background:#fff; min-height:126px; }
+    .mat-action:hover { border-color:#93c5fd; box-shadow:0 8px 20px rgba(15,23,42,.08); }
+    .mat-action-title { font-size:15px; font-weight:800; margin-bottom:6px; }
+    .mat-action-desc { color:#64748b; font-size:13px; line-height:1.35; }
+    .mat-action-count { margin-top:14px; font-size:24px; font-weight:800; }
+    .mat-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+    .mat-list { display:grid; gap:8px; }
+    .mat-row { display:flex; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #f3f4f6; font-size:13px; }
+    .mat-row:last-child { border-bottom:0; }
+    @media (max-width: 800px) {
+        .mat-actions, .mat-grid { grid-template-columns:1fr; }
+    }
+</style>
+
+<div class="mat-head">
+    <div>
+        <h2 style="margin:0;">Materiales</h2>
+        <p>Operación diaria de pedidos, stock, facturas y remitos.</p>
+    </div>
+    <a href="{{ url_for('admin_pedidos') }}" class="btn btn-sm btn-primary">Abrir pedidos</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ materiales.total }}</div>
+        <div class="label">Pedidos abiertos</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#dc2626;">{{ materiales.counts.nuevo }}</div>
+        <div class="label">Revisar stock</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#b45309;">{{ materiales.counts.compras }}</div>
+        <div class="label">Esperando compras</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#047857;">{{ total_items }}</div>
+        <div class="label">Unidades stock</div>
+    </div>
+</div>
+
+<div class="mat-actions">
+    <a class="mat-action" href="{{ url_for('admin_pedidos') }}">
+        <div class="mat-action-title">Pedidos de materiales</div>
+        <div class="mat-action-desc">Revisar pedidos, definir compras, preparar envío y cerrar cuando la sucursal confirma recepción.</div>
+        <div class="mat-action-count" style="color:#dc2626;">{{ materiales.total }}</div>
+    </a>
+    <a class="mat-action" href="{{ url_for('admin_stock') }}">
+        <div class="mat-action-title">Stock central</div>
+        <div class="mat-action-desc">Ver disponibilidad, transferir a sucursal y consultar stock por ítem.</div>
+        <div class="mat-action-count" style="color:#047857;">{{ stock_items }}</div>
+    </a>
+    <a class="mat-action" href="{{ url_for('admin_comprobantes') }}">
+        <div class="mat-action-title">Facturas / Remitos</div>
+        <div class="mat-action-desc">Cargar remitos de proveedor para sumar stock y facturas para registrar precios.</div>
+        <div class="mat-action-count" style="color:#1d4ed8;">{{ comprobantes_recientes|length }}</div>
+    </a>
+</div>
+
+<div class="mat-grid">
+    <div class="card" style="margin:0;">
+        <h3 style="margin-bottom:12px;">Stock bajo</h3>
+        {% if stock_bajo %}
+        <div class="mat-list">
+            {% for s in stock_bajo %}
+            <a class="mat-row" href="{{ url_for('admin_stock_item', item=s.item) }}" style="text-decoration:none;color:inherit;">
+                <span>{{ s.item }}</span>
+                <strong style="color:{% if s.cantidad == 0 %}#dc2626{% else %}#b45309{% endif %};">{{ s.cantidad }}</strong>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:#94a3b8;font-size:13px;">Sin ítems críticos.</p>
+        {% endif %}
+    </div>
+
+    <div class="card" style="margin:0;">
+        <h3 style="margin-bottom:12px;">Últimos comprobantes</h3>
+        {% if comprobantes_recientes %}
+        <div class="mat-list">
+            {% for c in comprobantes_recientes %}
+            <div class="mat-row">
+                <span>{{ c.fecha }} · {{ c.tipo.replace('_', ' ') }} · {{ c.numero or 's/n' }}</span>
+                <strong>{{ c.proveedor or '-' }}</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:#94a3b8;font-size:13px;">Todavía no hay comprobantes cargados.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
