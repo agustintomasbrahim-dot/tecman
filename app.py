@@ -2724,6 +2724,14 @@ def _sucursal_user_from_entra_email(email):
     return None
 
 
+def _sucursal_user_from_entra_identity(identity):
+    for email in _identity_email_candidates(identity):
+        user = _sucursal_user_from_entra_email(email)
+        if user:
+            return user
+    return None
+
+
 def _sucursal_session_is_general():
     return bool(session.get("suc_general"))
 
@@ -2818,11 +2826,11 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
         return False
     session.clear()
     session.permanent = True
-    session["suc_general"] = True
     session["auth_provider"] = "entra"
     session["entra_role"] = identity.get("entra_role")
     session["nombre"] = identity.get("name") or identity.get("email") or "Portal Sucursales"
     if identity.get("entra_role") == "supervisor":
+        session["suc_general"] = True
         supervisor = _supervisor_for_identity(identity)
         if not supervisor:
             return False
@@ -2838,6 +2846,13 @@ def _set_sucursal_session_from_entra(identity, suc_user=None):
         session["suc_scope_nums"] = scope_nums
         session["suc_scope_labels"] = [_sucursal_label_from_num(n) for n in scope_nums]
         return True
+    suc_user = suc_user or _sucursal_user_from_entra_identity(identity)
+    if suc_user and suc_user in SUCURSAL_USERS:
+        session["suc_general"] = False
+        session["suc_user"] = suc_user
+        session["suc_nombre"] = SUCURSAL_USERS[suc_user]["sucursal"]
+        return True
+    session["suc_general"] = True
     session["suc_user"] = "entra_sucursales"
     session["suc_nombre"] = "Portal Sucursales"
     return True
