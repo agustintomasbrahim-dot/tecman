@@ -78,7 +78,7 @@
     </div>
     <div class="pedido-mini-card">
         <div class="pedido-label">Siguiente paso</div>
-        <div class="pedido-value">{% if ticket.estado in ('Nuevo', 'Abierto') %}Definir si hay stock{% elif ticket.estado == 'Pendiente' %}Esperar Compras{% elif ticket.estado == 'En progreso' %}Coordinar envío{% elif ticket.estado == 'Resuelto' %}Esperar recepción{% else %}Revisar pedido{% endif %}</div>
+        <div class="pedido-value">{% if ticket.estado in ('Nuevo', 'Abierto') %}Definir si hay stock{% elif ticket.estado == 'Pendiente' %}Esperar Compras{% elif ticket.estado == 'En progreso' %}Coordinar envío{% elif ticket.estado == 'Resuelto' %}Esperar recepción{% elif ticket.estado == 'Materiales recibidos' %}Cerrar pedido{% else %}Revisar pedido{% endif %}</div>
     </div>
 </div>
 </div>
@@ -361,6 +361,15 @@
             </label>
         </div>
         <button type="submit" class="btn btn-primary btn-block">Material recibido - Confirmar envio</button>
+    </form>
+</div>
+{% elif ticket.estado == 'Materiales recibidos' %}
+<div class="card" style="border-left: 4px solid #047857;">
+    <h3 style="margin-bottom: 12px;">4. Recepción confirmada</h3>
+    <p style="color: #047857; font-weight: 600;">La sucursal confirmó que recibió los materiales.</p>
+    <form method="POST" style="margin-top: 12px;">
+        <input type="hidden" name="accion" value="cerrar_pedido">
+        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Cerrar este pedido de materiales?')">Cerrar pedido</button>
     </form>
 </div>
 {% endif %}

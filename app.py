@@ -18,6 +18,7 @@ import bcrypt
 import jwt
 import msal
 from pathlib import Path
+from collections import Counter
 from functools import wraps
 from urllib.parse import urlencode
 from jwt import PyJWKClient
@@ -3136,6 +3137,114 @@ def auto_priority(categoria, subcategoria):
     return 4
 
 
+MATERIAL_STAGE_META = {
+    "nuevo": {
+        "label": "Nuevo pedido",
+        "short": "Nuevo",
+        "color": "#dc2626",
+        "bg": "#fef2f2",
+        "border": "#fecaca",
+        "next": "Revisar stock",
+    },
+    "compras": {
+        "label": "Esperando compras",
+        "short": "Compras",
+        "color": "#b45309",
+        "bg": "#fffbeb",
+        "border": "#fde68a",
+        "next": "Esperar ingreso de material",
+    },
+    "preparar_envio": {
+        "label": "Preparar envío",
+        "short": "Preparar",
+        "color": "#1d4ed8",
+        "bg": "#eff6ff",
+        "border": "#bfdbfe",
+        "next": "Coordinar despacho o retiro",
+    },
+    "enviado": {
+        "label": "Enviado sin recepción",
+        "short": "Enviado",
+        "color": "#6d28d9",
+        "bg": "#f5f3ff",
+        "border": "#ddd6fe",
+        "next": "Sucursal debe confirmar recepción",
+    },
+    "recibido": {
+        "label": "Recibido por sucursal",
+        "short": "Recibido",
+        "color": "#047857",
+        "bg": "#ecfdf5",
+        "border": "#a7f3d0",
+        "next": "Cerrar pedido",
+    },
+}
+MATERIAL_STAGE_ORDER = ["nuevo", "compras", "preparar_envio", "enviado", "recibido"]
+
+
+def _is_material_ticket(ticket):
+    return (
+        ticket.get("categoria") in ("Materiales", "Solicitud de materiales")
+        or ticket.get("subcategoria") == "Solicitud de materiales"
+        or ticket.get("tipo") == "materiales"
+    )
+
+
+def _material_stage(ticket):
+    estado = ticket.get("estado", "")
+    if estado == "Cerrado":
+        return "cerrado"
+    if estado == "Materiales recibidos" or ticket.get("materiales_recibidos"):
+        return "recibido"
+    if estado == "Resuelto":
+        return "enviado"
+    if estado == "Pendiente" or ticket.get("materiales_a_comprar") or ticket.get("detalle_compras"):
+        return "compras"
+    if estado == "En progreso" or ticket.get("metodo_envio"):
+        return "preparar_envio"
+    return "nuevo"
+
+
+def _ticket_age_days(ticket):
+    created = ticket.get("creado") or ticket.get("fecha") or ticket.get("actualizado")
+    if not created:
+        return None
+    try:
+        created_dt = datetime.datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return max(0, (datetime.datetime.now(created_dt.tzinfo) - created_dt).days)
+
+
+def _material_dashboard(tickets):
+    pedidos = [t for t in tickets if _is_material_ticket(t) and t.get("estado") != "Cerrado"]
+    columns = {stage: [] for stage in MATERIAL_STAGE_ORDER}
+    for ticket in pedidos:
+        stage = _material_stage(ticket)
+        if stage in columns:
+            ticket["_material_stage"] = stage
+            ticket["_material_stage_meta"] = MATERIAL_STAGE_META[stage]
+            ticket["_age_days"] = _ticket_age_days(ticket)
+            columns[stage].append(ticket)
+
+    for stage in MATERIAL_STAGE_ORDER:
+        columns[stage].sort(key=lambda t: (t.get("_age_days") is None, -(t.get("_age_days") or 0), t.get("creado", "")))
+
+    por_sucursal = Counter(t.get("sucursal", "Sin sucursal") for t in pedidos)
+    atrasados = [
+        t for t in pedidos
+        if (t.get("_age_days") or _ticket_age_days(t) or 0) >= 7 and _material_stage(t) not in ("enviado", "recibido")
+    ]
+    return {
+        "total": len(pedidos),
+        "columns": columns,
+        "counts": {stage: len(columns[stage]) for stage in MATERIAL_STAGE_ORDER},
+        "top_sucursales": por_sucursal.most_common(5),
+        "atrasados": atrasados,
+        "stage_meta": MATERIAL_STAGE_META,
+        "stage_order": MATERIAL_STAGE_ORDER,
+    }
+
 
 def next_ticket_id(tickets):
     if not tickets:
@@ -3762,9 +3871,26 @@ def nuevo_ticket():
             ticket["origen"] = "oficina"
 
         if categoria == "Materiales":
-            ticket["categoria_mat"] = request.form.get("categoria_mat", "").strip()
-            ticket["subitem_mat"] = request.form.get("subitem_mat", "").strip()
-            ticket["cantidad_mat"] = request.form.get("cantidad_mat", "1").strip()
+            categoria_mat = request.form.get("categoria_mat", "").strip()
+            subitem_mat = request.form.get("subitem_mat", "").strip()
+            cantidad_mat = request.form.get("cantidad_mat", "1").strip()
+            if not categoria_mat:
+                flash("En materiales, el tipo de material es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            if categoria_mat.lower() == "luminaria" and not subitem_mat:
+                flash("En luminarias, el tipo de luminaria es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            if not cantidad_mat or (_parse_int_or_none(cantidad_mat) or 0) <= 0:
+                flash("En materiales, la cantidad debe ser mayor a 0")
+                return redirect(url_for("nuevo_ticket"))
+            if not zona_afectada:
+                flash("En materiales, la zona o sector del local es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            ticket["categoria_mat"] = categoria_mat
+            ticket["subitem_mat"] = subitem_mat
+            ticket["cantidad_mat"] = cantidad_mat
+            ticket["zona_afectada"] = zona_afectada
+            ticket["tipo"] = "materiales"
         elif categoria == "Presupuestos":
             if not proveedor_presupuesto:
                 flash("En presupuestos, el proveedor es obligatorio")
@@ -4264,6 +4390,7 @@ def admin_panel():
         "en_progreso": sum(1 for t in tickets if t["estado"] in ("En progreso", "Pendiente")),
         "resueltos": sum(1 for t in tickets if t["estado"] == "Resuelto"),
     }
+    materiales_resumen = _material_dashboard(tickets)
 
     # Chart data
     from collections import Counter
@@ -4360,6 +4487,8 @@ def admin_panel():
         alertas=alertas,
         notif_admin=notif_admin,
         tickets_rita_pendientes=tickets_rita_pendientes,
+        materiales_resumen=materiales_resumen,
+        material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
     )
 
@@ -7332,17 +7461,13 @@ def admin_syh_edit(suc_num):
 @login_required
 def admin_pedidos():
     tickets = load_tickets()
-    # Filter material tickets
-    pedidos = [t for t in tickets if (t.get("categoria") in ("Materiales", "Solicitud de materiales") or t.get("tipo") == "materiales") and t["estado"] not in ("Cerrado",)]
-    pendientes = [t for t in pedidos if t["estado"] in ("Nuevo", "Abierto")]
-    en_proceso = [t for t in pedidos if t["estado"] in ("En progreso", "Materiales recibidos", "Pendiente")]
-    resueltos = [t for t in pedidos if t["estado"] == "Resuelto"]
+    materiales = _material_dashboard(tickets)
 
     return render_template(
         "admin_pedidos.html",
-        pendientes=pendientes,
-        en_proceso=en_proceso,
-        resueltos=resueltos,
+        materiales=materiales,
+        material_stage_order=MATERIAL_STAGE_ORDER,
+        material_stage_meta=MATERIAL_STAGE_META,
         prioridades=PRIORIDADES,
     )
 
@@ -7644,6 +7769,14 @@ def admin_pedido(ticket_id):
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Materiales enviados desde Central ({metodo}). Por favor confirme recepcion adjuntando el remito.",
                 "leida": False,
+            })
+
+        elif accion == "cerrar_pedido":
+            ticket["estado"] = "Cerrado"
+            ticket["notas"].append({
+                "autor": session.get("nombre", "Admin"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": "Pedido cerrado luego de la recepción de la sucursal",
             })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()

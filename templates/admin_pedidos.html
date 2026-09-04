@@ -14,84 +14,104 @@
 {% endblock %}
 {% block content %}
 
-<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-    <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">
-        ← Inicio
-    </a>
-    <h2 style="margin: 0;">Pedidos de Materiales</h2>
+<style>
+    .pedidos-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .pedidos-head p { margin-top:4px; color:#64748b; font-size:13px; }
+    .pedidos-grid { display:grid; grid-template-columns:repeat(5, minmax(190px, 1fr)); gap:12px; align-items:start; }
+    .pedido-col { border:1px solid #e5e7eb; border-radius:10px; background:#f8fafc; min-height:260px; overflow:hidden; }
+    .pedido-col-head { padding:12px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .pedido-col-title { font-size:13px; font-weight:800; color:#0f172a; }
+    .pedido-col-count { min-width:28px; height:24px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
+    .pedido-list { display:grid; gap:8px; padding:10px; }
+    .pedido-card { display:block; text-decoration:none; color:#0f172a; background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px; }
+    .pedido-card:hover { border-color:#93c5fd; box-shadow:0 8px 20px rgba(15,23,42,.08); }
+    .pedido-card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
+    .pedido-id { font-size:13px; font-weight:800; color:#0f172a; }
+    .pedido-date { font-size:11px; color:#94a3b8; white-space:nowrap; }
+    .pedido-main { font-size:13px; font-weight:700; color:#1e293b; line-height:1.25; margin-bottom:6px; }
+    .pedido-meta { font-size:12px; color:#64748b; line-height:1.35; }
+    .pedido-empty { padding:18px 10px; text-align:center; color:#94a3b8; font-size:12px; }
+    .pedido-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+    @media (max-width: 1180px) { .pedidos-grid { grid-template-columns:repeat(2, minmax(220px, 1fr)); } }
+    @media (max-width: 640px) { .pedidos-grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="pedidos-head">
+    <div>
+        <h2 style="margin:0;">Pedidos de Materiales</h2>
+        <p>Bandeja diaria para revisar stock, compras, envío y recepción.</p>
+    </div>
+    <a href="{{ url_for('admin_panel') }}" class="btn btn-sm btn-outline">Inicio</a>
 </div>
 
 <div class="stats">
     <div class="stat-card">
-        <div class="number" style="color: #e63946;">{{ pendientes | length }}</div>
-        <div class="label">Pendientes</div>
+        <div class="number" style="color:#0f172a;">{{ materiales.total }}</div>
+        <div class="label">Pedidos abiertos</div>
     </div>
     <div class="stat-card">
-        <div class="number" style="color: #1d4ed8;">{{ en_proceso | length }}</div>
-        <div class="label">En proceso</div>
+        <div class="number" style="color:#dc2626;">{{ materiales.counts.nuevo }}</div>
+        <div class="label">Para revisar stock</div>
     </div>
     <div class="stat-card">
-        <div class="number" style="color: #059669;">{{ resueltos | length }}</div>
-        <div class="label">Enviados</div>
+        <div class="number" style="color:#b45309;">{{ materiales.counts.compras }}</div>
+        <div class="label">Esperando compras</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#6d28d9;">{{ materiales.counts.enviado }}</div>
+        <div class="label">Sin recepción</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#047857;">{{ materiales.counts.recibido }}</div>
+        <div class="label">Recibidos</div>
     </div>
 </div>
 
-{% if pendientes %}
-<h3 style="margin: 16px 0 8px; color: #e63946;">Pendientes de gestion</h3>
-{% for t in pendientes %}
-<a href="{{ url_for('admin_pedido', ticket_id=t.id) }}" style="text-decoration: none;">
-    <div class="card" style="padding: 14px; border-left: 4px solid #e63946; cursor: pointer;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+<div class="pedidos-grid">
+    {% for stage in material_stage_order %}
+    {% set meta = material_stage_meta[stage] %}
+    {% set items = materiales.columns[stage] %}
+    <section class="pedido-col">
+        <div class="pedido-col-head" style="background:{{ meta.bg }};">
             <div>
-                <span style="font-weight: 700; color: #e63946;">#{{ t.id }}</span>
-                <span style="font-weight: 600; color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
-                <span class="badge" style="background: #ede9fe; color: #6d28d9; margin-left: 6px;">{{ t.subcategoria }}</span>
+                <div class="pedido-col-title" style="color:{{ meta.color }};">{{ meta.label }}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ meta.next }}</div>
             </div>
-            <span style="color: #6b7280; font-size: 12px;">{{ t.creado[:10] }}</span>
+            <span class="pedido-col-count" style="background:#fff;color:{{ meta.color }};">{{ items|length }}</span>
         </div>
-        <p style="color: #374151; font-size: 13px; margin-top: 6px;">{{ t.descripcion[:100] }}</p>
-    </div>
-</a>
-{% endfor %}
-{% endif %}
-
-{% if en_proceso %}
-<h3 style="margin: 16px 0 8px; color: #1d4ed8;">En proceso</h3>
-{% for t in en_proceso %}
-<a href="{{ url_for('admin_pedido', ticket_id=t.id) }}" style="text-decoration: none;">
-    <div class="card" style="padding: 14px; border-left: 4px solid #1d4ed8; cursor: pointer;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <span style="font-weight: 700; color: #1d4ed8;">#{{ t.id }}</span>
-                <span style="font-weight: 600; color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
-                <span class="badge" style="background: #ede9fe; color: #6d28d9; margin-left: 6px;">{{ t.subcategoria }}</span>
-                {% if t.metodo_envio is defined and t.metodo_envio %}
-                <span class="badge" style="background: #dbeafe; color: #1d4ed8; margin-left: 4px;">{{ t.metodo_envio }}</span>
+        <div class="pedido-list">
+            {% for t in items %}
+            <a class="pedido-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
+                <div class="pedido-card-top">
+                    <span class="pedido-id">#{{ t.id }}</span>
+                    <span class="pedido-date">{{ t.creado[:10] if t.creado else '' }}</span>
+                </div>
+                <div class="pedido-main">
+                    {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}{% if t.cantidad_mat %} x{{ t.cantidad_mat }}{% endif %}
+                </div>
+                <div class="pedido-meta">
+                    {{ t.sucursal }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}
+                </div>
+                {% set age_days = t.get('_age_days') %}
+                {% if age_days is not none %}
+                <div style="margin-top:8px;">
+                    <span class="pedido-badge" style="background:{% if age_days >= 7 %}#fee2e2;color:#b91c1c{% else %}#f1f5f9;color:#475569{% endif %};">{{ age_days }} día{{ '' if age_days == 1 else 's' }}</span>
+                </div>
                 {% endif %}
-            </div>
-            <span class="badge badge-{{ t.estado.lower().replace(' ', '') }}">{{ t.estado }}</span>
+            </a>
+            {% endfor %}
+            {% if not items %}
+            <div class="pedido-empty">Sin pedidos</div>
+            {% endif %}
         </div>
-    </div>
-</a>
-{% endfor %}
-{% endif %}
-
-{% if resueltos %}
-<h3 style="margin: 16px 0 8px; color: #059669;">Enviados</h3>
-{% for t in resueltos %}
-<div class="card" style="padding: 14px; border-left: 4px solid #059669; opacity: 0.85; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-    <div>
-        <span style="font-weight: 700; color: #059669;">#{{ t.id }}</span>
-        <span style="color: #1a1a2e; margin-left: 8px;">{{ t.sucursal }}</span>
-        <span style="color: #6b7280; margin-left: 8px; font-size: 12px;">{{ t.subcategoria }}</span>
-    </div>
-    <a href="{{ url_for('admin_comprobantes', ticket_id=t.id) }}" class="btn btn-sm btn-outline">&#129534; Cargar comprobante</a>
+    </section>
+    {% endfor %}
 </div>
-{% endfor %}
-{% endif %}
 
-{% if not pendientes and not en_proceso and not resueltos %}
-<div class="card" style="text-align: center; padding: 40px; color: #9ca3af;">Sin pedidos de materiales</div>
+{% if materiales.total == 0 %}
+<div class="card" style="text-align:center;padding:32px;color:#64748b;margin-top:16px;">
+    Todavía no hay pedidos de materiales cargados en el flujo nuevo.
+</div>
 {% endif %}
 
 {% endblock %}
