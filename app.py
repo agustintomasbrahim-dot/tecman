@@ -168,7 +168,7 @@ def serve_persistent_uploads_from_static_path():
 
 SUCURSALES = [
     "Central - Dabra", "Garin",
-    "Sucursal 011", "Sucursal 014", "Sucursal 020", "Sucursal 023", "Sucursal 028",
+    "Sucursal 011", "Sucursal 014", "Sucursal 020", "Sucursal 023",
     "Sucursal 035", "Sucursal 036", "Sucursal 043", "Sucursal 049",
     "Sucursal 051", "Sucursal 052", "Sucursal 053", "Sucursal 054",
     "Sucursal 058", "Sucursal 065", "Sucursal 076", "Sucursal 077",
@@ -184,17 +184,43 @@ SUCURSALES = [
     "Sucursal 177", "Sucursal 178", "Sucursal 183", "Sucursal 184",
     "Sucursal 185", "Sucursal 186", "Sucursal 187", "Sucursal 188",
     "Sucursal 190", "Sucursal 191", "Sucursal 192", "Sucursal 193",
-    "Sucursal 194", "Sucursal 195", "Sucursal 196", "Sucursal 198", "Sucursal 199",
+    "Sucursal 194", "Sucursal 195", "Sucursal 196", "Sucursal 198",
     "Sucursal 200", "Sucursal 202", "Sucursal 203", "Sucursal 204",
     "Sucursal 205", "Sucursal 206", "Sucursal 207", "Sucursal 208",
     "Sucursal 209", "Sucursal 210", "Sucursal 211", "Sucursal 212", "Sucursal 213",
-    "Sucursal 214", "Sucursal 215", "Sucursal 216", "Sucursal 217",
+    "Sucursal 214", "Sucursal 216", "Sucursal 217",
     "Sucursal 219", "Sucursal 220", "Sucursal 221", "Sucursal 222", "Sucursal 224",
     "Sucursal 226", "Sucursal 228", "Sucursal 229", "Sucursal 230", "Sucursal 231",
-    "Sucursal 232", "Sucursal 233", "Sucursal 234", "Sucursal 235", "Sucursal 236",
+    "Sucursal 232", "Sucursal 233", "Sucursal 235", "Sucursal 236",
     "Sucursal 237", "Sucursal 238", "Sucursal 239", "Sucursal 240",
     "Sucursal 241",
 ]
+SUCURSALES_CERRADAS = {"028", "199", "215", "234"}
+
+
+def _raw_sucursal_num_from_value(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.lower() in ("central - dabra", "central"):
+        return "central"
+    if raw.lower() == "garin":
+        return "garin"
+    low = raw.lower()
+    if low.startswith("sucursal "):
+        raw = raw[9:].strip()
+    elif low.startswith("suc "):
+        raw = raw[4:].strip()
+    if "-" in raw:
+        first = raw.split("-", 1)[0].strip()
+        if first.isdigit():
+            raw = first
+    if raw.isdigit():
+        return raw.zfill(3)
+    return raw.lower()
+
+
+SUCURSALES = [s for s in SUCURSALES if _raw_sucursal_num_from_value(s) not in SUCURSALES_CERRADAS]
 
 CATEGORIAS = {
     "Problema Eléctrico": ["Luminarias", "Tablero", "Cableado", "Tomas", "Otro eléctrico"],
@@ -224,6 +250,7 @@ _SUCURSALES_INFRA = {}
 _SHOPPINGS_IDS = set()
 try:
     _SUCURSALES_INFRA = json.loads(_SUCURSALES_INFRA_FILE.read_text())
+    _SUCURSALES_INFRA = {k: v for k, v in _SUCURSALES_INFRA.items() if str(k).zfill(3) not in SUCURSALES_CERRADAS}
     _SHOPPINGS_IDS = {int(k) for k, v in _SUCURSALES_INFRA.items() if "Centro Comercial" in (v.get("segmentacion") or "")}
 except Exception:
     pass
@@ -249,7 +276,6 @@ SUCURSAL_EMAILS = {
     "014": "suc014@grupodabra.com.ar",
     "020": "suc020@grupodabra.com.ar",
     "023": "suc023@grupodabra.com.ar",
-    "028": "suc028@grupodabra.com.ar",
     "035": "suc035@grupodabra.com.ar",
     "036": "suc036@grupodabra.com.ar",
     "043": "suc043@grupodabra.com.ar",
@@ -319,7 +345,6 @@ SUCURSAL_EMAILS = {
     "195": "suc195@grupodabra.com.ar",
     "196": "suc196@grupodabra.com.ar",
     "198": "suc198@grupodabra.com.ar",
-    "199": "suc199@grupodabra.com.ar",
     "200": "suc200@grupodabra.com.ar",
     "202": "suc202@grupodabra.com.ar",
     "203": "suc203@grupodabra.com.ar",
@@ -334,7 +359,6 @@ SUCURSAL_EMAILS = {
     "212": "suc212@grupodabra.com.ar",
     "213": "suc213@grupodabra.com.ar",
     "214": "suc214@grupodabra.com.ar",
-    "215": "suc215@grupodabra.com.ar",
     "216": "suc216@grupodabra.com.ar",
     "217": "suc217@grupodabra.com.ar",
     "219": "suc219@grupodabra.com.ar",
@@ -349,7 +373,6 @@ SUCURSAL_EMAILS = {
     "231": "suc231@grupodabra.com.ar",
     "232": "suc232@grupodabra.com.ar",
     "233": "suc233@grupodabra.com.ar",
-    "234": "suc234@grupodabra.com.ar",
     "235": "suc235@grupodexter.com.ar",
     "236": "suc236@grupodabra.com.ar",
     "237": "suc237@grupodabra.com.ar",
@@ -358,6 +381,7 @@ SUCURSAL_EMAILS = {
     "240": "suc240@grupodexter.com.ar",
     "241": "suc241@grupodexter.com.ar",
 }
+SUCURSAL_EMAILS = {k: v for k, v in SUCURSAL_EMAILS.items() if str(k).zfill(3) not in SUCURSALES_CERRADAS}
 
 ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
@@ -2012,7 +2036,7 @@ def sync_alertas_matafuegos():
     por_sucursal = {}
     for m in mats:
         suc = m.get("sucursal_num") or (m.get("sucursal", "").replace("Sucursal ", "").strip())
-        if suc:
+        if suc and not _is_sucursal_cerrada(suc):
             por_sucursal.setdefault(suc, []).append(m)
 
     nuevas_alertas = []
@@ -2062,6 +2086,8 @@ def sync_alertas_habilitaciones(prev_map=None):
         if estado not in ("por_vencer", "vencida"):
             continue
         suc_num = h.get("sucursal_num") or (h.get("sucursal", "").replace("Sucursal ", "").strip())
+        if _is_sucursal_cerrada(suc_num):
+            continue
         aid = f"habilitacion:{h.get('id') or suc_num}:{estado}"
         alerta = {
             "id": aid,
@@ -2703,17 +2729,31 @@ def _sucursal_session_is_general():
 
 
 def _sucursal_num_from_value(value):
-    raw = str(value or "").strip()
-    if not raw:
+    return _raw_sucursal_num_from_value(value)
+
+
+def _is_sucursal_cerrada(value):
+    if _sucursal_num_from_value(value) in SUCURSALES_CERRADAS:
+        return True
+    texto = str(value or "").strip().lower()
+    return any(
+        f"sucursal {num}" in texto or f"suc {num}" in texto or f"suc{num}" in texto
+        for num in SUCURSALES_CERRADAS
+    )
+
+
+def _active_sucursal_values(values):
+    return [s for s in (values or []) if not _is_sucursal_cerrada(s)]
+
+
+def _ticket_sucursal_value(ticket):
+    if not isinstance(ticket, dict):
         return ""
-    if raw.lower() in ("central - dabra", "central"):
-        return "central"
-    if raw.lower() == "garin":
-        return "garin"
-    raw = raw.replace("Sucursal ", "").replace("Suc ", "").strip()
-    if raw.isdigit():
-        return raw.zfill(3)
-    return raw.lower()
+    return ticket.get("sucursal_num") or ticket.get("sucursal") or ""
+
+
+def _is_ticket_sucursal_cerrada(ticket):
+    return _is_sucursal_cerrada(_ticket_sucursal_value(ticket))
 
 
 def _sucursal_label_from_num(suc_num):
@@ -2730,7 +2770,11 @@ def _sucursal_session_scope_nums():
     scope = session.get("suc_scope_nums")
     if not scope:
         return None
-    return {_sucursal_num_from_value(s) for s in scope if _sucursal_num_from_value(s)}
+    return {
+        _sucursal_num_from_value(s)
+        for s in scope
+        if _sucursal_num_from_value(s) and not _is_sucursal_cerrada(s)
+    }
 
 
 def _sucursal_session_scope_labels():
@@ -2743,6 +2787,8 @@ def _sucursal_session_scope_labels():
 def _sucursal_session_can_access_value(value):
     scope_nums = _sucursal_session_scope_nums()
     value_num = _sucursal_num_from_value(value)
+    if value_num in SUCURSALES_CERRADAS:
+        return False
     if scope_nums is not None:
         return value_num in scope_nums
     if _sucursal_session_is_general():
@@ -2842,8 +2888,8 @@ def _set_oficina_session_from_entra(identity):
 ASIGNACION_DEFAULT = "Agustín Brahim"
 
 # Sucursales por zona para asignación automática
-SUCS_CORDOBA = {"076","078","123","124","203","215","224","233"}
-SUCS_NOA = {"120","126","128","135","139","146","158","173","191","193","212","229","230","234","235"}
+SUCS_CORDOBA = {"076","078","123","124","203","224","233"}
+SUCS_NOA = {"120","126","128","135","139","146","158","173","191","193","212","229","230","235"}
 SUCS_MENDOZA = {"128","132","145","206","207","236"}
 SUCS_SANJUAN = {"159","172"}
 
@@ -2942,6 +2988,7 @@ def _proveedor_estado_label(proveedor, users=None):
 
 def _proveedor_enriquecido(proveedor, users=None):
     p = copy.deepcopy(proveedor)
+    p["sucursales"] = _active_sucursal_values(p.get("sucursales", []))
     username, account = _proveedor_account_for_name(p.get("nombre"), users=users)
     p["portal_user"] = username or ""
     p["tiene_portal"] = bool(username)
@@ -2977,9 +3024,9 @@ def _proveedores_catalogo_ticket(suc_num=""):
 
 # Proveedores database
 PROVEEDORES = [
-    {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "estado_operativo": "Recurso interno", "canal_comunicacion": "Equipo central", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
-    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","028","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","192","194","195","196","198","199","200","202","204","208","209","211","213","214","216","219","221","222","228","232","234","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
-    {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "Vidrios", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["011","014","023","028","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"]},
+    {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "estado_operativo": "Recurso interno", "canal_comunicacion": "Equipo central", "sucursales": ["011","014","023","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
+    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","192","194","195","196","198","200","202","204","208","209","211","213","214","216","219","221","222","228","232","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
+    {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "Vidrios", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["011","014","023","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"]},
     {"nombre": "Jorge (Limpieza vidrios)", "zona": "AMBA", "tipo": "Limpieza", "tel": "115182-7823", "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["AMBA general"]},
     {"nombre": "Polaris", "zona": "AMBA", "tipo": "Ascensores", "tel": "11 6527-7128", "contacto": "Lucas", "fijo": True, "estado_operativo": "Abono mensual", "canal_comunicacion": "Mail", "sucursales": ["171","176","183","184"]},
     {"nombre": "Astronovo AM", "zona": "AMBA", "tipo": "Ascensores", "tel": "11 5182-3968", "contacto": "Dylan", "fijo": True, "estado_operativo": "Abono mensual", "canal_comunicacion": "Mail", "sucursales": ["186"]},
@@ -2987,7 +3034,7 @@ PROVEEDORES = [
     {"nombre": "L&G (Geronimo)", "zona": "AMBA", "tipo": "General / presupuestos", "tel": "54 9 2236 69-2804", "contacto": "Geronimo", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["239","240","241"]},
     {"nombre": "Nicolas Audio", "zona": "Nacional", "tipo": "Audio", "tel": "-", "estado_operativo": "Activo frecuente", "canal_comunicacion": "Telefono / mail", "sucursales": ["Nacional"]},
     {"nombre": "Gustavo Avellaneda", "zona": "Cordoba", "tipo": "General", "tel": "0351-320-1198", "fijo": True, "estado_operativo": "Abono mensual", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["076","078","123","124","203","224","233"], "monto": "$1.800.000/mes", "incluye": "Limpieza canaletas/techos, filtros AA, destapes, plomeria menor, albañileria menor, pintura menor, luminarias, cerraduras, arranque semanal generadores, mantenimiento AA planificado", "no_incluye": "Combustible, pintura grande, zingueria, techos, albañileria mayor"},
-    {"nombre": "Julio Fuga (JRF)", "zona": "NOA / Cuyo", "tipo": "General + AA + presupuestos", "tel": "0381-454-5659", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["120","126","128","132","135","139","145","146","158","173","191","193","206","207","212","229","230","234","235","236"], "incluye": "Soporte por ticket con presupuesto para aprobacion admin", "no_incluye": "-"},
+    {"nombre": "Julio Fuga (JRF)", "zona": "NOA / Cuyo", "tipo": "General + AA + presupuestos", "tel": "0381-454-5659", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["120","126","128","132","135","139","145","146","158","173","191","193","206","207","212","229","230","235","236"], "incluye": "Soporte por ticket con presupuesto para aprobacion admin", "no_incluye": "-"},
     {"nombre": "Oscar San Juan", "zona": "San Juan", "tipo": "General", "tel": "0264-498-5365", "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["159","172"]},
     {"nombre": "Jose Sanchez", "zona": "San Juan", "tipo": "General", "tel": "0264-504-1961", "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["159","172"]},
     {"nombre": "Majo / Nivelar Construcciones", "zona": "Chaco/Corrientes", "tipo": "General / Construccion", "tel": "54 9 364 430-2787", "contacto": "Maria Jose", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["220","224"]},
@@ -2999,11 +3046,11 @@ PROVEEDORES = [
     {"nombre": "Croacia", "zona": "AMBA", "tipo": "Urgencias persianas", "tel": "11 3663-6408", "contacto": "Raquel", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["AMBA general"]},
     {"nombre": "Conex", "zona": "Neuquen", "tipo": "General", "tel": "54 9 2995 57-5495", "contacto": "Rodrigo", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["160","233","133","134","231"]},
     {"nombre": "Atila Generaciones", "zona": "AMBA", "tipo": "Grupos electrogenos", "tel": "115318-3306", "contacto": "Waldo", "fijo": True, "estado_operativo": "Abono mensual", "canal_comunicacion": "Mail", "sucursales": ["195","208","211","Garin"]},
-    {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["076","078","123","124","203","215","233"]},
+    {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["076","078","123","124","203","233"]},
     # --- Proveedores de fumigacion por sucursal ---
-    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["014","020","028","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","192","196","198","199","200","202","208","213","214","219","221","228","234","237","238"], "mostrar_sucursal": False},
+    {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["014","020","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","192","196","198","200","202","208","213","214","219","221","228","237","238"], "mostrar_sucursal": False},
     {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["080","082","188","216","065","194","051","171","195","209","222","011","058","077","083","142","211","146","158"], "mostrar_sucursal": False},
-    {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["076","078","123","124","203","215","233"], "mostrar_sucursal": False},
+    {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["076","078","123","124","203","233"], "mostrar_sucursal": False},
     {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": ["222"]},
     {"nombre": "Fuego Cero", "zona": "Pendiente", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos / futuro portal", "portal_futuro": True, "canal_comunicacion": "Pendiente", "workflow": "matafuegos_remito_vencimiento", "sucursales": [], "observacion": "Proveedor de matafuegos. Sucursales pendientes de confirmar; portal a futuro por complejidad administrativa"},
     {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["126","139","193"], "mostrar_sucursal": False},
@@ -3045,7 +3092,7 @@ def _proveedor_nombres_usuario(user=None):
 
 def _proveedores_abono_usuario(user=None):
     nombres = set(_proveedor_nombres_usuario(user))
-    return [p for p in PROVEEDORES if p.get("fijo") and p.get("nombre") in nombres]
+    return [p for p in _proveedores_enriquecidos() if p.get("fijo") and p.get("nombre") in nombres]
 
 
 def _proveedores_sin_montos(proveedores):
@@ -3217,7 +3264,7 @@ def _ticket_age_days(ticket):
 
 
 def _material_dashboard(tickets):
-    pedidos = [t for t in tickets if _is_material_ticket(t) and t.get("estado") != "Cerrado"]
+    pedidos = [t for t in tickets if _is_material_ticket(t) and t.get("estado") != "Cerrado" and not _is_ticket_sucursal_cerrada(t)]
     columns = {stage: [] for stage in MATERIAL_STAGE_ORDER}
     for ticket in pedidos:
         stage = _material_stage(ticket)
@@ -3256,6 +3303,8 @@ def get_proveedores_para_sucursal(suc_num):
     """Devuelve la lista de nombres de proveedores que cubren la sucursal.
     Prioriza PROVEEDORES_SUCURSAL (override manual) y si no hay, deriva
     del listado general PROVEEDORES segun el campo 'sucursales'."""
+    if _is_sucursal_cerrada(suc_num):
+        return []
     try:
         from sucursales_data import PROVEEDORES_SUCURSAL
     except ImportError:
@@ -3268,7 +3317,7 @@ def get_proveedores_para_sucursal(suc_num):
 
     nombres = []
     suc_num_sin_cero = suc_num.lstrip("0")
-    for p in PROVEEDORES:
+    for p in _proveedores_enriquecidos():
         for s in p.get("sucursales", []):
             if suc_num and (suc_num in s or (suc_num_sin_cero and suc_num_sin_cero in s)):
                 if p["nombre"] not in nombres:
@@ -3280,9 +3329,11 @@ def get_proveedores_para_sucursal(suc_num):
 def get_proveedor_abono_sucursal(suc_num):
     """Devuelve el nombre del primer proveedor 'fijo' (del abono) asignado
     a la sucursal, o None si no hay."""
+    if _is_sucursal_cerrada(suc_num):
+        return None
     suc_num = str(suc_num).strip()
     suc_num_sin_cero = suc_num.lstrip("0")
-    for p in PROVEEDORES:
+    for p in _proveedores_enriquecidos():
         if not p.get("fijo"):
             continue
         for s in p.get("sucursales", []):
@@ -3293,9 +3344,11 @@ def get_proveedor_abono_sucursal(suc_num):
 
 def es_sucursal_ceyh(suc_num):
     """Retorna True si la sucursal tiene CEYH como proveedor fijo."""
+    if _is_sucursal_cerrada(suc_num):
+        return False
     suc_num = str(suc_num).strip()
     suc_num_sin_cero = suc_num.lstrip("0")
-    for p in PROVEEDORES:
+    for p in _proveedores_enriquecidos():
         if p.get("nombre") != "CEYH" or not p.get("fijo"):
             continue
         for s in p.get("sucursales", []):
@@ -3307,6 +3360,8 @@ def es_sucursal_ceyh(suc_num):
 def auto_assign(subcategoria, sucursal="", categoria=""):
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
+    if _is_sucursal_cerrada(suc_num):
+        return ASIGNACION_DEFAULT
 
     subcat_l = (subcategoria or "").lower()
     categoria_l = (categoria or "").lower()
@@ -3388,6 +3443,9 @@ def suc_login_required(f):
     def decorated(*args, **kwargs):
         if "suc_user" not in session:
             return redirect(url_for("suc_login"))
+        if not session.get("oficina_user") and not _sucursal_session_is_general() and _is_sucursal_cerrada(session.get("suc_nombre")):
+            session.clear()
+            return render_template("error.html", mensaje="Sucursal cerrada. Acceso deshabilitado."), 403
         if session.get("auth_provider") == "entra" and session.get("entra_role") not in ("sucursal", "supervisor", "oficina"):
             session.clear()
             return redirect(url_for("suc_login"))
@@ -3589,7 +3647,7 @@ def suc_panel():
     mis_proveedores = []
     if _sucursal_session_scope_nums() is not None:
         scope_nums = _sucursal_session_scope_nums()
-        for p in PROVEEDORES:
+        for p in _proveedores_enriquecidos():
             for s in p["sucursales"]:
                 if _sucursal_num_from_value(s) in scope_nums:
                     if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
@@ -3597,7 +3655,7 @@ def suc_panel():
                     mis_proveedores.append(p)
                     break
     elif not is_general:
-        for p in PROVEEDORES:
+        for p in _proveedores_enriquecidos():
             for s in p["sucursales"]:
                 if s == suc_num or s == suc_num.lstrip("0"):
                     if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
@@ -3774,10 +3832,10 @@ def suc_matafuego_mantenimiento(mid):
 def suc_proveedores():
     scope_nums = _sucursal_session_scope_nums()
     if _sucursal_session_is_general() and scope_nums is None:
-        return render_template("suc_proveedores.html", mis_proveedores=_proveedores_sin_montos(PROVEEDORES))
+        return render_template("suc_proveedores.html", mis_proveedores=_proveedores_sin_montos(_proveedores_enriquecidos()))
     suc_num = session["suc_nombre"].replace("Sucursal ", "").strip()
     mis_proveedores = []
-    for p in PROVEEDORES:
+    for p in _proveedores_enriquecidos():
         for s in p["sucursales"]:
             if (_sucursal_num_from_value(s) in scope_nums) if scope_nums is not None else (s == suc_num or s == suc_num.lstrip("0")):
                 if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
@@ -3797,6 +3855,8 @@ def nuevo_ticket():
         if not sucursal_ticket:
             flash("Seleccione una sucursal")
             return redirect(url_for("nuevo_ticket"))
+        if _is_sucursal_cerrada(sucursal_ticket):
+            return render_template("error.html", mensaje="Sucursal cerrada. No admite tickets nuevos."), 403
         if not _sucursal_session_can_access_value(sucursal_ticket):
             return render_template("error.html", mensaje="No tenés permiso para cargar tickets en esa sucursal."), 403
 
@@ -4368,15 +4428,16 @@ def admin_panel():
         return redirect(url_for("admin_pedidos"))
     sync_alertas_syh()
     tickets = load_tickets()
+    tickets_operativos = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
     filtro_prioridad = request.args.get("prioridad", "")
 
     es_rita = session.get("nombre") == "Rita"
     if es_rita:
-        filtered = [t for t in tickets if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
+        filtered = [t for t in tickets_operativos if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
     else:
-        filtered = tickets
+        filtered = tickets_operativos
         if filtro_estado:
             filtered = [t for t in filtered if t["estado"] == filtro_estado]
         if filtro_suc:
@@ -4385,18 +4446,18 @@ def admin_panel():
             filtered = [t for t in filtered if t["prioridad"] == int(filtro_prioridad)]
 
     stats = {
-        "total": len(tickets),
-        "nuevos": sum(1 for t in tickets if t["estado"] in ("Nuevo", "Abierto")),
-        "en_progreso": sum(1 for t in tickets if t["estado"] in ("En progreso", "Pendiente")),
-        "resueltos": sum(1 for t in tickets if t["estado"] == "Resuelto"),
+        "total": len(tickets_operativos),
+        "nuevos": sum(1 for t in tickets_operativos if t["estado"] in ("Nuevo", "Abierto")),
+        "en_progreso": sum(1 for t in tickets_operativos if t["estado"] in ("En progreso", "Pendiente")),
+        "resueltos": sum(1 for t in tickets_operativos if t["estado"] == "Resuelto"),
     }
-    materiales_resumen = _material_dashboard(tickets)
+    materiales_resumen = _material_dashboard(tickets_operativos)
 
     # Chart data
     from collections import Counter
-    prioridad_counts = Counter(PRIORIDADES.get(t["prioridad"], "?") for t in tickets)
-    categoria_counts = Counter(t.get("categoria", "Otro") for t in tickets)
-    asignado_counts = Counter(t.get("asignado", "Sin asignar") for t in tickets)
+    prioridad_counts = Counter(PRIORIDADES.get(t["prioridad"], "?") for t in tickets_operativos)
+    categoria_counts = Counter(t.get("categoria", "Otro") for t in tickets_operativos)
+    asignado_counts = Counter(t.get("asignado", "Sin asignar") for t in tickets_operativos)
 
     # My work counts
     user_nombre = session.get("nombre", "")
@@ -4412,10 +4473,10 @@ def admin_panel():
             and asignado in (user_nombre, ASIGNACION_DEFAULT, "", None)
         )
 
-    mis_esperando = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
-    mis_asignados = [t for t in tickets if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
-    sin_asignar = [t for t in tickets if not t.get("asignado") or t.get("asignado") == ""]
-    tickets_rita_pendientes = [t for t in tickets if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
+    mis_esperando = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
+    mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
+    sin_asignar = [t for t in tickets_operativos if not t.get("asignado") or t.get("asignado") == ""]
+    tickets_rita_pendientes = [t for t in tickets_operativos if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
 
     vista = request.args.get("vista", "dashboard")
     if vista == "tarjetas":
@@ -4434,7 +4495,7 @@ def admin_panel():
 
     # Alertas: tickets > 150 dias (5 meses)
     alertas = []
-    for t in tickets:
+    for t in tickets_operativos:
         if t["estado"] not in ("Resuelto", "Cerrado"):
             try:
                 created = datetime.datetime.fromisoformat(t["creado"])
@@ -4585,7 +4646,7 @@ def admin_ceyh():
     tickets = load_tickets()
     retiros_data = load_ceyh_retiros()
     jornadas_data = load_ceyh_jornadas()
-    ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t)]
+    ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t) and not _is_ticket_sucursal_cerrada(t)]
     activos = [t for t in ceyh if t.get("estado") not in ("Resuelto", "Cerrado")]
     derivados = [t for t in ceyh if t.get("derivado_desde") == "CEYH" and t.get("asignado") == "Equipo Central"]
     terminados = [t for t in ceyh if t.get("estado") in ("Resuelto", "Cerrado")]
@@ -4778,6 +4839,9 @@ def admin_ceyh_agregar_parada(jid):
     if not sucursal or not ticket_ids:
         flash("Faltan datos para agregar parada")
         return redirect(url_for("admin_ceyh"))
+    if _is_sucursal_cerrada(sucursal):
+        flash("La sucursal está cerrada y no admite paradas activas")
+        return redirect(url_for("admin_ceyh"))
     paradas = jornada.setdefault("paradas", [])
     max_orden = max((p.get("orden", 0) for p in paradas), default=0)
     infra = _SUCURSALES_INFRA.get(sucursal, {})
@@ -4841,6 +4905,9 @@ def admin_permisos():
             suc = (suc or "").strip()
             if not suc:
                 continue
+            if _is_sucursal_cerrada(suc):
+                flash(f"La sucursal {suc} está cerrada y no admite permisos activos")
+                return redirect(url_for("admin_permisos"))
             destinos.append({
                 "id": uuid.uuid4().hex[:8],
                 "sucursal": suc,
@@ -4869,7 +4936,10 @@ def admin_permisos():
         flash("Permiso cargado")
         return redirect(url_for("admin_permisos"))
 
-    permisos = _expand_permisos_para_sucursales(list(data.get("permisos", [])))
+    permisos = [
+        p for p in _expand_permisos_para_sucursales(list(data.get("permisos", [])))
+        if not _is_sucursal_cerrada(p.get("sucursal_num") or p.get("sucursal"))
+    ]
     filtro_suc = request.args.get("sucursal", "").strip()
     if filtro_suc:
         permisos = [p for p in permisos if p.get("sucursal") == filtro_suc]
@@ -4887,7 +4957,7 @@ def serve_permiso(filename):
 @login_required
 def admin_presupuestos():
     tickets = load_tickets()
-    presupuesto_tickets = [t for t in tickets if t.get("categoria") == "Presupuestos"]
+    presupuesto_tickets = [t for t in tickets if t.get("categoria") == "Presupuestos" and not _is_ticket_sucursal_cerrada(t)]
     filtro_suc = request.args.get("sucursal", "").strip()
     filtro_estado = request.args.get("estado", "").strip()
 
@@ -4897,7 +4967,7 @@ def admin_presupuestos():
         presupuesto_tickets = [t for t in presupuesto_tickets if (t.get("estado_presupuesto") or "Nuevo") == filtro_estado]
 
     presupuesto_tickets.sort(key=lambda x: x.get("actualizado", ""), reverse=True)
-    return render_template("admin_presupuestos.html", presupuestos=presupuesto_tickets, sucursales=SUCURSALES, tickets=tickets, filtro_suc=filtro_suc, filtro_estado=filtro_estado)
+    return render_template("admin_presupuestos.html", presupuestos=presupuesto_tickets, sucursales=SUCURSALES, tickets=[t for t in tickets if not _is_ticket_sucursal_cerrada(t)], filtro_suc=filtro_suc, filtro_estado=filtro_estado)
 
 
 @app.route("/uploads/presupuestos/<filename>")
@@ -5483,7 +5553,7 @@ def prov_panel():
         s for p in proveedores_abono for s in p.get("sucursales", [])
     })
     jornadas_hoy = []
-    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t["estado"] not in ("Cerrado",)]
+    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t["estado"] not in ("Cerrado",) and not _is_ticket_sucursal_cerrada(t)]
     pendientes_todo = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
     trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
     pendientes = [t for t in pendientes_todo if t.get("tipo") != "trabajo_proveedor"]
@@ -5492,6 +5562,8 @@ def prov_panel():
     # Notifications for provider
     notif_prov = []
     for t in tickets:
+        if _is_ticket_sucursal_cerrada(t):
+            continue
         if _ticket_es_de_proveedor(t, nombres_proveedor):
             for n in t.get("notificaciones_prov", []):
                 notif_prov.append({"ticket_id": t["id"], "sucursal": t["sucursal"], **n})
@@ -5501,12 +5573,17 @@ def prov_panel():
     if prov_nombre == "CEYH":
         retiros_data = load_ceyh_retiros().get("retiros", [])
         for r in retiros_data:
+            if _is_sucursal_cerrada(r.get("sucursal_num") or r.get("sucursal")):
+                continue
             if r.get("estado") in ("Listo para retirar", "Retirado por CEYH"):
                 retiros_ceyh.append(r)
         retiros_ceyh.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         jornadas = load_ceyh_jornadas().get("jornadas", [])
         hoy = datetime.date.today().isoformat()
-        jornadas_hoy = [j for j in jornadas if j.get("fecha") == hoy]
+        jornadas_hoy = [
+            j for j in jornadas
+            if j.get("fecha") == hoy and not any(_is_sucursal_cerrada(p.get("sucursal")) for p in j.get("paradas", []))
+        ]
 
     return render_template(
         "prov_panel.html",
@@ -6009,12 +6086,13 @@ def compras_envios():
     filtrados = envios
     if filtro_suc:
         filtrados = [e for e in filtrados if e.get("sucursal") == filtro_suc]
+    filtrados = [e for e in filtrados if not _is_sucursal_cerrada(e.get("sucursal"))]
     if filtro_desde:
         filtrados = [e for e in filtrados if e.get("fecha", "")[:10] >= filtro_desde]
     if filtro_hasta:
         filtrados = [e for e in filtrados if e.get("fecha", "")[:10] <= filtro_hasta]
 
-    sucursales_con_envios = sorted({e.get("sucursal", "") for e in envios if e.get("sucursal")})
+    sucursales_con_envios = sorted({e.get("sucursal", "") for e in envios if e.get("sucursal") and not _is_sucursal_cerrada(e.get("sucursal"))})
     total_valor = sum(e.get("total", 0) for e in filtrados)
 
     return render_template(
@@ -6039,6 +6117,9 @@ def compras_envio_nuevo():
         sucursal = request.form.get("sucursal", "").strip()
         if not sucursal:
             flash("Seleccione una sucursal destino")
+            return redirect(url_for("compras_envio_nuevo"))
+        if _is_sucursal_cerrada(sucursal):
+            flash("La sucursal está cerrada y no admite envíos activos")
             return redirect(url_for("compras_envio_nuevo"))
 
         item_keys = request.form.getlist("item_key[]")
@@ -6559,6 +6640,9 @@ def serve_trabajo(filename):
 def admin_sucursal(suc_num):
     from sucursales_data import SUCURSALES_INFO
 
+    if _is_sucursal_cerrada(suc_num):
+        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
+
     # Sucursal info
     info = SUCURSALES_INFO.get(suc_num, {})
     suc_name = f"Sucursal {suc_num}"
@@ -6574,7 +6658,7 @@ def admin_sucursal(suc_num):
 
     # Proveedores que cubren esta sucursal
     mis_proveedores = []
-    for p in PROVEEDORES:
+    for p in _proveedores_enriquecidos():
         for s in p["sucursales"]:
             if s == suc_num or s == suc_num.lstrip("0"):
                 if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
@@ -6630,10 +6714,16 @@ def admin_mapa():
 
     # Count tickets per sucursal
     from collections import Counter
-    ticket_counts = Counter(t["sucursal"].replace("Sucursal ", "") for t in tickets if t["estado"] not in ("Resuelto", "Cerrado"))
+    ticket_counts = Counter(
+        t["sucursal"].replace("Sucursal ", "")
+        for t in tickets
+        if t["estado"] not in ("Resuelto", "Cerrado") and not _is_ticket_sucursal_cerrada(t)
+    )
 
     sucursales_mapa = []
     for num, info in SUCURSALES_INFO.items():
+        if _is_sucursal_cerrada(num):
+            continue
         sucursales_mapa.append({
             "num": num,
             "marca": info["marca"],
@@ -6657,7 +6747,7 @@ def admin_reporte():
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
 
-    tickets = load_tickets()
+    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t)]
     now = datetime.datetime.now()
 
     # Stats
@@ -6769,23 +6859,31 @@ def admin_buscar():
     if q:
         if modulo in ("todo", "tickets"):
             for t in tickets:
+                if _is_ticket_sucursal_cerrada(t):
+                    continue
                 notas = " ".join((n.get("texto", "") for n in t.get("notas", [])))
                 if _match(t.get("id"), t.get("sucursal"), t.get("descripcion"), t.get("subcategoria"), t.get("categoria"), t.get("asignado"), t.get("observaciones"), t.get("solicitante"), notas):
                     resultados.append(t)
 
         if modulo in ("todo", "presupuestos"):
             for p in load_presupuestos().get("presupuestos", []):
+                if _is_sucursal_cerrada(p.get("sucursal_num") or p.get("sucursal")):
+                    continue
                 if _match(p.get("id"), p.get("ticket_id"), p.get("sucursal"), p.get("categoria"), p.get("subcategoria"), p.get("proveedor"), p.get("descripcion"), p.get("observacion_interna"), p.get("monto")):
                     resultados_presupuestos.append(p)
 
         if modulo in ("todo", "ceyh"):
             for t in tickets:
+                if _is_ticket_sucursal_cerrada(t):
+                    continue
                 if not es_ticket_ceyh(t):
                     continue
                 t = _normalize_ceyh_ticket(t)
                 if _match(t.get("id"), t.get("sucursal"), t.get("subcategoria"), t.get("cuadrilla_ceyh"), t.get("camioneta_ceyh"), t.get("estado_operativo_ceyh"), t.get("estado_materiales"), t.get("estado_retiro"), t.get("proxima_accion"), t.get("ultima_novedad_operativa")):
                     resultados_ceyh.append({"tipo": "ticket", **t})
             for r in load_ceyh_retiros().get("retiros", []):
+                if _is_sucursal_cerrada(r.get("sucursal_num") or r.get("sucursal")):
+                    continue
                 if _match(r.get("ticket_id"), r.get("sucursal"), r.get("materiales"), r.get("estado"), r.get("retirado_por"), r.get("observaciones")):
                     resultados_ceyh.append({"tipo": "retiro", **r})
             for j in load_ceyh_jornadas().get("jornadas", []):
@@ -6797,16 +6895,22 @@ def admin_buscar():
         if modulo in ("todo", "permisos"):
             for p in load_permisos().get("permisos", []):
                 sucursales_txt = " ".join((s.get("sucursal", "") for s in p.get("sucursales", [])))
+                if _is_sucursal_cerrada(p.get("sucursal_num") or p.get("sucursal")):
+                    continue
                 if _match(p.get("id"), p.get("sucursal"), sucursales_txt, p.get("proveedor"), p.get("tipo_documento"), p.get("periodo"), p.get("comentario")):
                     resultados_permisos.append(p)
 
         if modulo in ("todo", "habilitaciones"):
             for h in load_habilitaciones().get("habilitaciones", []):
+                if _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal")):
+                    continue
                 if _match(h.get("id"), h.get("sucursal"), h.get("sucursal_num"), h.get("tramite"), h.get("estado"), h.get("comentario"), h.get("archivo_nombre")):
                     resultados_habilitaciones.append(h)
 
         if modulo in ("todo", "matafuegos"):
             for m in load_matafuegos().get("matafuegos", []):
+                if _is_sucursal_cerrada(m.get("sucursal_num") or m.get("sucursal")):
+                    continue
                 if _match(m.get("sucursal"), m.get("sucursal_num"), m.get("tipo"), m.get("sector"), m.get("estado"), m.get("vencimiento"), m.get("observaciones")):
                     resultados_matafuegos.append(m)
 
@@ -6908,6 +7012,8 @@ def syh_panel():
 
     sucursales_syh = []
     for num in sorted(SUCURSALES_INFO.keys()):
+        if _is_sucursal_cerrada(num):
+            continue
         info = SUCURSALES_INFO[num]
         estado = syh_data.get(num, {})
         sucursales_syh.append({
@@ -6922,7 +7028,7 @@ def syh_panel():
             "senalizacion": estado.get("senalizacion", "Sin datos"),
         })
 
-    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene"]
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t)]
     tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
     tickets_syh = [
         {
@@ -6931,7 +7037,7 @@ def syh_panel():
         }
         for t in tickets_syh
     ]
-    gestiones_syh = load_syh_gestiones().get("gestiones", [])
+    gestiones_syh = [g for g in load_syh_gestiones().get("gestiones", []) if not _is_sucursal_cerrada(g.get("sucursal_num") or g.get("sucursal"))]
     gestiones_syh.sort(key=lambda g: g.get("actualizado", g.get("creado", "")), reverse=True)
 
     total = len(sucursales_syh)
@@ -6960,11 +7066,13 @@ def syh_panel():
 def syh_matafuegos():
     from sucursales_data import SUCURSALES_INFO
 
-    items = [_enrich_matafuego(x) for x in load_matafuegos().get("matafuegos", [])]
+    items = [_enrich_matafuego(x) for x in load_matafuegos().get("matafuegos", []) if not _is_sucursal_cerrada(x.get("sucursal_num") or x.get("sucursal"))]
     filtro_estado = request.args.get("estado", "").strip()
     filtro_suc = request.args.get("sucursal", "").strip()
     por_sucursal = []
     for num in sorted(SUCURSALES_INFO.keys()):
+        if _is_sucursal_cerrada(num):
+            continue
         info = SUCURSALES_INFO[num]
         mats = [m for m in items if m.get("sucursal_num") == num or m.get("sucursal") == f"Sucursal {num}"]
         resumen = _resumen_matafuegos_sucursal(mats)
@@ -6987,7 +7095,7 @@ def syh_matafuegos():
         por_sucursal.append(row)
 
     stats = _stats_matafuegos(items)
-    sin_datos = len(SUCURSALES_INFO) - len({p['num'] for p in por_sucursal})
+    sin_datos = len([num for num in SUCURSALES_INFO if not _is_sucursal_cerrada(num)]) - len({p['num'] for p in por_sucursal})
     por_sucursal.sort(key=lambda x: (0 if x["estado"] == "Vencidos" else 1 if x["estado"] == "Proximo a vencer" else 2, x.get("proximo_vto") or "9999-99-99", x["num"]))
     rechazados_recientes = [x for x in por_sucursal if any(d.get("estado_calc") == "rechazado" for d in x.get("detalle", []))]
 
@@ -7087,6 +7195,9 @@ def syh_gestion_nueva():
             flash("Seleccione una sucursal")
             return redirect(url_for("syh_gestion_nueva"))
         suc_num = sucursal.replace("Sucursal ", "").strip()
+        if _is_sucursal_cerrada(suc_num):
+            flash("La sucursal está cerrada y no admite gestiones activas")
+            return redirect(url_for("syh_gestion_nueva"))
         data = load_syh_gestiones()
         items = data.setdefault("gestiones", [])
         ahora = datetime.datetime.now().isoformat()
@@ -7122,6 +7233,8 @@ def syh_gestion_nueva():
 @syh_login_required
 def syh_edit(suc_num):
     from sucursales_data import SUCURSALES_INFO
+    if _is_sucursal_cerrada(suc_num):
+        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
     info = SUCURSALES_INFO.get(suc_num, {})
     syh_data = load_syh()
     estado = syh_data.get(suc_num, {})
@@ -7181,6 +7294,8 @@ def admin_syh():
     # Mapa sucursal_num → habilitacion detallada (fuente de verdad si existe)
     habs_detalle = {}
     for h in load_habilitaciones().get("habilitaciones", []):
+        if _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal")):
+            continue
         sn = str(h.get("sucursal_num") or "").strip().lstrip("0") or str(h.get("sucursal", "")).replace("Sucursal ", "").strip().lstrip("0")
         if sn:
             he = _enrich_habilitacion(h)
@@ -7189,6 +7304,8 @@ def admin_syh():
 
     sucursales_syh = []
     for num in sorted(SUCURSALES_INFO.keys()):
+        if _is_sucursal_cerrada(num):
+            continue
         info = SUCURSALES_INFO[num]
         estado = syh_data.get(num, {})
         num_strip = num.lstrip("0")
@@ -7213,7 +7330,7 @@ def admin_syh():
     bomberos_ok = sum(1 for s in sucursales_syh if s["bomberos"] == "Aprobado")
     sin_datos = sum(1 for s in sucursales_syh if s["habilitacion"] == "Sin datos")
 
-    matafuegos_data = load_matafuegos().get("matafuegos", [])
+    matafuegos_data = [m for m in load_matafuegos().get("matafuegos", []) if not _is_sucursal_cerrada(m.get("sucursal_num") or m.get("sucursal"))]
     rechazados_recientes = []
     for s in sucursales_syh:
         mats = [m for m in matafuegos_data if m.get("sucursal_num") == s["num"] or m.get("sucursal") == f"Sucursal {s['num']}"]
@@ -7232,9 +7349,9 @@ def admin_syh():
                 "tipos": resumen.get("tipos", "-"),
             })
 
-    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene"]
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t)]
     tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
-    gestiones_syh = load_syh_gestiones().get("gestiones", [])
+    gestiones_syh = [g for g in load_syh_gestiones().get("gestiones", []) if not _is_sucursal_cerrada(g.get("sucursal_num") or g.get("sucursal"))]
     gestiones_syh.sort(key=lambda g: g.get("actualizado", g.get("creado", "")), reverse=True)
 
     return render_template(
@@ -7259,13 +7376,16 @@ def admin_syh():
 @admin_required
 def admin_syh_matafuegos():
     data = load_matafuegos()
-    items = [_enrich_matafuego(x) for x in data.get("matafuegos", [])]
+    items = [_enrich_matafuego(x) for x in data.get("matafuegos", []) if not _is_sucursal_cerrada(x.get("sucursal_num") or x.get("sucursal"))]
     items_all = list(items)
 
     if request.method == "POST":
         sucursal = request.form.get("sucursal", "").strip()
         if not sucursal:
             flash("Seleccione una sucursal")
+            return redirect(url_for("admin_syh_matafuegos"))
+        if _is_sucursal_cerrada(sucursal):
+            flash("La sucursal está cerrada y no admite carga activa")
             return redirect(url_for("admin_syh_matafuegos"))
         suc_num = sucursal.replace("Sucursal ", "").strip()
         nuevo = {
@@ -7371,6 +7491,9 @@ def suc_syh_asistencia():
     motivo = request.form.get("motivo", "").strip() or "Asistencia S&H"
     comentario = request.form.get("comentario", "").strip()
     sucursal = request.form.get("sucursal", "").strip() or _session_sucursal_label("Portal Sucursales")
+    if _is_sucursal_cerrada(sucursal):
+        flash("La sucursal está cerrada y no admite solicitudes activas")
+        return redirect(url_for("suc_panel"))
     now_iso = datetime.datetime.now().isoformat()
     nuevo = {
         "id": new_id,
@@ -7404,6 +7527,8 @@ def suc_syh_asistencia():
 @admin_required
 def admin_syh_edit(suc_num):
     from sucursales_data import SUCURSALES_INFO
+    if _is_sucursal_cerrada(suc_num):
+        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
     info = SUCURSALES_INFO.get(suc_num, {})
     syh_data = load_syh()
     estado = syh_data.get(suc_num, {})
@@ -8181,6 +8306,8 @@ def _destinos_sucursales():
     from sucursales_data import SUCURSALES_INFO
     items = []
     for num in sorted(SUCURSALES_INFO.keys()):
+        if _is_sucursal_cerrada(num):
+            continue
         info = SUCURSALES_INFO[num]
         tienda = info.get("tienda", "").strip()
         label = f"Suc {num} - {tienda}" if tienda else f"Suc {num}"
@@ -8208,7 +8335,10 @@ def _direccion_para_destino(destino):
 @login_required
 def admin_comprobantes():
     data = load_comprobantes()
-    comprobantes = data.get("comprobantes", [])
+    comprobantes = [
+        c for c in data.get("comprobantes", [])
+        if not _is_sucursal_cerrada(c.get("destino") or c.get("sucursal") or c.get("proveedor"))
+    ]
 
     filtro_tipo = request.args.get("tipo", "").strip()
     filtro_proveedor = request.args.get("proveedor", "").strip().lower()
@@ -8278,6 +8408,9 @@ def admin_comprobantes_nuevo():
 
     if tipo == "remito_interno":
         destino = request.form.get("destino", "").strip()
+        if _is_sucursal_cerrada(destino):
+            flash("La sucursal está cerrada y no admite remitos activos")
+            return redirect(url_for("admin_comprobantes"))
         destino_direccion = request.form.get("destino_direccion", "").strip()
         if not destino_direccion:
             destino_direccion = _direccion_para_destino(destino)
@@ -8287,7 +8420,11 @@ def admin_comprobantes_nuevo():
     else:
         origen_tipo = request.form.get("origen_tipo", "proveedor")
         if origen_tipo == "sucursal":
-            proveedor = f"Reingreso — {request.form.get('sucursal_origen', '').strip()}"
+            sucursal_origen = request.form.get("sucursal_origen", "").strip()
+            if _is_sucursal_cerrada(sucursal_origen):
+                flash("La sucursal está cerrada y no admite reingresos activos")
+                return redirect(url_for("admin_comprobantes"))
+            proveedor = f"Reingreso — {sucursal_origen}"
         elif origen_tipo == "obra":
             proveedor = f"Obra — {request.form.get('obra_origen', '').strip()}"
         else:
@@ -8757,14 +8894,17 @@ def _calc_vencimiento(fecha_hab, anios):
 @admin_required
 def admin_habilitaciones():
     data = load_habilitaciones()
-    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", [])]
+    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", []) if not _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal"))]
 
     # Agregar sucursales con estado en S&H pero sin registro detallado
     syh_data = load_syh()
-    suc_con_detalle = {str(h.get("sucursal_num") or "").strip() for h in data.get("habilitaciones", [])}
-    suc_con_detalle |= {str(h.get("sucursal", "")).replace("Sucursal ", "").strip() for h in data.get("habilitaciones", [])}
+    habilitaciones_activas = [h for h in data.get("habilitaciones", []) if not _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal"))]
+    suc_con_detalle = {str(h.get("sucursal_num") or "").strip() for h in habilitaciones_activas}
+    suc_con_detalle |= {str(h.get("sucursal", "")).replace("Sucursal ", "").strip() for h in habilitaciones_activas}
     ESTADO_SYH_MAP = {"Vigente": "vigente", "Por vencer": "por_vencer", "Vencida": "vencida"}
     for suc_num, sdata in syh_data.items():
+        if _is_sucursal_cerrada(suc_num):
+            continue
         hab_syh = sdata.get("habilitacion", "")
         if hab_syh and hab_syh not in ("Sin datos", "Sin habilitacion", "") and suc_num not in suc_con_detalle:
             hab_venc = sdata.get("habilitacion_vencimiento", "")
@@ -8842,6 +8982,9 @@ def admin_habilitaciones_nuevo():
         return redirect(url_for("admin_habilitaciones"))
 
     suc_num = sucursal.replace("Sucursal ", "").strip()
+    if _is_sucursal_cerrada(suc_num):
+        flash("La sucursal está cerrada y no admite habilitaciones activas")
+        return redirect(url_for("admin_habilitaciones"))
     fecha_hab = request.form.get("fecha_habilitacion", "").strip()
     fecha_venc = request.form.get("fecha_vencimiento", "").strip()
     anios = _parse_int_or_none(request.form.get("vigencia_anios", ""))
@@ -8891,6 +9034,8 @@ def admin_habilitaciones_detalle(hid):
     h = next((x for x in data.get("habilitaciones", []) if x.get("id") == hid), None)
     if not h:
         return render_template("error.html", mensaje="Habilitación no encontrada"), 404
+    if _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal")):
+        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
     return render_template(
         "admin_habilitaciones.html",
         habilitaciones=[_enrich_habilitacion(h)],
@@ -8914,6 +9059,8 @@ def admin_habilitaciones_editar(hid):
 
     sucursal = request.form.get("sucursal", "").strip() or h.get("sucursal", "")
     suc_num = sucursal.replace("Sucursal ", "").strip()
+    if _is_sucursal_cerrada(suc_num):
+        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
     fecha_hab = request.form.get("fecha_habilitacion", "").strip()
     fecha_venc = request.form.get("fecha_vencimiento", "").strip()
     anios = _parse_int_or_none(request.form.get("vigencia_anios", ""))
@@ -8969,7 +9116,7 @@ def admin_habilitaciones_reporte():
     from flask import Response
 
     data = load_habilitaciones()
-    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", [])]
+    items = [_enrich_habilitacion(h) for h in data.get("habilitaciones", []) if not _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal"))]
     items.sort(key=lambda h: (
         ESTADO_HAB_ORDEN.get(h["estado"], 99),
         h.get("fecha_vencimiento", "") or "",
@@ -9135,6 +9282,8 @@ def fix_asignacion_ceyh():
     tickets = load_tickets()
     cambiados = []
     for t in tickets:
+        if _is_ticket_sucursal_cerrada(t):
+            continue
         if t.get("asignado") not in ("Agustin Brahim", "Agustín Brahim", ASIGNACION_DEFAULT):
             continue
         if t.get("estado") in ("Cerrado", "Resuelto"):
@@ -9156,7 +9305,7 @@ def api_resumen():
     if not secret or request.args.get("token") != secret:
         return Response("Forbidden", status=403)
     notify_alertas_telegram_if_needed()
-    tickets = load_tickets()
+    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t)]
     hoy = datetime.date.today().isoformat()
     ayer = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
     nuevos = [t for t in tickets if t.get("estado") == "Nuevo"]
