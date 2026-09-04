@@ -256,6 +256,7 @@ except Exception:
     pass
 
 _ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
+_SORIA_DEMO_PWD = os.environ.get("SORIA_DEMO_PASSWORD", "SoriaDemo0904!")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 _SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
@@ -387,6 +388,7 @@ ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
     "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin"},
     "esoria": {"password": _ADMIN_PWD, "nombre": "Soria", "rol": "tecnico", "email": "esoria@grupodexter.com.ar"},
+    "soria_demo": {"password": _SORIA_DEMO_PWD, "nombre": "Soria Demo", "rol": "tecnico"},
     "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
     "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin", "email": "rrobles@grupodexter.com.ar"},
 }
