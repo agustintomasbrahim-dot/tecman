@@ -411,7 +411,10 @@ ENTRA_GRAPH_SCOPES = ["User.Read", "GroupMember.Read.All"]
 ENTRA_AUTH_SCOPES = ["openid", "profile", "email", *ENTRA_GRAPH_SCOPES]
 FULL_PORTAL_ACCESS_EMAILS = {
     email.strip().lower()
-    for email in os.environ.get("FULL_PORTAL_ACCESS_EMAILS", "abrahim@grupodexter.com.ar").split(",")
+    for email in os.environ.get(
+        "FULL_PORTAL_ACCESS_EMAILS",
+        "abrahim@grupodexter.com.ar,ccrapanzano@grupodexter.com.ar",
+    ).split(",")
     if email.strip()
 }
 ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
