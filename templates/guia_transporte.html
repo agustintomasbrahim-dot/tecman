@@ -237,6 +237,19 @@
     <div class="guia-retira">{{ retira }}</div>
     {% endif %}
 
+    {% if ticket.guia_carga_tipo and ticket.guia_carga_cantidad %}
+    <div class="guia-meta" style="margin-bottom: 12px;">
+        <div class="campo">
+            <label>Carga:</label>
+            <span class="valor">{{ ticket.guia_carga_tipo }}</span>
+        </div>
+        <div class="campo">
+            <label>Cantidad:</label>
+            <span class="valor">{{ ticket.guia_carga_cantidad }}</span>
+        </div>
+    </div>
+    {% endif %}
+
     <table class="guia-items">
         <thead>
             <tr>

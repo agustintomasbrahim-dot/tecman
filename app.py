@@ -2693,6 +2693,19 @@ def _ensure_guia_interna_materiales(ticket):
     return guia_numero
 
 
+def _guardar_datos_carga_guia(ticket, form):
+    carga_tipo = (form.get("guia_carga_tipo") or "").strip()
+    carga_cantidad = _parse_int_or_none(form.get("guia_carga_cantidad", ""))
+    if carga_tipo not in {"Bultos", "Pallets"}:
+        carga_tipo = ""
+    if carga_cantidad is not None and carga_cantidad <= 0:
+        carga_cantidad = None
+    if carga_tipo:
+        ticket["guia_carga_tipo"] = carga_tipo
+    if carga_cantidad:
+        ticket["guia_carga_cantidad"] = carga_cantidad
+
+
 def _get_precio_historico(item_key, hasta=None):
     """Retorna el precio unitario del ultimo ingreso de un item antes de 'hasta'.
     Si no hay ingresos registrados, retorna None."""
@@ -8130,6 +8143,8 @@ def admin_pedido(ticket_id):
                 nota_txt = "Retiro definido: ENVIO a sucursal"
             if fecha_envio:
                 nota_txt += f" | Fecha programada: {fecha_envio}"
+            if ticket.get("metodo_envio") in METODOS_GUIA_INTERNA_MATERIALES:
+                _guardar_datos_carga_guia(ticket, request.form)
             ticket["notas"].append({
                 "autor": session.get("nombre", "Admin"),
                 "fecha": datetime.datetime.now().isoformat(),
@@ -8138,21 +8153,37 @@ def admin_pedido(ticket_id):
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             flash("Retiro actualizado")
+            if ticket.get("metodo_envio") in METODOS_GUIA_INTERNA_MATERIALES:
+                return redirect(url_for("admin_pedido_guia", ticket_id=ticket_id))
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         if accion == "cuento_material":
             metodo_envio = request.form.get("metodo_envio", "")
+            if metodo_envio in METODOS_GUIA_INTERNA_MATERIALES:
+                carga_tipo = (request.form.get("guia_carga_tipo") or "").strip()
+                carga_cantidad = _parse_int_or_none(request.form.get("guia_carga_cantidad", ""))
+                if carga_tipo not in {"Bultos", "Pallets"} or not carga_cantidad or carga_cantidad <= 0:
+                    flash("Para generar la guía interna indicá si sale en bultos o pallets y la cantidad.")
+                    return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             ticket["estado"] = "En progreso"
             ticket["metodo_envio"] = metodo_envio
+            _guardar_datos_carga_guia(ticket, request.form)
             guia_numero = _ensure_guia_interna_materiales(ticket)
             nota_texto = f"Cuento con material. Envio: {metodo_envio}"
             if guia_numero:
                 nota_texto += f" | Guía interna: {guia_numero}"
+                if ticket.get("guia_carga_tipo") and ticket.get("guia_carga_cantidad"):
+                    nota_texto += f" | Carga: {ticket['guia_carga_cantidad']} {ticket['guia_carga_tipo']}"
             ticket["notas"].append({
                 "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": nota_texto,
             })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            if guia_numero:
+                flash("Guía interna generada")
+                return redirect(url_for("admin_pedido_guia", ticket_id=ticket_id))
 
         elif accion == "solicitar_compras":
             detalle = request.form.get("detalle_compras", "")

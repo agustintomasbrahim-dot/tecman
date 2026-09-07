@@ -214,22 +214,57 @@
             <div class="pedido-option-list">
                 {% if es_amba %}
                 <label class="pedido-radio-row" style="border-color:#86efac;">
-                    <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
+                    <input type="radio" name="metodo_envio" value="Recoge CEYH" required data-guia-interna="1">
                     <span><strong>Recoge CEYH</strong> — la camioneta de CEYH lo retira de Central</span>
                 </label>
                 {% endif %}
                 <label class="pedido-radio-row" style="border-color:#86efac;">
-                    <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
+                    <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %} data-guia-interna="1">
                     <span><strong>Envio desde Central</strong> — se despacha desde Dabra Central</span>
                 </label>
                 <label class="pedido-radio-row" style="border-color:#86efac;">
-                    <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
+                    <input type="radio" name="metodo_envio" value="Envio directo a sucursal" data-guia-interna="0">
                     <span><strong>Envio directo a sucursal</strong> — el proveedor envia directo</span>
                 </label>
+            </div>
+            <div class="pedido-guia-carga" id="guia-carga-cuento" style="display:none;background:#f8fafc;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin:12px 0;">
+                <p style="font-size:13px;color:#166534;margin-bottom:8px;font-weight:700;">Datos para la guía interna</p>
+                <div class="pedido-two-cols">
+                    <div class="form-group">
+                        <label>Tipo de carga</label>
+                        <select name="guia_carga_tipo" id="guia-carga-tipo-cuento">
+                            <option value="">Seleccionar...</option>
+                            <option value="Bultos">Bultos</option>
+                            <option value="Pallets">Pallets</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Cantidad</label>
+                        <input type="number" name="guia_carga_cantidad" id="guia-carga-cantidad-cuento" min="1" placeholder="Ej: 2">
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Confirmar — Cuento con stock</button>
         </form>
     </div>
+    <script>
+    (function() {
+        var box = document.getElementById('guia-carga-cuento');
+        var tipo = document.getElementById('guia-carga-tipo-cuento');
+        var cantidad = document.getElementById('guia-carga-cantidad-cuento');
+        function syncCargaGuia() {
+            var checked = document.querySelector('input[name="metodo_envio"]:checked');
+            var necesitaGuia = checked && checked.getAttribute('data-guia-interna') === '1';
+            if (box) box.style.display = necesitaGuia ? 'block' : 'none';
+            if (tipo) tipo.required = !!necesitaGuia;
+            if (cantidad) cantidad.required = !!necesitaGuia;
+        }
+        document.querySelectorAll('input[name="metodo_envio"]').forEach(function(radio) {
+            radio.addEventListener('change', syncCargaGuia);
+        });
+        syncCargaGuia();
+    })();
+    </script>
     {% endif %}
 
     <!-- Opción 2: Agregar item complementario -->
@@ -309,7 +344,7 @@
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
         <div>
             <p style="font-weight:700;color:#1d4ed8;margin-bottom:4px;">Guía interna generada</p>
-            <p style="font-size:13px;color:#334155;margin:0;">N° {{ ticket.guia_transporte_numero }} · contiene pedido, sucursal, cantidades y datos de retiro/envío.</p>
+            <p style="font-size:13px;color:#334155;margin:0;">N° {{ ticket.guia_transporte_numero }} · contiene pedido, sucursal, cantidades y datos de retiro/envío{% if ticket.guia_carga_tipo and ticket.guia_carga_cantidad %} · {{ ticket.guia_carga_cantidad }} {{ ticket.guia_carga_tipo }}{% endif %}.</p>
         </div>
         <a href="{{ url_for('admin_pedido_guia', ticket_id=ticket.id) }}" target="_blank" class="btn btn-primary btn-sm">Abrir / imprimir guía</a>
     </div>
@@ -362,6 +397,25 @@
                 <input type="text" name="proveedor_detalle" value="{{ ticket.proveedor_detalle or '' }}" placeholder="Opcional">
             </div>
         </div>
+        {% if ticket.metodo_envio in ['Envio desde Central', 'Recoge CEYH'] %}
+        <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <p style="font-size:13px;color:#1d4ed8;margin-bottom:8px;font-weight:700;">Carga para la guía interna</p>
+            <div class="pedido-two-cols">
+                <div class="form-group">
+                    <label>Tipo de carga</label>
+                    <select name="guia_carga_tipo" required>
+                        <option value="">Seleccionar...</option>
+                        <option value="Bultos" {% if ticket.guia_carga_tipo == 'Bultos' %}selected{% endif %}>Bultos</option>
+                        <option value="Pallets" {% if ticket.guia_carga_tipo == 'Pallets' %}selected{% endif %}>Pallets</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cantidad</label>
+                    <input type="number" name="guia_carga_cantidad" min="1" value="{{ ticket.guia_carga_cantidad or '' }}" placeholder="Ej: 2" required>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         <!-- Fecha programada -->
         <div class="form-group" style="margin-bottom: 12px;">
             <label style="font-weight: 600;">📅 Fecha programada de envío / retiro</label>
