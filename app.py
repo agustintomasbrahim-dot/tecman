@@ -243,6 +243,7 @@ PRIORIDADES = {
 }
 
 ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
+ESTADOS_NO_OPERATIVOS = {"Rechazado", "Resuelto", "Cerrado"}
 
 import pathlib as _pathlib
 _SUCURSALES_INFRA_FILE = _pathlib.Path(__file__).parent / "data" / "sucursales_infra.json"
@@ -2455,7 +2456,7 @@ def _normalize_ceyh_ticket(ticket):
 def sugerir_recorrido_ceyh(tickets):
     """Agrupa tickets CEYH activos por sucursal y sugiere un orden de visita."""
     import datetime as _dt
-    activos = [t for t in tickets if es_ticket_ceyh(t) and t.get("estado") not in ("Resuelto", "Cerrado")]
+    activos = [t for t in tickets if es_ticket_ceyh(t) and _is_ticket_operativo(t)]
     _pmap_sug = {"alta": 1, "media": 2, "baja": 3}
     def _prio_sug(t):
         p = t.get("prioridad")
@@ -2767,6 +2768,14 @@ def _ticket_sucursal_value(ticket):
 
 def _is_ticket_sucursal_cerrada(ticket):
     return _is_sucursal_cerrada(_ticket_sucursal_value(ticket))
+
+
+def _is_ticket_operativo(ticket):
+    return not _is_ticket_sucursal_cerrada(ticket) and ticket.get("estado") not in ESTADOS_NO_OPERATIVOS
+
+
+def _is_ticket_finalizado(ticket):
+    return ticket.get("estado") in ESTADOS_NO_OPERATIVOS
 
 
 def _sucursal_label_from_num(suc_num):
@@ -3259,7 +3268,7 @@ def _is_material_ticket(ticket):
 
 def _material_stage(ticket):
     estado = ticket.get("estado", "")
-    if estado == "Cerrado":
+    if estado in ESTADOS_NO_OPERATIVOS:
         return "cerrado"
     if estado == "Materiales recibidos" or ticket.get("materiales_recibidos"):
         return "recibido"
@@ -3284,7 +3293,7 @@ def _ticket_age_days(ticket):
 
 
 def _material_dashboard(tickets):
-    pedidos = [t for t in tickets if _is_material_ticket(t) and t.get("estado") != "Cerrado" and not _is_ticket_sucursal_cerrada(t)]
+    pedidos = [t for t in tickets if _is_material_ticket(t) and _is_ticket_operativo(t)]
     columns = {stage: [] for stage in MATERIAL_STAGE_ORDER}
     for ticket in pedidos:
         stage = _material_stage(ticket)
@@ -4467,7 +4476,7 @@ def admin_panel():
         return redirect(url_for("admin_materiales"))
     sync_alertas_syh()
     tickets = load_tickets()
-    tickets_operativos = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
+    tickets_operativos = [t for t in tickets if not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
     filtro_prioridad = request.args.get("prioridad", "")
@@ -4513,7 +4522,7 @@ def admin_panel():
         )
 
     mis_esperando = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
-    mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] not in ("Resuelto", "Cerrado")]
+    mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and not _is_ticket_finalizado(t)]
     sin_asignar = [t for t in tickets_operativos if not t.get("asignado") or t.get("asignado") == ""]
     tickets_rita_pendientes = [t for t in tickets_operativos if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
 
@@ -4535,7 +4544,7 @@ def admin_panel():
     # Alertas: tickets > 150 dias (5 meses)
     alertas = []
     for t in tickets_operativos:
-        if t["estado"] not in ("Resuelto", "Cerrado"):
+        if not _is_ticket_finalizado(t):
             try:
                 created = datetime.datetime.fromisoformat(t["creado"])
                 age = (datetime.datetime.now() - created).days
@@ -4720,10 +4729,10 @@ def admin_ceyh():
     tickets = load_tickets()
     retiros_data = load_ceyh_retiros()
     jornadas_data = load_ceyh_jornadas()
-    ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t) and not _is_ticket_sucursal_cerrada(t)]
-    activos = [t for t in ceyh if t.get("estado") not in ("Resuelto", "Cerrado")]
+    ceyh = [_normalize_ceyh_ticket(t) for t in tickets if es_ticket_ceyh(t) and not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
+    activos = [t for t in ceyh if not _is_ticket_finalizado(t)]
     derivados = [t for t in ceyh if t.get("derivado_desde") == "CEYH" and t.get("asignado") == "Equipo Central"]
-    terminados = [t for t in ceyh if t.get("estado") in ("Resuelto", "Cerrado")]
+    terminados = [t for t in ceyh if _is_ticket_finalizado(t)]
     retiros = list(retiros_data.get("retiros", []))
     retiros.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     jornadas = list(jornadas_data.get("jornadas", []))
@@ -5031,7 +5040,7 @@ def serve_permiso(filename):
 @login_required
 def admin_presupuestos():
     tickets = load_tickets()
-    presupuesto_tickets = [t for t in tickets if t.get("categoria") == "Presupuestos" and not _is_ticket_sucursal_cerrada(t)]
+    presupuesto_tickets = [t for t in tickets if t.get("categoria") == "Presupuestos" and not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     filtro_suc = request.args.get("sucursal", "").strip()
     filtro_estado = request.args.get("estado", "").strip()
 
@@ -5078,6 +5087,7 @@ def admin_ticket(ticket_id):
             labels = {
                 "esperando_proveedor": "Esperando proveedor",
                 "esperando_materiales": "Esperando materiales",
+                "no_corresponde": "No corresponde a mantenimiento",
                 "otra": "Otra",
             }
             label = labels.get(motivo, motivo)
@@ -5101,7 +5111,11 @@ def admin_ticket(ticket_id):
             ticket["estado_respuesta"] = label
             if ticket.get("categoria") == "Presupuestos":
                 ticket["respuesta_sucursal_presupuesto"] = mensaje
-            if ticket["estado"] in ("Nuevo", "Abierto"):
+            if motivo == "no_corresponde":
+                ticket["estado"] = "Rechazado"
+                ticket["motivo_rechazo"] = mensaje
+                ticket["fecha_cierre"] = datetime.datetime.now().isoformat()
+            elif ticket["estado"] in ("Nuevo", "Abierto"):
                 ticket["estado"] = "Pendiente"
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
@@ -5631,8 +5645,8 @@ def prov_panel():
         s for p in proveedores_abono for s in p.get("sucursales", [])
     })
     jornadas_hoy = []
-    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t["estado"] not in ("Cerrado",) and not _is_ticket_sucursal_cerrada(t)]
-    pendientes_todo = [t for t in mis_tickets if t["estado"] not in ("Resuelto",)]
+    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t.get("estado") != "Rechazado" and t["estado"] != "Cerrado" and not _is_ticket_sucursal_cerrada(t)]
+    pendientes_todo = [t for t in mis_tickets if not _is_ticket_finalizado(t)]
     trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
     pendientes = [t for t in pendientes_todo if t.get("tipo") != "trabajo_proveedor"]
     resueltos = [t for t in mis_tickets if t["estado"] == "Resuelto"]
@@ -6435,7 +6449,7 @@ def _tickets_equipo(tickets):
     return [
         t for t in tickets
         if (t.get("siguiente_paso") == "personal_mantenimiento" or t.get("asignado") == "Equipo Central")
-        and t.get("estado") != "Cerrado"
+        and not _is_ticket_finalizado(t)
     ]
 
 
@@ -6728,8 +6742,8 @@ def admin_sucursal(suc_num):
     # Tickets
     tickets = load_tickets()
     suc_tickets = [t for t in tickets if t["sucursal"] == suc_name]
-    activos = [t for t in suc_tickets if t["estado"] not in ("Resuelto", "Cerrado")]
-    cerrados = [t for t in suc_tickets if t["estado"] in ("Resuelto", "Cerrado")]
+    activos = [t for t in suc_tickets if not _is_ticket_finalizado(t)]
+    cerrados = [t for t in suc_tickets if _is_ticket_finalizado(t)]
     presupuestos_data = load_presupuestos().get("presupuestos", [])
     presupuestos_sucursal = [p for p in presupuestos_data if p.get("sucursal") == suc_name]
     presupuestos_sucursal.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
@@ -6795,7 +6809,7 @@ def admin_mapa():
     ticket_counts = Counter(
         t["sucursal"].replace("Sucursal ", "")
         for t in tickets
-        if t["estado"] not in ("Resuelto", "Cerrado") and not _is_ticket_sucursal_cerrada(t)
+        if _is_ticket_operativo(t)
     )
 
     sucursales_mapa = []
@@ -6825,7 +6839,7 @@ def admin_reporte():
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent / "google_calendar"))
 
-    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t)]
+    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     now = datetime.datetime.now()
 
     # Stats
@@ -6840,12 +6854,12 @@ def admin_reporte():
     semana = [t for t in tickets if (now - datetime.datetime.fromisoformat(t["creado"])).days <= 7]
 
     # Urgentes (prioridad 1)
-    urgentes = [t for t in tickets if t["prioridad"] == 1 and t["estado"] not in ("Resuelto", "Cerrado")]
+    urgentes = [t for t in tickets if t["prioridad"] == 1 and not _is_ticket_finalizado(t)]
 
     # Alertas (> 5 meses)
     alertas = []
     for t in tickets:
-        if t["estado"] not in ("Resuelto", "Cerrado"):
+        if not _is_ticket_finalizado(t):
             try:
                 age = (now - datetime.datetime.fromisoformat(t["creado"])).days
                 if age > 150:
@@ -7106,7 +7120,7 @@ def syh_panel():
             "senalizacion": estado.get("senalizacion", "Sin datos"),
         })
 
-    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t)]
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
     tickets_syh = [
         {
@@ -7132,10 +7146,10 @@ def syh_panel():
         sin_datos=sin_datos,
         syh_estados=SYH_ESTADOS,
         tickets_syh=tickets_syh,
-        tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
+        tickets_syh_abiertos=sum(1 for t in tickets_syh if not _is_ticket_finalizado(t)),
         tickets_syh_pendientes=sum(1 for t in tickets_syh if t.get("estado") in ("Nuevo", "Abierto", "Pendiente")),
         gestiones_syh=gestiones_syh,
-        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ("Resuelto", "Cerrado")),
+        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ESTADOS_NO_OPERATIVOS),
     )
 
 
@@ -7207,6 +7221,7 @@ def syh_ticket(ticket_id):
             labels = {
                 "esperando_proveedor": "Esperando proveedor",
                 "esperando_materiales": "Esperando materiales",
+                "no_corresponde": "No corresponde a mantenimiento",
                 "otra": "Otra",
             }
             label = labels.get(motivo, motivo or "Respuesta")
@@ -7224,7 +7239,11 @@ def syh_ticket(ticket_id):
                 "leida": False,
             })
             ticket["estado_respuesta"] = label
-            if ticket.get("estado") in ("Nuevo", "Abierto"):
+            if motivo == "no_corresponde":
+                ticket["estado"] = "Rechazado"
+                ticket["motivo_rechazo"] = mensaje
+                ticket["fecha_cierre"] = ahora
+            elif ticket.get("estado") in ("Nuevo", "Abierto"):
                 ticket["estado"] = "Pendiente"
             ticket["actualizado"] = ahora
             save_tickets(tickets)
@@ -7427,7 +7446,7 @@ def admin_syh():
                 "tipos": resumen.get("tipos", "-"),
             })
 
-    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t)]
+    tickets_syh = [t for t in load_tickets() if t.get("categoria") == "Seguridad e Higiene" and not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     tickets_syh.sort(key=lambda t: t.get("actualizado", t.get("creado", "")), reverse=True)
     gestiones_syh = [g for g in load_syh_gestiones().get("gestiones", []) if not _is_sucursal_cerrada(g.get("sucursal_num") or g.get("sucursal"))]
     gestiones_syh.sort(key=lambda g: g.get("actualizado", g.get("creado", "")), reverse=True)
@@ -7444,9 +7463,9 @@ def admin_syh():
         alertas_syh=alertas_syh,
         rechazados_recientes=rechazados_recientes,
         tickets_syh=tickets_syh,
-        tickets_syh_abiertos=sum(1 for t in tickets_syh if t.get("estado") not in ("Resuelto", "Cerrado")),
+        tickets_syh_abiertos=sum(1 for t in tickets_syh if not _is_ticket_finalizado(t)),
         gestiones_syh=gestiones_syh,
-        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ("Resuelto", "Cerrado")),
+        gestiones_syh_abiertas=sum(1 for g in gestiones_syh if g.get("estado") not in ESTADOS_NO_OPERATIVOS),
     )
 
 
@@ -9364,7 +9383,7 @@ def fix_asignacion_ceyh():
             continue
         if t.get("asignado") not in ("Agustin Brahim", "Agustín Brahim", ASIGNACION_DEFAULT):
             continue
-        if t.get("estado") in ("Cerrado", "Resuelto"):
+        if _is_ticket_finalizado(t):
             continue
         suc_nombre = t.get("sucursal", "")
         suc_num = suc_nombre.replace("Sucursal ", "").strip()
@@ -9383,13 +9402,13 @@ def api_resumen():
     if not secret or request.args.get("token") != secret:
         return Response("Forbidden", status=403)
     notify_alertas_telegram_if_needed()
-    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t)]
+    tickets = [t for t in load_tickets() if not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
     hoy = datetime.date.today().isoformat()
     ayer = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
     nuevos = [t for t in tickets if t.get("estado") == "Nuevo"]
     en_progreso = [t for t in tickets if t.get("estado") == "En progreso"]
     resueltos_hoy = [t for t in tickets if t.get("estado") == "Resuelto" and (t.get("fecha_cierre") or "")[:10] == hoy]
-    urgentes = [t for t in tickets if t.get("prioridad") in (1, "1") and t.get("estado") not in ("Resuelto", "Cerrado")]
+    urgentes = [t for t in tickets if t.get("prioridad") in (1, "1") and not _is_ticket_finalizado(t)]
     nuevos_hoy = [t for t in nuevos if (t.get("fecha") or "")[:10] >= ayer]
     def mini(t):
         return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("fecha") or "")[:10]}
