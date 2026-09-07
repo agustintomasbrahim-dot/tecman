@@ -4826,7 +4826,9 @@ def admin_panel():
             filtered = list(tickets_rita_pendientes)
         else:
             filtered = list(mis_asignados)
-            if filtro_estado == "Rechazado":
+            if filtro_estado == "Solicitud de materiales":
+                filtered = list(tickets_operativos)
+            elif filtro_estado == "Rechazado":
                 filtered = tickets_visibles
             if filtro_estado:
                 filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
