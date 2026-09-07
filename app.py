@@ -2778,6 +2778,17 @@ def _is_ticket_finalizado(ticket):
     return ticket.get("estado") in ESTADOS_NO_OPERATIVOS
 
 
+def _ticket_matches_estado_filter(ticket, filtro_estado):
+    estado = ticket.get("estado")
+    if not filtro_estado:
+        return True
+    if filtro_estado == "Nuevos":
+        return estado in ("Nuevo", "Abierto")
+    if filtro_estado == "En proceso":
+        return estado in ("En progreso", "Pendiente")
+    return estado == filtro_estado
+
+
 def _sucursal_label_from_num(suc_num):
     key = _sucursal_num_from_value(suc_num)
     for label in SUCURSALES:
@@ -4487,7 +4498,7 @@ def admin_panel():
     else:
         filtered = tickets_operativos
         if filtro_estado:
-            filtered = [t for t in filtered if t["estado"] == filtro_estado]
+            filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
         if filtro_suc:
             filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
         if filtro_prioridad:
@@ -4533,7 +4544,7 @@ def admin_panel():
         else:
             filtered = list(mis_asignados)
             if filtro_estado:
-                filtered = [t for t in filtered if t["estado"] == filtro_estado]
+                filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
             if filtro_suc:
                 filtered = [t for t in filtered if t["sucursal"] == filtro_suc]
             if filtro_prioridad:
@@ -4580,6 +4591,7 @@ def admin_panel():
         tickets=filtered,
         stats=stats,
         estados=ESTADOS,
+        estado_filtros=["Nuevos", "En proceso", *ESTADOS],
         sucursales=SUCURSALES,
         prioridades=PRIORIDADES,
         filtro_estado=filtro_estado,

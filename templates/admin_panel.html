@@ -103,13 +103,13 @@ function toggleNotif() {
 {% if not es_rita %}
 <!-- Quick access bar like InvGate -->
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-    <a href="{{ url_for('admin_panel', vista='tabla', estado='Nuevo') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Nuevos') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.nuevos > 0 %}rgba(230,57,70,0.4){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #dc2626;">{{ stats.nuevos }}</div>
         <div class="label">Nuevos</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tabla', estado='En progreso') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='En proceso') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px;">
         <div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div>
-        <div class="label">En progreso</div>
+        <div class="label">En proceso</div>
     </a>
     <a href="{{ url_for('admin_panel', vista='tabla', estado='Resuelto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #059669;">{{ stats.resueltos }}</div>
@@ -192,7 +192,7 @@ function toggleNotif() {
         <input type="hidden" name="vista" value="tarjetas">
         <select name="estado" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #374151; font-size: 14px;">
             <option value="">Todos los estados</option>
-            {% for e in estados %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+            {% for e in estado_filtros %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
         </select>
         <select name="prioridad" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #374151; font-size: 14px;">
             <option value="">Toda prioridad</option>
@@ -261,7 +261,7 @@ function toggleNotif() {
         <input type="hidden" name="vista" value="tabla">
         <select name="estado" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #374151; font-size: 14px;">
             <option value="">Todos los estados</option>
-            {% for e in estados %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+            {% for e in estado_filtros %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
         </select>
         <select name="sucursal" style="padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; color: #374151; font-size: 14px;">
             <option value="">Todas las sucursales</option>
@@ -387,7 +387,7 @@ function toggleNotif() {
         <div class="label">Total de solicitudes</div>
     </div>
     <div class="stat-card"><div class="number" style="color: #0ea5e9;">{{ stats.nuevos }}</div><div class="label">Nuevos</div></div>
-    <div class="stat-card"><div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div><div class="label">En progreso</div></div>
+    <div class="stat-card"><div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div><div class="label">En proceso</div></div>
     <div class="stat-card"><div class="number" style="color: #10b981;">{{ stats.resueltos }}</div><div class="label">Resueltos</div></div>
 </div>
 
