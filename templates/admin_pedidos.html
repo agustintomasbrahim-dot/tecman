@@ -46,7 +46,7 @@
 <div class="pedidos-head">
     <div>
         <h2 style="margin:0;">Pedidos de Materiales</h2>
-        <p>Bandeja diaria para revisar stock, compras, envío y recepción.</p>
+        <p>Bandeja diaria para revisar stock, requisición, compras, envío y recepción.</p>
     </div>
     <a href="{{ url_for('admin_materiales' if session.rol == 'tecnico' else 'admin_panel') }}" class="btn btn-sm btn-outline">Inicio</a>
 </div>
@@ -61,8 +61,8 @@
         <div class="label">Para revisar stock</div>
     </div>
     <div class="stat-card">
-        <div class="number" style="color:#b45309;">{{ materiales.counts.compras }}</div>
-        <div class="label">Esperando compras</div>
+        <div class="number" style="color:#0f766e;">{{ materiales.counts.requisicion }}</div>
+        <div class="label">Rita / requisición</div>
     </div>
     <div class="stat-card">
         <div class="number" style="color:#6d28d9;">{{ materiales.counts.enviado }}</div>

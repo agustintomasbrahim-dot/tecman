@@ -2372,11 +2372,20 @@ def enviar_alertas_matafuegos_email():
 
 def _enviar_requisicion_compras(ticket, req_numero, archivo_path=None, archivo_nombre=None):
     try:
+        es_material = _is_material_ticket(ticket)
         suc = ticket.get("sucursal", "-")
         subcat = ticket.get("subcategoria", "-")
         zona = ticket.get("zona_afectada", "-")
         prov = ticket.get("proveedor_presupuesto", "-")
         desc = ticket.get("descripcion", "-")
+        titulo = "Requisición de materiales lista para procesar" if es_material else "Requisición lista para procesar"
+        intro = (
+            f"Rita cargó la requisición <strong>#{req_numero}</strong> para el siguiente pedido de materiales:"
+            if es_material
+            else f"Rita cargó la requisición <strong>#{req_numero}</strong> para el siguiente presupuesto aprobado:"
+        )
+        proveedor_label = "Rubro / material" if es_material else "Proveedor"
+        proveedor_valor = ticket.get("categoria_mat") or ticket.get("subitem_mat") or prov
         montos = "".join(
             f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee;'>{p.get('proveedor') or prov}</td>"
             f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>${p.get('monto') or '-'}</td>"
@@ -2385,13 +2394,13 @@ def _enviar_requisicion_compras(ticket, req_numero, archivo_path=None, archivo_n
         )
         html = f"""
         <div style='font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#1a1a2e;'>
-          <h2 style='color:#0f766e;'>Requisición lista para procesar — Tecman</h2>
-          <p>Rita cargó la requisición <strong>#{req_numero}</strong> para el siguiente presupuesto aprobado:</p>
+          <h2 style='color:#0f766e;'>{titulo} — Tecman</h2>
+          <p>{intro}</p>
           <table style='width:100%;border-collapse:collapse;margin-bottom:16px;'>
             <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;width:160px;'>Sucursal</td><td style='padding:8px 12px;background:#f8fafc;'>{suc}</td></tr>
             <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Trabajo</td><td style='padding:8px 12px;background:#f8fafc;'>{subcat}</td></tr>
             <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Zona</td><td style='padding:8px 12px;background:#f8fafc;'>{zona}</td></tr>
-            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Proveedor</td><td style='padding:8px 12px;background:#f8fafc;'>{prov}</td></tr>
+            <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>{proveedor_label}</td><td style='padding:8px 12px;background:#f8fafc;'>{proveedor_valor}</td></tr>
             <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Descripción</td><td style='padding:8px 12px;background:#f8fafc;'>{desc}</td></tr>
           </table>
           {"<table style='width:100%;border-collapse:collapse;margin-bottom:16px;'><tr><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Proveedor</th><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Monto</th><th align='left' style='padding:6px 10px;border-bottom:2px solid #ddd;'>Detalle</th></tr>" + montos + "</table>" if montos else ""}
@@ -3341,6 +3350,14 @@ MATERIAL_STAGE_META = {
         "border": "#fecaca",
         "next": "Revisar stock",
     },
+    "requisicion": {
+        "label": "Rita / requisición",
+        "short": "Rita",
+        "color": "#0f766e",
+        "bg": "#f0fdfa",
+        "border": "#99f6e4",
+        "next": "Rita arma la requisición",
+    },
     "compras": {
         "label": "Esperando compras",
         "short": "Compras",
@@ -3374,7 +3391,7 @@ MATERIAL_STAGE_META = {
         "next": "Cerrar pedido",
     },
 }
-MATERIAL_STAGE_ORDER = ["nuevo", "compras", "preparar_envio", "enviado", "recibido"]
+MATERIAL_STAGE_ORDER = ["nuevo", "requisicion", "compras", "preparar_envio", "enviado", "recibido"]
 
 
 def _is_material_ticket(ticket):
@@ -3385,6 +3402,14 @@ def _is_material_ticket(ticket):
     )
 
 
+def _ticket_requiere_requisicion_rita(ticket):
+    if ticket.get("requiere_requisicion") and ticket.get("categoria") == "Presupuestos" and ticket.get("estado_presupuesto") == "Aprobado":
+        return True
+    if _is_material_ticket(ticket) and ticket.get("requiere_requisicion"):
+        return True
+    return False
+
+
 def _material_stage(ticket):
     estado = ticket.get("estado", "")
     if estado in ESTADOS_NO_OPERATIVOS:
@@ -3393,6 +3418,8 @@ def _material_stage(ticket):
         return "recibido"
     if estado == "Resuelto":
         return "enviado"
+    if ticket.get("requiere_requisicion") or ticket.get("materiales_pendientes_rita"):
+        return "requisicion"
     if estado == "Pendiente" or ticket.get("materiales_a_comprar") or ticket.get("detalle_compras"):
         return "compras"
     if estado == "En progreso" or ticket.get("metodo_envio"):
@@ -4601,8 +4628,9 @@ def admin_panel():
     filtro_prioridad = request.args.get("prioridad", "")
 
     es_rita = session.get("nombre") == "Rita"
+    tickets_rita_pendientes = [t for t in tickets_operativos if _ticket_requiere_requisicion_rita(t)]
     if es_rita:
-        filtered = [t for t in tickets_operativos if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
+        filtered = list(tickets_rita_pendientes)
     else:
         filtered = tickets_operativos
         if filtro_estado:
@@ -4643,8 +4671,6 @@ def admin_panel():
     mis_esperando = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
     mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and not _is_ticket_finalizado(t)]
     sin_asignar = [t for t in tickets_operativos if not t.get("asignado") or t.get("asignado") == ""]
-    tickets_rita_pendientes = [t for t in tickets_operativos if t.get("categoria") == "Presupuestos" and t.get("requiere_requisicion") and t.get("estado_presupuesto") == "Aprobado"]
-
     vista = request.args.get("vista", "dashboard")
     if vista == "tarjetas":
         if es_rita:
@@ -8061,36 +8087,79 @@ def admin_pedido(ticket_id):
             flash("Material agregado al ticket")
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
-        elif accion == "derivar_a_compras":
+        elif accion == "derivar_a_rita":
             item = request.form.get("item_compra", "").strip()
             cantidad = _parse_int_or_none(request.form.get("cantidad_compra", "")) or 1
-            requisicion = request.form.get("requisicion", "").strip()
             detalle = request.form.get("detalle_compra_item", "").strip()
             if not item:
                 flash("Indicá el material a comprar")
-                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
-            if not requisicion:
-                flash("Indicá el número de requisición")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             ticket["materiales_a_comprar"].append({
                 "id": uuid.uuid4().hex[:10],
                 "item": item,
                 "cantidad": cantidad,
-                "requisicion": requisicion,
+                "requisicion": "",
                 "detalle": detalle,
                 "pedido_por": session.get("nombre", "Soria"),
-                "estado": "Pendiente compras",
+                "estado": "Pendiente requisición",
                 "fecha": datetime.datetime.now().isoformat(),
             })
             ticket["estado"] = "Pendiente"
+            ticket["requiere_requisicion"] = True
+            ticket["asignado_rita"] = True
+            ticket["materiales_pendientes_rita"] = True
+            ticket["detalle_compras"] = detalle
             ticket["notas"].append({
                 "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Derivó a Compras: {item} x{cantidad} | Requisición: {requisicion}" + (f" ({detalle})" if detalle else ""),
+                "texto": f"Derivó a Rita para requisición: {item} x{cantidad}" + (f" ({detalle})" if detalle else ""),
             })
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
-            flash("Pedido derivado a Compras")
+            flash("Pedido derivado a Rita para requisición")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
+        elif accion == "cargar_requisicion_material":
+            req_numero = request.form.get("requisicion_numero", "").strip()
+            req_nota = request.form.get("requisicion_nota", "").strip()
+            if session.get("nombre") != "Rita":
+                return render_template("error.html", mensaje="Acceso restringido. Solo Rita puede cargar la requisición."), 403
+            if not req_numero:
+                flash("Ingresá el número de requisición")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            archivo = request.files.get("archivo_requisicion")
+            archivo_guardado = None
+            archivo_nombre = None
+            if archivo and archivo.filename:
+                ext = os.path.splitext(archivo.filename)[1].lower()
+                archivo_guardado = f"req_mat_{ticket_id}_{uuid.uuid4().hex[:8]}{ext}"
+                archivo.save(str(REQUISICIONES_DIR / archivo_guardado))
+                archivo_nombre = archivo.filename
+            ticket["requisicion_numero"] = req_numero
+            ticket["requisicion_fecha"] = datetime.datetime.now().isoformat()
+            ticket["requisicion_por"] = session.get("nombre", "Rita")
+            if archivo_guardado:
+                ticket["requisicion_archivo"] = archivo_guardado
+                ticket["requisicion_archivo_nombre"] = archivo_nombre
+            ticket["requiere_requisicion"] = False
+            ticket["materiales_pendientes_rita"] = False
+            for mat in ticket.get("materiales_a_comprar", []):
+                if not mat.get("requisicion"):
+                    mat["requisicion"] = req_numero
+                mat["estado"] = "Pendiente compras"
+            nota_texto = f"Requisición de materiales cargada: #{req_numero}"
+            if req_nota:
+                nota_texto += f" — {req_nota}"
+            ticket.setdefault("notas", []).append({
+                "autor": session.get("nombre", "Rita"),
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": nota_texto,
+            })
+            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            save_tickets(tickets)
+            archivo_path = str(REQUISICIONES_DIR / archivo_guardado) if archivo_guardado else None
+            email_ok = _enviar_requisicion_compras(ticket, req_numero, archivo_path, archivo_nombre)
+            flash("Requisición cargada y enviada a Compras" if email_ok else "Requisición cargada; revisar envío a Compras")
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         elif accion == "enviado":
