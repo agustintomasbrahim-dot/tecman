@@ -6,7 +6,6 @@
     <a href="{{ url_for('admin_materiales') }}">Inicio</a>
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}">Stock</a>
-    <a href="{{ url_for('admin_comprobantes') }}">Facturas / Remitos</a>
     <a href="{{ url_for('admin_stock_movimientos') }}">Movimientos</a>
     {% else %}
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
@@ -74,7 +73,9 @@
             <h2 style="margin: 0;">Pedido #{{ ticket.id }}</h2>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
+            {% if session.rol != 'tecnico' %}
             <a href="{{ url_for('admin_comprobantes', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline">&#129534; Cargar comprobante</a>
+            {% endif %}
             <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
         </div>
     </div>

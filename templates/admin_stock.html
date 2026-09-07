@@ -6,7 +6,6 @@
     <a href="{{ url_for('admin_materiales') }}">Inicio</a>
     <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
     <a href="{{ url_for('admin_stock') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Stock</a>
-    <a href="{{ url_for('admin_comprobantes') }}">Facturas / Remitos</a>
     <a href="{{ url_for('admin_stock_movimientos') }}">Movimientos</a>
     {% else %}
     <a href="{{ url_for('admin_panel') }}">Dashboard</a>
@@ -27,7 +26,7 @@
     <h2>Stock / Deposito</h2>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="{{ url_for('admin_stock_movimientos') }}" class="btn" style="background: #f3f4f6; color: #374151;">Ver historial de movimientos</a>
-        {% if session.rol != 'admin' %}<a href="{{ url_for('admin_comprobantes') }}" class="btn" style="background: #dcfce7; color: #166534;">Cargar factura/remito</a><a href="{{ url_for('admin_pedidos') }}" class="btn" style="background: #dbeafe; color: #1d4ed8;">Ir a Pedidos</a>{% endif %}
+        {% if session.rol != 'admin' %}<a href="{{ url_for('admin_pedidos') }}" class="btn" style="background: #dbeafe; color: #1d4ed8;">Ir a Pedidos</a>{% endif %}
     </div>
 </div>
 
@@ -36,8 +35,8 @@
     <h3 style="margin-bottom: 10px; font-size: 15px; color: #1d4ed8;">Uso de stock técnico</h3>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 13px;">
         <div><strong>1.</strong> Revisar stock disponible</div>
-        <div><strong>2.</strong> Transferir a sucursal si ya está definido</div>
-        <div><strong>3.</strong> Si entra material, cargar <strong>Factura/Remito</strong></div>
+        <div><strong>2.</strong> Abrir el pedido de la sucursal</div>
+        <div><strong>3.</strong> Ver movimientos si necesita controlar historial</div>
     </div>
 </div>
 {% endif %}
@@ -224,14 +223,14 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
         </tbody>
     </table>
     {% else %}
-    <p style="color: #9ca3af; text-align: center; padding: 24px;">Stock vacío {% if session.rol == 'admin' %}- Agregue items arriba{% else %}- El stock se carga desde Contabilidad al registrar remitos de proveedor{% endif %}</p>
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">Stock vacío {% if session.rol == 'admin' %}- Agregue items arriba{% else %}- Todavía no hay stock real cargado en el depósito{% endif %}</p>
     {% endif %}
 </div>
 
 {% if session.rol != 'admin' %}
 <div class="card" style="background: #eff6ff; border-left: 4px solid #3b82f6;">
     <p style="color: #1e40af; font-size: 13px; margin: 0;">
-        <strong>ℹ️ Nota:</strong> para cargar stock al depósito ir a <a href="{{ url_for('admin_comprobantes') }}" style="color: #1d4ed8; font-weight: 600;">Facturas / Remitos</a> y registrar el remito de proveedor. Los egresos se registran automáticamente al marcar pedidos como enviados.
+        <strong>Nota:</strong> Soria solo consulta stock y movimientos. La carga administrativa de facturas/remitos queda para usuarios admin.
     </p>
 </div>
 {% endif %}

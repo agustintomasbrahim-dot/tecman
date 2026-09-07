@@ -4740,20 +4740,12 @@ def admin_materiales():
     ]
     stock_bajo.sort(key=lambda x: (x["cantidad"], x["item"]))
 
-    comprobantes = [
-        c for c in load_comprobantes().get("comprobantes", [])
-        if c.get("tipo") in ("factura", "remito_proveedor", "remito_interno")
-    ]
-    comprobantes.sort(key=lambda c: c.get("created_at") or c.get("fecha", ""), reverse=True)
-    recientes = comprobantes[:6]
-
     return render_template(
         "admin_materiales.html",
         materiales=materiales,
         stock_items=len(central),
         total_items=total_items,
         stock_bajo=stock_bajo[:8],
-        comprobantes_recientes=recientes,
     )
 
 
@@ -8642,9 +8634,18 @@ def _direccion_para_destino(destino):
     return ""
 
 
+def _bloquear_comprobantes_a_tecnico():
+    if session.get("rol") == "tecnico":
+        return render_template("error.html", mensaje="Acceso restringido. Soria solo ve Pedidos, Stock y Movimientos."), 403
+    return None
+
+
 @app.route("/admin/comprobantes")
 @login_required
 def admin_comprobantes():
+    bloqueado = _bloquear_comprobantes_a_tecnico()
+    if bloqueado:
+        return bloqueado
     data = load_comprobantes()
     comprobantes = [
         c for c in data.get("comprobantes", [])
@@ -8707,6 +8708,9 @@ def admin_comprobantes():
 @app.route("/admin/comprobantes/nuevo", methods=["POST"])
 @login_required
 def admin_comprobantes_nuevo():
+    bloqueado = _bloquear_comprobantes_a_tecnico()
+    if bloqueado:
+        return bloqueado
     data = load_comprobantes()
     tipo = request.form.get("tipo", "").strip()
     numero = request.form.get("numero", "").strip()
@@ -8938,6 +8942,9 @@ def admin_comprobantes_eliminar(cid):
 @app.route("/api/destino-direccion")
 @login_required
 def api_destino_direccion():
+    bloqueado = _bloquear_comprobantes_a_tecnico()
+    if bloqueado:
+        return bloqueado
     destino = request.args.get("destino", "").strip()
     return jsonify({"direccion": _direccion_para_destino(destino)})
 
@@ -8945,6 +8952,9 @@ def api_destino_direccion():
 @app.route("/admin/comprobantes/<cid>/imprimir")
 @login_required
 def admin_comprobantes_imprimir(cid):
+    bloqueado = _bloquear_comprobantes_a_tecnico()
+    if bloqueado:
+        return bloqueado
     data = load_comprobantes()
     comp = next((c for c in data.get("comprobantes", []) if c.get("id") == cid), None)
     if not comp:
