@@ -3410,6 +3410,49 @@ def _ticket_requiere_requisicion_rita(ticket):
     return False
 
 
+def _material_ticket_tiene_requisicion(ticket):
+    if ticket.get("requisicion_numero"):
+        return True
+    return any(m.get("requisicion") for m in ticket.get("materiales_a_comprar", []) if isinstance(m, dict))
+
+
+def _backfill_materiales_pendientes_a_rita():
+    if USE_DB:
+        return 0
+    tickets = load_tickets()
+    if not tickets:
+        return 0
+    now_iso = datetime.datetime.now().isoformat()
+    changed = 0
+    for ticket in tickets:
+        if not _is_material_ticket(ticket):
+            continue
+        if ticket.get("estado") != "Pendiente":
+            continue
+        if ticket.get("requiere_requisicion") or _material_ticket_tiene_requisicion(ticket):
+            continue
+        ticket["requiere_requisicion"] = True
+        ticket["asignado_rita"] = True
+        ticket["materiales_pendientes_rita"] = True
+        ticket["requisicion_backfill"] = "soria_rita_2026_09_07"
+        ticket["actualizado"] = now_iso
+        for mat in ticket.get("materiales_a_comprar", []):
+            if isinstance(mat, dict) and not mat.get("requisicion"):
+                mat["estado"] = "Pendiente requisición"
+        ticket.setdefault("notas", []).append({
+            "autor": "Sistema",
+            "fecha": now_iso,
+            "texto": "Ajuste de circuito: pedido pendiente de materiales sin requisición pasa a Rita antes de Compras.",
+        })
+        changed += 1
+    if changed:
+        save_tickets(tickets)
+    return changed
+
+
+_backfill_materiales_pendientes_a_rita()
+
+
 def _material_stage(ticket):
     estado = ticket.get("estado", "")
     if estado in ESTADOS_NO_OPERATIVOS:
