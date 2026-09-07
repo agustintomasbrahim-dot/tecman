@@ -3303,6 +3303,52 @@ def _cleanup_migrated_provider_pending_tickets():
 _cleanup_migrated_provider_pending_tickets()
 
 
+TEST_MATERIAL_TICKET_MARK = "materiales_20_luces_par30_2026_09_07"
+
+
+def _ensure_test_material_ticket():
+    if USE_DB:
+        return None
+    tickets = load_tickets()
+    if any(t.get("ticket_prueba") == TEST_MATERIAL_TICKET_MARK for t in tickets):
+        return None
+    now_iso = datetime.datetime.now().isoformat()
+    ticket = {
+        "id": max([t.get("id", 0) for t in tickets] + [0]) + 1,
+        "sucursal": "Sucursal 176",
+        "categoria": "Materiales",
+        "subcategoria": "Solicitud de materiales",
+        "descripcion": "TICKET PRUEBA - pedido de 20 luces PAR 30 para probar circuito de materiales.",
+        "solicitante_nombre": "Ticket",
+        "solicitante_apellido": "Prueba",
+        "solicitante": "Ticket Prueba",
+        "prioridad": 3,
+        "estado": "Nuevo",
+        "asignado": "Soria",
+        "fotos": [],
+        "observaciones": "Ticket de prueba solicitado por Agustin para validar el flujo Soria -> Rita -> Compras -> envio.",
+        "creado": now_iso,
+        "actualizado": now_iso,
+        "categoria_mat": "Luminaria",
+        "subitem_mat": "PAR 30",
+        "cantidad_mat": "20",
+        "zona_afectada": "Probador 2do piso",
+        "tipo": "materiales",
+        "ticket_prueba": TEST_MATERIAL_TICKET_MARK,
+        "notas": [{
+            "autor": "Sistema",
+            "fecha": now_iso,
+            "texto": "Ticket de prueba para recorrer la dinámica de materiales.",
+        }],
+    }
+    tickets.append(ticket)
+    save_tickets(tickets)
+    return ticket["id"]
+
+
+_ensure_test_material_ticket()
+
+
 def load_syh_gestiones():
     if USE_DB:
         return {"gestiones": _db_list(SyhGestionDB)}
