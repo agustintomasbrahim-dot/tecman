@@ -3435,11 +3435,26 @@ def login_required(f):
         if "user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("admin_login"))
-        if session.get("auth_provider") == "entra" and session.get("entra_role") != "admin":
-            session.clear()
-            return redirect(url_for("admin_login"))
+        if session.get("auth_provider") == "entra":
+            entra_role = session.get("entra_role")
+            allowed = entra_role == "admin" or (entra_role == "tecnico" and session.get("rol") == "tecnico")
+            if not allowed:
+                session.clear()
+                return redirect(url_for("admin_login"))
         return f(*args, **kwargs)
     return decorated
+
+
+def _admin_portal_role_from_auth_user(auth_user):
+    if (
+        auth_user
+        and _auth_user_status(auth_user) == "active"
+        and _auth_user_allows_provider(auth_user, "entra")
+    ):
+        role = _auth_user_role(auth_user)
+        if role in ("admin", "tecnico"):
+            return role
+    return None
 
 
 def admin_required(f):
@@ -4209,6 +4224,7 @@ def entra_callback():
     entra_role = _entra_role_from_groups(identity)
     identity["entra_role"] = entra_role
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
+    admin_portal_auth_role = _admin_portal_role_from_auth_user(auth_user)
     full_portal_access = _identity_has_full_portal_access(identity)
     if full_portal_access and requested_portal == "admin":
         entra_role = "admin"
@@ -4234,6 +4250,9 @@ def entra_callback():
         elif not entra_role and auth_role == "admin":
             entra_role = "admin"
             identity["entra_role"] = "admin"
+        elif not entra_role and requested_portal == "admin" and auth_role == "tecnico":
+            entra_role = "tecnico"
+            identity["entra_role"] = "tecnico"
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(
             "error.html",
@@ -4252,10 +4271,10 @@ def entra_callback():
             "error.html",
             mensaje="Tu identidad fue validada correctamente, pero tu cuenta todavía no tiene acceso a esta aplicación. Contactá al administrador.",
         ), 403
-    if requested_portal == "admin" and entra_role != "admin":
+    if requested_portal == "admin" and entra_role not in ("admin", "tecnico"):
         return render_template(
             "error.html",
-            mensaje="No autorizado. Tu cuenta Microsoft no pertenece al grupo super admin de Tecman.",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal administrativo de Tecman.",
         ), 403
     if requested_portal == "sucursal" and entra_role not in ("sucursal", "supervisor"):
         return render_template(
@@ -4305,7 +4324,7 @@ def entra_callback():
         _audit_event("login_success", provider="entra", details={"role": "admin", "source": "entra_group"})
         return redirect(url_for("admin_panel"))
 
-    if entra_role == "admin" and auth_user and _auth_user_role(auth_user) != "admin":
+    if entra_role == "admin" and auth_user and admin_portal_auth_role == "admin" and _auth_user_role(auth_user) != "admin":
         if USE_DB:
             auth_user.role = "admin"
         else:
@@ -4350,8 +4369,8 @@ def entra_callback():
 
     _mark_login_success(auth_user, "entra")
     _set_admin_session(auth_user, "entra")
-    if entra_role == "admin":
-        session["entra_role"] = "admin"
+    if entra_role in ("admin", "tecnico"):
+        session["entra_role"] = entra_role
     return redirect(url_for("admin_panel"))
 
 
