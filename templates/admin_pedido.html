@@ -20,13 +20,52 @@
 {% block content %}
 
 <style>
+.pedido-page .card { box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
 .pedido-grid-top { display:grid; grid-template-columns: 1.2fr 0.8fr; gap:16px; }
 .pedido-mini-card { border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fff; }
-.pedido-label { font-size:11px; color:#6b7280; font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+.pedido-label { font-size:11px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
 .pedido-value { font-size:14px; color:#111827; font-weight:600; }
-@media (max-width: 900px) { .pedido-grid-top { grid-template-columns: 1fr; } }
+.pedido-page .form-group label { color:#334155; font-weight:800; }
+.pedido-page .form-group input,
+.pedido-page .form-group select,
+.pedido-page .form-group textarea {
+    min-height: 44px;
+    border-color: #cbd5e1;
+    color: #0f172a;
+    background: #fff;
+}
+.pedido-page .form-group input::placeholder,
+.pedido-page .form-group textarea::placeholder { color:#94a3b8; opacity:1; }
+.pedido-help { color:#475569; font-size:13px; line-height:1.4; }
+.pedido-action-card {
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.pedido-action-card h4 { margin-bottom: 10px; color:#0f172a; }
+.pedido-action-card--stock { border: 2px solid #16a34a; background:#f0fdf4; }
+.pedido-action-card--extra { border: 1px solid #cbd5e1; background:#f8fafc; }
+.pedido-action-card--compras { border: 2px solid #dc2626; background:#fff1f2; }
+.pedido-two-cols { display:grid; grid-template-columns: 120px 1fr; gap:10px; }
+.pedido-option-list { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+.pedido-radio-row {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px;
+    border:1px solid #cbd5e1;
+    border-radius:8px;
+    cursor:pointer;
+    background:#fff;
+    color:#1f2937;
+}
+@media (max-width: 900px) {
+    .pedido-grid-top { grid-template-columns: 1fr; }
+    .pedido-two-cols { grid-template-columns: 1fr; }
+}
 </style>
 
+<div class="pedido-page">
 <div class="pedido-grid-top" style="margin-bottom: 16px;">
 <div class="card" style="border-left: 4px solid #e63946; margin-bottom: 0;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
@@ -140,7 +179,7 @@
 
 <div class="card">
     <h3 style="margin-bottom: 12px;">2. Resolver el pedido</h3>
-    <p style="font-size: 12px; color: #6b7280; margin-bottom: 14px;">Elegí una de las siguientes opciones según el stock disponible.</p>
+    <p class="pedido-help" style="margin-bottom: 14px;">Elegí una de las siguientes opciones según el stock disponible.</p>
 
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
         <div>
@@ -166,23 +205,23 @@
 
     <!-- Opción 1: Cuento con stock (solo para tickets Nuevo/Abierto) -->
     {% if ticket.estado in ('Nuevo', 'Abierto') %}
-    <div style="border: 2px solid #16a34a; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #f0fdf4;">
-        <h4 style="color: #166534; margin-bottom: 10px;">✅ Cuento con stock</h4>
+    <div class="pedido-action-card pedido-action-card--stock">
+        <h4 style="color: #166534;">✅ Cuento con stock</h4>
         <form method="POST">
             <input type="hidden" name="accion" value="cuento_material">
             <p style="font-size: 13px; color: #374151; margin-bottom: 8px; font-weight: 600;">Método de envío:</p>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+            <div class="pedido-option-list">
                 {% if es_amba %}
-                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                <label class="pedido-radio-row" style="border-color:#86efac;">
                     <input type="radio" name="metodo_envio" value="Recoge CEYH" required>
                     <span><strong>Recoge CEYH</strong> — la camioneta de CEYH lo retira de Central</span>
                 </label>
                 {% endif %}
-                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                <label class="pedido-radio-row" style="border-color:#86efac;">
                     <input type="radio" name="metodo_envio" value="Envio desde Central" {% if not es_amba %}required{% endif %}>
                     <span><strong>Envio desde Central</strong> — se despacha desde Dabra Central</span>
                 </label>
-                <label style="display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; background: #fff;">
+                <label class="pedido-radio-row" style="border-color:#86efac;">
                     <input type="radio" name="metodo_envio" value="Envio directo a sucursal">
                     <span><strong>Envio directo a sucursal</strong> — el proveedor envia directo</span>
                 </label>
@@ -193,12 +232,12 @@
     {% endif %}
 
     <!-- Opción 2: Agregar item relacionado con el ticket -->
-    <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fff;">
+    <div class="pedido-action-card pedido-action-card--extra">
         <h4 style="margin-bottom: 10px;">➕ Agregar item relacionado con el ticket</h4>
         <form method="POST">
             <input type="hidden" name="accion" value="agregar_material_stock">
             <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
-            <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
+            <div class="pedido-two-cols">
                 <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1"></div>
                 <div class="form-group"><label>Detalle</label><input type="text" name="detalle_stock" placeholder="Ej: complemento para instalación"></div>
             </div>
@@ -207,17 +246,17 @@
     </div>
 
     <!-- Opción 3: No cuento con stock → Derivar a Compras -->
-    <div style="border: 2px solid #dc2626; border-radius: 10px; padding: 14px; background: #fef2f2;">
-        <h4 style="color: #dc2626; margin-bottom: 10px;">🛒 No cuento con stock — Derivar a Compras</h4>
+    <div class="pedido-action-card pedido-action-card--compras">
+        <h4 style="color: #b91c1c;">🛒 No cuento con stock — Derivar a Compras</h4>
         <form method="POST">
             <input type="hidden" name="accion" value="derivar_a_compras">
             <div class="form-group"><label>Material</label><input type="text" name="item_compra" placeholder="Ej: cable 2,5 mm" required></div>
-            <div style="display:grid; grid-template-columns: 120px 1fr; gap: 10px;">
+            <div class="pedido-two-cols">
                 <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_compra" min="1" value="1"></div>
                 <div class="form-group"><label>N° requisición</label><input type="text" name="requisicion" placeholder="Obligatorio" required></div>
             </div>
             <div class="form-group"><label>Detalle</label><input type="text" name="detalle_compra_item" placeholder="Motivo / observación"></div>
-            <button type="submit" class="btn btn-block" style="background: #1a1a2e; color: white;">Enviar a Compras</button>
+            <button type="submit" class="btn btn-danger btn-block">Enviar a Compras</button>
         </form>
     </div>
 
@@ -402,4 +441,5 @@
 </div>
 {% endif %}
 
+</div>
 {% endblock %}
