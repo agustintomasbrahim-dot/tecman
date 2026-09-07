@@ -1764,6 +1764,46 @@ def save_movimientos(data):
     _atomic_write(STOCK_MOV_FILE, data)
 
 
+DEMO_STOCK_CLEANUP_MARK = "stock_central_prueba_limpio_2026_09_07"
+DEMO_COMPROBANTE_IDS = {"fact0001lumi", "fact0002elec", "fact0003cort"}
+DEMO_STOCK_MOVIMIENTO_IDS = {"52fee4e37b6f"}
+
+
+def _cleanup_demo_central_stock():
+    if USE_DB:
+        return {"stock": 0, "comprobantes": 0, "movimientos": 0}
+    stock = load_stock()
+    if stock.get(DEMO_STOCK_CLEANUP_MARK):
+        return {"stock": 0, "comprobantes": 0, "movimientos": 0}
+
+    removed_stock = len(stock.get("central", {}) or {})
+    stock["central"] = {}
+    stock[DEMO_STOCK_CLEANUP_MARK] = True
+    stock["stock_central_limpieza_fecha"] = datetime.datetime.now().isoformat()
+    save_stock(stock)
+
+    comp_data = load_comprobantes()
+    comprobantes = comp_data.get("comprobantes", [])
+    comp_filtrados = [c for c in comprobantes if c.get("id") not in DEMO_COMPROBANTE_IDS]
+    removed_comprobantes = len(comprobantes) - len(comp_filtrados)
+    if removed_comprobantes:
+        comp_data["comprobantes"] = comp_filtrados
+        save_comprobantes(comp_data)
+
+    mov_data = load_movimientos()
+    movimientos = mov_data.get("movimientos", [])
+    mov_filtrados = [m for m in movimientos if m.get("id") not in DEMO_STOCK_MOVIMIENTO_IDS]
+    removed_movimientos = len(movimientos) - len(mov_filtrados)
+    if removed_movimientos:
+        mov_data["movimientos"] = mov_filtrados
+        save_movimientos(mov_data)
+
+    return {"stock": removed_stock, "comprobantes": removed_comprobantes, "movimientos": removed_movimientos}
+
+
+_cleanup_demo_central_stock()
+
+
 # --- FIFO por lotes ---
 # Cada lote representa un ingreso fisico real (remito de proveedor) con su
 # cantidad y precio unitario. Los egresos a sucursal consumen lotes en orden
