@@ -3186,6 +3186,65 @@ def save_tickets(tickets):
     _atomic_write(TICKETS_FILE, tickets)
 
 
+MIGRATION_PENDING_PROVIDER_CLEANUP = {
+    "gerardo goog",
+    "adriel",
+    "liliana",
+    "mauricio escalmeca",
+    "federico confort",
+    "nestor raul diaz",
+    "oscar san juan",
+    "gustavo avellaneda",
+    "cesar avalos",
+    "jose sanchez",
+    "ismael allende",
+}
+
+
+def _cleanup_migrated_provider_pending_tickets():
+    if USE_DB:
+        return 0
+    tickets = load_tickets()
+    if not tickets:
+        return 0
+    now_iso = datetime.datetime.now().isoformat()
+    changed = 0
+    for ticket in tickets:
+        if ticket.get("estado") != "Pendiente":
+            continue
+        provider_values = [
+            ticket.get("asignado"),
+            ticket.get("asignado_proveedor"),
+            ticket.get("proveedor_nombre"),
+            ticket.get("proveedor_presupuesto"),
+        ]
+        provider_match = any(str(v or "").strip().lower() in MIGRATION_PENDING_PROVIDER_CLEANUP for v in provider_values)
+        imported_from_provider_sheet = bool(ticket.get("invgate_hoja")) or any(
+            "Importado desde Excel Proveedores" in str(n.get("texto", ""))
+            for n in ticket.get("notas", [])
+            if isinstance(n, dict)
+        )
+        if not provider_match or not imported_from_provider_sheet:
+            continue
+        ticket["estado"] = "Rechazado"
+        ticket["motivo_rechazo"] = "Limpieza de migración: ticket pendiente de proveedor no corresponde a la operación actual."
+        ticket["fecha_cierre"] = now_iso
+        ticket["limpieza_migracion"] = "proveedores_pendientes_2026_09_07"
+        ticket["actualizado"] = now_iso
+        ticket.setdefault("notas", []).append({
+            "autor": "Sistema",
+            "fecha": now_iso,
+            "texto": "Limpieza de migración: se marcó como Rechazado para quitarlo de En proceso sin borrar historial ni proveedor.",
+        })
+        changed += 1
+    if changed:
+        save_tickets(tickets)
+    return changed
+
+
+_cleanup_migrated_provider_pending_tickets()
+
+
 def load_syh_gestiones():
     if USE_DB:
         return {"gestiones": _db_list(SyhGestionDB)}
