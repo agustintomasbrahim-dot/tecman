@@ -2676,6 +2676,23 @@ def _formatear_guia_numero(n):
         s = str(n or "").strip()
         return s or "9902-00000000"
 
+
+METODOS_GUIA_INTERNA_MATERIALES = {"Envio desde Central", "Recoge CEYH"}
+
+
+def _ensure_guia_interna_materiales(ticket):
+    if ticket.get("metodo_envio") not in METODOS_GUIA_INTERNA_MATERIALES:
+        return None
+    existing = str(ticket.get("guia_transporte_numero") or "").strip()
+    if existing:
+        return existing if "-" in existing else _formatear_guia_numero(existing)
+    guia_numero = _formatear_guia_numero(_next_guia_numero())
+    ticket["guia_transporte_numero"] = guia_numero
+    ticket["guia_transporte_fecha"] = datetime.datetime.now().isoformat()
+    ticket["guia_transporte_tipo"] = "interna_materiales"
+    return guia_numero
+
+
 def _get_precio_historico(item_key, hasta=None):
     """Retorna el precio unitario del ultimo ingreso de un item antes de 'hasta'.
     Si no hay ingresos registrados, retorna None."""
@@ -8127,10 +8144,14 @@ def admin_pedido(ticket_id):
             metodo_envio = request.form.get("metodo_envio", "")
             ticket["estado"] = "En progreso"
             ticket["metodo_envio"] = metodo_envio
+            guia_numero = _ensure_guia_interna_materiales(ticket)
+            nota_texto = f"Cuento con material. Envio: {metodo_envio}"
+            if guia_numero:
+                nota_texto += f" | Guía interna: {guia_numero}"
             ticket["notas"].append({
                 "autor": session.get("nombre", "Soria"),
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": f"Cuento con material. Envio: {metodo_envio}",
+                "texto": nota_texto,
             })
 
         elif accion == "solicitar_compras":
@@ -8412,9 +8433,9 @@ def admin_pedido_guia(ticket_id):
         else:
             guia_num_fmt = _formatear_guia_numero(existing_str)
     else:
-        n = _next_guia_numero()
-        guia_num_fmt = _formatear_guia_numero(n)
-        ticket["guia_transporte_numero"] = guia_num_fmt
+        guia_num_fmt = _ensure_guia_interna_materiales(ticket)
+        if not guia_num_fmt:
+            return render_template("error.html", mensaje="La guía interna corresponde solo a envíos desde Central o retiro CEYH."), 400
         ticket["actualizado"] = datetime.datetime.now().isoformat()
         save_tickets(tickets)
 
@@ -8431,9 +8452,12 @@ def admin_pedido_guia(ticket_id):
         partes_dir.append(info["provincia"])
     sucursal_direccion = ", ".join(partes_dir)
 
-    # Quien retira: CEYH si la sucursal lo tiene; sino el proveedor cargado.
-    if es_sucursal_ceyh(suc_num):
-        retira = "RETIRA CEYH"
+    # Quien retira/envia segun la opcion elegida por Soria.
+    metodo_envio = ticket.get("metodo_envio")
+    if metodo_envio == "Recoge CEYH":
+        retira = "RETIRA CEYH EN DEPÓSITO CENTRAL"
+    elif metodo_envio == "Envio desde Central":
+        retira = "ENVÍO DESDE DEPÓSITO CENTRAL"
     elif ticket.get("retiro_tipo") == "proveedor" and ticket.get("proveedor_nombre"):
         retira = ticket.get("proveedor_nombre", "")
     else:
