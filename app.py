@@ -243,6 +243,15 @@ PRIORIDADES = {
 }
 
 ESTADOS = ["Nuevo", "Abierto", "En progreso", "Materiales recibidos", "Pendiente", "Aprobado", "Rechazado", "Resuelto", "Cerrado"]
+ESTADO_FILTROS_ADMIN = [
+    "Nuevos",
+    "En proceso",
+    "Solicitud de materiales",
+    "Materiales recibidos",
+    "Aprobado",
+    "Rechazado",
+    "Finalizados",
+]
 ESTADOS_NO_OPERATIVOS = {"Rechazado", "Resuelto", "Cerrado"}
 
 import pathlib as _pathlib
@@ -2870,6 +2879,10 @@ def _ticket_matches_estado_filter(ticket, filtro_estado):
         return estado in ("Nuevo", "Abierto")
     if filtro_estado == "En proceso":
         return estado in ("En progreso", "Pendiente")
+    if filtro_estado == "Finalizados":
+        return estado in ("Resuelto", "Cerrado")
+    if filtro_estado == "Solicitud de materiales":
+        return _is_material_ticket(ticket)
     return estado == filtro_estado
 
 
@@ -4757,7 +4770,8 @@ def admin_panel():
         return redirect(url_for("admin_materiales"))
     sync_alertas_syh()
     tickets = load_tickets()
-    tickets_operativos = [t for t in tickets if not _is_ticket_sucursal_cerrada(t) and t.get("estado") != "Rechazado"]
+    tickets_visibles = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
+    tickets_operativos = [t for t in tickets_visibles if t.get("estado") != "Rechazado"]
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
     filtro_prioridad = request.args.get("prioridad", "")
@@ -4767,7 +4781,7 @@ def admin_panel():
     if es_rita:
         filtered = list(tickets_rita_pendientes)
     else:
-        filtered = tickets_operativos
+        filtered = tickets_visibles if filtro_estado == "Rechazado" else tickets_operativos
         if filtro_estado:
             filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
         if filtro_suc:
@@ -4812,6 +4826,8 @@ def admin_panel():
             filtered = list(tickets_rita_pendientes)
         else:
             filtered = list(mis_asignados)
+            if filtro_estado == "Rechazado":
+                filtered = tickets_visibles
             if filtro_estado:
                 filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
             if filtro_suc:
@@ -4860,7 +4876,7 @@ def admin_panel():
         tickets=filtered,
         stats=stats,
         estados=ESTADOS,
-        estado_filtros=["Nuevos", "En proceso", *ESTADOS],
+        estado_filtros=ESTADO_FILTROS_ADMIN,
         sucursales=SUCURSALES,
         prioridades=PRIORIDADES,
         filtro_estado=filtro_estado,
@@ -7390,7 +7406,7 @@ def admin_buscar():
         resultados_comprobantes=resultados_comprobantes,
         prioridades=PRIORIDADES,
         sucursales=SUCURSALES,
-        estado_filtros=["Nuevos", "En proceso", *ESTADOS],
+        estado_filtros=ESTADO_FILTROS_ADMIN,
     )
 
 
