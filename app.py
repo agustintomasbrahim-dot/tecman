@@ -4793,7 +4793,7 @@ def admin_panel():
         "total": len(tickets_operativos),
         "nuevos": sum(1 for t in tickets_operativos if t["estado"] in ("Nuevo", "Abierto")),
         "en_progreso": sum(1 for t in tickets_operativos if t["estado"] in ("En progreso", "Pendiente")),
-        "resueltos": sum(1 for t in tickets_operativos if t["estado"] == "Resuelto"),
+        "resueltos": sum(1 for t in tickets_visibles if t["estado"] in ("Resuelto", "Cerrado")),
     }
     materiales_resumen = _material_dashboard(tickets_operativos)
 
@@ -4826,10 +4826,10 @@ def admin_panel():
             filtered = list(tickets_rita_pendientes)
         else:
             filtered = list(mis_asignados)
-            if filtro_estado == "Solicitud de materiales":
-                filtered = list(tickets_operativos)
-            elif filtro_estado == "Rechazado":
+            if filtro_estado == "Rechazado":
                 filtered = tickets_visibles
+            elif filtro_estado:
+                filtered = list(tickets_operativos)
             if filtro_estado:
                 filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
             if filtro_suc:

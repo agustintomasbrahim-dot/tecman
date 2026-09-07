@@ -111,9 +111,9 @@ function toggleNotif() {
         <div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div>
         <div class="label">En proceso</div>
     </a>
-    <a href="{{ url_for('admin_panel', vista='tabla', estado='Resuelto') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
+    <a href="{{ url_for('admin_panel', vista='tabla', estado='Finalizados') }}" class="stat-card" style="text-decoration: none; flex: 1; min-width: 120px; border: 2px solid {% if stats.resueltos > 0 %}rgba(16,185,129,0.3){% else %}#e5e7eb{% endif %};">
         <div class="number" style="color: #059669;">{{ stats.resueltos }}</div>
-        <div class="label">Resueltos</div>
+        <div class="label">Finalizados</div>
     </a>
 </div>
 {% endif %}
