@@ -3333,14 +3333,29 @@ def _cleanup_migrated_provider_pending_tickets():
 _cleanup_migrated_provider_pending_tickets()
 
 
-TEST_MATERIAL_TICKET_MARK = "materiales_20_luces_par30_2026_09_07"
+TEST_MATERIAL_TICKETS = [
+    {
+        "mark": "materiales_20_luces_par30_2026_09_07",
+        "descripcion": "TICKET PRUEBA - pedido de 20 luces PAR 30 para probar circuito de materiales.",
+        "subitem_mat": "PAR 30",
+        "cantidad_mat": "20",
+        "zona_afectada": "Probador 2do piso",
+    },
+    {
+        "mark": "materiales_luminaria_par20_2026_09_07",
+        "descripcion": "TICKET PRUEBA - pedido de luminaria PAR 20 para probar circuito de materiales.",
+        "subitem_mat": "PAR 20",
+        "cantidad_mat": "1",
+        "zona_afectada": "Probador",
+    },
+]
 
 
-def _ensure_test_material_ticket():
+def _ensure_test_material_ticket(spec):
     if USE_DB:
         return None
     tickets = load_tickets()
-    if any(t.get("ticket_prueba") == TEST_MATERIAL_TICKET_MARK for t in tickets):
+    if any(t.get("ticket_prueba") == spec["mark"] for t in tickets):
         return None
     now_iso = datetime.datetime.now().isoformat()
     ticket = {
@@ -3348,7 +3363,7 @@ def _ensure_test_material_ticket():
         "sucursal": "Sucursal 176",
         "categoria": "Materiales",
         "subcategoria": "Solicitud de materiales",
-        "descripcion": "TICKET PRUEBA - pedido de 20 luces PAR 30 para probar circuito de materiales.",
+        "descripcion": spec["descripcion"],
         "solicitante_nombre": "Ticket",
         "solicitante_apellido": "Prueba",
         "solicitante": "Ticket Prueba",
@@ -3360,11 +3375,11 @@ def _ensure_test_material_ticket():
         "creado": now_iso,
         "actualizado": now_iso,
         "categoria_mat": "Luminaria",
-        "subitem_mat": "PAR 30",
-        "cantidad_mat": "20",
-        "zona_afectada": "Probador 2do piso",
+        "subitem_mat": spec["subitem_mat"],
+        "cantidad_mat": spec["cantidad_mat"],
+        "zona_afectada": spec["zona_afectada"],
         "tipo": "materiales",
-        "ticket_prueba": TEST_MATERIAL_TICKET_MARK,
+        "ticket_prueba": spec["mark"],
         "notas": [{
             "autor": "Sistema",
             "fecha": now_iso,
@@ -3376,7 +3391,8 @@ def _ensure_test_material_ticket():
     return ticket["id"]
 
 
-_ensure_test_material_ticket()
+for _test_material_ticket in TEST_MATERIAL_TICKETS:
+    _ensure_test_material_ticket(_test_material_ticket)
 
 
 def load_syh_gestiones():
