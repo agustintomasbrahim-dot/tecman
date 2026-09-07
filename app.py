@@ -6945,10 +6945,14 @@ def admin_reporte():
 @app.route("/admin/buscar")
 @admin_required
 def admin_buscar():
-    q = request.args.get("q", "").strip().lower()
+    q_raw = request.args.get("q", "").strip()
+    q = q_raw.lower()
     modulo = request.args.get("modulo", "todo").strip().lower()
+    filtro_suc = request.args.get("sucursal", "").strip()
+    filtro_estado = request.args.get("estado", "").strip()
     tickets = load_tickets()
     resultados = []
+    resultados_stock = []
     resultados_presupuestos = []
     resultados_ceyh = []
     resultados_permisos = []
@@ -6958,20 +6962,71 @@ def admin_buscar():
 
     def _match(*vals):
         texto = " ".join(str(v or "") for v in vals).lower()
-        return q and q in texto
+        return not q or q in texto
 
-    if q:
-        if modulo in ("todo", "tickets"):
+    def _record_sucursal_value(item):
+        return item.get("sucursal_num") or item.get("sucursal") or ""
+
+    def _record_matches_sucursal(item):
+        if not filtro_suc:
+            return True
+        item_num = _sucursal_num_from_value(_record_sucursal_value(item))
+        filtro_num = _sucursal_num_from_value(filtro_suc)
+        if item_num and filtro_num:
+            return item_num == filtro_num
+        return filtro_suc.lower() in str(_record_sucursal_value(item) or "").lower()
+
+    def _record_matches_estado(item, *fields):
+        if not filtro_estado:
+            return True
+        values = [item.get(field) for field in fields]
+        return any(str(v or "").strip().lower() == filtro_estado.lower() for v in values)
+
+    has_search = bool(q or filtro_suc or filtro_estado or modulo != "todo")
+
+    if has_search:
+        if modulo in ("todo", "tickets", "materiales"):
             for t in tickets:
                 if _is_ticket_sucursal_cerrada(t):
+                    continue
+                if modulo == "materiales" and not _is_material_ticket(t):
+                    continue
+                if not _record_matches_sucursal(t) or not _ticket_matches_estado_filter(t, filtro_estado):
                     continue
                 notas = " ".join((n.get("texto", "") for n in t.get("notas", [])))
                 if _match(t.get("id"), t.get("sucursal"), t.get("descripcion"), t.get("subcategoria"), t.get("categoria"), t.get("asignado"), t.get("observaciones"), t.get("solicitante"), notas):
                     resultados.append(t)
 
+        if modulo in ("todo", "materiales", "stock"):
+            stock = load_stock()
+            if not filtro_estado:
+                for item, info in (stock.get("central") or {}).items():
+                    row = {
+                        "origen": "Central",
+                        "sucursal": "",
+                        "item": item,
+                        "cantidad": info.get("cantidad", 0) if isinstance(info, dict) else info,
+                        "precio_unitario": info.get("precio_unitario", 0) if isinstance(info, dict) else 0,
+                    }
+                    if _match(row.get("origen"), row.get("item"), row.get("cantidad"), row.get("precio_unitario")):
+                        resultados_stock.append(row)
+                for sucursal, items in (stock.get("sucursales") or {}).items():
+                    for item, cantidad in (items or {}).items():
+                        row = {
+                            "origen": "Sucursal",
+                            "sucursal": sucursal,
+                            "item": item,
+                            "cantidad": cantidad,
+                            "precio_unitario": "",
+                        }
+                        if _record_matches_sucursal(row) and _match(row.get("origen"), row.get("sucursal"), row.get("item"), row.get("cantidad")):
+                            resultados_stock.append(row)
+
         if modulo in ("todo", "presupuestos"):
             for p in load_presupuestos().get("presupuestos", []):
                 if _is_sucursal_cerrada(p.get("sucursal_num") or p.get("sucursal")):
+                    continue
+                if not _record_matches_sucursal(p) or not _record_matches_estado(p, "estado", "estado_presupuesto"):
                     continue
                 if _match(p.get("id"), p.get("ticket_id"), p.get("sucursal"), p.get("categoria"), p.get("subcategoria"), p.get("proveedor"), p.get("descripcion"), p.get("observacion_interna"), p.get("monto")):
                     resultados_presupuestos.append(p)
@@ -6983,14 +7038,20 @@ def admin_buscar():
                 if not es_ticket_ceyh(t):
                     continue
                 t = _normalize_ceyh_ticket(t)
+                if not _record_matches_sucursal(t) or not _record_matches_estado(t, "estado", "estado_operativo_ceyh", "estado_materiales", "estado_retiro"):
+                    continue
                 if _match(t.get("id"), t.get("sucursal"), t.get("subcategoria"), t.get("cuadrilla_ceyh"), t.get("camioneta_ceyh"), t.get("estado_operativo_ceyh"), t.get("estado_materiales"), t.get("estado_retiro"), t.get("proxima_accion"), t.get("ultima_novedad_operativa")):
                     resultados_ceyh.append({"tipo": "ticket", **t})
             for r in load_ceyh_retiros().get("retiros", []):
                 if _is_sucursal_cerrada(r.get("sucursal_num") or r.get("sucursal")):
                     continue
+                if not _record_matches_sucursal(r) or not _record_matches_estado(r, "estado"):
+                    continue
                 if _match(r.get("ticket_id"), r.get("sucursal"), r.get("materiales"), r.get("estado"), r.get("retirado_por"), r.get("observaciones")):
                     resultados_ceyh.append({"tipo": "retiro", **r})
             for j in load_ceyh_jornadas().get("jornadas", []):
+                if filtro_suc or filtro_estado:
+                    continue
                 planif = " ".join(f"{x.get('ticket_id')} {x.get('sucursal')} {x.get('tipo')}" for x in j.get("planificados", []))
                 urgs = " ".join(f"{x.get('ticket_id')} {x.get('sucursal')} {x.get('tipo')}" for x in j.get("urgencias", []))
                 if _match(j.get("fecha"), j.get("camioneta"), j.get("cuadrilla"), j.get("observaciones"), planif, urgs):
@@ -7001,12 +7062,18 @@ def admin_buscar():
                 sucursales_txt = " ".join((s.get("sucursal", "") for s in p.get("sucursales", [])))
                 if _is_sucursal_cerrada(p.get("sucursal_num") or p.get("sucursal")):
                     continue
+                if filtro_suc and not (_record_matches_sucursal(p) or filtro_suc in sucursales_txt):
+                    continue
+                if not _record_matches_estado(p, "estado", "tipo_documento"):
+                    continue
                 if _match(p.get("id"), p.get("sucursal"), sucursales_txt, p.get("proveedor"), p.get("tipo_documento"), p.get("periodo"), p.get("comentario")):
                     resultados_permisos.append(p)
 
         if modulo in ("todo", "habilitaciones"):
             for h in load_habilitaciones().get("habilitaciones", []):
                 if _is_sucursal_cerrada(h.get("sucursal_num") or h.get("sucursal")):
+                    continue
+                if not _record_matches_sucursal(h) or not _record_matches_estado(h, "estado"):
                     continue
                 if _match(h.get("id"), h.get("sucursal"), h.get("sucursal_num"), h.get("tramite"), h.get("estado"), h.get("comentario"), h.get("archivo_nombre")):
                     resultados_habilitaciones.append(h)
@@ -7015,20 +7082,32 @@ def admin_buscar():
             for m in load_matafuegos().get("matafuegos", []):
                 if _is_sucursal_cerrada(m.get("sucursal_num") or m.get("sucursal")):
                     continue
-                if _match(m.get("sucursal"), m.get("sucursal_num"), m.get("tipo"), m.get("sector"), m.get("estado"), m.get("vencimiento"), m.get("observaciones")):
+                m = _enrich_matafuego(m)
+                if not _record_matches_sucursal(m) or not _record_matches_estado(m, "estado", "estado_calc", "estado_manual"):
+                    continue
+                if _match(m.get("sucursal"), m.get("sucursal_num"), m.get("tipo"), m.get("sector"), m.get("ubicacion"), m.get("estado"), m.get("estado_calc"), m.get("vencimiento"), m.get("fecha_vencimiento"), m.get("observaciones")):
                     resultados_matafuegos.append(m)
 
-        if modulo in ("todo", "comprobantes"):
+        if modulo in ("todo", "comprobantes", "materiales"):
             for c in load_comprobantes().get("comprobantes", []):
-                items_txt = " ".join(f"{i.get('item', '')} {i.get('cantidad', '')}" for i in c.get("items", []))
+                if modulo == "materiales" and c.get("tipo") not in ("factura", "remito_proveedor", "remito_interno"):
+                    continue
+                items = (c.get("items") or []) + (c.get("items_factura") or [])
+                items_txt = " ".join(f"{i.get('item', '')} {i.get('cantidad', '')}" for i in items)
+                if not _record_matches_sucursal(c) or not _record_matches_estado(c, "tipo", "estado"):
+                    continue
                 if _match(c.get("id"), c.get("tipo"), c.get("numero"), c.get("proveedor"), c.get("sucursal"), c.get("comentario"), items_txt):
                     resultados_comprobantes.append(c)
 
     return render_template(
         "admin_buscar.html",
-        q=q,
+        q=q_raw,
         modulo=modulo,
+        filtro_suc=filtro_suc,
+        filtro_estado=filtro_estado,
+        has_search=has_search,
         resultados=resultados,
+        resultados_stock=resultados_stock[:80],
         resultados_presupuestos=resultados_presupuestos,
         resultados_ceyh=resultados_ceyh,
         resultados_permisos=resultados_permisos,
@@ -7036,6 +7115,8 @@ def admin_buscar():
         resultados_matafuegos=resultados_matafuegos,
         resultados_comprobantes=resultados_comprobantes,
         prioridades=PRIORIDADES,
+        sucursales=SUCURSALES,
+        estado_filtros=["Nuevos", "En proceso", *ESTADOS],
     )
 
 

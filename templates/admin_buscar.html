@@ -11,29 +11,97 @@
 </div>
 {% endblock %}
 {% block content %}
+<style>
+    .search-grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 1.6fr) repeat(3, minmax(170px, 1fr)) auto auto;
+        gap: 10px;
+        align-items: end;
+    }
+    .search-grid input,
+    .search-grid select {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        color: #111827;
+        font-size: 15px;
+    }
+    .search-grid .form-group {
+        margin-bottom: 0;
+    }
+    .search-action {
+        padding: 12px 18px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    @media (max-width: 1100px) {
+        .search-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 640px) {
+        .search-grid {
+            grid-template-columns: 1fr;
+        }
+        .search-action {
+            width: 100%;
+        }
+    }
+</style>
+
 <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Inicio</a>
 
 <div class="card">
     <h2 style="margin-bottom: 16px;">Buscar en Tecman</h2>
-    <form action="{{ url_for('admin_buscar') }}" method="GET" style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <input type="text" name="q" value="{{ q }}" placeholder="Sucursal, ticket, proveedor, CEYH, materiales, permiso, matafuego, comprobante..." style="flex: 1; min-width: 260px; padding: 14px; border: 1px solid #333; border-radius: 8px; background: #0a0a0a; color: #e2e8f0; font-size: 16px;">
-        <select name="modulo" style="padding: 14px; border-radius: 8px;">
+    <form action="{{ url_for('admin_buscar') }}" method="GET" class="search-grid">
+        <div class="form-group">
+            <label>Texto</label>
+            <input type="text" name="q" value="{{ q }}" placeholder="Ticket, proveedor, material, permiso, matafuego...">
+        </div>
+        <div class="form-group">
+            <label>Sucursal</label>
+            <select name="sucursal">
+                <option value="">Todas</option>
+                {% for s in sucursales %}<option value="{{ s }}" {% if s == filtro_suc %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Módulo</label>
+            <select name="modulo">
             <option value="todo" {% if modulo == 'todo' %}selected{% endif %}>Todo</option>
             <option value="tickets" {% if modulo == 'tickets' %}selected{% endif %}>Tickets</option>
+            <option value="materiales" {% if modulo == 'materiales' %}selected{% endif %}>Materiales</option>
+            <option value="stock" {% if modulo == 'stock' %}selected{% endif %}>Stock</option>
             <option value="presupuestos" {% if modulo == 'presupuestos' %}selected{% endif %}>Presupuestos</option>
             <option value="ceyh" {% if modulo == 'ceyh' %}selected{% endif %}>CEYH</option>
             <option value="permisos" {% if modulo == 'permisos' %}selected{% endif %}>Permisos</option>
             <option value="habilitaciones" {% if modulo == 'habilitaciones' %}selected{% endif %}>Habilitaciones</option>
             <option value="matafuegos" {% if modulo == 'matafuegos' %}selected{% endif %}>Matafuegos</option>
             <option value="comprobantes" {% if modulo == 'comprobantes' %}selected{% endif %}>Comprobantes</option>
-        </select>
-        <button type="submit" class="btn btn-primary" style="padding: 14px 28px;">Buscar</button>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Estado / tipo</label>
+            <select name="estado">
+                <option value="">Todos</option>
+                {% for e in estado_filtros %}<option value="{{ e }}" {% if e == filtro_estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+                <option value="factura" {% if filtro_estado == 'factura' %}selected{% endif %}>Factura</option>
+                <option value="remito_proveedor" {% if filtro_estado == 'remito_proveedor' %}selected{% endif %}>Remito proveedor</option>
+                <option value="remito_interno" {% if filtro_estado == 'remito_interno' %}selected{% endif %}>Remito interno</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary search-action">Buscar</button>
+        {% if has_search %}
+        <a href="{{ url_for('admin_buscar') }}" class="btn btn-outline search-action">Limpiar</a>
+        {% endif %}
     </form>
 </div>
 
-{% if q %}
-<div style="margin: 16px 0; color: #94a3b8;">
-    Resultados para "{{ q }}"
+{% if has_search %}
+<div style="margin: 16px 0; color: #64748b; font-size: 14px;">
+    Resultados{% if q %} para "{{ q }}"{% endif %}{% if filtro_suc %} · {{ filtro_suc }}{% endif %}{% if modulo != 'todo' %} · {{ modulo|title }}{% endif %}{% if filtro_estado %} · {{ filtro_estado }}{% endif %}
 </div>
 
 {% if resultados %}
@@ -58,6 +126,11 @@
         </tbody>
     </table>
 </div>
+{% endif %}
+
+{% if resultados_stock %}
+<h3 style="margin: 18px 0 10px; font-size: 13px; text-transform: uppercase; color: #64748b;">Stock ({{ resultados_stock|length }})</h3>
+<div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Origen</th><th>Sucursal</th><th>Material</th><th>Cantidad</th><th>Precio</th></tr></thead><tbody>{% for s in resultados_stock %}<tr><td>{{ s.origen }}</td><td>{{ s.sucursal or 'Central' }}</td><td>{{ s.item }}</td><td>{{ s.cantidad }}</td><td>{% if s.precio_unitario %}ARS {{ s.precio_unitario }}{% else %}-{% endif %}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 
 {% if resultados_presupuestos %}
@@ -90,7 +163,7 @@
 <div class="card" style="padding:0;overflow:hidden;"><table><thead><tr><th>Tipo</th><th>Número</th><th>Proveedor</th><th>Sucursal</th></tr></thead><tbody>{% for c in resultados_comprobantes %}<tr><td>{{ c.tipo }}</td><td>{{ c.numero or '-' }}</td><td>{{ c.proveedor or '-' }}</td><td>{{ c.sucursal or '-' }}</td></tr>{% endfor %}</tbody></table></div>
 {% endif %}
 
-{% if not resultados and not resultados_presupuestos and not resultados_ceyh and not resultados_permisos and not resultados_habilitaciones and not resultados_matafuegos and not resultados_comprobantes %}
+{% if not resultados and not resultados_stock and not resultados_presupuestos and not resultados_ceyh and not resultados_permisos and not resultados_habilitaciones and not resultados_matafuegos and not resultados_comprobantes %}
 <div class="card" style="text-align: center; padding: 40px; color: #475569;">
     No se encontraron resultados
 </div>
