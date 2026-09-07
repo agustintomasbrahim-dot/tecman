@@ -3188,6 +3188,8 @@ def save_tickets(tickets):
 
 MIGRATION_PENDING_PROVIDER_CLEANUP = {
     "gerardo goog",
+    "gustavo blanco",
+    "javier",
     "julio fuga",
     "julio fuga (jrf)",
     "adriel",
