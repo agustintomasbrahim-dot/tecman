@@ -1420,6 +1420,11 @@ def _set_user_password(user, new_password, must_change=False):
     _audit_event("password_changed", user=user, provider="local")
 
 
+def _generate_temporary_password(length=18):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 def _create_auth_user(form):
     username = form.get("username", "").strip().lower() or None
     email = form.get("email", "").strip().lower() or None
@@ -4800,12 +4805,18 @@ def admin_usuarios_accion(user_id):
             elif action == "force_password_change":
                 user.must_change_password = True
                 _audit_event("force_password_change", user=user)
+            elif action == "generate_temp_password":
+                temp_password = _generate_temporary_password()
+                _set_user_password(user, temp_password, must_change=False)
+                _audit_event("temporary_password_generated", user=user, provider="local")
+                flash(f"Contraseña temporal generada para {user.username or user.email}: {temp_password}")
             elif action == "revoke_sessions":
                 user.session_version = (user.session_version or 1) + 1
                 _audit_event("sessions_revoked", user=user)
             else:
                 raise ValueError("Acción inválida")
-            db.session.commit()
+            if action != "generate_temp_password":
+                db.session.commit()
         else:
             if action == "enable":
                 user["status"] = "active"
@@ -4826,13 +4837,20 @@ def admin_usuarios_accion(user_id):
             elif action == "force_password_change":
                 user["must_change_password"] = True
                 _audit_event("force_password_change", user=user)
+            elif action == "generate_temp_password":
+                temp_password = _generate_temporary_password()
+                _set_user_password(user, temp_password, must_change=False)
+                _audit_event("temporary_password_generated", user=user, provider="local")
+                flash(f"Contraseña temporal generada para {user.get('username') or user.get('email')}: {temp_password}")
             elif action == "revoke_sessions":
                 user["session_version"] = int(user.get("session_version", 1)) + 1
                 _audit_event("sessions_revoked", user=user)
             else:
                 raise ValueError("Acción inválida")
-            _save_json_user(user)
-        flash("Acción aplicada")
+            if action != "generate_temp_password":
+                _save_json_user(user)
+        if action != "generate_temp_password":
+            flash("Acción aplicada")
     except Exception as e:
         flash(str(e))
     return redirect(url_for("admin_usuarios"))

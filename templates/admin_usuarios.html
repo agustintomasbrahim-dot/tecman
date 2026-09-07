@@ -53,6 +53,9 @@
                             {% endif %}
                             <button class="btn btn-sm btn-outline" name="action" value="unblock" type="submit">Desbloquear</button>
                             <button class="btn btn-sm btn-outline" name="action" value="force_password_change" type="submit">Forzar cambio</button>
+                            {% if u.auth_provider in ['local', 'both'] %}
+                            <button class="btn btn-sm btn-warning" name="action" value="generate_temp_password" type="submit">Generar temporal</button>
+                            {% endif %}
                             <button class="btn btn-sm btn-outline" name="action" value="revoke_sessions" type="submit">Revocar sesiones</button>
                         </form>
                     </td>
