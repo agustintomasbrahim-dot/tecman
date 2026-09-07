@@ -39,18 +39,103 @@
     .pedido-meta { font-size:12px; color:#64748b; line-height:1.35; }
     .pedido-empty { padding:18px 10px; text-align:center; color:#94a3b8; font-size:12px; }
     .pedido-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+    .pedido-simple-grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr); gap:16px; align-items:start; }
+    .pedido-simple-section { background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+    .pedido-simple-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .pedido-simple-title { font-size:16px; font-weight:800; color:#0f172a; }
+    .pedido-simple-body { display:grid; gap:10px; padding:12px; }
+    .pedido-simple-card { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; text-decoration:none; color:#0f172a; border:1px solid #e5e7eb; border-radius:8px; padding:14px; background:#fff; }
+    .pedido-simple-card:hover { border-color:#93c5fd; box-shadow:0 8px 20px rgba(15,23,42,.08); }
+    .pedido-simple-main { font-size:16px; font-weight:800; color:#111827; line-height:1.25; margin-bottom:6px; }
+    .pedido-simple-meta { font-size:13px; color:#64748b; line-height:1.35; }
+    .pedido-simple-action { min-width:98px; text-align:center; border-radius:6px; padding:9px 12px; background:#e63946; color:#fff; font-size:13px; font-weight:800; }
+    .pedido-simple-empty { color:#94a3b8; text-align:center; padding:24px 12px; font-weight:700; }
+    .pedido-simple-stats { display:grid; grid-template-columns:repeat(3,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
+    .pedido-simple-stat { border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:14px; }
+    .pedido-simple-stat strong { display:block; font-size:28px; line-height:1; margin-bottom:6px; }
+    .pedido-simple-stat span { font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase; }
     @media (max-width: 1180px) { .pedidos-grid { grid-template-columns:repeat(2, minmax(220px, 1fr)); } }
-    @media (max-width: 640px) { .pedidos-grid { grid-template-columns:1fr; } }
+    @media (max-width: 900px) { .pedido-simple-grid { grid-template-columns:1fr; } }
+    @media (max-width: 640px) {
+        .pedidos-grid { grid-template-columns:1fr; }
+        .pedido-simple-stats { grid-template-columns:1fr; }
+        .pedido-simple-card { grid-template-columns:1fr; }
+        .pedido-simple-action { width:100%; }
+    }
 </style>
 
 <div class="pedidos-head">
     <div>
         <h2 style="margin:0;">Pedidos de Materiales</h2>
-        <p>Bandeja diaria para revisar stock, requisición, compras, envío y recepción.</p>
+        <p>{% if session.rol == 'tecnico' %}Lista simple para revisar stock y seguir pedidos.{% else %}Bandeja diaria para revisar stock, requisición, compras, envío y recepción.{% endif %}</p>
     </div>
     <a href="{{ url_for('admin_materiales' if session.rol == 'tecnico' else 'admin_panel') }}" class="btn btn-sm btn-outline">Inicio</a>
 </div>
 
+{% if session.rol == 'tecnico' %}
+<div class="pedido-simple-stats">
+    <div class="pedido-simple-stat">
+        <strong style="color:#dc2626;">{{ materiales.counts.nuevo }}</strong>
+        <span>Revisar stock</span>
+    </div>
+    <div class="pedido-simple-stat">
+        <strong style="color:#0f766e;">{{ materiales.counts.requisicion + materiales.counts.compras }}</strong>
+        <span>Rita / Compras</span>
+    </div>
+    <div class="pedido-simple-stat">
+        <strong style="color:#1d4ed8;">{{ materiales.counts.preparar_envio + materiales.counts.enviado }}</strong>
+        <span>En seguimiento</span>
+    </div>
+</div>
+
+<div class="pedido-simple-grid">
+    <section class="pedido-simple-section" style="border-top:4px solid #dc2626;">
+        <div class="pedido-simple-head" style="background:#fef2f2;">
+            <div class="pedido-simple-title" style="color:#991b1b;">Para revisar stock</div>
+            <span class="pedido-col-count" style="background:#fff;color:#dc2626;">{{ materiales.columns.nuevo|length }}</span>
+        </div>
+        <div class="pedido-simple-body">
+            {% for t in materiales.columns.nuevo %}
+            <a class="pedido-simple-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
+                <div>
+                    <div class="pedido-simple-main">#{{ t.id }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
+                    <div class="pedido-simple-meta">{{ t.sucursal }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}{% if t.cantidad_mat %} · Cantidad {{ t.cantidad_mat }}{% endif %}</div>
+                </div>
+                <div class="pedido-simple-action">Abrir</div>
+            </a>
+            {% endfor %}
+            {% if not materiales.columns.nuevo %}
+            <div class="pedido-simple-empty">Sin pedidos para revisar.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="pedido-simple-section">
+        <div class="pedido-simple-head" style="background:#f8fafc;">
+            <div class="pedido-simple-title">En seguimiento</div>
+            <span class="pedido-col-count" style="background:#fff;color:#475569;">{{ materiales.counts.requisicion + materiales.counts.compras + materiales.counts.preparar_envio + materiales.counts.enviado + materiales.counts.recibido }}</span>
+        </div>
+        <div class="pedido-simple-body">
+            {% for stage in ['requisicion', 'compras', 'preparar_envio', 'enviado', 'recibido'] %}
+            {% set meta = material_stage_meta[stage] %}
+            {% for t in materiales.columns[stage] %}
+            <a class="pedido-simple-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
+                <div>
+                    <div style="margin-bottom:6px;"><span class="pedido-badge" style="background:{{ meta.bg }};color:{{ meta.color }};">{{ meta.label }}</span></div>
+                    <div class="pedido-simple-main">#{{ t.id }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
+                    <div class="pedido-simple-meta">{{ t.sucursal }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}</div>
+                </div>
+                <div class="pedido-simple-action" style="background:#f8fafc;color:#334155;border:1px solid #e5e7eb;">Ver</div>
+            </a>
+            {% endfor %}
+            {% endfor %}
+            {% if materiales.counts.requisicion + materiales.counts.compras + materiales.counts.preparar_envio + materiales.counts.enviado + materiales.counts.recibido == 0 %}
+            <div class="pedido-simple-empty">Sin pedidos en seguimiento.</div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% else %}
 <div class="stats">
     <div class="stat-card">
         <div class="number" style="color:#0f172a;">{{ materiales.total }}</div>
@@ -119,6 +204,7 @@
 <div class="card" style="text-align:center;padding:32px;color:#64748b;margin-top:16px;">
     Todavía no hay pedidos de materiales cargados en el flujo nuevo.
 </div>
+{% endif %}
 {% endif %}
 
 {% endblock %}
