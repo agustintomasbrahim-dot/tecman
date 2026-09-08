@@ -3508,6 +3508,8 @@ def _is_material_ticket(ticket):
 
 
 def _ticket_requiere_requisicion_rita(ticket):
+    if not _is_ticket_operativo(ticket):
+        return False
     if ticket.get("requiere_requisicion") and ticket.get("categoria") == "Presupuestos" and ticket.get("estado_presupuesto") == "Aprobado":
         return True
     if _is_material_ticket(ticket) and ticket.get("requiere_requisicion"):
@@ -4771,7 +4773,7 @@ def admin_panel():
     sync_alertas_syh()
     tickets = load_tickets()
     tickets_visibles = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
-    tickets_operativos = [t for t in tickets_visibles if t.get("estado") != "Rechazado"]
+    tickets_operativos = [t for t in tickets_visibles if _is_ticket_operativo(t)]
     filtro_estado = request.args.get("estado", "")
     filtro_suc = request.args.get("sucursal", "")
     filtro_prioridad = request.args.get("prioridad", "")
@@ -4781,7 +4783,7 @@ def admin_panel():
     if es_rita:
         filtered = list(tickets_rita_pendientes)
     else:
-        filtered = tickets_visibles if filtro_estado == "Rechazado" else tickets_operativos
+        filtered = tickets_visibles if filtro_estado in ("Rechazado", "Finalizados", "Resuelto", "Cerrado") else tickets_operativos
         if filtro_estado:
             filtered = [t for t in filtered if _ticket_matches_estado_filter(t, filtro_estado)]
         if filtro_suc:
@@ -4826,7 +4828,7 @@ def admin_panel():
             filtered = list(tickets_rita_pendientes)
         else:
             filtered = list(mis_asignados)
-            if filtro_estado == "Rechazado":
+            if filtro_estado in ("Rechazado", "Finalizados", "Resuelto", "Cerrado"):
                 filtered = tickets_visibles
             elif filtro_estado:
                 filtered = list(tickets_operativos)
