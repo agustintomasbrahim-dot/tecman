@@ -9,13 +9,17 @@
     <a href="{{ url_for('admin_panel', vista='dashboard') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
     <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
-    <a href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos de materiales</a>
+    <a href="{{ url_for('admin_panel', vista='alertas') }}">Alertas{% if (notif_admin|length + alertas|length) > 0 %} ({{ notif_admin|length + alertas|length }}){% endif %}</a>
+    <a href="{{ url_for('admin_panel', vista='metricas') }}">Métricas</a>
+    <a class="admin-nav-right" href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
     {% endif %}
-    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+    <a class="{% if es_rita %}admin-nav-right{% endif %}" href="{{ url_for('admin_logout') }}">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
 {% block content %}
 <style>
+    .nav .admin-nav-right { margin-left:auto; }
     .admin-groups { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0 20px; }
     .admin-group-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:16px; box-shadow:0 8px 24px rgba(15,23,42,.04); }
     .admin-group-title { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:10px; font-weight:700; }
@@ -42,10 +46,16 @@
     .admin-sheet-sub { margin-top:3px; font-size:12px; color:#64748b; line-height:1.35; }
     .admin-sheet-muted { color:#64748b; font-size:12px; }
     .admin-sheet-date { color:#94a3b8; white-space:nowrap; font-size:12px; }
+    .metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:16px 0; }
+    .metric-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:16px; }
+    .metric-card .label { color:#64748b; font-size:11px; font-weight:700; text-transform:uppercase; }
+    .metric-card .value { color:#0f172a; font-size:26px; font-weight:800; margin-top:6px; }
+    .metric-table { min-width:720px; }
     @media (max-width: 640px) {
         .admin-sheet-table { min-width:760px; }
         .admin-sheet-actions { width:100%; }
         .admin-sheet-actions .btn { flex:1; }
+        .nav .admin-nav-right { margin-left:0; }
     }
 </style>
 
@@ -72,57 +82,6 @@
 </div>
 {% endif %}
 
-{% if not es_rita and notif_admin %}
-<!-- Notificaciones para admins -->
-<div class="card" style="border-left: 4px solid #2563eb; margin-bottom: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; cursor: pointer;" onclick="toggleNotif()">
-        <div>
-            <h3 style="margin: 0; font-size: 15px; color: #1e40af;">🔔 Notificaciones ({{ notif_admin | length }}) <span id="notif-arrow" style="font-size:12px;">▶</span></h3>
-            <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{% if notif_criticas %}<strong style="color:#b91c1c;">{{ notif_criticas }} crítica{{ 's' if notif_criticas != 1 }}</strong> · {% endif %}Tocá para ver</div>
-        </div>
-        <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin: 0;" onclick="event.stopPropagation()">
-            <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #374151; font-size: 12px;">Marcar todas como leídas</button>
-        </form>
-    </div>
-    <div id="notif-lista" style="display: none; margin-top: 10px; max-height: 320px; overflow-y: auto;">
-    {% for n in notif_admin %}
-    <div style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
-        <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
-            <div style="flex: 1; min-width: 0;">
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:{% if n.es_critica %}#fee2e2{% else %}#dbeafe{% endif %};color:{% if n.es_critica %}#b91c1c{% else %}#1d4ed8{% endif %};">{{ n.tipo_label }}</span>
-                    {% if n.es_critica %}<span style="font-size:11px;font-weight:700;color:#b91c1c;">Requiere atención</span>{% endif %}
-                </div>
-                <p style="font-weight: 700; color: {% if n.es_critica %}#991b1b{% else %}#1e40af{% endif %}; font-size: 14px; margin-bottom: 4px;">{{ n.titulo }}</p>
-                <p style="color: #374151; font-size: 13px; white-space: pre-line; margin-bottom: 6px;">{{ n.detalle }}</p>
-                <span style="font-size: 11px; color: #6b7280;">{{ n.autor or 'Sistema' }} — {{ n.fecha[:16].replace('T', ' ') }}</span>
-            </div>
-            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                {% if n.link %}<a href="{{ n.link }}" class="btn btn-sm" style="background: #dbeafe; color: #1e40af; font-size: 11px;">Ver</a>{% endif %}
-                <form method="POST" action="{{ url_for('admin_notif_leer', nid=n.id) }}" style="margin: 0;">
-                    <button type="submit" class="btn btn-sm" style="background: #f3f4f6; color: #6b7280; font-size: 11px;">✓</button>
-                </form>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-    </div>
-</div>
-<script>
-function toggleNotif() {
-    var lista = document.getElementById('notif-lista');
-    var arrow = document.getElementById('notif-arrow');
-    if (lista.style.display === 'none') {
-        lista.style.display = 'block';
-        arrow.textContent = '▼';
-    } else {
-        lista.style.display = 'none';
-        arrow.textContent = '▶';
-    }
-}
-</script>
-{% endif %}
-
 {% if not es_rita %}
 <!-- Quick access bar like InvGate -->
 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
@@ -138,56 +97,6 @@ function toggleNotif() {
         <div class="number" style="color: #059669;">{{ stats.resueltos }}</div>
         <div class="label">Finalizados</div>
     </a>
-</div>
-{% endif %}
-
-{% if not es_rita and session.rol == 'admin' %}
-<div class="card" style="border-left:4px solid #0f766e;margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-        <div>
-            <h3 style="margin:0;font-size:15px;color:#0f766e;">Pedidos de materiales</h3>
-            <div style="font-size:12px;color:#64748b;margin-top:4px;">Resumen para Agustín y Carolina</div>
-        </div>
-        <a href="{{ url_for('admin_pedidos') }}" class="btn btn-sm" style="background:#ccfbf1;color:#0f766e;">Abrir bandeja</a>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">
-        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#0f172a;">{{ materiales_resumen.total }}</div>
-            <div style="font-size:11px;color:#64748b;font-weight:700;">Abiertos</div>
-        </div>
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#dc2626;">{{ materiales_resumen.counts.nuevo }}</div>
-            <div style="font-size:11px;color:#991b1b;font-weight:700;">Revisar stock</div>
-        </div>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#b45309;">{{ materiales_resumen.counts.compras }}</div>
-            <div style="font-size:11px;color:#92400e;font-weight:700;">Compras</div>
-        </div>
-        <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#0f766e;">{{ materiales_resumen.counts.requisicion }}</div>
-            <div style="font-size:11px;color:#115e59;font-weight:700;">Rita</div>
-        </div>
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#1d4ed8;">{{ materiales_resumen.counts.preparar_envio }}</div>
-            <div style="font-size:11px;color:#1e40af;font-weight:700;">Preparar envío</div>
-        </div>
-        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#6d28d9;">{{ materiales_resumen.counts.enviado }}</div>
-            <div style="font-size:11px;color:#5b21b6;font-weight:700;">Sin recepción</div>
-        </div>
-        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:10px;">
-            <div style="font-size:22px;font-weight:800;color:#047857;">{{ materiales_resumen.atrasados|length }}</div>
-            <div style="font-size:11px;color:#065f46;font-weight:700;">+7 días</div>
-        </div>
-    </div>
-    {% if materiales_resumen.top_sucursales %}
-    <div style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:10px;font-size:12px;color:#64748b;">
-        <strong style="color:#334155;">Sucursales con más pedidos:</strong>
-        {% for suc, count in materiales_resumen.top_sucursales %}
-        <span style="display:inline-flex;margin:4px 4px 0 0;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#334155;font-weight:700;">{{ suc|replace('Sucursal ', 'Suc ') }} · {{ count }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
 </div>
 {% endif %}
 
@@ -213,6 +122,151 @@ function toggleNotif() {
         </tbody>
     </table>
 </div>
+{% elif vista == 'alertas' %}
+<div class="admin-sheet-header">
+    <div>
+        <h2>Alertas</h2>
+        <p>Notificaciones pendientes y tickets antiguos que requieren seguimiento.</p>
+    </div>
+    <div class="admin-sheet-count">{{ notif_admin|length + alertas|length }} alerta{{ '' if (notif_admin|length + alertas|length) == 1 else 's' }}</div>
+</div>
+
+<div class="card" style="border-left: 4px solid #2563eb;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <h3 style="margin:0;color:#1e40af;">Notificaciones ({{ notif_admin|length }})</h3>
+        {% if notif_admin %}
+        <form method="POST" action="{{ url_for('admin_notif_leer_todas') }}" style="margin:0;">
+            <button type="submit" class="btn btn-sm" style="background:#f3f4f6;color:#374151;">Marcar todas como leídas</button>
+        </form>
+        {% endif %}
+    </div>
+    {% for n in notif_admin %}
+    <div style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid #f3f4f6;{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                    <span style="font-size:11px;font-weight:700;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:{% if n.es_critica %}#fee2e2{% else %}#dbeafe{% endif %};color:{% if n.es_critica %}#b91c1c{% else %}#1d4ed8{% endif %};">{{ n.tipo_label }}</span>
+                    {% if n.es_critica %}<span style="font-size:11px;font-weight:700;color:#b91c1c;">Requiere atención</span>{% endif %}
+                </div>
+                <p style="font-weight:700;color:{% if n.es_critica %}#991b1b{% else %}#1e40af{% endif %};font-size:14px;margin-bottom:4px;">{{ n.titulo }}</p>
+                <p style="color:#374151;font-size:13px;white-space:pre-line;margin-bottom:6px;">{{ n.detalle }}</p>
+                <span style="font-size:11px;color:#6b7280;">{{ n.autor or 'Sistema' }} — {{ n.fecha[:16].replace('T', ' ') }}</span>
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                {% if n.link %}<a href="{{ n.link }}" class="btn btn-sm" style="background:#dbeafe;color:#1e40af;font-size:11px;">Ver</a>{% endif %}
+                <form method="POST" action="{{ url_for('admin_notif_leer', nid=n.id) }}" style="margin:0;">
+                    <button type="submit" class="btn btn-sm" style="background:#f3f4f6;color:#6b7280;font-size:11px;">✓</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% if not notif_admin %}<div style="padding:18px 0;color:#9ca3af;">No hay notificaciones pendientes.</div>{% endif %}
+</div>
+
+<div class="card" style="border-left: 4px solid #ef4444;">
+    <h3 style="color:#dc2626;margin-bottom:12px;">Tickets con más de 5 meses ({{ alertas|length }})</h3>
+    {% for t in alertas[:25] %}
+    <a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f3f4f6;text-decoration:none;color:#1e293b;">
+        <div>
+            <span style="color:#e63946;font-weight:700;">#{{ t.id }}</span>
+            <span style="margin-left:8px;">{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</span>
+            <span style="color:#6b7280;margin-left:8px;">{{ t.subcategoria }}</span>
+        </div>
+        <span style="color:#dc2626;font-weight:700;font-size:13px;">{{ t.dias }} días</span>
+    </a>
+    {% endfor %}
+    {% if alertas|length > 25 %}<div style="text-align:center;padding:8px;color:#9ca3af;font-size:13px;">y {{ alertas|length - 25 }} más...</div>{% endif %}
+    {% if not alertas %}<div style="padding:18px 0;color:#9ca3af;">No hay tickets antiguos pendientes.</div>{% endif %}
+</div>
+
+{% elif vista == 'metricas' %}
+<div class="admin-sheet-header">
+    <div>
+        <h2>Métricas</h2>
+        <p>Tiempos y volumen operativo de tickets, materiales y presupuestos.</p>
+    </div>
+    <div class="admin-sheet-count">{{ metricas_resumen.abiertos }} abiertos</div>
+</div>
+
+<div class="metric-grid">
+    <div class="metric-card"><div class="label">Abiertos</div><div class="value">{{ metricas_resumen.abiertos }}</div></div>
+    <div class="metric-card"><div class="label">Finalizados</div><div class="value">{{ metricas_resumen.finalizados }}</div></div>
+    <div class="metric-card"><div class="label">Antigüedad promedio</div><div class="value">{{ metricas_resumen.promedio_abiertos }}</div></div>
+    <div class="metric-card"><div class="label">Cierre promedio</div><div class="value">{{ metricas_resumen.promedio_cierre }}</div></div>
+    <div class="metric-card"><div class="label">Abiertos +7 días</div><div class="value">{{ metricas_resumen.abiertos_mas_7 }}</div></div>
+    <div class="metric-card"><div class="label">Abiertos +30 días</div><div class="value">{{ metricas_resumen.abiertos_mas_30 }}</div></div>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+    <div class="admin-sheet-wrap">
+        <table class="metric-table">
+            <thead>
+                <tr><th>Módulo</th><th>Abiertos</th><th>Finalizados</th><th>Antigüedad abiertos</th><th>Cierre promedio</th></tr>
+            </thead>
+            <tbody>
+                {% for m in metricas_resumen.modulos %}
+                <tr>
+                    <td style="font-weight:700;color:#0f172a;">{{ m.nombre }}</td>
+                    <td>{{ m.abiertos }}</td>
+                    <td>{{ m.finalizados }}</td>
+                    <td>{{ m.edad_promedio }}</td>
+                    <td>{{ m.cierre_promedio }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="card">
+        <h3 style="margin-bottom:16px;font-size:15px;color:#374151;">Solicitudes por prioridad</h3>
+        <canvas id="chartPrioridad" height="200"></canvas>
+    </div>
+    <div class="card">
+        <h3 style="margin-bottom:16px;font-size:15px;color:#374151;">Solicitudes por categoría</h3>
+        <canvas id="chartCategoria" height="200"></canvas>
+    </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+    <h3 style="margin-bottom:16px;font-size:15px;color:#374151;">Solicitudes por agente</h3>
+    <canvas id="chartAgente" height="150"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.color = '#6b7280';
+Chart.defaults.borderColor = '#e5e7eb';
+
+new Chart(document.getElementById('chartPrioridad'), {
+    type: 'doughnut',
+    data: {
+        labels: {{ prioridad_counts.keys() | list | tojson }},
+        datasets: [{ data: {{ prioridad_counts.values() | list | tojson }}, backgroundColor: ['#ef4444', '#f59e0b', '#0ea5e9', '#10b981'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'right', labels: { padding: 16 } } } }
+});
+
+new Chart(document.getElementById('chartCategoria'), {
+    type: 'doughnut',
+    data: {
+        labels: {{ categoria_counts.keys() | list | tojson }},
+        datasets: [{ data: {{ categoria_counts.values() | list | tojson }}, backgroundColor: ['#0ea5e9','#f59e0b','#10b981','#a78bfa','#f87171','#fbbf24','#38bdf8','#34d399'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'right', labels: { padding: 12 } } } }
+});
+
+new Chart(document.getElementById('chartAgente'), {
+    type: 'bar',
+    data: {
+        labels: {{ asignado_counts.keys() | list | tojson }},
+        datasets: [{ label: 'Tickets', data: {{ asignado_counts.values() | list | tojson }}, backgroundColor: '#0ea5e9', borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } }
+});
+</script>
 {% elif vista == 'tarjetas' %}
 <!-- CARD VIEW (like InvGate mywork) -->
 <div class="card" style="padding: 16px;">
@@ -409,6 +463,8 @@ function toggleNotif() {
     <div class="admin-group-card">
         <div class="admin-group-title">Soporte y análisis</div>
         <div class="admin-group-links">
+            <a class="admin-group-link" href="{{ url_for('admin_panel', vista='metricas') }}"><span>Métricas</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_panel', vista='alertas') }}"><span>Alertas</span><span>{{ notif_admin|length + alertas|length }}</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_mapa') }}"><span>Mapa</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_exportar') }}"><span>Exportar</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_syh_docs') }}"><span>Gestión docs S&H</span><span>›</span></a>
@@ -425,99 +481,6 @@ function toggleNotif() {
         </button>
     </form>
 </div>
-
-{% if alertas %}
-<div class="card" style="border-left: 4px solid #ef4444; margin-bottom: 20px;">
-    <h3 style="color: #dc2626; margin-bottom: 12px;">&#9888; Alertas: {{ alertas | length }} tickets con mas de 5 meses</h3>
-    <div style="max-height: 200px; overflow-y: auto;">
-    {% for t in alertas[:10] %}
-    <a href="{{ url_for('admin_ticket', ticket_id=t.id) }}" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; text-decoration: none; color: #1e293b;">
-        <div>
-            <span style="color: #e63946; font-weight: 700;">#{{ t.id }}</span>
-            <span style="margin-left: 8px;">{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</span>
-            <span style="color: #6b7280; margin-left: 8px;">{{ t.subcategoria }}</span>
-        </div>
-        <span style="color: #dc2626; font-weight: 700; font-size: 13px;">{{ t.dias }} dias</span>
-    </a>
-    {% endfor %}
-    {% if alertas | length > 10 %}
-    <div style="text-align: center; padding: 8px; color: #9ca3af; font-size: 13px;">y {{ alertas | length - 10 }} mas...</div>
-    {% endif %}
-    </div>
-</div>
-{% endif %}
-
-<div class="stats">
-    <div class="stat-card" style="grid-column: span 2;">
-        <div class="number" style="font-size: 48px;">{{ stats.total }}</div>
-        <div class="label">Total de solicitudes</div>
-    </div>
-    <div class="stat-card"><div class="number" style="color: #0ea5e9;">{{ stats.nuevos }}</div><div class="label">Nuevos</div></div>
-    <div class="stat-card"><div class="number" style="color: #6d28d9;">{{ stats.en_progreso }}</div><div class="label">En proceso</div></div>
-    <div class="stat-card"><div class="number" style="color: #10b981;">{{ stats.resueltos }}</div><div class="label">Resueltos</div></div>
-</div>
-
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-    <div class="card">
-        <h3 style="margin-bottom: 16px; font-size: 15px; color: #374151;">Solicitudes por Prioridad</h3>
-        <canvas id="chartPrioridad" height="200"></canvas>
-    </div>
-    <div class="card">
-        <h3 style="margin-bottom: 16px; font-size: 15px; color: #374151;">Solicitudes por Categoria</h3>
-        <canvas id="chartCategoria" height="200"></canvas>
-    </div>
-</div>
-
-<div class="card" style="margin-top: 16px;">
-    <h3 style="margin-bottom: 16px; font-size: 15px; color: #374151;">Solicitudes por Agente</h3>
-    <canvas id="chartAgente" height="150"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-Chart.defaults.color = '#6b7280';
-Chart.defaults.borderColor = '#e5e7eb';
-
-new Chart(document.getElementById('chartPrioridad'), {
-    type: 'doughnut',
-    data: {
-        labels: {{ prioridad_counts.keys() | list | tojson }},
-        datasets: [{
-            data: {{ prioridad_counts.values() | list | tojson }},
-            backgroundColor: ['#ef4444', '#f59e0b', '#0ea5e9', '#10b981'],
-            borderWidth: 0
-        }]
-    },
-    options: { responsive: true, plugins: { legend: { position: 'right', labels: { padding: 16 } } } }
-});
-
-new Chart(document.getElementById('chartCategoria'), {
-    type: 'doughnut',
-    data: {
-        labels: {{ categoria_counts.keys() | list | tojson }},
-        datasets: [{
-            data: {{ categoria_counts.values() | list | tojson }},
-            backgroundColor: ['#0ea5e9','#f59e0b','#10b981','#a78bfa','#f87171','#fbbf24','#38bdf8','#34d399'],
-            borderWidth: 0
-        }]
-    },
-    options: { responsive: true, plugins: { legend: { position: 'right', labels: { padding: 12 } } } }
-});
-
-new Chart(document.getElementById('chartAgente'), {
-    type: 'bar',
-    data: {
-        labels: {{ asignado_counts.keys() | list | tojson }},
-        datasets: [{
-            label: 'Tickets',
-            data: {{ asignado_counts.values() | list | tojson }},
-            backgroundColor: '#0ea5e9',
-            borderRadius: 6
-        }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' } }, x: { grid: { display: false } } } }
-});
-</script>
 {% endif %}
 
 {% endblock %}

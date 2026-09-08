@@ -4853,6 +4853,81 @@ def admin_logout():
     return redirect(url_for("admin_login"))
 
 
+def _parse_ticket_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def _avg_days_label(values):
+    values = [v for v in values if v is not None]
+    if not values:
+        return "-"
+    avg = sum(values) / len(values)
+    if avg < 1:
+        return "< 1 dia"
+    return f"{avg:.1f} dias"
+
+
+def _admin_metricas_resumen(tickets_visibles, tickets_operativos):
+    now = datetime.datetime.now()
+    finalizados = [t for t in tickets_visibles if t.get("estado") in ("Resuelto", "Cerrado")]
+    abiertos_edades = []
+    cierre_dias = []
+    por_modulo = {
+        "Materiales": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
+        "Presupuestos": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
+        "Tickets": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
+    }
+
+    def modulo(ticket):
+        if _is_material_ticket(ticket):
+            return "Materiales"
+        if ticket.get("categoria") == "Presupuestos":
+            return "Presupuestos"
+        return "Tickets"
+
+    for ticket in tickets_operativos:
+        created = _parse_ticket_datetime(ticket.get("creado"))
+        age = (now - created).days if created else None
+        abiertos_edades.append(age)
+        mod = modulo(ticket)
+        por_modulo[mod]["abiertos"] += 1
+        por_modulo[mod]["edades"].append(age)
+
+    for ticket in finalizados:
+        created = _parse_ticket_datetime(ticket.get("creado"))
+        closed = _parse_ticket_datetime(ticket.get("fecha_cierre") or ticket.get("actualizado"))
+        days = (closed - created).days if created and closed and closed >= created else None
+        cierre_dias.append(days)
+        mod = modulo(ticket)
+        por_modulo[mod]["finalizados"] += 1
+        por_modulo[mod]["cierres"].append(days)
+
+    modulos = []
+    for nombre, data in por_modulo.items():
+        modulos.append({
+            "nombre": nombre,
+            "abiertos": data["abiertos"],
+            "finalizados": data["finalizados"],
+            "edad_promedio": _avg_days_label(data["edades"]),
+            "cierre_promedio": _avg_days_label(data["cierres"]),
+        })
+
+    return {
+        "abiertos": len(tickets_operativos),
+        "finalizados": len(finalizados),
+        "abiertos_mas_7": sum(1 for d in abiertos_edades if d is not None and d >= 7),
+        "abiertos_mas_30": sum(1 for d in abiertos_edades if d is not None and d >= 30),
+        "promedio_abiertos": _avg_days_label(abiertos_edades),
+        "promedio_cierre": _avg_days_label(cierre_dias),
+        "modulos": modulos,
+    }
+
+
 @app.route("/admin")
 @login_required
 def admin_panel():
@@ -4887,6 +4962,7 @@ def admin_panel():
         "resueltos": sum(1 for t in tickets_visibles if t["estado"] in ("Resuelto", "Cerrado")),
     }
     materiales_resumen = _material_dashboard(tickets_operativos)
+    metricas_resumen = _admin_metricas_resumen(tickets_visibles, tickets_operativos)
 
     # Chart data
     from collections import Counter
@@ -4987,6 +5063,7 @@ def admin_panel():
         notif_admin=notif_admin,
         tickets_rita_pendientes=tickets_rita_pendientes,
         materiales_resumen=materiales_resumen,
+        metricas_resumen=metricas_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
     )
