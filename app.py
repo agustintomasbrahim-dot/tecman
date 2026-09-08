@@ -230,7 +230,7 @@ CATEGORIAS = {
     "Pintura": ["Interior", "Exterior", "Durlock reparación", "Otra pintura"],
     "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
     "Materiales": ["Solicitud de materiales"],
-    "Compras no productivas": ["Insumos", "Mobiliario", "Herramientas", "Cartelería", "Librería", "Otro pedido"],
+    "Compras no productivas": ["Insumos", "Herramientas", "Librería", "Otro pedido"],
     "Presupuestos": ["Cortinas", "Filtraciones", "Aire acondicionado", "Electricidad", "Pintura", "Plomería", "Carpintería", "Vidriería", "Matafuegos", "Habilitaciones", "Otro presupuesto"],
     "Seguridad e Higiene": ["Consulta de habilitación", "Permiso", "Documentación faltante", "Otra asistencia S&H"],
     "Otro": ["Otro"],
