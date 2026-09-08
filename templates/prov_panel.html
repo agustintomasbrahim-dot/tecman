@@ -110,7 +110,7 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div>
         <h2>{{ session.prov_nombre }}</h2>
-        <p style="color: #64748b;">Portal de proveedor{% if session.prov_tipo_cuenta == 'abono_fijo' %} · abono fijo{% endif %}</p>
+        <p style="color: #64748b;">Portal de proveedor{% if session.prov_tipo_cuenta == 'abono_fijo' %} · abono fijo{% elif session.prov_full_access %} · acceso total{% endif %}</p>
     </div>
     <div style="display: flex; gap: 12px;">
         <div class="stat-card" style="min-width: 100px;">
@@ -123,6 +123,26 @@
         </div>
     </div>
 </div>
+
+{% if sucursales_pendientes %}
+<div class="card" style="padding:14px 16px;margin-bottom:16px;">
+    <form method="GET" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+        <div style="min-width:180px;flex:1;">
+            <label style="display:block;font-size:12px;color:#64748b;font-weight:700;margin-bottom:6px;">Filtrar pendientes por sucursal</label>
+            <select name="sucursal" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:white;color:#111827;">
+                <option value="">Todas las sucursales</option>
+                {% for suc in sucursales_pendientes %}
+                <option value="{{ suc }}" {% if filtro_sucursal == suc %}selected{% endif %}>Sucursal {{ suc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn" style="background:#f59e0b;color:#111827;font-weight:700;padding:10px 16px;">Filtrar</button>
+        {% if filtro_sucursal %}
+        <a href="{{ url_for('prov_panel') }}" class="btn" style="background:#f3f4f6;color:#374151;padding:10px 16px;text-decoration:none;">Limpiar</a>
+        {% endif %}
+    </form>
+</div>
+{% endif %}
 
 {% if proveedores_abono %}
 <div class="card" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 16px;">
@@ -265,14 +285,15 @@
 <div class="card" style="padding: 0; overflow: hidden;">
     <table>
         <thead>
-            <tr><th>#</th><th>Sucursal</th><th>Problema</th><th>Fecha</th></tr>
+            <tr><th>#</th><th>Sucursal</th><th>Problema</th><th>Estado</th><th>Fecha</th></tr>
         </thead>
         <tbody>
             {% for t in resueltos %}
-            <tr style="opacity: 0.6;">
-                <td>{{ t.id }}</td>
+            <tr style="opacity: 0.75;">
+                <td><a href="{{ url_for('prov_ticket', ticket_id=t.id) }}" style="color:#059669;font-weight:700;text-decoration:none;">{{ t.id }}</a></td>
                 <td>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</td>
                 <td>{{ t.subcategoria }}</td>
+                <td>{{ t.estado }}</td>
                 <td>{{ t.actualizado[:10] }}</td>
             </tr>
             {% endfor %}

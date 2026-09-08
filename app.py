@@ -3162,7 +3162,7 @@ def _proveedores_catalogo_ticket(suc_num=""):
 # Proveedores database
 PROVEEDORES = [
     {"nombre": "Personal Mto. (camionetas propias)", "zona": "AMBA", "tipo": "General", "tel": "-", "estado_operativo": "Recurso interno", "canal_comunicacion": "Equipo central", "sucursales": ["011","014","023","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"], "monto": "Recurso propio (2 camionetas, 2 tecnicos FT, 1 PT)", "incluye": "Mantenimiento general CABA/GBA", "no_incluye": "-"},
-    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","035","036","043","049","051","052","053","054","058","065","077","080","082","083","092","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","192","194","195","196","198","200","202","204","208","209","211","213","214","216","219","221","222","228","232","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
+    {"nombre": "CEYH", "zona": "AMBA", "tipo": "General + AA", "tel": "11 3205-3759", "contacto": "Gaston", "fijo": True, "sucursales": ["011","014","020","023","035","036","043","049","051","052","053","054","058","065","077","080","082","083","102","111","121","125","141","142","147","148","156","157","165","167","170","171","176","177","183","184","185","186","187","188","192","194","195","196","198","200","202","204","208","209","211","213","214","216","219","221","222","228","232","238"], "monto": "$30.000.000 + IVA/mes", "incluye": "3 moviles (2 AA + 1 gral), 9hs L-V, 2 tecnicos por movil, mano de obra, supervision, vehiculo, herramientas", "no_incluye": "Materiales, consumibles. Fuera de horario se cobra aparte (min 3hs por movil)"},
     {"nombre": "Martin Microglobal", "zona": "AMBA", "tipo": "Vidrios", "tel": "11 5410-6488", "contacto": "Martin", "fijo": False, "estado_operativo": "Activo frecuente", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "sucursales": ["011","014","023","035","036","043","051","052","053","054","058","065","077","080","082","083","102","111","141","147","148","165","167","170","171","176","177","184","185","186","188","192","194","196","198","202","208","209","211","214","217","222","228"]},
     {"nombre": "Jorge (Limpieza vidrios)", "zona": "AMBA", "tipo": "Limpieza", "tel": "115182-7823", "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["AMBA general"]},
     {"nombre": "Polaris", "zona": "AMBA", "tipo": "Ascensores", "tel": "11 6527-7128", "contacto": "Lucas", "fijo": True, "estado_operativo": "Abono mensual", "canal_comunicacion": "Mail", "sucursales": ["171","176","183","184"]},
@@ -6035,17 +6035,33 @@ def prov_logout():
 def prov_panel():
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
+    filtro_sucursal = request.args.get("sucursal", "").strip()
     nombres_proveedor = _proveedor_nombres_usuario()
     proveedores_abono = _proveedores_sin_montos(_proveedores_abono_usuario())
     sucursales_abono = sorted({
         s for p in proveedores_abono for s in p.get("sucursales", [])
     })
     jornadas_hoy = []
-    mis_tickets = [t for t in tickets if _ticket_es_de_proveedor(t, nombres_proveedor) and t.get("estado") != "Rechazado" and t["estado"] != "Cerrado" and not _is_ticket_sucursal_cerrada(t)]
+    mis_tickets = [
+        t for t in tickets
+        if _ticket_es_de_proveedor(t, nombres_proveedor)
+        and t.get("estado") != "Rechazado"
+        and not _is_ticket_sucursal_cerrada(t)
+    ]
     pendientes_todo = [t for t in mis_tickets if not _is_ticket_finalizado(t)]
+    sucursales_pendientes = sorted({
+        str(t.get("sucursal", "")).replace("Sucursal ", "").strip()
+        for t in pendientes_todo
+        if str(t.get("sucursal", "")).strip()
+    })
+    if filtro_sucursal:
+        pendientes_todo = [
+            t for t in pendientes_todo
+            if str(t.get("sucursal", "")).replace("Sucursal ", "").strip() == filtro_sucursal
+        ]
     trabajos_materiales = [t for t in pendientes_todo if t.get("tipo") == "trabajo_proveedor"]
     pendientes = [t for t in pendientes_todo if t.get("tipo") != "trabajo_proveedor"]
-    resueltos = [t for t in mis_tickets if t["estado"] == "Resuelto"]
+    resueltos = [t for t in mis_tickets if _is_ticket_finalizado(t)]
 
     # Notifications for provider
     notif_prov = []
@@ -6084,6 +6100,8 @@ def prov_panel():
         jornadas_hoy=jornadas_hoy,
         proveedores_abono=proveedores_abono,
         sucursales_abono=sucursales_abono,
+        sucursales_pendientes=sucursales_pendientes,
+        filtro_sucursal=filtro_sucursal,
     )
 
 
