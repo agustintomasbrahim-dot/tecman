@@ -272,7 +272,7 @@ _SORIA_DEMO_PWD = os.environ.get("SORIA_DEMO_PASSWORD", "SoriaDemo0904!")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 _SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
-COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar")
+COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar,wpereyra@grupodexter.com.ar")
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
 AGUSTIN_EMAIL = os.environ.get("AGUSTIN_EMAIL", "agustintomasbrahim@gmail.com")
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
@@ -409,6 +409,11 @@ LEGACY_DISABLED_USERNAMES = {"jonathan"}
 # Portal de Compras (Laura). Portal separado del de admin.
 COMPRAS_USERS = {
     "laura": {"password": _COMPRAS_PWD, "nombre": "Laura", "rol": "compras"},
+}
+COMPRAS_ACCESS_EMAILS = {
+    email.strip().lower()
+    for email in COMPRAS_EMAIL.split(",")
+    if email.strip()
 }
 
 # Portal Equipo de Mantenimiento Central (Hector y Jose)
@@ -787,6 +792,19 @@ def _identity_email_candidates(identity):
 
 def _identity_has_full_portal_access(identity):
     return any(email in FULL_PORTAL_ACCESS_EMAILS for email in _identity_email_candidates(identity))
+
+
+def _identity_has_compras_access(identity):
+    return any(email in COMPRAS_ACCESS_EMAILS for email in _identity_email_candidates(identity))
+
+
+def _compras_nombre_from_identity(identity):
+    name = (identity.get("name") or "").strip()
+    if name:
+        return name
+    for email in _identity_email_candidates(identity):
+        return email.split("@", 1)[0]
+    return "Compras"
 
 
 def _supervisor_for_identity(identity):
@@ -4555,7 +4573,7 @@ def entra_start():
     session["entra_state"] = state
     session["entra_nonce"] = nonce
     requested_portal = request.args.get("portal", "").strip().lower()
-    if requested_portal in ("admin", "sucursal", "supervisor", "oficina", "proveedor"):
+    if requested_portal in ("admin", "sucursal", "supervisor", "oficina", "proveedor", "compras"):
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
@@ -4649,6 +4667,9 @@ def entra_callback():
     if requested_portal == "proveedor" and full_portal_access:
         entra_role = "proveedor"
         identity["entra_role"] = "proveedor"
+    if requested_portal == "compras" and (full_portal_access or _identity_has_compras_access(identity)):
+        entra_role = "compras"
+        identity["entra_role"] = "compras"
     if (
         auth_user
         and _auth_user_status(auth_user) == "active"
@@ -4707,6 +4728,11 @@ def entra_callback():
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Proveedores.",
         ), 403
+    if requested_portal == "compras" and entra_role != "compras":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Compras.",
+        ), 403
 
     if entra_role == "proveedor":
         session.clear()
@@ -4720,6 +4746,17 @@ def entra_callback():
         session["entra_role"] = "proveedor"
         _audit_event("login_success", user=auth_user, provider="entra", details={"role": "proveedor", "source": "full_portal_access"})
         return redirect(url_for("prov_panel"))
+
+    if entra_role == "compras":
+        session.clear()
+        session.permanent = True
+        email = (identity.get("email") or "").strip().lower()
+        session["compras_user"] = email.split("@", 1)[0] if email else identity["object_id"]
+        session["compras_nombre"] = _compras_nombre_from_identity(identity)
+        session["auth_provider"] = "entra"
+        session["entra_role"] = "compras"
+        _audit_event("login_success", user=auth_user, provider="entra", details={"role": "compras", "source": "compras_allowlist"})
+        return redirect(url_for("compras_panel"))
 
     if entra_role == "oficina":
         if _set_oficina_session_from_entra(identity):
@@ -6616,7 +6653,7 @@ def compras_login():
             session["compras_nombre"] = COMPRAS_USERS[user]["nombre"]
             return redirect(url_for("compras_panel"))
         flash("Usuario o contraseña incorrectos")
-    return render_template("compras_login.html")
+    return render_template("compras_login.html", entra_enabled=_entra_is_configured())
 
 
 @app.route("/compras/logout", methods=["GET", "POST"])
