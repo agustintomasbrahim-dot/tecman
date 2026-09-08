@@ -396,7 +396,7 @@ SUCURSAL_EMAILS = {k: v for k, v in SUCURSAL_EMAILS.items() if str(k).zfill(3) n
 
 ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
-    "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin"},
+    "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin", "email": "ccrapanzano@grupodexter.com.ar"},
     "esoria": {"password": _ADMIN_PWD, "nombre": "Soria", "rol": "tecnico", "email": "esoria@grupodexter.com.ar"},
     "soria_demo": {"password": _SORIA_DEMO_PWD, "nombre": "Soria Demo", "rol": "tecnico"},
     "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
@@ -3220,6 +3220,13 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 
 
 def _proveedor_nombres_usuario(user=None):
+    if user is None and session.get("prov_full_access"):
+        nombres = [p.get("nombre") for p in PROVEEDORES if p.get("nombre")]
+        for info in load_proveedor_users().values():
+            nombre = info.get("nombre")
+            if nombre and nombre not in nombres:
+                nombres.append(nombre)
+        return nombres
     info = load_proveedor_users().get(user or session.get("prov_user"), {})
     nombres = list(info.get("proveedores") or [])
     if info.get("nombre") and info["nombre"] not in nombres:
@@ -3228,6 +3235,8 @@ def _proveedor_nombres_usuario(user=None):
 
 
 def _proveedores_abono_usuario(user=None):
+    if user is None and session.get("prov_full_access"):
+        return [p for p in _proveedores_enriquecidos() if p.get("fijo")]
     nombres = set(_proveedor_nombres_usuario(user))
     return [p for p in _proveedores_enriquecidos() if p.get("fijo") and p.get("nombre") in nombres]
 
@@ -3250,6 +3259,65 @@ def _ticket_es_de_proveedor(ticket, nombres):
         ticket.get("proveedor_presupuesto"),
     )
     return any(v in nombres for v in campos if v)
+
+
+def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, materiales, detalle=""):
+    ahora = datetime.datetime.now().isoformat()
+    materiales = (materiales or "").strip()
+    detalle = (detalle or "").strip()
+    descripcion = (
+        f"Solicitud de materiales generada por {prov_nombre} desde el ticket #{ticket_origen.get('id')}.\n\n"
+        f"Materiales solicitados:\n{materiales}"
+    )
+    if detalle:
+        descripcion += f"\n\nDetalle / motivo:\n{detalle}"
+
+    nuevo_ticket = {
+        "id": next_ticket_id(tickets),
+        "sucursal": ticket_origen.get("sucursal", ""),
+        "categoria": "Materiales",
+        "subcategoria": "Solicitud de materiales",
+        "descripcion": descripcion,
+        "solicitante": prov_nombre,
+        "prioridad": ticket_origen.get("prioridad", 2),
+        "estado": "Nuevo",
+        "asignado": "Soria",
+        "fotos": [],
+        "observaciones": "",
+        "creado": ahora,
+        "actualizado": ahora,
+        "categoria_mat": "Solicitud CEYH",
+        "subitem_mat": "",
+        "cantidad_mat": "1",
+        "zona_afectada": ticket_origen.get("zona_afectada") or ticket_origen.get("sector_oficina") or "A relevar",
+        "tipo": "materiales",
+        "origen": "proveedor_ceyh",
+        "origen_ticket_id": ticket_origen.get("id"),
+        "proveedor_origen": prov_nombre,
+        "notas": [{
+            "autor": prov_nombre,
+            "fecha": ahora,
+            "texto": f"Solicitó materiales desde el ticket #{ticket_origen.get('id')}: {materiales[:180]}",
+        }],
+    }
+    tickets.append(nuevo_ticket)
+
+    ticket_origen["requiere_materiales"] = True
+    ticket_origen["estado_materiales"] = "Solicitado a Soria"
+    ticket_origen["ultima_novedad_operativa"] = "CEYH solicitó materiales a Soria"
+    ticket_origen.setdefault("solicitudes_materiales", []).append({
+        "ticket_id": nuevo_ticket["id"],
+        "fecha": ahora,
+        "materiales": materiales,
+        "detalle": detalle,
+        "estado": "Enviado a Soria",
+    })
+    ticket_origen.setdefault("notas", []).append({
+        "autor": prov_nombre,
+        "fecha": ahora,
+        "texto": f"Solicitó materiales a Soria. Pedido generado #{nuevo_ticket['id']}: {materiales[:180]}",
+    })
+    return nuevo_ticket
 
 
 # --- Helpers ---
@@ -4452,7 +4520,7 @@ def entra_start():
     session["entra_state"] = state
     session["entra_nonce"] = nonce
     requested_portal = request.args.get("portal", "").strip().lower()
-    if requested_portal in ("admin", "sucursal", "supervisor", "oficina"):
+    if requested_portal in ("admin", "sucursal", "supervisor", "oficina", "proveedor"):
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
@@ -4543,6 +4611,9 @@ def entra_callback():
     if requested_portal == "oficina" and (full_portal_access or _oficina_for_identity(identity)):
         entra_role = "oficina"
         identity["entra_role"] = "oficina"
+    if requested_portal == "proveedor" and full_portal_access:
+        entra_role = "proveedor"
+        identity["entra_role"] = "proveedor"
     if (
         auth_user
         and _auth_user_status(auth_user) == "active"
@@ -4596,6 +4667,24 @@ def entra_callback():
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Oficinas.",
         ), 403
+    if requested_portal == "proveedor" and entra_role != "proveedor":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Proveedores.",
+        ), 403
+
+    if entra_role == "proveedor":
+        session.clear()
+        session.permanent = True
+        email = (identity.get("email") or "").strip().lower()
+        session["prov_user"] = email.split("@")[0] if email else identity["object_id"]
+        session["prov_nombre"] = identity.get("name") or "Acceso total"
+        session["prov_tipo_cuenta"] = "admin_total"
+        session["prov_full_access"] = True
+        session["auth_provider"] = "entra"
+        session["entra_role"] = "proveedor"
+        _audit_event("login_success", user=auth_user, provider="entra", details={"role": "proveedor", "source": "full_portal_access"})
+        return redirect(url_for("prov_panel"))
 
     if entra_role == "oficina":
         if _set_oficina_session_from_entra(identity):
@@ -5928,7 +6017,7 @@ def prov_login():
             session["prov_tipo_cuenta"] = user_info.get("tipo_cuenta", "proveedor")
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
-    return render_template("prov_login.html")
+    return render_template("prov_login.html", entra_enabled=_entra_is_configured())
 
 
 @app.route("/proveedor/logout", methods=["GET", "POST"])
@@ -5936,6 +6025,7 @@ def prov_logout():
     session.pop("prov_user", None)
     session.pop("prov_nombre", None)
     session.pop("prov_tipo_cuenta", None)
+    session.pop("prov_full_access", None)
     return redirect(url_for("login_landing"))
 
 
@@ -6102,6 +6192,24 @@ def prov_ticket(ticket_id):
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": nota,
                 })
+        elif accion == "solicitar_materiales_soria":
+            if prov_nombre != "CEYH":
+                return render_template("error.html", mensaje="Solo CEYH puede generar pedidos de materiales desde este portal."), 403
+            materiales = request.form.get("materiales_solicitados", "").strip()
+            detalle = request.form.get("detalle_materiales", "").strip()
+            if not materiales:
+                flash("Indicá qué materiales se necesitan")
+                return redirect(url_for("prov_ticket", ticket_id=ticket_id))
+            nuevo_ticket = _crear_ticket_materiales_desde_ceyh(tickets, ticket, prov_nombre, materiales, detalle)
+            ticket["etapa_prov"] = "esperando_materiales"
+            ticket["estado"] = "Pendiente"
+            agregar_notif_admin(
+                "CEYH solicitó materiales",
+                f"CEYH pidió materiales para el ticket #{ticket_id}. Se generó el pedido #{nuevo_ticket['id']} para Soria.",
+                tipo="materiales",
+                link=url_for("admin_pedido", ticket_id=nuevo_ticket["id"]),
+            )
+            flash(f"Pedido de materiales #{nuevo_ticket['id']} enviado a Soria")
         elif accion == "foto_antes":
             f = request.files.get("foto")
             if f and f.filename:

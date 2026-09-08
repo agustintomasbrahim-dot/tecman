@@ -7,6 +7,14 @@
         <h2 style="font-size: 18px;">Portal Proveedor</h2>
         <p style="color: #9ca3af; font-size: 13px; margin-top: 4px;">Trabajos asignados, presupuestos y mensajes</p>
     </div>
+    {% if entra_enabled %}
+    <a href="{{ url_for('entra_start', portal='proveedor') }}" class="btn btn-block" style="background:#2563eb;color:white;font-weight:700;text-decoration:none;margin-bottom:14px;">Ingresar con Microsoft</a>
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;color:#9ca3af;font-size:12px;">
+        <span style="height:1px;background:#e5e7eb;flex:1;"></span>
+        <span>o con usuario proveedor</span>
+        <span style="height:1px;background:#e5e7eb;flex:1;"></span>
+    </div>
+    {% endif %}
     <form method="POST">
         <div class="form-group">
             <label>Usuario</label>
