@@ -116,6 +116,22 @@
             <input type="text" name="zona_afectada" id="zona_afectada" placeholder="Ej: ingreso, salón principal, depósito, caja 2">
         </div>
 
+        <div id="compra-no-prod-group" style="display:none; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; background: #fafafa;">
+            <div style="font-size:12px;color:#64748b;margin-bottom:12px;">
+                Usá esta opción para pedir compras no productivas: insumos, mobiliario, herramientas, librería u otros elementos necesarios para la sucursal.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Cantidad o referencia *</label>
+                    <input type="text" name="compra_np_cantidad" id="compra_np_cantidad" placeholder="Ej: 2 unidades, 1 pack, medida aproximada">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Fecha necesaria</label>
+                    <input type="date" name="compra_np_fecha_necesaria" id="compra_np_fecha_necesaria">
+                </div>
+            </div>
+        </div>
+
         <div id="proveedor-presupuesto-group" style="display:none;">
             <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">La empresa requiere hasta 3 cotizaciones. Cargá al menos 1.</p>
             {% for n in [1,2,3] %}
@@ -172,6 +188,8 @@ document.getElementById('categoria').addEventListener('change', function() {
     var zonaGroup = document.getElementById('zona-afectada-group');
     var zonaInput = document.getElementById('zona_afectada');
     var provPptoGroup = document.getElementById('proveedor-presupuesto-group');
+    var compraNoProdGroup = document.getElementById('compra-no-prod-group');
+    var compraNoProdCantidad = document.getElementById('compra_np_cantidad');
     var descLabel = document.getElementById('descripcion-label');
     var desc = document.getElementById('descripcion');
     var provPptoInput = document.getElementById('ppto_proveedor_1');
@@ -187,6 +205,8 @@ document.getElementById('categoria').addEventListener('change', function() {
         zonaInput.setAttribute('required', 'required');
         provPptoGroup.style.display = 'none';
         provPptoInput.removeAttribute('required');
+        compraNoProdGroup.style.display = 'none';
+        compraNoProdCantidad.removeAttribute('required');
         descLabel.textContent = 'Detalle del pedido de materiales *';
         desc.placeholder = 'Indicá para qué se necesita, medida/color si aplica y cualquier dato que ayude a preparar el envío...';
     } else {
@@ -196,6 +216,8 @@ document.getElementById('categoria').addEventListener('change', function() {
         matGroup.style.display = 'none';
         catMat.removeAttribute('required');
         subMat.removeAttribute('required');
+        compraNoProdGroup.style.display = 'none';
+        compraNoProdCantidad.removeAttribute('required');
         if (this.value === 'Presupuestos') {
             zonaGroup.style.display = 'block';
             zonaInput.setAttribute('required', 'required');
@@ -203,6 +225,15 @@ document.getElementById('categoria').addEventListener('change', function() {
             provPptoInput.setAttribute('required', 'required');
             descLabel.textContent = 'Detalle del presupuesto *';
             desc.placeholder = 'Describa qué trabajo presupuestar y cualquier contexto útil para revisión/aprobación...';
+        } else if (this.value === 'Compras no productivas') {
+            zonaGroup.style.display = 'block';
+            zonaInput.setAttribute('required', 'required');
+            provPptoGroup.style.display = 'none';
+            provPptoInput.removeAttribute('required');
+            compraNoProdGroup.style.display = 'block';
+            compraNoProdCantidad.setAttribute('required', 'required');
+            descLabel.textContent = 'Detalle de la necesidad *';
+            desc.placeholder = 'Indicá qué necesita comprar la sucursal, medidas/modelo si aplica y motivo del pedido...';
         } else if (this.value === 'Seguridad e Higiene') {
             zonaGroup.style.display = 'none';
             zonaInput.removeAttribute('required');

@@ -230,6 +230,7 @@ CATEGORIAS = {
     "Pintura": ["Interior", "Exterior", "Durlock reparación", "Otra pintura"],
     "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
     "Materiales": ["Solicitud de materiales"],
+    "Compras no productivas": ["Insumos", "Mobiliario", "Herramientas", "Cartelería", "Librería", "Otro pedido"],
     "Presupuestos": ["Cortinas", "Filtraciones", "Aire acondicionado", "Electricidad", "Pintura", "Plomería", "Carpintería", "Vidriería", "Matafuegos", "Habilitaciones", "Otro presupuesto"],
     "Seguridad e Higiene": ["Consulta de habilitación", "Permiso", "Documentación faltante", "Otra asistencia S&H"],
     "Otro": ["Otro"],
@@ -247,6 +248,7 @@ ESTADO_FILTROS_ADMIN = [
     "Nuevos",
     "En proceso",
     "Solicitud de materiales",
+    "Compras no productivas",
     "Materiales recibidos",
     "Aprobado",
     "Rechazado",
@@ -2883,6 +2885,8 @@ def _ticket_matches_estado_filter(ticket, filtro_estado):
         return estado in ("Resuelto", "Cerrado")
     if filtro_estado == "Solicitud de materiales":
         return _is_material_ticket(ticket)
+    if filtro_estado == "Compras no productivas":
+        return _is_compra_no_productiva(ticket)
     return estado == filtro_estado
 
 
@@ -3575,6 +3579,13 @@ def _is_material_ticket(ticket):
     )
 
 
+def _is_compra_no_productiva(ticket):
+    return (
+        ticket.get("categoria") == "Compras no productivas"
+        or ticket.get("tipo") == "compra_no_productiva"
+    )
+
+
 def _ticket_requiere_requisicion_rita(ticket):
     if not _is_ticket_operativo(ticket):
         return False
@@ -3769,6 +3780,8 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
         return "Soria"
     if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
         return "Soria"
+    if categoria == "Compras no productivas":
+        return "Compras no productivas"
     if categoria == "Seguridad e Higiene":
         return "Patricia"
     if categoria == "Presupuestos":
@@ -4359,6 +4372,28 @@ def nuevo_ticket():
             ticket["cantidad_mat"] = cantidad_mat
             ticket["zona_afectada"] = zona_afectada
             ticket["tipo"] = "materiales"
+        elif categoria == "Compras no productivas":
+            cantidad_compra = request.form.get("compra_np_cantidad", "").strip()
+            fecha_necesaria = request.form.get("compra_np_fecha_necesaria", "").strip()
+            if not subcategoria:
+                flash("En compras no productivas, el rubro es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            if not cantidad_compra:
+                flash("En compras no productivas, la cantidad o referencia es obligatoria")
+                return redirect(url_for("nuevo_ticket"))
+            if not zona_afectada:
+                flash("En compras no productivas, la zona o sector del local es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            ticket["tipo"] = "compra_no_productiva"
+            ticket["compra_np_cantidad"] = cantidad_compra
+            ticket["compra_np_fecha_necesaria"] = fecha_necesaria
+            ticket["compra_np_estado"] = "Nuevo"
+            ticket["zona_afectada"] = zona_afectada
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": "Solicitud enviada a Compras no productivas.",
+                "leida": False,
+            })
         elif categoria == "Presupuestos":
             if not proveedor_presupuesto:
                 flash("En presupuestos, el proveedor es obligatorio")
@@ -4879,6 +4914,7 @@ def _admin_metricas_resumen(tickets_visibles, tickets_operativos):
     cierre_dias = []
     por_modulo = {
         "Materiales": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
+        "Compras no productivas": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
         "Presupuestos": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
         "Tickets": {"abiertos": 0, "finalizados": 0, "edades": [], "cierres": []},
     }
@@ -4886,6 +4922,8 @@ def _admin_metricas_resumen(tickets_visibles, tickets_operativos):
     def modulo(ticket):
         if _is_material_ticket(ticket):
             return "Materiales"
+        if _is_compra_no_productiva(ticket):
+            return "Compras no productivas"
         if ticket.get("categoria") == "Presupuestos":
             return "Presupuestos"
         return "Tickets"
@@ -4911,6 +4949,7 @@ def _admin_metricas_resumen(tickets_visibles, tickets_operativos):
     for nombre, data in por_modulo.items():
         modulos.append({
             "nombre": nombre,
+            "slug": _metricas_modulo_slug(nombre),
             "abiertos": data["abiertos"],
             "finalizados": data["finalizados"],
             "edad_promedio": _avg_days_label(data["edades"]),
@@ -4926,6 +4965,36 @@ def _admin_metricas_resumen(tickets_visibles, tickets_operativos):
         "promedio_cierre": _avg_days_label(cierre_dias),
         "modulos": modulos,
     }
+
+
+def _ticket_metricas_modulo(ticket):
+    if _is_material_ticket(ticket):
+        return "Materiales"
+    if _is_compra_no_productiva(ticket):
+        return "Compras no productivas"
+    if ticket.get("categoria") == "Presupuestos":
+        return "Presupuestos"
+    return "Tickets"
+
+
+def _metricas_modulo_slug(nombre):
+    mapa = {
+        "Materiales": "materiales",
+        "Compras no productivas": "compras-no-productivas",
+        "Presupuestos": "presupuestos",
+        "Tickets": "tickets",
+    }
+    return mapa.get(nombre, str(nombre or "").lower().replace(" ", "-"))
+
+
+def _metricas_modulo_nombre(slug):
+    mapa = {
+        "materiales": "Materiales",
+        "compras-no-productivas": "Compras no productivas",
+        "presupuestos": "Presupuestos",
+        "tickets": "Tickets",
+    }
+    return mapa.get(slug)
 
 
 @app.route("/admin")
@@ -5066,6 +5135,52 @@ def admin_panel():
         metricas_resumen=metricas_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
+    )
+
+
+@app.route("/admin/metricas/<modulo_slug>")
+@login_required
+def admin_metricas_detalle(modulo_slug):
+    modulo_nombre = _metricas_modulo_nombre(modulo_slug)
+    if not modulo_nombre:
+        return render_template("error.html", mensaje="Modulo no encontrado."), 404
+
+    tickets = load_tickets()
+    tickets_visibles = [
+        t for t in tickets
+        if not _is_ticket_sucursal_cerrada(t) and _ticket_metricas_modulo(t) == modulo_nombre
+    ]
+    filtro_estado = request.args.get("estado", "Abiertos").strip()
+    filtro_suc = request.args.get("sucursal", "").strip()
+
+    filtrados = list(tickets_visibles)
+    if filtro_estado == "Abiertos":
+        filtrados = [t for t in filtrados if _is_ticket_operativo(t)]
+    elif filtro_estado == "Finalizados":
+        filtrados = [t for t in filtrados if t.get("estado") in ("Resuelto", "Cerrado")]
+    elif filtro_estado:
+        filtrados = [t for t in filtrados if t.get("estado") == filtro_estado]
+    if filtro_suc:
+        filtrados = [t for t in filtrados if t.get("sucursal") == filtro_suc]
+
+    sucursales_modulo = sorted({
+        t.get("sucursal", "")
+        for t in tickets_visibles
+        if t.get("sucursal") and not _is_ticket_sucursal_cerrada(t)
+    })
+    filtrados.sort(key=lambda t: t.get("creado", ""), reverse=True)
+    return render_template(
+        "admin_metricas_detalle.html",
+        modulo_nombre=modulo_nombre,
+        modulo_slug=modulo_slug,
+        tickets=filtrados,
+        estados=["Abiertos", "Nuevo", "En progreso", "Pendiente", "Materiales recibidos", "Aprobado", "Rechazado", "Finalizados"],
+        sucursales=sucursales_modulo,
+        filtro_estado=filtro_estado,
+        filtro_suc=filtro_suc,
+        total_abiertos=sum(1 for t in tickets_visibles if _is_ticket_operativo(t)),
+        total_finalizados=sum(1 for t in tickets_visibles if t.get("estado") in ("Resuelto", "Cerrado")),
+        prioridades=PRIORIDADES,
     )
 
 
@@ -6541,6 +6656,13 @@ def _compras_envios_agrupados():
     return out
 
 
+def _compras_no_productivas_tickets():
+    tickets = load_tickets()
+    out = [t for t in tickets if _is_compra_no_productiva(t) and not _is_ticket_sucursal_cerrada(t)]
+    out.sort(key=lambda t: t.get("creado", ""), reverse=True)
+    return out
+
+
 @app.route("/compras")
 @compras_login_required
 def compras_panel():
@@ -6559,6 +6681,9 @@ def compras_panel():
     sucursales_atendidas = len({e.get("sucursal", "") for e in envios if e.get("sucursal")})
 
     ultimos_envios = envios[:10]
+    solicitudes = _compras_no_productivas_tickets()
+    solicitudes_abiertas = [t for t in solicitudes if _is_ticket_operativo(t)]
+    solicitudes_finalizadas = [t for t in solicitudes if t.get("estado") in ("Resuelto", "Cerrado")]
 
     return render_template(
         "compras_panel.html",
@@ -6569,7 +6694,96 @@ def compras_panel():
         envios_mes_count=len(envios_mes),
         sucursales_atendidas=sucursales_atendidas,
         ultimos_envios=ultimos_envios,
+        solicitudes_abiertas=solicitudes_abiertas[:8],
+        solicitudes_abiertas_count=len(solicitudes_abiertas),
+        solicitudes_finalizadas_count=len(solicitudes_finalizadas),
     )
+
+
+@app.route("/compras/solicitudes")
+@compras_login_required
+def compras_solicitudes():
+    solicitudes = _compras_no_productivas_tickets()
+    filtro_estado = request.args.get("estado", "Abiertas").strip()
+    filtro_suc = request.args.get("sucursal", "").strip()
+
+    filtradas = list(solicitudes)
+    if filtro_estado == "Abiertas":
+        filtradas = [t for t in filtradas if _is_ticket_operativo(t)]
+    elif filtro_estado == "Finalizadas":
+        filtradas = [t for t in filtradas if t.get("estado") in ("Resuelto", "Cerrado")]
+    elif filtro_estado:
+        filtradas = [t for t in filtradas if t.get("estado") == filtro_estado]
+    if filtro_suc:
+        filtradas = [t for t in filtradas if t.get("sucursal") == filtro_suc]
+
+    sucursales_con_solicitudes = sorted({
+        t.get("sucursal", "")
+        for t in solicitudes
+        if t.get("sucursal") and not _is_ticket_sucursal_cerrada(t)
+    })
+
+    return render_template(
+        "compras_solicitudes.html",
+        solicitudes=filtradas,
+        total_abiertas=sum(1 for t in solicitudes if _is_ticket_operativo(t)),
+        total_finalizadas=sum(1 for t in solicitudes if t.get("estado") in ("Resuelto", "Cerrado")),
+        estados=["Abiertas", "Nuevo", "En progreso", "Pendiente", "Rechazado", "Finalizadas"],
+        sucursales=sucursales_con_solicitudes,
+        filtro_estado=filtro_estado,
+        filtro_suc=filtro_suc,
+    )
+
+
+@app.route("/compras/solicitud/<int:ticket_id>", methods=["GET", "POST"])
+@compras_login_required
+def compras_solicitud(ticket_id):
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id and _is_compra_no_productiva(t)), None)
+    if not ticket:
+        return render_template("error.html", mensaje="Solicitud no encontrada."), 404
+
+    if request.method == "POST":
+        accion = request.form.get("accion", "").strip()
+        comentario = request.form.get("comentario", "").strip()
+        estados_accion = {
+            "tomar": ("En progreso", "En gestion"),
+            "pendiente": ("Pendiente", "Pendiente"),
+            "resolver": ("Resuelto", "Resuelto"),
+            "rechazar": ("Rechazado", "Rechazado"),
+        }
+        if accion not in estados_accion:
+            flash("Accion no valida")
+            return redirect(url_for("compras_solicitud", ticket_id=ticket_id))
+
+        estado, estado_compra = estados_accion[accion]
+        ahora = datetime.datetime.now().isoformat()
+        ticket["estado"] = estado
+        ticket["compra_np_estado"] = estado_compra
+        ticket["actualizado"] = ahora
+        if estado in ("Resuelto", "Rechazado"):
+            ticket["fecha_cierre"] = ahora
+        nota_texto = comentario or {
+            "tomar": "Compras tomo la solicitud.",
+            "pendiente": "Compras dejo la solicitud pendiente.",
+            "resolver": "Compras resolvio la solicitud.",
+            "rechazar": "Compras rechazo la solicitud.",
+        }[accion]
+        ticket.setdefault("notas", []).append({
+            "autor": session.get("compras_nombre", "Compras"),
+            "fecha": ahora,
+            "texto": nota_texto,
+        })
+        ticket.setdefault("notificaciones", []).append({
+            "fecha": ahora,
+            "texto": f"Compras actualizo la solicitud: {estado_compra}.",
+            "leida": False,
+        })
+        save_tickets(tickets)
+        flash("Solicitud actualizada")
+        return redirect(url_for("compras_solicitud", ticket_id=ticket_id))
+
+    return render_template("compras_solicitud.html", ticket=ticket, prioridades=PRIORIDADES)
 
 
 @app.route("/compras/stock")

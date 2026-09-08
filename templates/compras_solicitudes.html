@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Solicitudes Compras{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('compras_panel') }}">Dashboard</a>
+    <a href="{{ url_for('compras_solicitudes') }}" style="color: #7c3aed; border-bottom: 2px solid #7c3aed;">Solicitudes</a>
+    <a href="{{ url_for('compras_stock') }}">Stock</a>
+    <a href="{{ url_for('compras_envio_nuevo') }}">Nuevo envio</a>
+    <a href="{{ url_for('compras_envios') }}">Envios</a>
+    <a href="{{ url_for('compras_comprobantes') }}">Comprobantes</a>
+    <a href="{{ url_for('compras_logout') }}" style="margin-left: auto;">Salir ({{ session.compras_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <div>
+        <h2>Solicitudes de compras no productivas</h2>
+        <p style="color:#64748b;font-size:13px;">Pedidos cargados por sucursales y gestionados por Compras.</p>
+    </div>
+    <a href="{{ url_for('compras_panel') }}" class="btn btn-outline">Volver al dashboard</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ total_abiertas }}</div>
+        <div class="label">Abiertas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#059669;">{{ total_finalizadas }}</div>
+        <div class="label">Finalizadas</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#7c3aed;">{{ solicitudes|length }}</div>
+        <div class="label">Resultado filtrado</div>
+    </div>
+</div>
+
+<div class="card">
+    <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;">
+            <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Estado</label>
+            <select name="estado" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                {% for estado in estados %}
+                <option value="{{ estado }}" {% if estado == filtro_estado %}selected{% endif %}>{{ estado }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex:1;min-width:220px;">
+            <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Sucursal</label>
+            <select name="sucursal" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                <option value="">Todas</option>
+                {% for suc in sucursales %}
+                <option value="{{ suc }}" {% if suc == filtro_suc %}selected{% endif %}>{{ suc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn" style="background:#7c3aed;color:#fff;height:42px;">Filtrar</button>
+        <a href="{{ url_for('compras_solicitudes') }}" class="btn btn-outline" style="height:42px;">Limpiar</a>
+    </form>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+        <table>
+            <thead><tr><th>Ticket</th><th>Sucursal</th><th>Pedido</th><th>Estado</th><th>Fecha</th></tr></thead>
+            <tbody>
+                {% for t in solicitudes %}
+                <tr onclick="window.location='{{ url_for('compras_solicitud', ticket_id=t.id) }}'" style="cursor:pointer;">
+                    <td style="font-weight:800;color:#7c3aed;">#{{ t.id }}</td>
+                    <td>
+                        <strong>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</strong>
+                        {% if t.zona_afectada %}<div style="font-size:12px;color:#64748b;">{{ t.zona_afectada }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ t.subcategoria or 'Pedido' }}</strong>
+                        <div style="font-size:12px;color:#64748b;">{{ t.compra_np_cantidad or '-' }}{% if t.compra_np_fecha_necesaria %} · Necesario {{ t.compra_np_fecha_necesaria }}{% endif %}</div>
+                    </td>
+                    <td>{{ t.estado }}</td>
+                    <td style="color:#64748b;font-size:12px;">{{ t.creado[:10] if t.creado else '-' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not solicitudes %}
+                <tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:34px;">Sin solicitudes para este filtro.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

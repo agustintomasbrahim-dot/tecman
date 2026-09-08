@@ -7,7 +7,7 @@
     <div class="success-icon">&#10004;</div>
     <h2 style="color: #34d399; margin-bottom: 8px;">Ticket creado exitosamente</h2>
     <p style="color: #94a3b8; margin: 16px 0;">
-        Su ticket de mantenimiento fue registrado con el numero:
+        Su {% if ticket.tipo == 'compra_no_productiva' %}solicitud de compras no productivas{% else %}ticket de mantenimiento{% endif %} fue registrado con el numero:
     </p>
     <div style="font-size: 42px; font-weight: 800; color: #38bdf8; margin: 20px 0;">
         #{{ ticket.id }}

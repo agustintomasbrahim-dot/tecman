@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Metricas {{ modulo_nombre }}{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel', vista='dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
+    <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
+    <a href="{{ url_for('admin_pedidos') }}">Pedidos de materiales</a>
+    <a href="{{ url_for('admin_panel', vista='alertas') }}">Alertas</a>
+    <a href="{{ url_for('admin_panel', vista='metricas') }}" style="color:#e63946;border-bottom:2px solid #e63946;">Metricas</a>
+    <a href="{{ url_for('admin_buscar') }}" style="margin-left:auto;">Buscar</a>
+    <a href="{{ url_for('admin_logout') }}">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+    <div>
+        <h2 style="margin:0;">{{ modulo_nombre }}</h2>
+        <p style="color:#64748b;font-size:13px;margin-top:4px;">Detalle de tickets que componen las metricas del modulo.</p>
+    </div>
+    <a href="{{ url_for('admin_panel', vista='metricas') }}" class="btn btn-outline">Volver a metricas</a>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="number">{{ total_abiertos }}</div>
+        <div class="label">Abiertos</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#059669;">{{ total_finalizados }}</div>
+        <div class="label">Finalizados</div>
+    </div>
+    <div class="stat-card">
+        <div class="number" style="color:#7c3aed;">{{ tickets|length }}</div>
+        <div class="label">Resultado filtrado</div>
+    </div>
+</div>
+
+<div class="card">
+    <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:180px;">
+            <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Estado</label>
+            <select name="estado" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                {% for estado in estados %}
+                <option value="{{ estado }}" {% if estado == filtro_estado %}selected{% endif %}>{{ estado }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="flex:1;min-width:220px;">
+            <label style="font-size:12px;color:#6b7280;display:block;margin-bottom:4px;">Sucursal</label>
+            <select name="sucursal" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                <option value="">Todas</option>
+                {% for suc in sucursales %}
+                <option value="{{ suc }}" {% if suc == filtro_suc %}selected{% endif %}>{{ suc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="height:42px;">Filtrar</button>
+        <a href="{{ url_for('admin_metricas_detalle', modulo_slug=modulo_slug) }}" class="btn btn-outline" style="height:42px;">Limpiar</a>
+    </form>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticket</th>
+                    <th>Sucursal</th>
+                    <th>Detalle</th>
+                    <th>Estado</th>
+                    <th>Asignado</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tickets %}
+                {% set es_material = t.categoria in ['Materiales', 'Solicitud de materiales'] or t.subcategoria == 'Solicitud de materiales' or t.tipo == 'materiales' %}
+                <tr onclick="window.location='{{ url_for('admin_pedido' if es_material else 'admin_ticket', ticket_id=t.id) }}'" style="cursor:pointer;">
+                    <td style="font-weight:800;color:#e63946;">#{{ t.id }}</td>
+                    <td>
+                        <strong>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</strong>
+                        {% if t.sector_oficina %}<div style="font-size:12px;color:#64748b;">{{ t.sector_oficina }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ t.subcategoria or t.categoria }}</strong>
+                        <div style="font-size:12px;color:#64748b;">
+                            {% if es_material %}
+                                {{ t.categoria_mat or 'Material' }}{% if t.subitem_mat %} - {{ t.subitem_mat }}{% endif %}{% if t.cantidad_mat %} - x{{ t.cantidad_mat }}{% endif %}
+                            {% elif t.tipo == 'compra_no_productiva' %}
+                                {{ t.compra_np_cantidad or 'Sin cantidad' }}{% if t.zona_afectada %} - {{ t.zona_afectada }}{% endif %}
+                            {% elif t.categoria == 'Presupuestos' %}
+                                {{ t.proveedor_presupuesto or 'Sin proveedor' }} - {{ t.estado_presupuesto or 'Nuevo' }}
+                            {% else %}
+                                {{ t.categoria }}{% if t.zona_afectada %} - {{ t.zona_afectada }}{% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>{{ t.estado }}</td>
+                    <td style="color:#64748b;">{{ t.asignado or 'Sin asignar' }}</td>
+                    <td style="color:#64748b;font-size:12px;">{{ t.creado[:10] if t.creado else '-' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not tickets %}
+                <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:34px;">Sin tickets para este filtro.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

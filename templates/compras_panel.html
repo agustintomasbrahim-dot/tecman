@@ -3,6 +3,7 @@
 {% block nav %}
 <div class="nav">
     <a href="{{ url_for('compras_panel') }}" style="color: #7c3aed; border-bottom: 2px solid #7c3aed;">Dashboard</a>
+    <a href="{{ url_for('compras_solicitudes') }}">Solicitudes</a>
     <a href="{{ url_for('compras_stock') }}">Stock</a>
     <a href="{{ url_for('compras_envio_nuevo') }}">Nuevo envio</a>
     <a href="{{ url_for('compras_envios') }}">Envios</a>
@@ -17,10 +18,17 @@
         <h2>Compras</h2>
         <p style="color: #64748b; font-size: 13px;">Panel de {{ session.compras_nombre }}</p>
     </div>
-    <a href="{{ url_for('compras_envio_nuevo') }}" class="btn" style="background: #7c3aed; color: #fff;">+ Registrar envio</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="{{ url_for('compras_solicitudes') }}" class="btn" style="background: #ede9fe; color: #6d28d9;">Ver solicitudes</a>
+        <a href="{{ url_for('compras_envio_nuevo') }}" class="btn" style="background: #7c3aed; color: #fff;">+ Registrar envio</a>
+    </div>
 </div>
 
 <div class="stats">
+    <div class="stat-card">
+        <div class="number" style="color: #7c3aed;">{{ solicitudes_abiertas_count }}</div>
+        <div class="label">Solicitudes abiertas</div>
+    </div>
     <div class="stat-card">
         <div class="number">{{ total_items }}</div>
         <div class="label">Items distintos</div>
@@ -41,6 +49,38 @@
         <div class="number" style="color: #0ea5e9;">{{ sucursales_atendidas }}</div>
         <div class="label">Sucursales atendidas</div>
     </div>
+    <div class="stat-card">
+        <div class="number" style="color: #059669;">{{ solicitudes_finalizadas_count }}</div>
+        <div class="label">Solicitudes resueltas</div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+        <h3>Solicitudes de compras no productivas</h3>
+        <a href="{{ url_for('compras_solicitudes') }}" style="color: #7c3aed; font-size: 13px; text-decoration: none;">Ver todas &rsaquo;</a>
+    </div>
+    {% if solicitudes_abiertas %}
+    <table>
+        <thead><tr><th>Ticket</th><th>Sucursal</th><th>Pedido</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody>
+            {% for t in solicitudes_abiertas %}
+            <tr onclick="window.location='{{ url_for('compras_solicitud', ticket_id=t.id) }}'" style="cursor:pointer;">
+                <td style="font-weight:800;color:#7c3aed;">#{{ t.id }}</td>
+                <td style="font-weight:600;">{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</td>
+                <td>
+                    <strong>{{ t.subcategoria or 'Pedido' }}</strong>
+                    <div style="font-size:12px;color:#64748b;">{{ t.compra_np_cantidad or '-' }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}</div>
+                </td>
+                <td>{{ t.estado }}</td>
+                <td style="color:#64748b;font-size:12px;">{{ t.creado[:10] if t.creado else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #9ca3af; text-align: center; padding: 24px;">No hay solicitudes abiertas de compras no productivas.</p>
+    {% endif %}
 </div>
 
 <!-- Stock resumido -->
