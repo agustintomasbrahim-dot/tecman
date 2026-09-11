@@ -4449,6 +4449,7 @@ def nuevo_ticket():
 
 
 @app.route("/estado/<int:ticket_id>")
+@any_session_required
 def estado_ticket(ticket_id):
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
