@@ -161,6 +161,9 @@ def serve_persistent_uploads_from_static_path():
     if not request.path.startswith("/static/uploads/"):
         return None
     filename = request.path.removeprefix("/static/uploads/")
+    # Dejar que la ruta protegida de guias aplique @any_session_required.
+    if filename.startswith("guias/"):
+        return None
     return send_from_directory(str(UPLOADS_DIR), filename)
 
 
