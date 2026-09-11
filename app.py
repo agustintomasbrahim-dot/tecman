@@ -164,6 +164,10 @@ def serve_persistent_uploads_from_static_path():
     # Dejar que la ruta protegida de guias aplique @any_session_required.
     if filename.startswith("guias/"):
         return None
+    has_session = any(k in session for k in ("user", "suc_user", "prov_user", "equipo_user", "compras_user", "syh_user"))
+    if not has_session or not _session_auth_is_valid():
+        session.clear()
+        return render_template("error.html", mensaje="Acceso restringido."), 403
     return send_from_directory(str(UPLOADS_DIR), filename)
 
 
