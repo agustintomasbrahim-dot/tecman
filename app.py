@@ -3839,6 +3839,38 @@ def any_session_required(f):
     return decorated
 
 
+def _session_can_view_ticket(ticket, tickets):
+    """Limita la vista generica de estado al alcance del portal autenticado."""
+    if "suc_user" in session:
+        return _sucursal_session_can_access_item(ticket)
+    if "prov_user" in session:
+        nombres = _proveedor_nombres_usuario()
+        if _ticket_es_de_proveedor(ticket, nombres):
+            return True
+        return any(
+            str(t.get("origen_ticket_id")) == str(ticket.get("id"))
+            and _ticket_es_de_proveedor(t, nombres)
+            for t in tickets
+        )
+    if "compras_user" in session:
+        return _is_compra_no_productiva(ticket)
+    if "equipo_user" in session:
+        return ticket.get("siguiente_paso") == "personal_mantenimiento"
+    if "syh_user" in session:
+        return ticket.get("categoria") == "Seguridad e Higiene"
+    if "user" in session:
+        rol = session.get("rol")
+        if rol == "admin":
+            return True
+        if rol == "tecnico":
+            return _is_material_ticket(ticket)
+        if rol == "equipo_central":
+            return ticket.get("siguiente_paso") == "personal_mantenimiento"
+        if rol == "syh":
+            return ticket.get("categoria") == "Seguridad e Higiene"
+    return False
+
+
 def login_required(f):
     """Permite acceso a cualquier usuario logueado (admin o tecnico)."""
     @wraps(f)
@@ -4459,6 +4491,8 @@ def estado_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if not _session_can_view_ticket(ticket, tickets):
+        return render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403
     suc_num = str(ticket.get("sucursal_num", "") or ticket.get("sucursal", "")).replace("Sucursal ", "").strip()
     tiene_abono = bool(get_proveedor_abono_sucursal(suc_num))
     return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES, tiene_abono=tiene_abono)
