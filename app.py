@@ -3878,6 +3878,8 @@ def login_required(f):
         if "user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("admin_login"))
+        if session.get("rol") not in ("admin", "tecnico"):
+            return render_template("error.html", mensaje="Acceso restringido al portal administrativo."), 403
         if session.get("auth_provider") == "entra":
             entra_role = session.get("entra_role")
             allowed = entra_role == "admin" or (entra_role == "tecnico" and session.get("rol") == "tecnico")
@@ -4575,6 +4577,7 @@ def admin_login():
         if (
             auth_user
             and _auth_user_status(auth_user) == "active"
+            and _auth_user_role(auth_user) in ("admin", "tecnico")
             and _auth_user_allows_provider(auth_user, "local")
             and _verify_password(
                 pwd,
@@ -4590,7 +4593,7 @@ def admin_login():
         _mark_login_failure(auth_user)
 
         # Compatibilidad temporal con las credenciales legacy por variable de entorno.
-        if user in ADMINS and ADMINS[user]["password"] == pwd:
+        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "tecnico") and ADMINS[user]["password"] == pwd:
             legacy = _find_auth_user(identifier=user)
             if legacy:
                 _mark_login_success(legacy, "local")
@@ -7946,9 +7949,18 @@ SYH_USERS = {
 def syh_login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "syh_user" not in session and "user" not in session:
+        if not _session_auth_is_valid():
+            session.clear()
             return redirect(url_for("syh_login"))
-        return f(*args, **kwargs)
+        if "syh_user" in session:
+            if "user" in session and session.get("rol") not in ("admin", "syh"):
+                return render_template("error.html", mensaje="Acceso restringido al portal de Seguridad e Higiene."), 403
+            return f(*args, **kwargs)
+        if "user" in session and session.get("rol") in ("admin", "syh"):
+            return f(*args, **kwargs)
+        if "user" in session:
+            return render_template("error.html", mensaje="Acceso restringido al portal de Seguridad e Higiene."), 403
+        return redirect(url_for("syh_login"))
     return decorated
 
 
@@ -7961,8 +7973,8 @@ def syh_login():
             session["syh_user"] = user
             session["syh_nombre"] = SYH_USERS[user]["nombre"]
             return redirect(url_for("syh_panel"))
-        # Also allow admins
-        if user in ADMINS and ADMINS[user]["password"] == pwd:
+        # También permite administradores; otros roles deben usar su portal específico.
+        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "syh") and ADMINS[user]["password"] == pwd:
             session["user"] = user
             session["nombre"] = ADMINS[user]["nombre"]
             session["syh_user"] = user
