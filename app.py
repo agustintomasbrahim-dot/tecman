@@ -7330,7 +7330,7 @@ def _get_ticket_equipo(ticket_id, tickets):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return None
-    if ticket.get("siguiente_paso") != "personal_mantenimiento":
+    if ticket.get("siguiente_paso") != "personal_mantenimiento" and ticket.get("asignado") != "Equipo Central":
         return None
     return ticket
 
