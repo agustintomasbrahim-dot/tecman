@@ -2,6 +2,7 @@
 
 import os
 import io
+import csv
 import html
 import json
 import uuid
@@ -14,6 +15,7 @@ import copy
 import time
 import secrets
 import hashlib
+import unicodedata
 import requests
 import bcrypt
 import jwt
@@ -83,7 +85,7 @@ if _DB_URL.startswith("postgres://"):
 USE_DB = False
 if _DB_URL:
     try:
-        from models import (db, TicketDB, MatafuegoDB, HabilitacionDB, ComprobanteDB,
+        from models import (db, TicketDB, MatafuegoDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
                             StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                             VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
                             CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB,
@@ -99,14 +101,17 @@ if _DB_URL:
         print(f"[WARN] DB no disponible, usando JSON: {e}")
 
 IS_CLOUD = os.environ.get("RENDER", False)
+_DATA_DIR_OVERRIDE = os.environ.get("TECMAN_DATA_DIR", "").strip()
 
 # En Render usamos el disco persistente montado en /data
 # En local usamos ./data relativo al proyecto
-if IS_CLOUD and Path("/data").exists():
+if _DATA_DIR_OVERRIDE:
+    DATA_DIR = Path(_DATA_DIR_OVERRIDE)
+elif IS_CLOUD and Path("/data").exists():
     DATA_DIR = Path("/data")
 else:
     DATA_DIR = Path(__file__).parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 TICKETS_FILE = DATA_DIR / "tickets.json"
 SYH_GESTIONES_FILE = DATA_DIR / "syh_gestiones.json"
@@ -119,6 +124,7 @@ STOCK_LOTES_FILE = DATA_DIR / "stock_lotes.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
+GRUPOS_ELECTROGENOS_FILE = DATA_DIR / "grupos_electrogenos.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
 ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
@@ -135,8 +141,10 @@ OFICINA_ACCESOS_FILE = DATA_DIR / "oficina_accesos.json"
 REPO_OFICINA_ACCESOS_FILE = Path(__file__).parent / "data" / "oficina_accesos.json"
 PROVEEDOR_USERS_FILE = DATA_DIR / "proveedor_users.json"
 
-# Uploads: también en disco persistente en Render
-if IS_CLOUD and Path("/data").exists():
+# Uploads: también en disco persistente en Render; aislables en tests.
+if os.environ.get("TECMAN_UPLOADS_DIR", "").strip():
+    UPLOADS_DIR = Path(os.environ["TECMAN_UPLOADS_DIR"].strip())
+elif IS_CLOUD and Path("/data").exists():
     UPLOADS_DIR = Path("/data") / "uploads"
 else:
     UPLOADS_DIR = Path(__file__).parent / "static" / "uploads"
@@ -2017,6 +2025,165 @@ def save_matafuegos(data):
     if USE_DB:
         _db_replace(MatafuegoDB, data.get("matafuegos", []))
     _atomic_write(MATAFUEGOS_FILE, data)
+
+
+GENERADOR_ESTADOS_VALIDACION = ("pendiente_validacion", "validado", "con_diferencias")
+GENERADOR_CAMPOS = (
+    "sucursal", "marca", "modelo", "potencia", "numero_serie", "combustible",
+    "ubicacion", "estado_equipo", "ultima_revision", "proximo_mantenimiento",
+    "proveedor", "observaciones",
+)
+GENERADOR_IMPORT_HEADERS = (
+    "sucursal", "marca", "modelo", "potencia", "numero de serie", "combustible",
+    "ubicacion", "estado", "ultima revision", "proximo mantenimiento", "proveedor",
+    "observaciones",
+)
+
+
+def load_grupos_electrogenos():
+    if USE_DB:
+        return {"grupos_electrogenos": _db_list(GrupoElectrogenoDB)}
+    if GRUPOS_ELECTROGENOS_FILE.exists():
+        try:
+            return json.loads(GRUPOS_ELECTROGENOS_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"grupos_electrogenos": []}
+
+
+def save_grupos_electrogenos(data):
+    if USE_DB:
+        _db_replace(GrupoElectrogenoDB, data.get("grupos_electrogenos", []))
+    _atomic_write(GRUPOS_ELECTROGENOS_FILE, data)
+
+
+def _generador_actor():
+    return session.get("nombre") or session.get("suc_nombre") or session.get("user") or session.get("suc_user") or "Sistema"
+
+
+def _generador_historial(item, accion, detalle="", actor=None):
+    item.setdefault("historial", []).append({
+        "fecha": datetime.datetime.now().isoformat(),
+        "actor": actor or _generador_actor(),
+        "accion": accion,
+        "detalle": str(detalle or "").strip(),
+    })
+
+
+def _normalizar_encabezado_generador(value):
+    text = unicodedata.normalize("NFKD", str(value or "").strip().lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(text.replace("_", " ").replace("-", " ").split())
+
+
+_GENERADOR_HEADER_MAP = {
+    "sucursal": "sucursal",
+    "marca": "marca",
+    "modelo": "modelo",
+    "potencia": "potencia",
+    "numero de serie": "numero_serie",
+    "nro de serie": "numero_serie",
+    "serie": "numero_serie",
+    "combustible": "combustible",
+    "ubicacion": "ubicacion",
+    "estado": "estado_equipo",
+    "estado equipo": "estado_equipo",
+    "ultima revision": "ultima_revision",
+    "proximo mantenimiento": "proximo_mantenimiento",
+    "proveedor": "proveedor",
+    "observaciones": "observaciones",
+}
+
+
+def _generador_cell_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.date().isoformat() if isinstance(value, datetime.datetime) else value.isoformat()
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _generador_from_values(values, actor, origen):
+    sucursal_raw = values.get("sucursal", "").strip()
+    suc_num = _sucursal_num_from_value(sucursal_raw)
+    sucursal = _sucursal_label_from_num(suc_num)
+    valid_nums = {_sucursal_num_from_value(s) for s in SUCURSALES}
+    if not suc_num or suc_num not in valid_nums or _is_sucursal_cerrada(suc_num):
+        raise ValueError("Sucursal inexistente o inactiva")
+    now = datetime.datetime.now().isoformat()
+    item = {
+        "id": uuid.uuid4().hex[:12],
+        "sucursal": sucursal,
+        "sucursal_num": suc_num,
+        "marca": values.get("marca", "").strip(),
+        "modelo": values.get("modelo", "").strip(),
+        "potencia": values.get("potencia", "").strip(),
+        "numero_serie": values.get("numero_serie", "").strip(),
+        "combustible": values.get("combustible", "").strip(),
+        "ubicacion": values.get("ubicacion", "").strip(),
+        "estado_equipo": values.get("estado_equipo", "").strip(),
+        "ultima_revision": values.get("ultima_revision", "").strip(),
+        "proximo_mantenimiento": values.get("proximo_mantenimiento", "").strip(),
+        "proveedor": values.get("proveedor", "").strip(),
+        "observaciones": values.get("observaciones", "").strip(),
+        "estado_validacion": "pendiente_validacion",
+        "diferencias": "",
+        "created_at": now,
+        "updated_at": now,
+        "historial": [],
+    }
+    _generador_historial(item, "asignado_sucursal", f"Alta por {origen}", actor=actor)
+    return item
+
+
+def _leer_importacion_generadores(file_storage):
+    filename = (file_storage.filename or "").lower()
+    raw = file_storage.read()
+    if not raw:
+        raise ValueError("El archivo está vacío")
+    if len(raw) > 5 * 1024 * 1024:
+        raise ValueError("El archivo supera el límite de 5 MB")
+    if filename.endswith(".csv"):
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = raw.decode("latin-1")
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+        rows = list(csv.reader(io.StringIO(text), dialect))
+    elif filename.endswith(".xlsx"):
+        try:
+            from openpyxl import load_workbook
+            workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            rows = list(workbook.active.iter_rows(values_only=True))
+            workbook.close()
+        except Exception as exc:
+            raise ValueError("No se pudo leer el archivo Excel") from exc
+    else:
+        raise ValueError("Formato no admitido. Usá .xlsx o .csv")
+    if not rows:
+        raise ValueError("El archivo no contiene filas")
+    headers = [_GENERADOR_HEADER_MAP.get(_normalizar_encabezado_generador(v), "") for v in rows[0]]
+    if "sucursal" not in headers:
+        raise ValueError("Falta la columna obligatoria 'sucursal'")
+    parsed = []
+    for row_number, row in enumerate(rows[1:], start=2):
+        if row_number > 2001:
+            raise ValueError("La importación admite hasta 2000 equipos")
+        values = {}
+        for idx, value in enumerate(row):
+            if idx < len(headers) and headers[idx]:
+                values[headers[idx]] = _generador_cell_text(value)
+        if not any(values.values()):
+            continue
+        parsed.append((row_number, values))
+    if not parsed:
+        raise ValueError("El archivo no contiene equipos para importar")
+    return parsed
 
 def _parse_fecha_matafuego(valor):
     valor = str(valor or "").strip()
@@ -5260,6 +5427,7 @@ def admin_panel():
         "syh_matafuegos": "Matafuegos",
         "syh_habilitacion": "Habilitaciones",
         "syh": "Seguridad e Higiene",
+        "grupos_electrogenos": "Grupos electrógenos",
     }
     notif_admin = [
         {
@@ -8571,6 +8739,177 @@ def admin_syh_matafuegos_actualizar_vencimiento(mid):
         return redirect(url_for("admin_syh_matafuegos", sucursal=retorno_sucursal))
     flash("Matafuego no encontrado")
     return redirect(url_for("admin_syh_matafuegos"))
+
+
+@app.route("/admin/grupos-electrogenos", methods=["GET", "POST"])
+@admin_required
+def admin_grupos_electrogenos():
+    data = load_grupos_electrogenos()
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+        values = {campo: request.form.get(campo, "").strip() for campo in GENERADOR_CAMPOS}
+        try:
+            nuevo = _generador_from_values(values, _generador_actor(), "carga manual")
+        except ValueError as exc:
+            flash(str(exc))
+            return redirect(url_for("admin_grupos_electrogenos"))
+        nuevo["notificacion_sucursal_pendiente"] = True
+        data.setdefault("grupos_electrogenos", []).append(nuevo)
+        save_grupos_electrogenos(data)
+        agregar_notif_admin(
+            "Grupo electrógeno asignado",
+            f"{nuevo['sucursal']} recibió un equipo pendiente de validación.",
+            tipo="grupos_electrogenos",
+            autor=_generador_actor(),
+            link=url_for("admin_grupos_electrogenos", sucursal=nuevo["sucursal"]),
+        )
+        flash("Grupo electrógeno cargado y asignado a la sucursal")
+        return redirect(url_for("admin_grupos_electrogenos"))
+
+    items = [x for x in data.get("grupos_electrogenos", []) if not _is_sucursal_cerrada(x.get("sucursal_num") or x.get("sucursal"))]
+    filtro_sucursal = request.args.get("sucursal", "").strip()
+    filtro_estado = request.args.get("estado_validacion", "").strip()
+    if filtro_sucursal:
+        filtro_num = _sucursal_num_from_value(filtro_sucursal)
+        items = [x for x in items if _sucursal_num_from_value(x.get("sucursal_num") or x.get("sucursal")) == filtro_num]
+    if filtro_estado in GENERADOR_ESTADOS_VALIDACION:
+        items = [x for x in items if x.get("estado_validacion", "pendiente_validacion") == filtro_estado]
+    items.sort(key=lambda x: (x.get("sucursal_num", ""), x.get("marca", ""), x.get("modelo", "")))
+    stats = {estado: 0 for estado in GENERADOR_ESTADOS_VALIDACION}
+    for item in data.get("grupos_electrogenos", []):
+        if _is_sucursal_cerrada(item.get("sucursal_num") or item.get("sucursal")):
+            continue
+        estado = item.get("estado_validacion", "pendiente_validacion")
+        if estado in stats:
+            stats[estado] += 1
+    stats["total"] = sum(stats.values())
+    return render_template(
+        "admin_grupos_electrogenos.html",
+        equipos=items,
+        sucursales=SUCURSALES,
+        estados_validacion=GENERADOR_ESTADOS_VALIDACION,
+        filtro_sucursal=filtro_sucursal,
+        filtro_estado=filtro_estado,
+        stats=stats,
+    )
+
+
+@app.route("/admin/grupos-electrogenos/plantilla.xlsx")
+@admin_required
+def admin_grupos_electrogenos_plantilla():
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Grupos electrogenos"
+    sheet.append(list(GENERADOR_IMPORT_HEADERS))
+    sheet.freeze_panes = "A2"
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_grupos_electrogenos.xlsx"},
+    )
+
+
+@app.route("/admin/grupos-electrogenos/importar", methods=["POST"])
+@admin_required
+def admin_grupos_electrogenos_importar():
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+    archivo = request.files.get("archivo")
+    if not archivo or not archivo.filename:
+        flash("Seleccioná un archivo Excel o CSV")
+        return redirect(url_for("admin_grupos_electrogenos"))
+    try:
+        filas = _leer_importacion_generadores(archivo)
+        actor = _generador_actor()
+        nuevos = [_generador_from_values(values, actor, f"importación fila {row_number}") for row_number, values in filas]
+    except ValueError as exc:
+        flash(f"No se importó ningún equipo: {exc}")
+        return redirect(url_for("admin_grupos_electrogenos"))
+
+    existentes = load_grupos_electrogenos()
+    claves = {
+        (_sucursal_num_from_value(x.get("sucursal_num") or x.get("sucursal")), x.get("numero_serie", "").strip().casefold())
+        for x in existentes.get("grupos_electrogenos", []) if x.get("numero_serie", "").strip()
+    }
+    for item in nuevos:
+        serie = item.get("numero_serie", "").strip().casefold()
+        clave = (item.get("sucursal_num", ""), serie)
+        if serie and clave in claves:
+            flash(f"No se importó ningún equipo: número de serie duplicado en {item['sucursal']}")
+            return redirect(url_for("admin_grupos_electrogenos"))
+        if serie:
+            claves.add(clave)
+        item["notificacion_sucursal_pendiente"] = True
+    existentes.setdefault("grupos_electrogenos", []).extend(nuevos)
+    save_grupos_electrogenos(existentes)
+    agregar_notif_admin(
+        "Grupos electrógenos importados",
+        f"Se asignaron {len(nuevos)} equipo(s) a {len({x['sucursal_num'] for x in nuevos})} sucursal(es), pendientes de validación.",
+        tipo="grupos_electrogenos",
+        autor=_generador_actor(),
+        link=url_for("admin_grupos_electrogenos"),
+    )
+    flash(f"Se importaron {len(nuevos)} equipos y quedaron pendientes de validación")
+    return redirect(url_for("admin_grupos_electrogenos"))
+
+
+@app.route("/suc/grupos-electrogenos")
+@suc_login_required
+def suc_grupos_electrogenos():
+    if session.get("oficina_user"):
+        return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    equipos = [
+        x for x in load_grupos_electrogenos().get("grupos_electrogenos", [])
+        if _sucursal_session_can_access_item(x)
+    ]
+    equipos.sort(key=lambda x: (x.get("estado_validacion", "pendiente_validacion") != "pendiente_validacion", x.get("marca", ""), x.get("modelo", "")))
+    return render_template("suc_grupos_electrogenos.html", equipos=equipos)
+
+
+@app.route("/suc/grupos-electrogenos/<equipo_id>/validar", methods=["POST"])
+@suc_login_required
+def suc_grupo_electrogeno_validar(equipo_id):
+    if session.get("oficina_user"):
+        return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+    data = load_grupos_electrogenos()
+    equipo = next((x for x in data.get("grupos_electrogenos", []) if x.get("id") == equipo_id and _sucursal_session_can_access_item(x)), None)
+    if not equipo:
+        return render_template("error.html", mensaje="Equipo no encontrado."), 404
+    accion = request.form.get("accion", "").strip()
+    diferencias = request.form.get("diferencias", "").strip()
+    if accion not in ("confirmar", "diferencias"):
+        return render_template("error.html", mensaje="Acción inválida."), 400
+    if accion == "diferencias" and not diferencias:
+        flash("Detallá las diferencias encontradas")
+        return redirect(url_for("suc_grupos_electrogenos"))
+    equipo["estado_validacion"] = "validado" if accion == "confirmar" else "con_diferencias"
+    equipo["diferencias"] = "" if accion == "confirmar" else diferencias
+    equipo["validado_at"] = datetime.datetime.now().isoformat()
+    equipo["validado_por"] = _generador_actor()
+    equipo["updated_at"] = equipo["validado_at"]
+    equipo["notificacion_sucursal_pendiente"] = False
+    _generador_historial(equipo, "datos_confirmados" if accion == "confirmar" else "diferencias_informadas", diferencias)
+    save_grupos_electrogenos(data)
+    if accion == "diferencias":
+        agregar_notif_admin(
+            f"Grupo electrógeno con diferencias — {equipo.get('sucursal', '')}",
+            diferencias,
+            tipo="grupos_electrogenos",
+            autor=_generador_actor(),
+            link=url_for("admin_grupos_electrogenos", sucursal=equipo.get("sucursal", "")),
+        )
+    flash("Datos confirmados" if accion == "confirmar" else "Diferencias informadas al administrador")
+    return redirect(url_for("suc_grupos_electrogenos"))
 
 
 @app.route("/suc/syh/asistencia", methods=["POST"])

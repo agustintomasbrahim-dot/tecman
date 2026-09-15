@@ -5,6 +5,7 @@
     <a href="{{ url_for('suc_panel') }}">Inicio</a>
     {% if not session.oficina_user %}
     <a href="{{ url_for('suc_syh') }}">Seguridad e Higiene</a>
+    <a href="{{ url_for('suc_grupos_electrogenos') }}">Grupos electrógenos</a>
     <a href="{{ url_for('suc_panel') }}#stock-recibido">Stock recibido</a>
     <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
     {% endif %}
@@ -100,6 +101,11 @@
             <div class="suc-mini-label">Matafuegos</div>
             <div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div>
             <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cantidad y vencimientos · Ver →</div>
+        </a>
+        <a href="{{ url_for('suc_grupos_electrogenos') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
+            <div class="suc-mini-label">Grupos electrógenos</div>
+            <div class="suc-mini-value">Ver equipos</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Validar inventario asignado →</div>
         </a>
         <a href="#permisos-sucursal" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Permisos</div>

@@ -72,6 +72,26 @@ class MatafuegoDB(db.Model):
         return self.payload
 
 
+class GrupoElectrogenoDB(db.Model):
+    __tablename__ = 'grupos_electrogenos'
+    id = db.Column(db.String(50), primary_key=True)
+    sucursal_num = db.Column(db.String(10), index=True)
+    estado_validacion = db.Column(db.String(30), index=True)
+    payload = db.Column(JSONB, nullable=False)
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            id=_ensure_id(d),
+            sucursal_num=d.get('sucursal_num', ''),
+            estado_validacion=d.get('estado_validacion', 'pendiente_validacion'),
+            payload=d,
+        )
+
+    def to_dict(self):
+        return self.payload
+
+
 class HabilitacionDB(db.Model):
     __tablename__ = 'habilitaciones'
     id = db.Column(db.String(50), primary_key=True)

@@ -461,6 +461,7 @@ new Chart(document.getElementById('chartAgente'), {
         <div class="admin-group-title">Control y cumplimiento</div>
         <div class="admin-group-links">
             <a class="admin-group-link" href="{{ url_for('admin_syh') }}"><span>S&H</span><span>›</span></a>
+            <a class="admin-group-link" href="{{ url_for('admin_grupos_electrogenos') }}"><span>Grupos electrógenos</span><span>›</span></a>
             <a class="admin-group-link" href="{{ url_for('admin_permisos') }}"><span>Permisos</span><span>›</span></a>
             {% if session.rol == "admin" %}<a class="admin-group-link" href="{{ url_for('admin_habilitaciones') }}"><span>Habilitaciones</span><span>›</span></a>{% endif %}
             <a class="admin-group-link" href="{{ url_for('admin_proveedores') }}"><span>Proveedores</span><span>›</span></a>
