@@ -36,6 +36,16 @@ class GruposElectrogenosTest(unittest.TestCase):
             sess["suc_nombre"] = label
             sess["_csrf_token"] = "csrf-test"
 
+    def _supervisor_session(self, scope=None):
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess["suc_user"] = "supervisor-test"
+            sess["suc_nombre"] = "Portal Sucursales"
+            sess["suc_general"] = True
+            if scope is not None:
+                sess["suc_scope_nums"] = scope
+            sess["_csrf_token"] = "csrf-test"
+
     def test_admin_manual_csv_and_empty_template(self):
         self._admin_session()
         suc1, suc2 = tecman.SUCURSALES[:2]
@@ -131,6 +141,71 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
         self.assertEqual(items[0]["numero_serie"], "SER-XLSX")
+
+    def test_general_session_without_scope_is_forbidden(self):
+        suc = tecman.SUCURSALES[0]
+        with tecman.app.test_request_context("/"):
+            item = tecman._generador_from_values({"sucursal": suc, "marca": "No visible"}, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [item]})
+        self._supervisor_session()
+        self.assertEqual(self.client.get("/suc/grupos-electrogenos").status_code, 403)
+        response = self.client.post(f"/suc/grupos-electrogenos/{item['id']}/validar", data={
+            "_csrf_token": "csrf-test", "accion": "confirmar"
+        })
+        self.assertEqual(response.status_code, 403)
+
+    def test_supervisor_with_scope_only_sees_and_validates_scope(self):
+        suc1, suc2 = tecman.SUCURSALES[:2]
+        with tecman.app.test_request_context("/"):
+            one = tecman._generador_from_values({"sucursal": suc1, "marca": "En scope"}, "Admin", "test")
+            two = tecman._generador_from_values({"sucursal": suc2, "marca": "Fuera scope"}, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [one, two]})
+        self._supervisor_session([one["sucursal_num"]])
+        response = self.client.get("/suc/grupos-electrogenos")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"En scope", response.data)
+        self.assertNotIn(b"Fuera scope", response.data)
+        forbidden = self.client.post(f"/suc/grupos-electrogenos/{two['id']}/validar", data={
+            "_csrf_token": "csrf-test", "accion": "confirmar"
+        })
+        self.assertEqual(forbidden.status_code, 404)
+        allowed = self.client.post(f"/suc/grupos-electrogenos/{one['id']}/validar", data={
+            "_csrf_token": "csrf-test", "accion": "confirmar"
+        })
+        self.assertEqual(allowed.status_code, 302)
+
+    def test_invalid_dates_are_rejected_atomically(self):
+        self._admin_session()
+        suc = tecman.SUCURSALES[0]
+        manual = self.client.post("/admin/grupos-electrogenos", data={
+            "_csrf_token": "csrf-test", "sucursal": suc, "ultima_revision": "15/09/2026"
+        })
+        self.assertEqual(manual.status_code, 302)
+        self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"], [])
+
+        csv_data = (
+            "sucursal,marca,ultima revision,proximo mantenimiento\n"
+            f"{suc},Valido,2026-01-01,2027-01-01\n"
+            f"{suc},Invalido,2026-99-01,2027-01-01\n"
+        ).encode()
+        imported = self.client.post("/admin/grupos-electrogenos/importar", data={
+            "_csrf_token": "csrf-test", "archivo": (io.BytesIO(csv_data), "equipos.csv")
+        }, content_type="multipart/form-data")
+        self.assertEqual(imported.status_code, 302)
+        self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"], [])
+
+    def test_manual_duplicate_serial_is_rejected_per_branch(self):
+        self._admin_session()
+        suc1, suc2 = tecman.SUCURSALES[:2]
+        payload = {"_csrf_token": "csrf-test", "sucursal": suc1, "numero_serie": " DUP-01 "}
+        self.assertEqual(self.client.post("/admin/grupos-electrogenos", data=payload).status_code, 302)
+        payload["numero_serie"] = "dup-01"
+        self.assertEqual(self.client.post("/admin/grupos-electrogenos", data=payload).status_code, 302)
+        items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
+        self.assertEqual(len(items), 1)
+        payload.update({"sucursal": suc2, "numero_serie": "DUP-01"})
+        self.assertEqual(self.client.post("/admin/grupos-electrogenos", data=payload).status_code, 302)
+        self.assertEqual(len(tecman.load_grupos_electrogenos()["grupos_electrogenos"]), 2)
 
     def test_routes_are_protected(self):
         self.assertEqual(self.client.get("/admin/grupos-electrogenos").status_code, 302)

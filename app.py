@@ -2112,6 +2112,18 @@ def _generador_from_values(values, actor, origen):
     valid_nums = {_sucursal_num_from_value(s) for s in SUCURSALES}
     if not suc_num or suc_num not in valid_nums or _is_sucursal_cerrada(suc_num):
         raise ValueError("Sucursal inexistente o inactiva")
+    fechas = {}
+    for campo, etiqueta in (
+        ("ultima_revision", "Última revisión"),
+        ("proximo_mantenimiento", "Próximo mantenimiento"),
+    ):
+        valor = values.get(campo, "").strip()
+        if valor:
+            try:
+                valor = datetime.date.fromisoformat(valor).isoformat()
+            except ValueError as exc:
+                raise ValueError(f"{etiqueta} debe tener formato ISO AAAA-MM-DD") from exc
+        fechas[campo] = valor
     now = datetime.datetime.now().isoformat()
     item = {
         "id": uuid.uuid4().hex[:12],
@@ -2124,8 +2136,8 @@ def _generador_from_values(values, actor, origen):
         "combustible": values.get("combustible", "").strip(),
         "ubicacion": values.get("ubicacion", "").strip(),
         "estado_equipo": values.get("estado_equipo", "").strip(),
-        "ultima_revision": values.get("ultima_revision", "").strip(),
-        "proximo_mantenimiento": values.get("proximo_mantenimiento", "").strip(),
+        "ultima_revision": fechas["ultima_revision"],
+        "proximo_mantenimiento": fechas["proximo_mantenimiento"],
         "proveedor": values.get("proveedor", "").strip(),
         "observaciones": values.get("observaciones", "").strip(),
         "estado_validacion": "pendiente_validacion",
@@ -2136,6 +2148,13 @@ def _generador_from_values(values, actor, origen):
     }
     _generador_historial(item, "asignado_sucursal", f"Alta por {origen}", actor=actor)
     return item
+
+
+def _generador_serie_key(item):
+    serie = item.get("numero_serie", "").strip().casefold()
+    if not serie:
+        return None
+    return (_sucursal_num_from_value(item.get("sucursal_num") or item.get("sucursal")), serie)
 
 
 def _leer_importacion_generadores(file_storage):
@@ -8754,6 +8773,10 @@ def admin_grupos_electrogenos():
         except ValueError as exc:
             flash(str(exc))
             return redirect(url_for("admin_grupos_electrogenos"))
+        clave_nueva = _generador_serie_key(nuevo)
+        if clave_nueva and any(_generador_serie_key(item) == clave_nueva for item in data.get("grupos_electrogenos", [])):
+            flash(f"Ya existe un equipo con ese número de serie en {nuevo['sucursal']}")
+            return redirect(url_for("admin_grupos_electrogenos"))
         nuevo["notificacion_sucursal_pendiente"] = True
         data.setdefault("grupos_electrogenos", []).append(nuevo)
         save_grupos_electrogenos(data)
@@ -8835,17 +8858,14 @@ def admin_grupos_electrogenos_importar():
         return redirect(url_for("admin_grupos_electrogenos"))
 
     existentes = load_grupos_electrogenos()
-    claves = {
-        (_sucursal_num_from_value(x.get("sucursal_num") or x.get("sucursal")), x.get("numero_serie", "").strip().casefold())
-        for x in existentes.get("grupos_electrogenos", []) if x.get("numero_serie", "").strip()
-    }
+    claves = {_generador_serie_key(x) for x in existentes.get("grupos_electrogenos", [])}
+    claves.discard(None)
     for item in nuevos:
-        serie = item.get("numero_serie", "").strip().casefold()
-        clave = (item.get("sucursal_num", ""), serie)
-        if serie and clave in claves:
+        clave = _generador_serie_key(item)
+        if clave and clave in claves:
             flash(f"No se importó ningún equipo: número de serie duplicado en {item['sucursal']}")
             return redirect(url_for("admin_grupos_electrogenos"))
-        if serie:
+        if clave:
             claves.add(clave)
         item["notificacion_sucursal_pendiente"] = True
     existentes.setdefault("grupos_electrogenos", []).extend(nuevos)
@@ -8866,6 +8886,8 @@ def admin_grupos_electrogenos_importar():
 def suc_grupos_electrogenos():
     if session.get("oficina_user"):
         return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
+        return render_template("error.html", mensaje="Esta sesión no tiene sucursales asignadas."), 403
     equipos = [
         x for x in load_grupos_electrogenos().get("grupos_electrogenos", [])
         if _sucursal_session_can_access_item(x)
@@ -8879,6 +8901,8 @@ def suc_grupos_electrogenos():
 def suc_grupo_electrogeno_validar(equipo_id):
     if session.get("oficina_user"):
         return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
+        return render_template("error.html", mensaje="Esta sesión no tiene sucursales asignadas."), 403
     if not _validate_csrf():
         return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
     data = load_grupos_electrogenos()
