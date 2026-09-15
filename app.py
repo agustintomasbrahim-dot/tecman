@@ -2,6 +2,7 @@
 
 import os
 import io
+import html
 import json
 import uuid
 import zipfile
@@ -280,6 +281,7 @@ _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 _SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
 COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar,wpereyra@grupodexter.com.ar")
+RITA_EMAIL = os.environ.get("RITA_EMAIL", "rrobles@grupodexter.com.ar").strip()
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
 AGUSTIN_EMAIL = os.environ.get("AGUSTIN_EMAIL", "agustintomasbrahim@gmail.com")
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
@@ -2328,6 +2330,59 @@ def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
             server.sendmail(MAIL_FROM, recipients, msg.as_bytes())
 
 
+def _notificar_requisicion_rita(ticket, event_key, motivo):
+    """Avisa una sola vez por evento cuando un ticket queda pendiente de requisición."""
+    if not RITA_EMAIL:
+        app.logger.warning("RITA_EMAIL no configurado; no se envió aviso de requisición")
+        return "disabled"
+
+    enviados = ticket.setdefault("rita_email_notificaciones", [])
+    if any(isinstance(item, dict) and item.get("clave") == event_key for item in enviados):
+        return "duplicate"
+
+    ahora = datetime.datetime.now().isoformat()
+    ticket_id = ticket.get("id")
+    endpoint = "admin_pedido" if _is_material_ticket(ticket) else "admin_ticket"
+    link = url_for(endpoint, ticket_id=ticket_id, _external=True)
+    sucursal = html.escape(str(ticket.get("sucursal") or "Sin sucursal"))
+    categoria = html.escape(str(ticket.get("categoria_mat") or ticket.get("subcategoria") or ticket.get("categoria") or "Sin categoría"))
+    detalle = html.escape(str(ticket.get("detalle_compras") or ticket.get("descripcion") or "Sin detalle"))
+    motivo_seguro = html.escape(str(motivo or "Requisición pendiente"))
+    html_body = f"""
+    <div style='font-family:Arial,sans-serif;max-width:680px;margin:0 auto;color:#1f2937;'>
+      <h2 style='color:#0f766e;'>Requisición pendiente en Tecman</h2>
+      <p>Hola Rita,</p>
+      <p>El sistema te asignó un ticket para preparar una requisición.</p>
+      <table style='width:100%;border-collapse:collapse;margin:18px 0;'>
+        <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;width:150px;'>Ticket</td><td style='padding:8px 12px;background:#f8fafc;'>#{ticket_id}</td></tr>
+        <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Sucursal</td><td style='padding:8px 12px;background:#f8fafc;'>{sucursal}</td></tr>
+        <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Categoría</td><td style='padding:8px 12px;background:#f8fafc;'>{categoria}</td></tr>
+        <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Motivo</td><td style='padding:8px 12px;background:#f8fafc;'>{motivo_seguro}</td></tr>
+        <tr><td style='padding:8px 12px;background:#f0fdfa;font-weight:700;'>Detalle</td><td style='padding:8px 12px;background:#f8fafc;'>{detalle}</td></tr>
+      </table>
+      <p><a href='{html.escape(link, quote=True)}' style='display:inline-block;background:#0f766e;color:white;text-decoration:none;padding:11px 18px;border-radius:7px;font-weight:700;'>Abrir ticket en Tecman</a></p>
+      <p style='color:#6b7280;font-size:13px;'>Ingresá con tu usuario de Tecman para revisar el ticket y cargar la requisición.</p>
+    </div>
+    """
+    try:
+        _smtp_send(RITA_EMAIL, f"Tecman - Requisición pendiente para ticket #{ticket_id}", html_body)
+    except Exception:
+        app.logger.exception("No se pudo enviar aviso de requisición a Rita para ticket %s", ticket_id)
+        return "error"
+
+    enviados.append({
+        "clave": event_key,
+        "fecha": ahora,
+        "destinatario": RITA_EMAIL,
+    })
+    ticket.setdefault("notas", []).append({
+        "autor": "Sistema",
+        "fecha": ahora,
+        "texto": f"Aviso de requisición enviado a Rita ({RITA_EMAIL}).",
+    })
+    return "sent"
+
+
 def _unique_recipients(*addresses):
     recipients = []
     seen = set()
@@ -3363,12 +3418,40 @@ def _seed_data_dir():
 _seed_data_dir()
 
 
+def _ticket_es_pedido_materiales(ticket):
+    return (
+        ticket.get("categoria") in ("Materiales", "Solicitud de materiales")
+        or ticket.get("subcategoria") == "Solicitud de materiales"
+        or ticket.get("tipo") == "materiales"
+    )
+
+
+def _normalizar_responsable_materiales(tickets):
+    """Mantiene todos los pedidos operativos de materiales bajo responsabilidad de Soria."""
+    for ticket in tickets:
+        if not isinstance(ticket, dict) or not _ticket_es_pedido_materiales(ticket):
+            continue
+        if ticket.get("estado") in ("Resuelto", "Cerrado", "Rechazado"):
+            continue
+        responsables_previos = [
+            ticket.get("asignado"),
+            ticket.get("asignado_proveedor"),
+        ]
+        for responsable in responsables_previos:
+            if responsable and responsable != "Soria" and not ticket.get("proveedor_origen"):
+                ticket["proveedor_origen"] = responsable
+                break
+        ticket["asignado"] = "Soria"
+        ticket.pop("asignado_proveedor", None)
+    return tickets
+
+
 def load_tickets():
     if USE_DB:
-        return _db_list(TicketDB)
+        return _normalizar_responsable_materiales(_db_list(TicketDB))
     if TICKETS_FILE.exists():
         try:
-            return json.loads(TICKETS_FILE.read_text())
+            return _normalizar_responsable_materiales(json.loads(TICKETS_FILE.read_text()))
         except (json.JSONDecodeError, OSError):
             pass
     return []
@@ -3597,11 +3680,7 @@ MATERIAL_STAGE_ORDER = ["nuevo", "requisicion", "compras", "preparar_envio", "en
 
 
 def _is_material_ticket(ticket):
-    return (
-        ticket.get("categoria") in ("Materiales", "Solicitud de materiales")
-        or ticket.get("subcategoria") == "Solicitud de materiales"
-        or ticket.get("tipo") == "materiales"
-    )
+    return _ticket_es_pedido_materiales(ticket)
 
 
 def _is_compra_no_productiva(ticket):
@@ -5794,6 +5873,9 @@ def admin_ticket(ticket_id):
         if accion == "estado_presupuesto":
             nuevo_estado = request.form.get("nuevo_estado_presupuesto", "").strip() or "Nuevo"
             comentario = request.form.get("comentario_presupuesto", "").strip()
+            estado_presupuesto_anterior = ticket.get("estado_presupuesto")
+            requeria_requisicion_antes = bool(ticket.get("requiere_requisicion"))
+            aviso_rita = None
             ticket["estado_presupuesto"] = nuevo_estado
             ticket["estado"] = "Pendiente" if nuevo_estado == "Nuevo" else nuevo_estado
             if nuevo_estado == "Aprobado":
@@ -5804,6 +5886,13 @@ def admin_ticket(ticket_id):
                     "texto": "Presupuesto aprobado. El proveedor puede avanzar.",
                     "leida": False,
                 })
+                if estado_presupuesto_anterior != "Aprobado" or not requeria_requisicion_antes:
+                    evento = f"presupuesto_aprobado:{datetime.datetime.now().isoformat()}"
+                    aviso_rita = _notificar_requisicion_rita(
+                        ticket,
+                        evento,
+                        "Presupuesto aprobado; preparar requisición",
+                    )
             elif nuevo_estado == "Rechazado":
                 ticket["requiere_requisicion"] = False
             if comentario:
@@ -5826,10 +5915,19 @@ def admin_ticket(ticket_id):
                 })
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
-            flash("Estado del presupuesto actualizado")
+            if aviso_rita in ("error", "disabled"):
+                flash("Estado actualizado, pero no se pudo enviar el email a Rita. Revisá la configuración de correo.")
+            else:
+                flash("Estado del presupuesto actualizado")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         if accion == "asignar_proveedor_presupuesto":
+            if _is_material_ticket(ticket):
+                ticket["asignado"] = "Soria"
+                ticket.pop("asignado_proveedor", None)
+                save_tickets(tickets)
+                flash("Los pedidos de materiales deben permanecer asignados a Soria.")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             proveedor = request.form.get("proveedor_presupuesto", "").strip()
             if proveedor == "__otro__":
                 proveedor = request.form.get("proveedor_otro", "").strip()
@@ -8632,6 +8730,29 @@ def admin_pedido(ticket_id):
         if "notas" not in ticket:
             ticket["notas"] = []
 
+        if accion == "responder_suc":
+            mensaje = request.form.get("respuesta_sucursal", "").strip()
+            if not mensaje:
+                flash("Escribí una respuesta para la sucursal")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            ahora = datetime.datetime.now().isoformat()
+            autor = session.get("nombre", "Administración")
+            ticket["respuesta_sucursal_materiales"] = mensaje
+            ticket["notas"].append({
+                "autor": autor,
+                "fecha": ahora,
+                "texto": f"Respuesta a sucursal: {mensaje}",
+            })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": ahora,
+                "texto": mensaje,
+                "leida": False,
+            })
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+            flash("Respuesta enviada a la sucursal")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
         if accion == "subir_guia":
             archivo = request.files.get("guia_archivo")
             numero = request.form.get("guia_numero", "").strip()
@@ -8779,8 +8900,9 @@ def admin_pedido(ticket_id):
             if not item:
                 flash("Indicá el material a comprar")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+            material_id = uuid.uuid4().hex[:10]
             ticket["materiales_a_comprar"].append({
-                "id": uuid.uuid4().hex[:10],
+                "id": material_id,
                 "item": item,
                 "cantidad": cantidad,
                 "requisicion": "",
@@ -8800,8 +8922,16 @@ def admin_pedido(ticket_id):
                 "texto": f"Derivó a Rita para requisición: {item} x{cantidad}" + (f" ({detalle})" if detalle else ""),
             })
             ticket["actualizado"] = datetime.datetime.now().isoformat()
+            aviso_rita = _notificar_requisicion_rita(
+                ticket,
+                f"material:{material_id}",
+                f"Material sin stock: {item} x{cantidad}",
+            )
             save_tickets(tickets)
-            flash("Pedido derivado a Rita para requisición")
+            if aviso_rita in ("error", "disabled"):
+                flash("Pedido derivado a Rita, pero no se pudo enviarle el email. Revisá la configuración de correo.")
+            else:
+                flash("Pedido derivado a Rita para requisición")
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         elif accion == "cargar_requisicion_material":
@@ -10361,6 +10491,8 @@ def fix_asignacion_ceyh():
     cambiados = []
     for t in tickets:
         if _is_ticket_sucursal_cerrada(t):
+            continue
+        if _is_material_ticket(t):
             continue
         if t.get("asignado") not in ("Agustin Brahim", "Agustín Brahim", ASIGNACION_DEFAULT):
             continue

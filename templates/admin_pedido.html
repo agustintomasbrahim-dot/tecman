@@ -131,6 +131,24 @@
 </div>
 </div>
 
+<div class="card" style="border-left:4px solid #2563eb;">
+    <h3 style="margin-bottom:6px;">Responder a la sucursal</h3>
+    <p class="pedido-help" style="margin-bottom:12px;">La respuesta queda visible en el seguimiento del ticket. Pueden responder Carolina o Soria desde sus respectivos accesos.</p>
+    {% if ticket.respuesta_sucursal_materiales %}
+    <div style="padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:12px;color:#1e3a8a;">
+        <strong>Última respuesta:</strong> {{ ticket.respuesta_sucursal_materiales }}
+    </div>
+    {% endif %}
+    <form method="POST">
+        <input type="hidden" name="accion" value="responder_suc">
+        <div class="form-group" style="margin-bottom:10px;">
+            <label>Mensaje para la sucursal</label>
+            <textarea name="respuesta_sucursal" required placeholder="Ej: Estamos revisando el stock. Te avisamos cuando coordinemos el envío." style="min-height:86px;"></textarea>
+        </div>
+        <button type="submit" class="btn" style="background:#2563eb;color:#fff;">Enviar respuesta</button>
+    </form>
+</div>
+
 <!-- Stock relevante al pedido -->
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">

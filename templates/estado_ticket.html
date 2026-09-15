@@ -39,6 +39,13 @@
     </div>
     {% endif %}
 
+    {% if ticket.respuesta_sucursal_materiales %}
+    <div style="margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
+        <div style="font-weight:700;color:#1e3a8a;">Respuesta de Mantenimiento</div>
+        <div style="font-size:13px;color:#334155;margin-top:4px;white-space:pre-line;">{{ ticket.respuesta_sucursal_materiales }}</div>
+    </div>
+    {% endif %}
+
     {% if ticket.fecha_visita is defined and ticket.fecha_visita %}
     <div style="margin-top: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px;">
         <strong style="color: #059669;">Visita programada:</strong> {{ ticket.fecha_visita }}
