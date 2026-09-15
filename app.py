@@ -2760,12 +2760,12 @@ def _next_guia_numero():
     return ultimo
 
 def _formatear_guia_numero(n):
-    """Formato de guia interna: 9902-XXXXXXXX (8 digitos)."""
+    """Formato de remito de mantenimiento: 0406-XXXXXXXX (8 digitos)."""
     try:
-        return f"9902-{int(n):08d}"
+        return f"0406-{int(n):08d}"
     except (TypeError, ValueError):
         s = str(n or "").strip()
-        return s or "9902-00000000"
+        return s or "0406-00000000"
 
 
 METODOS_GUIA_INTERNA_MATERIALES = {"Envio desde Central", "Recoge CEYH"}
