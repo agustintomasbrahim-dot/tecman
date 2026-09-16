@@ -1,1 +1,32 @@
-{% extends "base.html" %}{% block title %}Pedido {{order.id}}{% endblock %}{% block content %}<a href="{{url_for('logistica_panel')}}">← Bandeja</a><div class="card"><h2>Pedido #{{order.source_ticket_id or order.id}}</h2><p>{{order.sucursal}} · {{order.status}}</p></div><div class="card"><h3>Validar cantidades y reservar</h3><form method="post"><input type="hidden" name="_csrf_token" value="{{csrf_token()}}"><div style="overflow-x:auto"><table><thead><tr><th>Catálogo</th><th>Stock</th><th>Solicitada</th><th>Aprobada</th><th>Reservada</th><th>Faltante</th></tr></thead><tbody>{% for l in order.lines %}<tr><td>{{l.item}}</td><td>{{stock.get(l.item,0)}}</td><td>{{l.requested}}</td><td><input name="approved_{{loop.index0}}" type="number" min="0" value="{{l.approved or l.requested}}"></td><td>{{l.reserved}}</td><td>{{l.shortage}}</td></tr>{% endfor %}</tbody></table></div><button class="btn btn-primary">Guardar aprobación y reserva</button></form></div><div class="card"><h3>Auditoría</h3>{% for h in order.history|reverse %}<p>{{h.at}} · {{h.actor}} · {{h.action}} {{h.detail}}</p>{% endfor %}</div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Pedido {{ order.id }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('logistica_panel') }}">← Bandeja</a>
+<div class="card"><h2>Pedido #{{ order.id }}</h2><p>{{ order.sucursal }} · {{ order.status|replace('_',' ') }}</p></div>
+<div class="card">
+  <h3>Convalidar stock y reservar</h3>
+  <form method="post">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div style="overflow-x:auto"><table><thead><tr><th>Insumo</th><th>Stock</th><th>Solicitada</th><th>Convalidada</th><th>Reservada</th><th>Faltante</th></tr></thead><tbody>
+      {% for l in order.lines %}<tr><td>{{ l.item }}</td><td>{{ stock.get(l.item,0) }}</td><td>{{ l.requested }}</td><td><input name="approved_{{ loop.index0 }}" type="number" min="0" max="{{ l.requested }}" value="{{ l.approved or l.requested }}"></td><td>{{ l.reserved }}</td><td>{{ l.shortage }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <button class="btn btn-primary">Convalidar y reservar</button>
+  </form>
+</div>
+{% if order.status == 'preparado_retiro_garin' %}
+<div class="card" style="border-left:4px solid #059669"><h3>Stock completo reservado</h3><p>Pedido preparado para retiro o despacho en camión a Garín.</p></div>
+{% elif order.fulfillment_status == 'reserva_parcial_preparada' %}
+<div class="card" style="border-left:4px solid #f59e0b"><h3>Reserva parcial preparada</h3><p>Lo disponible quedó reservado; el faltante sigue por Compras.</p></div>
+{% endif %}
+{% if requisition %}
+<div class="card" style="border-left:4px solid #dc2626">
+  <h3>Requisición {{ requisition.number }}</h3>
+  <p>Estado: <strong>{{ requisition.status|replace('_',' ') }}</strong> · Email automático: <strong>{{ {'pending':'pendiente','sending':'enviando','sent':'enviado','failed':'fallido'}.get(requisition.email_status, requisition.email_status) }}</strong> · Intentos: {{ requisition.email_attempts }}</p>
+  {% if requisition.email_last_error %}<p style="color:#b91c1c">Último error: {{ requisition.email_last_error }}</p>{% endif %}
+  {% if requisition.email_status == 'failed' %}<form method="post" action="{{ url_for('logistica_requisition_email_retry', requisition_id=requisition.id) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline btn-sm">Reintentar email a Compras</button>
+  </form>{% endif %}
+</div>
+{% endif %}
+<div class="card"><h3>Auditoría</h3>{% for h in order.history|reverse %}<p>{{ h.at }} · {{ h.actor }} · {{ h.action }} {{ h.detail }}</p>{% endfor %}</div>
+{% endblock %}

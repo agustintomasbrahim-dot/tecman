@@ -1,1 +1,25 @@
-{% extends "base.html" %}{% block title %}Pedidos de insumos{% endblock %}{% block content %}<h2>Seguimiento de insumos · {{sucursal}}</h2><div class="card"><table><thead><tr><th>Pedido</th><th>Estado</th><th>Detalle</th><th>Recepción</th></tr></thead><tbody>{% for o in orders %}<tr><td>#{{o.source_ticket_id or o.id}}</td><td>{{o.status}}</td><td>{% for l in o.lines %}{{l.item}} · solicitada {{l.requested}} · aprobada {{l.approved}}{% if l.shortage %} · faltan {{l.shortage}}{% endif %}<br>{% endfor %}</td><td>{% if o.received_at %}Confirmada {{o.received_at}}{% elif o.wave_id %}<form method="post" action="{{url_for('logistica_branch_receipt',order_id=o.id)}}"><input type="hidden" name="_csrf_token" value="{{csrf_token()}}"><button class="btn btn-success btn-sm">Confirmar recepción</button></form>{% else %}Pendiente{% endif %}</td></tr>{% else %}<tr><td colspan="4">Sin pedidos.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Pedidos de insumos{% endblock %}
+{% block content %}
+<h2>Pedidos de insumos · {{ sucursal }}</h2>
+<div class="card">
+  <h3>Nuevo pedido</h3>
+  <p style="font-size:13px;color:#64748b;margin:8px 0 14px">Dabra validará el stock y te mostrará el avance de este pedido.</p>
+  <form method="post" action="{{ url_for('logistica_branch') }}" style="display:grid;grid-template-columns:minmax(220px,2fr) minmax(110px,1fr) auto;gap:10px;align-items:end">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group" style="margin:0"><label>Insumo</label><input name="item" maxlength="160" required></div>
+    <div class="form-group" style="margin:0"><label>Cantidad</label><input type="number" name="cantidad" min="1" required></div>
+    <button class="btn btn-primary" type="submit">Enviar pedido</button>
+  </form>
+</div>
+<div class="card">
+  <h3>Seguimiento</h3>
+  <div style="overflow-x:auto"><table><thead><tr><th>Pedido</th><th>Estado</th><th>Detalle</th></tr></thead><tbody>
+  {% for o in orders %}<tr>
+    <td>#{{ o.id }}</td>
+    <td>{{ o.status|replace('_',' ') }}</td>
+    <td>{% for l in o.lines %}{{ l.item }} · pedidas {{ l.requested }}{% if l.approved %} · validadas {{ l.approved }}{% endif %}{% if l.shortage %} · faltan {{ l.shortage }}{% endif %}<br>{% endfor %}{% if o.requisition_number %}<strong>Compras: {{ o.requisition_number }}</strong>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="3">Todavía no hay pedidos.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}

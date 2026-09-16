@@ -19,8 +19,10 @@
   <div class="stat-card"><div class="number" style="color:#dc2626">{{ state.notifications|selectattr('audience','equalto','compras')|list|length }}</div><div class="label">Avisos Compras</div></div>
 </div>
 {% if role == 'compras' %}
-<div class="card"><h3>Faltantes visibles a Compras</h3>
-  {% for n in state.notifications if n.audience == 'compras' %}<p>{{ n.at[:16] }} · {{ n.text }}</p>{% else %}<p>Sin faltantes.</p>{% endfor %}
+<div class="card"><h3>Requisiciones de Compras</h3>
+  <div style="overflow-x:auto"><table><thead><tr><th>Número</th><th>Sucursal</th><th>Faltante</th><th>Estado</th><th>Email automático</th></tr></thead><tbody>
+  {% for r in requisitions|reverse %}<tr><td><strong>{{ r.number }}</strong></td><td>{{ r.sucursal }}</td><td>{% for l in r.lines %}{{ l.item }}: {{ l.quantity }}<br>{% endfor %}</td><td>{{ r.status|replace('_',' ') }}</td><td>{{ {'pending':'pendiente','sending':'enviando','sent':'enviado','failed':'fallido'}.get(r.email_status, r.email_status) }}{% if r.email_status == 'failed' %}<form method="post" action="{{ url_for('logistica_requisition_email_retry', requisition_id=r.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline btn-sm">Reintentar</button></form>{% endif %}</td></tr>{% else %}<tr><td colspan="5">Sin requisiciones.</td></tr>{% endfor %}
+  </tbody></table></div>
 </div>
 {% else %}
 {% if config.LOGISTICA_PORTAL_TEST_MODE %}
@@ -41,11 +43,11 @@
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <div style="overflow-x:auto"><table><thead><tr><th></th><th>Ticket</th><th>Sucursal</th><th>Solicitada / aprobada / reserva</th><th>Estado</th></tr></thead><tbody>
       {% for o in orders %}<tr>
-        <td>{% if not o.wave_id and o.status in ['reservado','con_faltantes'] %}<input type="checkbox" name="order_id" value="{{ o.id }}">{% endif %}</td>
+        <td>{% if not o.wave_id and o.status in ['reservado','preparado_retiro_garin','con_faltantes'] %}<input type="checkbox" name="order_id" value="{{ o.id }}">{% endif %}</td>
         <td><a href="{{ url_for('logistica_order',order_id=o.id) }}">#{{ o.source_ticket_id or o.id }}</a></td>
         <td>{{ o.sucursal }}</td>
         <td>{% for l in o.lines %}{{ l.item }}: {{ l.requested }} / {{ l.approved }} / {{ l.reserved }}{% if l.shortage %} <strong style="color:#dc2626">faltan {{ l.shortage }}</strong>{% endif %}<br>{% endfor %}</td>
-        <td>{{ o.status|replace('_',' ') }}</td>
+        <td>{{ o.status|replace('_',' ') }}{% if o.requisition_number %}<br><strong>{{ o.requisition_number }}</strong>{% endif %}</td>
       </tr>{% else %}<tr><td colspan="5">Sin pedidos de prueba.</td></tr>{% endfor %}
     </tbody></table></div>
     <div class="form-group"><label>Frecuencia</label><select name="cadence"><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option></select></div>
@@ -60,7 +62,7 @@
     {% if w.status == 'preparado' %}
     <form method="post" action="{{ url_for('logistica_wave_handoff',wave_id=w.id) }}">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-primary btn-sm" type="submit">Confirmar entrega física a Garín</button>
+      <button class="btn btn-primary btn-sm" type="submit">Confirmar retiro / camión a Garín</button>
     </form>
     {% endif %}
   </div>

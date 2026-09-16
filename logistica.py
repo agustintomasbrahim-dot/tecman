@@ -36,7 +36,8 @@ def _now() -> str:
 
 
 def _blank_state() -> dict:
-    return {"version": 1, "stock": {}, "orders": {}, "waves": {}, "movements": [], "notifications": []}
+    return {"version": 2, "stock": {}, "orders": {}, "waves": {}, "requisitions": {},
+            "requisition_counter": 0, "movements": [], "notifications": []}
 
 
 def _event(actor: str, action: str, detail: str = "") -> dict:
@@ -188,11 +189,36 @@ class LogisticsService:
                 shortage = approved - reserved
                 line.update(approved=approved, reserved=reserved, shortage=shortage)
                 if shortage:
-                    shortages.append(f"{item}: {shortage}")
-            order["status"] = "con_faltantes" if shortages else "reservado"
-            order.setdefault("history", []).append(_event(actor, "cantidades_validadas", "; ".join(shortages)))
+                    shortages.append({"item": item, "quantity": shortage})
+            shortage_text = "; ".join(f"{row['item']}: {row['quantity']}" for row in shortages)
+            order["status"] = "con_faltantes" if shortages else "preparado_retiro_garin"
+            order["fulfillment_status"] = "reserva_parcial_preparada" if shortages else "preparado_retiro_garin"
+            order.setdefault("history", []).append(_event(actor, "cantidades_validadas", shortage_text))
             if shortages:
-                text = f"Faltante para {order['sucursal']}: " + "; ".join(shortages)
+                signature = json.dumps(sorted((row["item"], row["quantity"]) for row in shortages),
+                                       ensure_ascii=False, separators=(",", ":"))
+                requisitions = state.setdefault("requisitions", {})
+                current = requisitions.get(order.get("requisition_id"))
+                if not current or current.get("shortage_signature") != signature:
+                    if current and current.get("status") == "pendiente_compras":
+                        current["status"] = "reemplazada"
+                        current.setdefault("history", []).append(_event(actor, "requisicion_reemplazada"))
+                    state["requisition_counter"] = int(state.get("requisition_counter", 0) or 0) + 1
+                    req_id = uuid.uuid4().hex[:12]
+                    number = f"REQ-{state['requisition_counter']:06d}"
+                    current = {
+                        "id": req_id, "number": number, "order_id": order_id,
+                        "sucursal": order["sucursal"], "lines": deepcopy(shortages),
+                        "shortage_signature": signature, "status": "pendiente_compras",
+                        "email_status": "pending", "email_attempts": 0,
+                        "email_sent_at": None, "email_last_error": "",
+                        "created_at": _now(), "history": [_event(actor, "requisicion_creada", shortage_text)],
+                    }
+                    requisitions[req_id] = current
+                    order["requisition_id"] = req_id
+                    order["requisition_number"] = number
+                    order.setdefault("history", []).append(_event(actor, "requisicion_creada", number))
+                text = f"{current['number']} · Faltante para {order['sucursal']}: {shortage_text}"
                 existing = next((n for n in state.setdefault("notifications", [])
                                  if n.get("audience") == "compras" and n.get("order_id") == order_id
                                  and not n.get("read")), None)
@@ -206,8 +232,64 @@ class LogisticsService:
                                     "order_id": order_id, "text": text, "read": False}
                     state["notifications"].append(notification)
                     order.setdefault("notifications", []).append(deepcopy(notification))
+            else:
+                current = state.setdefault("requisitions", {}).get(order.get("requisition_id"))
+                if current and current.get("status") == "pendiente_compras":
+                    current["status"] = "cancelada_sin_faltante"
+                    current.setdefault("history", []).append(_event(actor, "requisicion_cancelada_sin_faltante"))
+                order["requisition_id"] = None
+                order["requisition_number"] = None
             return deepcopy(order)
         return self.store.mutate(mutate)
+
+    def send_requisition_email(self, requisition_id: str, send_callback: Callable[[dict, dict], None],
+                               actor: str, retry: bool = False) -> dict:
+        """Envía una requisición una sola vez; una falla queda visible y admite reintento explícito."""
+        def claim(state):
+            requisition = state.setdefault("requisitions", {}).get(requisition_id)
+            if not requisition:
+                raise LogisticsError("Requisición inexistente")
+            email_status = requisition.get("email_status", "pending")
+            if email_status == "sent":
+                return {"status": "duplicate", "requisition": deepcopy(requisition)}
+            if email_status == "sending":
+                return {"status": "busy", "requisition": deepcopy(requisition)}
+            if int(requisition.get("email_attempts", 0) or 0) > 0 and not retry:
+                return {"status": "duplicate", "requisition": deepcopy(requisition)}
+            if retry and email_status != "failed":
+                return {"status": "duplicate", "requisition": deepcopy(requisition)}
+            requisition["email_status"] = "sending"
+            requisition["email_attempts"] = int(requisition.get("email_attempts", 0) or 0) + 1
+            requisition["email_last_attempt_at"] = _now()
+            requisition.setdefault("history", []).append(_event(actor, "email_compras_intento",
+                                                                  str(requisition["email_attempts"])))
+            order = state.get("orders", {}).get(requisition.get("order_id"))
+            return {"status": "claimed", "requisition": deepcopy(requisition), "order": deepcopy(order)}
+
+        claimed = self.store.mutate(claim)
+        if claimed["status"] != "claimed":
+            return claimed
+        try:
+            send_callback(claimed["requisition"], claimed["order"])
+        except Exception as exc:
+            error = str(exc).strip()[:300] or exc.__class__.__name__
+
+            def fail(state):
+                requisition = state["requisitions"][requisition_id]
+                requisition["email_status"] = "failed"
+                requisition["email_last_error"] = error
+                requisition.setdefault("history", []).append(_event(actor, "email_compras_fallido", error))
+                return {"status": "error", "requisition": deepcopy(requisition), "error": error}
+            return self.store.mutate(fail)
+
+        def sent(state):
+            requisition = state["requisitions"][requisition_id]
+            requisition["email_status"] = "sent"
+            requisition["email_sent_at"] = _now()
+            requisition["email_last_error"] = ""
+            requisition.setdefault("history", []).append(_event(actor, "email_compras_enviado"))
+            return {"status": "sent", "requisition": deepcopy(requisition)}
+        return self.store.mutate(sent)
 
     def import_stock(self, raw: bytes, filename: str, actor: str) -> dict:
         if len(raw) > 2 * 1024 * 1024:
@@ -399,7 +481,8 @@ def logistics_entra_role(identity: dict) -> str | None:
 
 def register_logistics(app, service: LogisticsService, csrf_validator: Callable[[], bool],
                        entra_enabled: Callable[[], bool], branch_authorized: Callable[[], bool] | None = None,
-                       ticket_loader: Callable[[], list] | None = None):
+                       ticket_loader: Callable[[], list] | None = None,
+                       compras_email_sender: Callable[[dict, dict], None] | None = None):
     def actor():
         return session.get("logistica_name") or session.get("logistica_user") or session.get("suc_nombre") or "Sistema"
 
@@ -452,7 +535,9 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
             service.sync_ticket_orders(ticket_loader())
         state = service.state()
         return render_template("logistica_panel.html", state=state, orders=list(state["orders"].values()),
-                               waves=list(state["waves"].values()), role=session.get("logistica_role"))
+                               waves=list(state["waves"].values()),
+                               requisitions=list(state.get("requisitions", {}).values()),
+                               role=session.get("logistica_role"))
 
     @app.route("/logistica/pedidos/<order_id>", methods=["GET", "POST"], endpoint="logistica_order")
     @role_required("dabra")
@@ -463,10 +548,36 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
             csrf_or_400()
             # Usar el orden estable de líneas; no aceptar nombres arbitrarios del request.
             approvals = {line["item"]: request.form.get(f"approved_{idx}", line["requested"]) for idx, line in enumerate(order["lines"])}
-            try: service.approve(order_id, approvals, actor())
+            try:
+                result = service.approve(order_id, approvals, actor())
+                requisition_id = result.get("requisition_id")
+                if requisition_id and compras_email_sender:
+                    email_result = service.send_requisition_email(requisition_id, compras_email_sender, actor())
+                    if email_result["status"] == "error":
+                        flash("La requisición quedó creada, pero falló el email a Compras. Podés reintentar sin duplicarla.")
             except LogisticsError as exc: flash(str(exc))
             return redirect(url_for("logistica_order", order_id=order_id))
-        return render_template("logistica_order.html", order=order, stock=state["stock"])
+        requisition = state.setdefault("requisitions", {}).get(order.get("requisition_id"))
+        return render_template("logistica_order.html", order=order, stock=state["stock"], requisition=requisition)
+
+    @app.route("/logistica/requisiciones/<requisition_id>/reintentar-email", methods=["POST"],
+               endpoint="logistica_requisition_email_retry")
+    @role_required("dabra", "compras")
+    def requisition_email_retry(requisition_id):
+        csrf_or_400()
+        if not compras_email_sender:
+            abort(503)
+        try:
+            result = service.send_requisition_email(requisition_id, compras_email_sender, actor(), retry=True)
+            if result["status"] == "sent":
+                flash("Email a Compras reenviado correctamente")
+            elif result["status"] == "error":
+                flash("El reintento falló; la requisición sigue pendiente y visible")
+            else:
+                flash("La requisición no requiere otro envío")
+        except LogisticsError as exc:
+            flash(str(exc))
+        return redirect(request.referrer or url_for("logistica_panel"))
 
     @app.route("/logistica/stock", methods=["GET", "POST"], endpoint="logistica_stock")
     @role_required("dabra")

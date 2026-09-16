@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from openpyxl import load_workbook
 
@@ -53,6 +54,60 @@ class LogisticsServiceTests(unittest.TestCase):
         self.assertEqual(sum(o["lines"][0]["reserved"] for o in self.service.state()["orders"].values()), 5)
         self.assertTrue(any(n["audience"] == "compras" and n["order_id"] == second["id"]
                             for n in self.service.state()["notifications"]))
+
+    def test_stock_suficiente_reserva_y_deja_preparado_para_garin(self):
+        self.stock()
+        order = self.order(qty=4)
+        result = self.service.approve(order["id"], {"Guantes": 4}, "Dabra")
+        self.assertEqual(result["status"], "preparado_retiro_garin")
+        self.assertEqual(result["fulfillment_status"], "preparado_retiro_garin")
+        self.assertEqual(result["lines"][0]["reserved"], 4)
+        self.assertEqual(self.service.state().get("requisitions"), {})
+
+    def test_faltante_parcial_y_total_crean_requisiciones_auditables(self):
+        self.stock()
+        partial = self.order(qty=8)
+        total = self.order(branch="Sucursal 014", item="Barbijos", qty=3)
+        partial_result = self.service.approve(partial["id"], {"Guantes": 8}, "Dabra")
+        total_result = self.service.approve(total["id"], {"Barbijos": 3}, "Dabra")
+        state = self.service.state()
+        partial_req = state["requisitions"][partial_result["requisition_id"]]
+        total_req = state["requisitions"][total_result["requisition_id"]]
+        self.assertEqual((partial_result["lines"][0]["reserved"], partial_result["lines"][0]["shortage"]), (5, 3))
+        self.assertEqual((total_result["lines"][0]["reserved"], total_result["lines"][0]["shortage"]), (0, 3))
+        self.assertEqual((partial_req["number"], total_req["number"]), ("REQ-000001", "REQ-000002"))
+        self.assertEqual(partial_req["status"], "pendiente_compras")
+        self.assertEqual(partial_req["email_status"], "pending")
+
+    def test_revalidacion_sin_cambios_no_duplica_requisicion_ni_email(self):
+        order = self.order(qty=4)
+        first = self.service.approve(order["id"], {"Guantes": 4}, "Dabra")
+        sender = Mock()
+        sent = self.service.send_requisition_email(first["requisition_id"], sender, "Dabra")
+        second = self.service.approve(order["id"], {"Guantes": 4}, "Dabra")
+        duplicate = self.service.send_requisition_email(second["requisition_id"], sender, "Dabra")
+        self.assertEqual(sent["status"], "sent")
+        self.assertEqual(duplicate["status"], "duplicate")
+        self.assertEqual(first["requisition_id"], second["requisition_id"])
+        self.assertEqual(len(self.service.state()["requisitions"]), 1)
+        sender.assert_called_once()
+
+    def test_falla_smtp_queda_visible_y_reintento_es_seguro(self):
+        order = self.order(qty=2)
+        approved = self.service.approve(order["id"], {"Guantes": 2}, "Dabra")
+        failing = Mock(side_effect=RuntimeError("SMTP demo caído"))
+        failed = self.service.send_requisition_email(approved["requisition_id"], failing, "Dabra")
+        skipped = self.service.send_requisition_email(approved["requisition_id"], failing, "Dabra")
+        successful = Mock()
+        retried = self.service.send_requisition_email(approved["requisition_id"], successful, "Dabra", retry=True)
+        duplicate = self.service.send_requisition_email(approved["requisition_id"], successful, "Dabra", retry=True)
+        self.assertEqual((failed["status"], skipped["status"], retried["status"], duplicate["status"]),
+                         ("error", "duplicate", "sent", "duplicate"))
+        req = self.service.state()["requisitions"][approved["requisition_id"]]
+        self.assertEqual(req["email_status"], "sent")
+        self.assertEqual(req["email_attempts"], 2)
+        failing.assert_called_once()
+        successful.assert_called_once()
 
     def test_importacion_csv_y_xlsx_es_atomica(self):
         self.stock()
@@ -111,6 +166,7 @@ class LogisticsRouteTests(unittest.TestCase):
             TESTING=True,
             LOGISTICA_INSUMOS_SUCURSALES_ENABLED=False,
             LOGISTICA_PORTAL_TEST_MODE=True,
+            LOGISTICA_SMTP_MOCK=False,
         )
         self.client = tecman.app.test_client()
         path = tecman.logistica_service.store.json_path
@@ -120,6 +176,8 @@ class LogisticsRouteTests(unittest.TestCase):
             "dabra": {"password": "test-dabra", "role": "dabra", "name": "Dabra Test"},
             "garin": {"password": "test-garin", "role": "garin", "name": "Garín Test"},
         }
+        self.smtp_mock = patch.object(tecman, "_smtp_send", autospec=True).start()
+        self.addCleanup(patch.stopall)
 
     def session(self, **values):
         with self.client.session_transaction() as sess:
@@ -162,6 +220,49 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(self.client.get("/logistica/sucursal").status_code, 404)
         self.assertEqual(self.post("/logistica/sucursal", {"item": "Guantes", "cantidad": "1"}).status_code, 404)
         self.assertEqual(self.post("/logistica/sucursal/pedidos/x/recepcion").status_code, 404)
+
+    def test_sucursal_activada_requiere_sesion_valida_y_csrf_para_crear(self):
+        tecman.app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = True
+        self.assertEqual(self.client.get("/logistica/sucursal").status_code, 403)
+        self.session(suc_user="suc011", suc_nombre="Sucursal 011")
+        self.assertEqual(self.client.post("/logistica/sucursal", data={"item": "Guantes", "cantidad": "2"}).status_code, 400)
+        response = self.post("/logistica/sucursal", {"item": "Guantes", "cantidad": "2"})
+        self.assertEqual(response.status_code, 302)
+        orders = list(tecman.logistica_service.state()["orders"].values())
+        self.assertEqual([(o["sucursal"], o["lines"][0]["requested"]) for o in orders], [("Sucursal 011", 2)])
+
+    def test_convalidacion_crea_requisicion_y_envia_email_mock_una_vez(self):
+        service = tecman.logistica_service
+        service.import_stock(b"item,cantidad\nGuantes,1\n", "s.csv", "Dabra")
+        order = service.create_order("Sucursal 011", [{"item": "Guantes", "requested": 4}], "Sucursal")
+        self.session(logistica_role="dabra", logistica_user="d", logistica_name="Dabra")
+        self.assertEqual(self.post(f"/logistica/pedidos/{order['id']}", {"approved_0": "4"}).status_code, 302)
+        self.assertEqual(self.post(f"/logistica/pedidos/{order['id']}", {"approved_0": "4"}).status_code, 302)
+        state = service.state()
+        requisition = next(iter(state["requisitions"].values()))
+        self.assertEqual(requisition["email_status"], "sent")
+        self.assertEqual(requisition["email_attempts"], 1)
+        self.assertEqual(requisition["number"], "REQ-000001")
+        self.smtp_mock.assert_called_once()
+        recipients, subject, body = self.smtp_mock.call_args.args
+        self.assertTrue(recipients)
+        self.assertIn("REQ-000001", subject)
+        self.assertIn("Guantes", body)
+
+    def test_falla_smtp_ruta_conserva_requisicion_y_reintenta_con_csrf(self):
+        service = tecman.logistica_service
+        order = service.create_order("Sucursal 011", [{"item": "Barbijos", "requested": 2}], "Sucursal")
+        self.smtp_mock.side_effect = RuntimeError("SMTP mock caído")
+        self.session(logistica_role="dabra", logistica_user="d", logistica_name="Dabra")
+        self.post(f"/logistica/pedidos/{order['id']}", {"approved_0": "2"})
+        requisition = next(iter(service.state()["requisitions"].values()))
+        self.assertEqual(requisition["email_status"], "failed")
+        retry_url = f"/logistica/requisiciones/{requisition['id']}/reintentar-email"
+        self.assertEqual(self.client.post(retry_url, data={}).status_code, 400)
+        self.smtp_mock.side_effect = None
+        self.assertEqual(self.post(retry_url).status_code, 302)
+        self.assertEqual(service.state()["requisitions"][requisition["id"]]["email_status"], "sent")
+        self.assertEqual(self.smtp_mock.call_count, 2)
 
     def test_garin_no_cambia_cantidades_ni_descontar_stock(self):
         service = tecman.logistica_service

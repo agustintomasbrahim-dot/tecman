@@ -11147,6 +11147,9 @@ app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
 app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = os.environ.get(
     "LOGISTICA_INSUMOS_SUCURSALES_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "si", "on")
+app.config["LOGISTICA_SMTP_MOCK"] = os.environ.get(
+    "LOGISTICA_SMTP_MOCK", "false"
+).strip().lower() in ("1", "true", "yes", "si", "on")
 
 def _logistica_branch_authorized():
     if "suc_user" not in session or not _session_auth_is_valid():
@@ -11158,10 +11161,35 @@ def _logistica_branch_authorized():
     return session.get("auth_provider") != "entra" or session.get("entra_role") == "sucursal"
 
 
+def _logistica_send_compras_email(requisition, order):
+    """Callback SMTP del portal: el módulo logístico no conoce credenciales ni destinatarios."""
+    if app.config.get("LOGISTICA_SMTP_MOCK"):
+        app.logger.info("SMTP mock: requisición logística %s", requisition.get("number"))
+        return
+    recipients = [address.strip() for address in COMPRAS_EMAIL.split(",") if address.strip()]
+    if not recipients:
+        raise RuntimeError("COMPRAS_EMAIL no configurado")
+    lines = "".join(
+        f"<li>{html.escape(str(line.get('item') or ''))}: "
+        f"{int(line.get('quantity', 0) or 0)}</li>"
+        for line in requisition.get("lines", [])
+    )
+    number = html.escape(str(requisition.get("number") or ""))
+    branch = html.escape(str((order or {}).get("sucursal") or requisition.get("sucursal") or ""))
+    body = (
+        "<h2>Requisición automática de insumos</h2>"
+        f"<p><strong>{number}</strong> · {branch}</p>"
+        f"<ul>{lines}</ul>"
+        "<p>Estado: pendiente de Compras. Generada automáticamente por Tecman.</p>"
+    )
+    _smtp_send(recipients, f"{requisition.get('number')} · Requisición de insumos · {branch}", body)
+
+
 _logistica_model = LogisticsStateDB if USE_DB else None
 logistica_service = LogisticsService(LogisticsStore(DATA_DIR / "logistica_insumos.json", USE_DB, db if USE_DB else None, _logistica_model))
 # El portal opera sobre su almacenamiento aislado. No sincroniza tickets ni stock reales.
-register_logistics(app, logistica_service, _validate_csrf, _entra_is_configured, _logistica_branch_authorized)
+register_logistics(app, logistica_service, _validate_csrf, _entra_is_configured,
+                   _logistica_branch_authorized, compras_email_sender=_logistica_send_compras_email)
 
 
 @app.errorhandler(500)
