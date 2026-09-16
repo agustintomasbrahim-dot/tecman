@@ -139,6 +139,12 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(self.client.get("/logistica").status_code, 403)
         self.assertEqual(self.client.get("/logistica/stock").status_code, 403)
 
+    def test_selector_principal_muestra_portal_logistica(self):
+        page = self.client.get("/")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Logística".encode("utf-8"), page.data)
+        self.assertIn(b'href="/logistica/login"', page.data)
+
     def test_login_local_de_prueba(self):
         with self.client.session_transaction() as sess:
             sess["_csrf_token"] = "csrf-test"
