@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Portal Logística{% endblock %}
+{% block nav %}
+<div class="nav">
+  <a href="{{ url_for('logistica_panel') }}">Pedidos y olas</a>
+  {% if role == 'dabra' %}<a href="{{ url_for('logistica_stock') }}">Stock Dabra</a>{% endif %}
+  <form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-outline" style="margin:5px">Salir</button>
+  </form>
+</div>
+{% endblock %}
+{% block content %}
+<h2>Logística de Insumos</h2>
+<p style="color:#64748b">{{ session.logistica_name }} · {{ role|upper }}</p>
+<div class="stats">
+  <div class="stat-card"><div class="number">{{ orders|length }}</div><div class="label">Tickets / pedidos</div></div>
+  <div class="stat-card"><div class="number">{{ waves|length }}</div><div class="label">Olas</div></div>
+  <div class="stat-card"><div class="number" style="color:#dc2626">{{ state.notifications|selectattr('audience','equalto','compras')|list|length }}</div><div class="label">Avisos Compras</div></div>
+</div>
+{% if role == 'compras' %}
+<div class="card"><h3>Faltantes visibles a Compras</h3>
+  {% for n in state.notifications if n.audience == 'compras' %}<p>{{ n.at[:16] }} · {{ n.text }}</p>{% else %}<p>Sin faltantes.</p>{% endfor %}
+</div>
+{% else %}
+{% if config.LOGISTICA_PORTAL_TEST_MODE %}
+<div class="card" style="border-left:4px solid #f59e0b">
+  <h3>Pedido interno de prueba</h3>
+  <p style="font-size:13px;color:#64748b">No crea tickets reales ni habilita este flujo a las sucursales.</p>
+  <form method="post" action="{{ url_for('logistica_demo_order') }}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Sucursal</label><input name="sucursal" placeholder="Sucursal 011" required></div>
+    <div class="form-group"><label>Insumo</label><input name="item" required></div>
+    <div class="form-group"><label>Cantidad</label><input type="number" min="1" name="cantidad" required></div>
+    <button class="btn btn-outline" type="submit">Crear pedido simulado</button>
+  </form>
+</div>
+{% endif %}
+<div class="card"><h3>Bandeja de insumos</h3>
+  <form method="post" action="{{ url_for('logistica_wave_create') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div style="overflow-x:auto"><table><thead><tr><th></th><th>Ticket</th><th>Sucursal</th><th>Solicitada / aprobada / reserva</th><th>Estado</th></tr></thead><tbody>
+      {% for o in orders %}<tr>
+        <td>{% if not o.wave_id and o.status in ['reservado','con_faltantes'] %}<input type="checkbox" name="order_id" value="{{ o.id }}">{% endif %}</td>
+        <td><a href="{{ url_for('logistica_order',order_id=o.id) }}">#{{ o.source_ticket_id or o.id }}</a></td>
+        <td>{{ o.sucursal }}</td>
+        <td>{% for l in o.lines %}{{ l.item }}: {{ l.requested }} / {{ l.approved }} / {{ l.reserved }}{% if l.shortage %} <strong style="color:#dc2626">faltan {{ l.shortage }}</strong>{% endif %}<br>{% endfor %}</td>
+        <td>{{ o.status|replace('_',' ') }}</td>
+      </tr>{% else %}<tr><td colspan="5">Sin pedidos de prueba.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <div class="form-group"><label>Frecuencia</label><select name="cadence"><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option></select></div>
+    <button class="btn btn-primary">Crear orden de distribución</button>
+  </form>
+</div>
+<div class="card"><h3>Órdenes para Garín</h3>
+  {% for w in waves|reverse %}
+  <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <strong>{{ w.id }}</strong> · {{ w.cadence }} · {{ w.status|replace('_',' ') }}
+    <a class="btn btn-outline btn-sm" href="{{ url_for('logistica_wave_export',wave_id=w.id) }}">Descargar XLSX</a>
+    {% if w.status == 'preparado' %}
+    <form method="post" action="{{ url_for('logistica_wave_handoff',wave_id=w.id) }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary btn-sm" type="submit">Confirmar entrega física a Garín</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}<p>Sin órdenes.</p>{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

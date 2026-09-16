@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Logística Garín{% endblock %}
+{% block content %}
+<h2>Distribución Garín</h2>
+<p style="color:#64748b">Las cantidades y el stock son definidos por Dabra. Garín informa recorrido y estado de distribución.</p>
+{% for w in waves|reverse %}
+<div class="card">
+  <h3>Orden {{ w.id }} · {{ w.cadence }}</h3>
+  <p>Estado: <strong>{{ w.status|replace('_',' ') }}</strong></p>
+  <div style="overflow-x:auto"><table><thead><tr><th>Sucursal</th><th>Pedido</th><th>Cantidades</th></tr></thead><tbody>
+    {% for d in w.destinations %}<tr><td>{{ d.sucursal }}</td><td>{{ d.order_id }}</td><td>{% for l in d.lines %}{{ l.item }} × {{ l.cantidad }}<br>{% endfor %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if w.status == 'preparado' %}
+    <p style="padding:10px;background:#fff7ed;color:#9a3412;border-radius:8px">Esperando que Dabra confirme la entrega física de la mercadería.</p>
+  {% elif w.status != 'entregado' %}
+  <form method="post" action="{{ url_for('logistica_garin_update',wave_id=w.id) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Estado</label><select name="status">
+      {% if w.status == 'retirado' %}<option value="en_distribucion">En distribución</option>{% endif %}
+      {% if w.status == 'en_distribucion' %}<option value="en_distribucion" selected>En distribución</option><option value="entregado">Entregado</option>{% endif %}
+    </select></div>
+    <div class="form-group"><label>Ruta / recorrido</label><input name="route" value="{{ w.route }}"></div>
+    <div class="form-group"><label>Observación</label><textarea name="observation">{{ w.observation }}</textarea></div>
+    <button class="btn btn-primary">Actualizar distribución</button>
+  </form>
+  {% endif %}
+  <a class="btn btn-outline" href="{{ url_for('logistica_wave_export',wave_id=w.id) }}">Descargar XLSX</a>
+</div>
+{% else %}<div class="card">Sin órdenes asignadas.</div>{% endfor %}
+{% endblock %}

@@ -288,6 +288,13 @@ class TransferDB(db.Model):
         return self.payload
 
 
+class LogisticsStateDB(db.Model):
+    """Estado transaccional extensible del portal de logística."""
+    __tablename__ = 'logistics_state'
+    id = db.Column(db.String(50), primary_key=True)
+    payload = db.Column(JSONB, nullable=False)
+
+
 class ConfigDB(db.Model):
     """Clave-valor para documentos JSON únicos (syh, stock, etc.)"""
     __tablename__ = 'config'

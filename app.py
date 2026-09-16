@@ -88,7 +88,7 @@ if _DB_URL:
         from models import (db, TicketDB, MatafuegoDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
                             StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                             VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
-                            CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB,
+                            CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB, LogisticsStateDB,
                             UserDB, AuthIdentityDB, LocalCredentialDB,
                             PasswordResetTokenDB, AuthAuditEventDB)
         app.config["SQLALCHEMY_DATABASE_URI"] = _DB_URL
@@ -1310,9 +1310,13 @@ def _entra_group_ids(identity):
 
 
 def _entra_configured_access_group_ids():
+    logistics_groups = [
+        os.environ.get(name, "").strip().lower()
+        for name in ("LOGISTICA_ENTRA_DABRA_GROUP_ID", "LOGISTICA_ENTRA_GARIN_GROUP_ID", "LOGISTICA_ENTRA_COMPRAS_GROUP_ID")
+    ]
     return [
         group_id
-        for group_id in (ENTRA_SUPER_ADMIN_GROUP_ID, ENTRA_SUCURSALES_GROUP_ID)
+        for group_id in (ENTRA_SUPER_ADMIN_GROUP_ID, ENTRA_SUCURSALES_GROUP_ID, *logistics_groups)
         if group_id
     ]
 
@@ -4883,7 +4887,7 @@ def entra_start():
     session["entra_state"] = state
     session["entra_nonce"] = nonce
     requested_portal = request.args.get("portal", "").strip().lower()
-    if requested_portal in ("admin", "sucursal", "supervisor", "oficina", "proveedor", "compras"):
+    if requested_portal in ("admin", "sucursal", "supervisor", "oficina", "proveedor", "compras", "logistica"):
         session["entra_requested_portal"] = requested_portal
     else:
         session.pop("entra_requested_portal", None)
@@ -4980,6 +4984,14 @@ def entra_callback():
     if requested_portal == "compras" and (full_portal_access or _identity_has_compras_access(identity)):
         entra_role = "compras"
         identity["entra_role"] = "compras"
+    if requested_portal == "logistica":
+        # Incluye memberships resueltos por Graph cuando el token usa group overage.
+        identity.setdefault("claims", {})["groups"] = list(_entra_group_ids(identity))
+        logistica_role = logistica_identity_role(identity)
+        if logistica_role:
+            entra_role = "logistica"
+            identity["entra_role"] = "logistica"
+            identity["logistica_role"] = logistica_role
     if (
         auth_user
         and _auth_user_status(auth_user) == "active"
@@ -5043,6 +5055,16 @@ def entra_callback():
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal Compras.",
         ), 403
+    if requested_portal == "logistica" and entra_role != "logistica":
+        return render_template(
+            "error.html",
+            mensaje="No autorizado. Tu cuenta Microsoft no tiene un rol de Logistica habilitado.",
+        ), 403
+
+    if entra_role == "logistica":
+        set_logistica_entra_session(identity, identity["logistica_role"])
+        _audit_event("login_success", user=auth_user, provider="entra", details={"role": identity["logistica_role"], "source": "logistica_allowlist"})
+        return redirect(url_for("logistica_garin" if identity["logistica_role"] == "garin" else "logistica_panel"))
 
     if entra_role == "proveedor":
         session.clear()
@@ -11083,6 +11105,63 @@ def admin_crear_demo_fuga():
     save_tickets(tickets)
     flash(f"✅ 5 tickets de demo creados para Julio Fuga (IDs {max_id+1}–{max_id+5})")
     return redirect(url_for("admin_panel"))
+
+
+# Portal separado de Logistica de Insumos: PostgreSQL transaccional o JSON atomico.
+from logistica import (LogisticsService, LogisticsStore, logistics_entra_role as logistica_identity_role,
+                       register_logistics)
+
+def set_logistica_entra_session(identity, role):
+    session.clear()
+    session.permanent = True
+    email = (identity.get("email") or "").strip().lower()
+    session.update(logistica_user=email or identity.get("object_id"),
+                   logistica_name=identity.get("name") or email or "Logistica",
+                   logistica_role=role, auth_provider="entra", entra_role="logistica")
+
+
+def _logistica_local_users():
+    try:
+        configured = json.loads(os.environ.get("LOGISTICA_LOCAL_USERS", "{}") or "{}")
+    except json.JSONDecodeError:
+        configured = {}
+    for key, pwd_env, role, name in (
+        (os.environ.get("LOGISTICA_DABRA_USER", "dabra"), "LOGISTICA_DABRA_PASSWORD", "dabra", "Logistica Dabra"),
+        (os.environ.get("LOGISTICA_GARIN_USER", "garin"), "LOGISTICA_GARIN_PASSWORD", "garin", "Logistica Garin"),
+    ):
+        password = os.environ.get(pwd_env, "")
+        if key and password:
+            configured[key.lower()] = {"password": password, "role": role, "name": name}
+    return configured
+
+app.config["LOGISTICA_LOCAL_USERS"] = _logistica_local_users()
+# Sólo crea pedidos simulados en el almacenamiento logístico aislado.
+app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
+    "LOGISTICA_PORTAL_TEST_MODE", "true"
+).strip().lower() in ("1", "true", "yes", "si", "on")
+# Prueba interna: ninguna ruta ni POST de sucursal se habilita por omisión.
+app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = os.environ.get(
+    "LOGISTICA_INSUMOS_SUCURSALES_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "si", "on")
+# Mientras el portal sea piloto, Dabra puede crear pedidos simulados aislados.
+app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
+    "LOGISTICA_PORTAL_TEST_MODE", "true"
+).strip().lower() in ("1", "true", "yes", "si", "on")
+
+def _logistica_branch_authorized():
+    if "suc_user" not in session or not _session_auth_is_valid():
+        return False
+    if session.get("oficina_user") or _sucursal_session_is_general():
+        return False
+    if _is_sucursal_cerrada(session.get("suc_nombre")):
+        return False
+    return session.get("auth_provider") != "entra" or session.get("entra_role") == "sucursal"
+
+
+_logistica_model = LogisticsStateDB if USE_DB else None
+logistica_service = LogisticsService(LogisticsStore(DATA_DIR / "logistica_insumos.json", USE_DB, db if USE_DB else None, _logistica_model))
+# El portal opera sobre su almacenamiento aislado. No sincroniza tickets ni stock reales.
+register_logistics(app, logistica_service, _validate_csrf, _entra_is_configured, _logistica_branch_authorized)
 
 
 @app.errorhandler(500)

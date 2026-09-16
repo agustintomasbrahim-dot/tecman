@@ -14,3 +14,4 @@ data/alertas_syh_dispatch.json
 data/backups/
 data/*backup*.json
 data/*migration_draft.json
+data/logistica_insumos.json
