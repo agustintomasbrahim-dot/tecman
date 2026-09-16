@@ -107,7 +107,11 @@ class LogisticsServiceTests(unittest.TestCase):
 
 class LogisticsRouteTests(unittest.TestCase):
     def setUp(self):
-        tecman.app.config.update(TESTING=True, LOGISTICA_INSUMOS_SUCURSALES_ENABLED=False)
+        tecman.app.config.update(
+            TESTING=True,
+            LOGISTICA_INSUMOS_SUCURSALES_ENABLED=False,
+            LOGISTICA_PORTAL_TEST_MODE=True,
+        )
         self.client = tecman.app.test_client()
         path = tecman.logistica_service.store.json_path
         if path.exists():
@@ -153,7 +157,7 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(self.post("/logistica/sucursal", {"item": "Guantes", "cantidad": "1"}).status_code, 404)
         self.assertEqual(self.post("/logistica/sucursal/pedidos/x/recepcion").status_code, 404)
 
-    def test_garin_no_puede_cambiar_cantidades_y_retiro_descuenta_una_vez(self):
+    def test_garin_no_cambia_cantidades_y_retiro_descuenta_una_vez(self):
         service = tecman.logistica_service
         service.import_stock(b"item,cantidad\nGuantes,5\n", "s.csv", "Dabra")
         order = service.create_order("Sucursal 011", [{"item": "Guantes", "requested": 4}], "Test")
@@ -166,9 +170,14 @@ class LogisticsRouteTests(unittest.TestCase):
         state = service.state()
         self.assertEqual(state["orders"][order["id"]]["lines"][0]["approved"], 4)
         self.assertEqual(state["stock"]["Guantes"], 1)
+        self.assertEqual(state["waves"][wave["id"]]["status"], "retirado")
         self.assertEqual(len(state["movements"]), 1)
 
     def test_dabra_puede_crear_pedido_simulado_sin_habilitar_sucursales(self):
+        self.session(logistica_role="garin", logistica_user="g")
+        self.assertEqual(self.post("/logistica/demo/pedidos", {
+            "sucursal": "Sucursal TEST", "item": "Guantes", "cantidad": "2"
+        }).status_code, 403)
         self.session(logistica_role="dabra", logistica_user="d")
         response = self.post("/logistica/demo/pedidos", {
             "sucursal": "Sucursal TEST", "item": "Guantes", "cantidad": "2"
@@ -177,6 +186,11 @@ class LogisticsRouteTests(unittest.TestCase):
         orders = list(tecman.logistica_service.state()["orders"].values())
         self.assertEqual([(o["sucursal"], o["lines"][0]["requested"]) for o in orders], [("Sucursal TEST", 2)])
         self.assertFalse(tecman.app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"])
+        tecman.app.config["LOGISTICA_PORTAL_TEST_MODE"] = False
+        self.assertEqual(self.post("/logistica/demo/pedidos", {
+            "sucursal": "Sucursal 014", "item": "Barbijos", "cantidad": "3"
+        }).status_code, 404)
+        self.assertEqual(len(tecman.logistica_service.state()["orders"]), 1)
 
     def test_sucursal_activada_solo_ve_y_confirma_sus_pedidos(self):
         service = tecman.logistica_service
