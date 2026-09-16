@@ -4988,6 +4988,10 @@ def entra_callback():
         # Incluye memberships resueltos por Graph cuando el token usa group overage.
         identity.setdefault("claims", {})["groups"] = list(_entra_group_ids(identity))
         logistica_role = logistica_identity_role(identity)
+        # Los superadministradores pueden previsualizar el piloto como Dabra
+        # sin habilitar usuarios de Logística ni rutas de sucursales.
+        if not logistica_role and full_portal_access:
+            logistica_role = "dabra"
         if logistica_role:
             entra_role = "logistica"
             identity["entra_role"] = "logistica"
