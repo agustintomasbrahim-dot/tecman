@@ -157,7 +157,7 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(self.post("/logistica/sucursal", {"item": "Guantes", "cantidad": "1"}).status_code, 404)
         self.assertEqual(self.post("/logistica/sucursal/pedidos/x/recepcion").status_code, 404)
 
-    def test_garin_no_cambia_cantidades_y_retiro_descuenta_una_vez(self):
+    def test_garin_no_cambia_cantidades_ni_descontar_stock(self):
         service = tecman.logistica_service
         service.import_stock(b"item,cantidad\nGuantes,5\n", "s.csv", "Dabra")
         order = service.create_order("Sucursal 011", [{"item": "Guantes", "requested": 4}], "Test")
@@ -166,9 +166,15 @@ class LogisticsRouteTests(unittest.TestCase):
         self.session(logistica_role="garin", logistica_user="g", logistica_name="Garín")
         data = {"status": "retirado", "route": "R1", "observation": "ok", "approved_0": "999", "cantidad": "999"}
         self.assertEqual(self.post(f"/logistica/garin/olas/{wave['id']}", data).status_code, 302)
-        self.assertEqual(self.post(f"/logistica/garin/olas/{wave['id']}", data).status_code, 302)
         state = service.state()
         self.assertEqual(state["orders"][order["id"]]["lines"][0]["approved"], 4)
+        self.assertEqual(state["stock"]["Guantes"], 5)
+        self.assertEqual(state["waves"][wave["id"]]["status"], "preparado")
+
+        self.session(logistica_role="dabra", logistica_user="d", logistica_name="Dabra")
+        self.assertEqual(self.post(f"/logistica/olas/{wave['id']}/entregar-garin").status_code, 302)
+        self.assertEqual(self.post(f"/logistica/olas/{wave['id']}/entregar-garin").status_code, 302)
+        state = service.state()
         self.assertEqual(state["stock"]["Guantes"], 1)
         self.assertEqual(state["waves"][wave["id"]]["status"], "retirado")
         self.assertEqual(len(state["movements"]), 1)

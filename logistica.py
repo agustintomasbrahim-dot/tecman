@@ -538,9 +538,12 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
     @role_required("garin")
     def garin_update(wave_id):
         csrf_or_400()
-        # Garín sólo controla ruta, observación y estado; nunca recibe cantidades del request.
-        # El retiro puede confirmarlo Garín o Dabra y el descuento sigue siendo idempotente.
+        # Dabra confirma la entrega física y el descuento. Garín sólo organiza
+        # la distribución posterior; nunca puede cambiar cantidades ni stock.
         status = request.form.get("status", "")
+        if status not in ("en_distribucion", "entregado"):
+            flash("Dabra debe confirmar primero la entrega física a Garín")
+            return redirect(url_for("logistica_garin"))
         try: service.update_wave(wave_id, status, request.form.get("route", ""),
                                  request.form.get("observation", ""), actor())
         except LogisticsError as exc: flash(str(exc))
