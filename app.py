@@ -11147,10 +11147,6 @@ app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
 app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = os.environ.get(
     "LOGISTICA_INSUMOS_SUCURSALES_ENABLED", "false"
 ).strip().lower() in ("1", "true", "yes", "si", "on")
-# Mientras el portal sea piloto, Dabra puede crear pedidos simulados aislados.
-app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
-    "LOGISTICA_PORTAL_TEST_MODE", "true"
-).strip().lower() in ("1", "true", "yes", "si", "on")
 
 def _logistica_branch_authorized():
     if "suc_user" not in session or not _session_auth_is_valid():
