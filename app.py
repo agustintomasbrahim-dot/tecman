@@ -4544,6 +4544,23 @@ def suc_permiso_fao(permiso_id):
 @app.route("/suc/matafuegos/<mid>/mantenimiento", methods=["POST"])
 @suc_login_required
 def suc_matafuego_mantenimiento(mid):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+
+    accion = request.form.get("accion_matafuego", "").strip()
+    fecha_carga_valor = request.form.get("fecha_carga", "").strip()
+    if accion not in ("mantenimiento", "rechazado"):
+        flash("Estado de mantenimiento inválido")
+        return redirect(url_for("suc_matafuegos"))
+    try:
+        fecha_carga = datetime.date.fromisoformat(fecha_carga_valor)
+    except ValueError:
+        flash("Fecha de mantenimiento inválida")
+        return redirect(url_for("suc_matafuegos"))
+    if fecha_carga > datetime.date.today():
+        flash("La fecha de mantenimiento no puede ser futura")
+        return redirect(url_for("suc_matafuegos"))
+
     data = load_matafuegos()
     items = data.get("matafuegos", [])
     matafuego = next((m for m in items if m.get("id") == mid and _sucursal_session_can_access_item(m)), None)
@@ -4551,12 +4568,11 @@ def suc_matafuego_mantenimiento(mid):
         flash("Matafuego no encontrado")
         return redirect(url_for("suc_panel"))
 
-    accion = request.form.get("accion_matafuego", "mantenimiento")
     observacion = request.form.get("observacion_matafuego", "").strip()
-    fecha_carga = request.form.get("fecha_carga", "").strip() or datetime.date.today().isoformat()
+    fecha_carga_iso = fecha_carga.isoformat()
     ahora = datetime.datetime.now().isoformat()
 
-    matafuego["fecha_carga"] = fecha_carga
+    matafuego["fecha_carga"] = fecha_carga_iso
     matafuego["actualizado_por_sucursal"] = session.get("suc_user", "")
     matafuego["actualizado_at"] = ahora
     matafuego["observacion_mantenimiento"] = observacion
@@ -4587,6 +4603,13 @@ def suc_matafuego_mantenimiento(mid):
         save_tickets(tickets)
         flash("Se registró el rechazo y se notificó a Seguridad e Higiene")
     else:
+        vencimiento_anterior = matafuego.get("fecha_vencimiento_manual") or matafuego.get("fecha_vencimiento", "")
+        if matafuego.get("fecha_vencimiento") and not matafuego.get("fecha_vencimiento_original"):
+            matafuego["fecha_vencimiento_original"] = matafuego.get("fecha_vencimiento", "")
+        proxima_recarga = _sumar_un_anio(fecha_carga).isoformat()
+        matafuego["fecha_vencimiento_manual"] = proxima_recarga
+        matafuego["fecha_vencimiento"] = proxima_recarga
+        matafuego["fecha_vencimiento_anterior"] = vencimiento_anterior
         matafuego["estado_manual"] = ""
         flash("Mantenimiento anual registrado")
 
