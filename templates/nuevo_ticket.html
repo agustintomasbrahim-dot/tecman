@@ -86,7 +86,7 @@
                 <select name="categoria_mat" id="cat-mat-select">
                     <option value="">Seleccionar tipo...</option>
                     {% for cat in material_categorias %}
-                    <option value="{{ cat.nombre }}" data-has-items="{{ '1' if cat.items else '0' }}" data-guia-archivo="{{ cat.guia.archivo if cat.guia else '' }}" data-guia-titulo="{{ cat.guia.titulo if cat.guia else '' }}">{{ cat.nombre }}</option>
+                    <option value="{{ cat.nombre }}" data-has-items="{{ '1' if cat['items'] else '0' }}" data-guia-archivo="{{ cat.guia.archivo if cat.guia else '' }}" data-guia-titulo="{{ cat.guia.titulo if cat.guia else '' }}">{{ cat.nombre }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -293,7 +293,7 @@ document.getElementById('categoria').addEventListener('change', function() {
         } else {
             subWrap.style.display = 'none';
         }
-        if (catSel.value === 'Luminaria') {
+        if (this.value && hasItems) {
             subSel.setAttribute('required', 'required');
         } else {
             subSel.removeAttribute('required');

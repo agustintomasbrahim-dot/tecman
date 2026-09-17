@@ -4754,11 +4754,8 @@ def nuevo_ticket():
             categoria_mat = request.form.get("categoria_mat", "").strip()
             subitem_mat = request.form.get("subitem_mat", "").strip()
             cantidad_mat = request.form.get("cantidad_mat", "1").strip()
-            if not categoria_mat:
-                flash("En materiales, el tipo de material es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
-            if categoria_mat.lower() == "luminaria" and not subitem_mat:
-                flash("En luminarias, el tipo de luminaria es obligatorio")
+            if not _material_catalog_item(categoria_mat, subitem_mat):
+                flash("En materiales, seleccione un tipo y sub-item válidos del catálogo")
                 return redirect(url_for("nuevo_ticket"))
             if not cantidad_mat or (_parse_int_or_none(cantidad_mat) or 0) <= 0:
                 flash("En materiales, la cantidad debe ser mayor a 0")

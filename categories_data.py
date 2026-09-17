@@ -10,7 +10,6 @@ Estructura:
 MATERIAL_CATEGORIAS = [
     {
         "nombre": "Luminaria",
-        "items": [],
         # Guia visible al seleccionar Luminaria. Si "archivo" esta vacio o
         # None, se muestra como "proximamente" (deshabilitado).
         "guia": {"archivo": "LAMPARAS_BASICAS.docx", "titulo": "Ver guia de luminaria"},
@@ -24,6 +23,21 @@ MATERIAL_CATEGORIAS = [
             "Lámparas globo",
             "Lámparas campana",
             "Lámparas HQI",
+            "Reflector 30 W - Luz fría",
+            "Reflector 30 W - Luz cálida",
+            "Reflector 50 W - Luz fría",
+            "Reflector 50 W - Luz cálida",
+            "Reflector 100 W - Luz fría",
+            "Reflector 100 W - Luz cálida",
+            "Reflector 200 W - Luz fría",
+            "Reflector 200 W - Luz cálida",
+        ],
+    },
+    {
+        "nombre": "Herrajes",
+        "items": [
+            "Cerraduras",
+            "Picaportes",
         ],
     },
     {
