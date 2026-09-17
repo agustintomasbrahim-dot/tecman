@@ -2281,6 +2281,11 @@ def _enrich_matafuego(m):
     x["fecha_control_calc"] = fecha_control.isoformat() if fecha_control else ""
     x["fuente_control"] = fuente_control
     x["estado_calc"] = _estado_matafuego(fecha_control, x.get("estado_manual", ""))
+    try:
+        fecha_carga_input = datetime.date.fromisoformat(str(x.get("fecha_carga") or "").strip()).isoformat()
+    except ValueError:
+        fecha_carga_input = ""
+    x["fecha_carga_input"] = fecha_carga_input
     fecha_venc_valor = x.get("fecha_vencimiento_manual") or x.get("fecha_vencimiento")
     fecha_venc = _parse_fecha_matafuego(fecha_venc_valor)
     x["fecha_vencimiento_input"] = fecha_venc.isoformat() if fecha_venc else ""
@@ -4570,6 +4575,8 @@ def suc_matafuego_mantenimiento(mid):
 
     observacion = request.form.get("observacion_matafuego", "").strip()
     fecha_carga_iso = fecha_carga.isoformat()
+    fecha_carga_anterior = matafuego.get("fecha_carga", "")
+    vencimiento_anterior = matafuego.get("fecha_vencimiento_manual") or matafuego.get("fecha_vencimiento", "")
     ahora = datetime.datetime.now().isoformat()
 
     matafuego["fecha_carga"] = fecha_carga_iso
@@ -4603,7 +4610,6 @@ def suc_matafuego_mantenimiento(mid):
         save_tickets(tickets)
         flash("Se registró el rechazo y se notificó a Seguridad e Higiene")
     else:
-        vencimiento_anterior = matafuego.get("fecha_vencimiento_manual") or matafuego.get("fecha_vencimiento", "")
         if matafuego.get("fecha_vencimiento") and not matafuego.get("fecha_vencimiento_original"):
             matafuego["fecha_vencimiento_original"] = matafuego.get("fecha_vencimiento", "")
         proxima_recarga = _sumar_un_anio(fecha_carga).isoformat()
@@ -4611,6 +4617,20 @@ def suc_matafuego_mantenimiento(mid):
         matafuego["fecha_vencimiento"] = proxima_recarga
         matafuego["fecha_vencimiento_anterior"] = vencimiento_anterior
         matafuego["estado_manual"] = ""
+        historial = matafuego.get("historial_mantenimientos")
+        if not isinstance(historial, list):
+            historial = [] if not historial else [{"accion": "dato_historico_legacy", "valor": historial}]
+            matafuego["historial_mantenimientos"] = historial
+        historial.append({
+            "accion": "mantenimiento_corregido" if historial else "mantenimiento_registrado",
+            "fecha_carga_anterior": fecha_carga_anterior,
+            "fecha_carga": fecha_carga_iso,
+            "vencimiento_anterior": vencimiento_anterior,
+            "proxima_recarga": proxima_recarga,
+            "observacion": observacion,
+            "autor": session.get("suc_user") or session.get("suc_nombre", "Sucursal"),
+            "registrado_at": ahora,
+        })
         flash("Mantenimiento anual registrado")
 
     save_matafuegos(data)

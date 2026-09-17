@@ -89,6 +89,56 @@ class MatafuegosMantenimientoTest(unittest.TestCase):
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2024, 2, 29)), tecman.datetime.date(2025, 2, 28))
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2026, 1, 31)), tecman.datetime.date(2027, 1, 31))
 
+    def test_fecha_historica_puede_corregirse_y_conserva_auditoria(self):
+        first = self._post(
+            fecha_carga="2024-02-29",
+            observacion_matafuego="Carga histórica informada",
+        )
+        self.assertEqual(first.status_code, 302)
+        saved = next(x for x in self._saved() if x["id"] == "mata-014")
+        self.assertEqual(saved["fecha_carga"], "2024-02-29")
+        self.assertEqual(saved["fecha_vencimiento_manual"], "2025-02-28")
+        self.assertEqual(len(saved["historial_mantenimientos"]), 1)
+        self.assertEqual(saved["historial_mantenimientos"][0]["fecha_carga_anterior"], "2026-07-15")
+        self.assertEqual(saved["historial_mantenimientos"][0]["fecha_carga"], "2024-02-29")
+        self.assertEqual(saved["historial_mantenimientos"][0]["vencimiento_anterior"], "2025-03-01")
+        self.assertEqual(saved["historial_mantenimientos"][0]["proxima_recarga"], "2025-02-28")
+        self.assertEqual(saved["estado_manual"], "")
+        self.assertEqual(tecman.load_tickets(), [])
+
+        reopened = self.client.get("/suc/matafuegos")
+        self.assertEqual(reopened.status_code, 200)
+        reopened_page = reopened.get_data(as_text=True)
+        self.assertIn("Última carga: 2024-02-29", reopened_page)
+        self.assertIn("2025-02-28", reopened_page)
+        self.assertIn('name="fecha_carga" value="2024-02-29"', reopened_page)
+
+        corrected = self._post(
+            fecha_carga="2026-06-30",
+            observacion_matafuego="Corrección de fecha según remito",
+        )
+        self.assertEqual(corrected.status_code, 302)
+        saved = next(x for x in self._saved() if x["id"] == "mata-014")
+        self.assertEqual(saved["fecha_carga"], "2026-06-30")
+        self.assertEqual(saved["fecha_vencimiento_manual"], "2027-06-30")
+        self.assertEqual(saved["fecha_vencimiento_original"], "2025-03-01")
+        self.assertEqual(len(saved["historial_mantenimientos"]), 2)
+        self.assertEqual(saved["historial_mantenimientos"][0]["fecha_carga"], "2024-02-29")
+        self.assertEqual(saved["historial_mantenimientos"][1]["fecha_carga_anterior"], "2024-02-29")
+        self.assertEqual(saved["historial_mantenimientos"][1]["vencimiento_anterior"], "2025-02-28")
+        self.assertEqual(saved["historial_mantenimientos"][1]["fecha_carga"], "2026-06-30")
+        self.assertEqual(saved["historial_mantenimientos"][1]["observacion"], "Corrección de fecha según remito")
+        self.assertEqual(saved["estado_manual"], "")
+        self.assertEqual(tecman.load_tickets(), [])
+
+        page = self.client.get("/suc/matafuegos").get_data(as_text=True)
+        self.assertIn("Última carga: 2026-06-30", page)
+        self.assertIn("Próxima recarga:", page)
+        self.assertIn("2027-06-30", page)
+        self.assertIn('name="fecha_carga" value="2026-06-30"', page)
+        self.assertIn("Historial de mantenimiento (2)", page)
+        self.assertIn("Corrección de fecha según remito", page)
+
     def test_estado_fecha_y_csrf_invalidos_no_mutan(self):
         cases = [
             {"_csrf_token": ""},
@@ -149,6 +199,8 @@ class MatafuegosMantenimientoTest(unittest.TestCase):
         updated = next(x for x in persisted if x["id"] == "mata-014")
         self.assertEqual(updated["fecha_carga"], "2026-07-24")
         self.assertEqual(updated["fecha_vencimiento_manual"], "2027-07-24")
+        self.assertEqual(updated["historial_mantenimientos"][0]["fecha_carga"], "2026-07-24")
+        self.assertEqual(updated["historial_mantenimientos"][0]["proxima_recarga"], "2027-07-24")
         atomic_write.assert_called()
 
 

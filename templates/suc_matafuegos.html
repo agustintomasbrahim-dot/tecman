@@ -51,12 +51,22 @@
                 <div style="font-size:12px;color:#6b7280;margin-top:6px;">Última carga: {{ m.fecha_carga or 'Sin dato' }}</div>
                 <div style="font-size:12px;color:#6b7280;">Próxima recarga: <strong style="color:{% if m.estado_calc == 'al_dia' %}#059669{% elif m.estado_calc == 'proximo' %}#d97706{% else %}#dc2626{% endif %};">{{ m.fecha_control_calc or m.fecha_vencimiento or 'Sin fecha' }}</strong></div>
                 <div style="font-size:12px;color:#6b7280;">Estado: {{ m.estado_calc.replace('_', ' ') }}</div>
+                {% if m.historial_mantenimientos %}
+                <details style="font-size:11px;color:#6b7280;margin-top:8px;">
+                    <summary style="cursor:pointer;">Historial de mantenimiento ({{ m.historial_mantenimientos|length }})</summary>
+                    <div style="display:grid;gap:4px;margin-top:5px;">
+                        {% for h in m.historial_mantenimientos|reverse %}
+                        <div>{{ h.fecha_carga or '-' }} → {{ h.proxima_recarga or '-' }} · {{ h.autor or 'Sucursal' }}{% if h.observacion %} · {{ h.observacion }}{% endif %}</div>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% endif %}
             </div>
             <div>
                 <form method="POST" action="{{ url_for('suc_matafuego_mantenimiento', mid=m.id) }}" style="display:grid;gap:8px;">
                     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <label style="font-size:12px;color:#6b7280;">Fecha real del mantenimiento</label>
-                    <input type="date" name="fecha_carga" value="{{ hoy }}" max="{{ hoy }}" required>
+                    <input type="date" name="fecha_carga" value="{{ m.fecha_carga_input or hoy }}" max="{{ hoy }}" required>
                     <select name="accion_matafuego" required>
                         <option value="mantenimiento">Mantenimiento realizado</option>
                         <option value="rechazado">Rechazado</option>
