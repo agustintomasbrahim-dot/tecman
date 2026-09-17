@@ -227,6 +227,7 @@
     <div class="pedido-action-card pedido-action-card--stock">
         <h4 style="color: #166534;">Cuento con stock</h4>
         <form method="POST">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="cuento_material">
             <p style="font-size: 13px; color: #374151; margin-bottom: 8px; font-weight: 600;">Método de envío:</p>
             <div class="pedido-option-list">
@@ -289,16 +290,57 @@
     <div class="pedido-action-card pedido-action-card--extra">
         <h4 style="margin-bottom: 10px;">Agregar complemento al pedido</h4>
         <p class="pedido-help" style="margin-bottom:10px;">Usalo cuando la sucursal pidió algo, pero mantenimiento sabe que también hace falta otro material.</p>
-        <form method="POST">
+        <form method="POST" id="agregar-complemento-form">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="agregar_material_stock">
-            <div class="form-group"><label>Material</label><select name="item_stock" required><option value="">Seleccionar...</option>{% for item, cant in central_qtys|dictsort %}{% if cant > 0 %}<option value="{{ item }}">{{ item }} ({{ cant }})</option>{% endif %}{% endfor %}</select></div>
+            <div class="pedido-two-cols" style="grid-template-columns:1fr 1fr;">
+                <div class="form-group">
+                    <label>Material</label>
+                    <select name="categoria_complemento" id="categoria-complemento" required>
+                        <option value="">Seleccionar...</option>
+                        {% for cat in material_categorias %}<option value="{{ cat.nombre }}">{{ cat.nombre }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Subcategoría</label>
+                    <select name="subitem_complemento" id="subitem-complemento">
+                        <option value="">Sin subcategoría</option>
+                        {% for cat in material_categorias %}{% for subitem in cat['items'] %}
+                        {% set item_key = cat.nombre ~ ' > ' ~ subitem %}
+                        <option value="{{ subitem }}" data-categoria="{{ cat.nombre }}">{{ cat.nombre }} › {{ subitem }} · Disponible: {{ central_qtys.get(item_key, 0) }}</option>
+                        {% endfor %}{% endfor %}
+                    </select>
+                </div>
+            </div>
             <div class="pedido-two-cols">
-                <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1"></div>
+                <div class="form-group"><label>Cantidad</label><input type="number" name="cantidad_stock" min="1" value="1" required></div>
                 <div class="form-group"><label>Detalle</label><input type="text" name="detalle_stock" placeholder="Ej: complemento para instalación"></div>
             </div>
             <button type="submit" class="btn btn-outline btn-block">Agregar al ticket</button>
         </form>
     </div>
+    <script>
+    (function() {
+        var categoria = document.getElementById('categoria-complemento');
+        var subitem = document.getElementById('subitem-complemento');
+        if (!categoria || !subitem) return;
+        function filtrarSubcategorias() {
+            var seleccionada = categoria.value;
+            Array.prototype.forEach.call(subitem.options, function(option, index) {
+                if (index === 0) return;
+                option.hidden = option.getAttribute('data-categoria') !== seleccionada;
+            });
+            var actual = subitem.options[subitem.selectedIndex];
+            if (actual && actual.hidden) subitem.value = '';
+            var tieneSubcategorias = Array.prototype.some.call(subitem.options, function(option) {
+                return option.getAttribute('data-categoria') === seleccionada;
+            });
+            subitem.required = tieneSubcategorias;
+        }
+        categoria.addEventListener('change', filtrarSubcategorias);
+        filtrarSubcategorias();
+    })();
+    </script>
 
     <!-- Opción 3: No cuento con stock → Derivar a Rita -->
     <div class="pedido-action-card pedido-action-card--compras">

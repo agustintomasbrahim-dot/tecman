@@ -1717,6 +1717,25 @@ def get_central_precio(stock, item):
     return float(e.get("precio_unitario", 0.0)) if e else 0.0
 
 
+def _material_catalog_item(categoria, subitem):
+    """Devuelve la clave canónica de un material válido del catálogo."""
+    from categories_data import MATERIAL_CATEGORIAS
+
+    categoria = str(categoria or "").strip()
+    subitem = str(subitem or "").strip()
+    catalogo = next((cat for cat in MATERIAL_CATEGORIAS if cat.get("nombre") == categoria), None)
+    if not catalogo:
+        return None
+    items = catalogo.get("items") or []
+    if items:
+        if subitem not in items:
+            return None
+        return f"{categoria} > {subitem}"
+    if subitem:
+        return None
+    return categoria
+
+
 def set_central_qty(stock, item, cantidad, precio=None):
     """Setea la cantidad del item en central. Si <= 0, lo elimina."""
     central = stock.setdefault("central", {})
@@ -9079,6 +9098,8 @@ def admin_pedidos():
 @app.route("/admin/pedido/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_pedido(ticket_id):
+    from categories_data import MATERIAL_CATEGORIAS
+
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
@@ -9212,7 +9233,13 @@ def admin_pedido(ticket_id):
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
         if accion == "cuento_material":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
             metodo_envio = request.form.get("metodo_envio", "")
+            metodos_validos = METODOS_GUIA_INTERNA_MATERIALES | {"Envio directo a sucursal"}
+            if metodo_envio not in metodos_validos or (metodo_envio == "Recoge CEYH" and not es_amba):
+                flash("Seleccioná un método de envío válido")
+                return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             if metodo_envio in METODOS_GUIA_INTERNA_MATERIALES:
                 carga_tipo = (request.form.get("guia_carga_tipo") or "").strip()
                 carga_cantidad = _parse_int_or_none(request.form.get("guia_carga_cantidad", ""))
@@ -9250,18 +9277,33 @@ def admin_pedido(ticket_id):
             })
 
         elif accion == "agregar_material_stock":
-            item = request.form.get("item_stock", "").strip()
-            cantidad = _parse_int_or_none(request.form.get("cantidad_stock", "")) or 1
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+            categoria_complemento = request.form.get("categoria_complemento", "").strip()
+            subitem_complemento = request.form.get("subitem_complemento", "").strip()
+            item = _material_catalog_item(categoria_complemento, subitem_complemento)
+            cantidad = _parse_int_or_none(request.form.get("cantidad_stock", ""))
             detalle_extra = request.form.get("detalle_stock", "").strip()
             disponible = get_central_qty(load_stock(), item) if item else 0
             if not item:
-                flash("Seleccioná un material de stock")
+                flash("Seleccioná un material y una subcategoría válidos del catálogo")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
-            if cantidad <= 0:
+            if cantidad is None or cantidad <= 0:
                 flash("La cantidad debe ser mayor a 0")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
-            if disponible < cantidad:
-                flash(f"Stock insuficiente para {item}. Disponible: {disponible}")
+            ya_agregado = sum(
+                _parse_int_or_none(str(material.get("cantidad") or "")) or 0
+                for material in ticket.get("materiales_agregados", [])
+                if material.get("item") == item
+            )
+            principal = " > ".join(
+                value for value in (ticket.get("categoria_mat", ""), ticket.get("subitem_mat", "")) if value
+            )
+            if principal == item:
+                ya_agregado += _parse_int_or_none(str(ticket.get("cantidad_mat") or "")) or 0
+            disponible_restante = max(0, disponible - ya_agregado)
+            if disponible_restante < cantidad:
+                flash(f"Stock insuficiente para {item}. Disponible para este pedido: {disponible_restante}")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             ticket["materiales_agregados"].append({
                 "id": uuid.uuid4().hex[:10],
@@ -9276,7 +9318,6 @@ def admin_pedido(ticket_id):
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Agregó material complementario desde stock: {item} x{cantidad}" + (f" ({detalle_extra})" if detalle_extra else ""),
             })
-            ticket["estado"] = "En progreso"
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             flash("Material agregado al ticket")
@@ -9504,6 +9545,7 @@ def admin_pedido(ticket_id):
         stock_relevante=stock_relevante,
         stock_similares=stock_similares,
         es_ceyh=es_ceyh,
+        material_categorias=MATERIAL_CATEGORIAS,
     )
 
 
