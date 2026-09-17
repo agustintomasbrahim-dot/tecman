@@ -57,6 +57,7 @@ MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 TICKET_ATTACHMENT_EXTENSIONS = MEDIA_EXTENSIONS | {".pdf"}
 MEDIA_ACCEPT = "image/*,video/mp4,video/quicktime,video/webm"
 TICKET_ATTACHMENT_ACCEPT = f"{MEDIA_ACCEPT},.pdf"
+TICKET_REPLY_MAX_LENGTH = 2000
 
 
 def is_video_file(filename):
@@ -3237,6 +3238,14 @@ def _sucursal_session_can_access_item(item):
     )
 
 
+def _sucursal_session_can_reply_to_ticket(ticket):
+    if "suc_user" not in session or session.get("oficina_user"):
+        return False
+    if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
+        return False
+    return _sucursal_session_can_access_item(ticket)
+
+
 def _session_sucursal_label(default="Portal Sucursales"):
     return session.get("suc_nombre") or default
 
@@ -4828,7 +4837,56 @@ def estado_ticket(ticket_id):
         return render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403
     suc_num = str(ticket.get("sucursal_num", "") or ticket.get("sucursal", "")).replace("Sucursal ", "").strip()
     tiene_abono = bool(get_proveedor_abono_sucursal(suc_num))
-    return render_template("estado_ticket.html", ticket=ticket, prioridades=PRIORIDADES, tiene_abono=tiene_abono)
+    return render_template(
+        "estado_ticket.html",
+        ticket=ticket,
+        prioridades=PRIORIDADES,
+        tiene_abono=tiene_abono,
+        puede_responder_sucursal=_sucursal_session_can_reply_to_ticket(ticket),
+        respuesta_max_length=TICKET_REPLY_MAX_LENGTH,
+    )
+
+
+@app.route("/estado/<int:ticket_id>/responder", methods=["POST"])
+@suc_login_required
+def responder_ticket_desde_sucursal(ticket_id):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+    if not _sucursal_session_can_reply_to_ticket(ticket):
+        return render_template("error.html", mensaje="No tenés permiso para responder este ticket."), 403
+
+    respuesta = request.form.get("respuesta", "").strip()
+    if not respuesta:
+        return render_template("error.html", mensaje="La respuesta no puede estar vacía."), 400
+    if len(respuesta) > TICKET_REPLY_MAX_LENGTH:
+        return render_template(
+            "error.html",
+            mensaje=f"La respuesta no puede superar los {TICKET_REPLY_MAX_LENGTH} caracteres.",
+        ), 400
+
+    ahora = datetime.datetime.now().isoformat()
+    autor = _session_sucursal_label("Portal Sucursales")
+    ticket.setdefault("notas", []).append({
+        "autor": autor,
+        "fecha": ahora,
+        "texto": f"Respuesta de sucursal: {respuesta}",
+    })
+    ticket["actualizado"] = ahora
+    save_tickets(tickets)
+    agregar_notif_admin(
+        titulo=f"Respuesta de sucursal en ticket #{ticket_id}",
+        detalle=f"{ticket.get('sucursal', autor)} respondió: {respuesta}",
+        tipo="respuesta_sucursal",
+        autor=autor,
+        link=url_for("admin_ticket", ticket_id=ticket_id),
+    )
+    flash("Respuesta enviada a administración")
+    return redirect(url_for("estado_ticket", ticket_id=ticket_id))
 
 
 @app.route("/confirmar-recepcion/<int:ticket_id>", methods=["POST"])

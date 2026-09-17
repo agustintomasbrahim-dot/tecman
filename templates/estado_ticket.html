@@ -151,6 +151,22 @@
 </div>
 {% endif %}
 
+{% if puede_responder_sucursal %}
+<div class="card" style="border-left: 4px solid #2563eb;">
+    <h3 style="margin-bottom: 8px; color: #1e3a8a;">Responder a administración</h3>
+    <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">Tu respuesta quedará registrada en el historial de este ticket.</p>
+    <form method="POST" action="{{ url_for('responder_ticket_desde_sucursal', ticket_id=ticket.id) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="respuesta-ticket">Respuesta</label>
+            <textarea id="respuesta-ticket" name="respuesta" maxlength="{{ respuesta_max_length }}" required placeholder="Escribí acá la información solicitada por administración..."></textarea>
+            <div style="color:#94a3b8;font-size:11px;margin-top:5px;">Máximo {{ respuesta_max_length }} caracteres.</div>
+        </div>
+        <button type="submit" class="btn btn-primary">Enviar respuesta</button>
+    </form>
+</div>
+{% endif %}
+
 <!-- Historial -->
 {% if ticket.notas is defined and ticket.notas %}
 <div class="card">
