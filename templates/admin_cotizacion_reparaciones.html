@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Cotización de reparaciones{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('admin_panel') }}">Panel</a>
+    <a href="{{ url_for('admin_cotizacion_reparaciones') }}">Cotización de reparaciones</a>
+    <a style="margin-left:auto;" href="{{ url_for('admin_logout') }}">Salir ({{ session.nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+    .quote-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .quote-header h2 { margin-bottom:6px; }
+    .quote-header p { color:#64748b; line-height:1.45; max-width:720px; font-size:13px; }
+    .quote-count { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:10px; padding:9px 12px; font-weight:700; font-size:13px; }
+    .quote-filter { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .quote-filter label { display:flex; align-items:center; gap:8px; color:#334155; font-size:13px; font-weight:600; }
+    .quote-supplier { display:grid; grid-template-columns:minmax(240px, 1fr) auto; gap:12px; align-items:end; }
+    .quote-branch { padding:0; overflow:hidden; margin-top:16px; }
+    .quote-branch-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .quote-branch-head h3 { color:#0f172a; }
+    .quote-select-all { display:flex; align-items:center; gap:7px; font-size:12px; color:#475569; font-weight:700; cursor:pointer; }
+    .quote-table-wrap { overflow-x:auto; }
+    .quote-table { min-width:1100px; }
+    .quote-table td { vertical-align:top; }
+    .quote-check { width:42px; text-align:center; }
+    .quote-id { color:#1d4ed8; font-weight:800; white-space:nowrap; }
+    .quote-description { min-width:280px; max-width:420px; line-height:1.4; }
+    .quote-muted { color:#64748b; font-size:12px; margin-top:3px; }
+    .quote-empty { text-align:center; padding:48px 20px; color:#64748b; }
+    .quote-actions { position:sticky; bottom:12px; display:flex; justify-content:flex-end; margin-top:16px; }
+    .quote-actions-inner { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px; box-shadow:0 10px 30px rgba(15,23,42,.12); }
+    @media (max-width:640px) {
+        .quote-supplier { grid-template-columns:1fr; }
+        .quote-supplier .btn { width:100%; }
+    }
+</style>
+
+<div class="quote-header">
+    <div>
+        <h2>Cotización de reparaciones</h2>
+        <p>Seleccioná los tickets vinculados a Julio Fuga / JRF para pedir cotización a otro proveedor. La exportación es de solo lectura: no reasigna, cierra ni modifica tickets o avisos.</p>
+    </div>
+    <div class="quote-count">{{ total_tickets }} ticket{{ '' if total_tickets == 1 else 's' }}</div>
+</div>
+
+<div class="card">
+    <form method="GET" class="quote-filter">
+        <label>
+            <input type="checkbox" name="include_finalizados" value="1" {% if include_finalizados %}checked{% endif %} onchange="this.form.submit()">
+            Incluir finalizados ({{ final_states | join(', ') }})
+        </label>
+        {% if include_finalizados %}<a href="{{ url_for('admin_cotizacion_reparaciones') }}" class="btn btn-outline btn-sm">Ver sólo abiertos</a>{% endif %}
+    </form>
+</div>
+
+<form method="POST" action="{{ url_for('admin_cotizacion_reparaciones') }}" id="quote-export-form">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="include_finalizados" value="{{ '1' if include_finalizados else '0' }}">
+
+    <div class="card quote-supplier">
+        <div class="form-group" style="margin:0;">
+            <label for="proveedor_destino">Proveedor destino (opcional)</label>
+            <input id="proveedor_destino" name="proveedor_destino" maxlength="120" placeholder="Ej.: Proveedor a cotizar">
+        </div>
+        <button type="submit" class="btn btn-success" data-saving="Generando XLSX...">Generar XLSX</button>
+    </div>
+
+    {% for branch, tickets in groups.items() %}
+    <section class="card quote-branch" data-branch-group>
+        <div class="quote-branch-head">
+            <h3>{{ branch }} <span class="quote-muted">({{ tickets|length }})</span></h3>
+            <label class="quote-select-all">
+                <input type="checkbox" data-select-branch>
+                Seleccionar todo
+            </label>
+        </div>
+        <div class="quote-table-wrap">
+            <table class="quote-table">
+                <thead>
+                    <tr>
+                        <th class="quote-check">Elegir</th><th>Ticket</th><th>Categoría</th><th>Problema</th><th>Zona</th><th>Prioridad</th><th>Estado</th><th>Fecha / antigüedad</th><th>Adjuntos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr>
+                        <td class="quote-check"><input type="checkbox" name="ticket_ids" value="{{ ticket.id }}" data-ticket-check aria-label="Seleccionar ticket {{ ticket.id }}"></td>
+                        <td><a class="quote-id" href="{{ url_for('admin_ticket', ticket_id=ticket.id) }}">#{{ ticket.id }}</a></td>
+                        <td>
+                            <strong>{{ ticket.categoria or '-' }}</strong>
+                            <div class="quote-muted">{{ ticket.subcategoria or '-' }}</div>
+                        </td>
+                        <td class="quote-description">
+                            {{ (ticket.descripcion or '-')[:280] }}{% if (ticket.descripcion or '')|length > 280 %}…{% endif %}
+                            {% if ticket.observaciones %}<div class="quote-muted">Obs.: {{ ticket.observaciones[:180] }}{% if ticket.observaciones|length > 180 %}…{% endif %}</div>{% endif %}
+                        </td>
+                        <td>{{ ticket.zona_afectada or ticket.ubicacion or ticket.sector_oficina or '-' }}</td>
+                        <td>{{ ticket.cotizacion_prioridad }}</td>
+                        <td><span class="badge badge-{{ (ticket.estado or '').lower().replace(' ', '') }}">{{ ticket.estado or '-' }}</span></td>
+                        <td>
+                            {{ (ticket.creado or '-')[:16].replace('T', ' ') }}
+                            <div class="quote-muted">{% if ticket.cotizacion_antiguedad != '' %}{{ ticket.cotizacion_antiguedad }} días{% else %}Sin fecha válida{% endif %}</div>
+                        </td>
+                        <td>{{ ticket.cotizacion_adjuntos }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endfor %}
+
+    {% if not groups %}
+    <div class="card quote-empty">No hay tickets elegibles con el filtro actual.</div>
+    {% else %}
+    <div class="quote-actions">
+        <div class="quote-actions-inner">
+            <button type="submit" class="btn btn-success" data-saving="Generando XLSX...">Generar XLSX</button>
+        </div>
+    </div>
+    {% endif %}
+</form>
+
+<script>
+document.querySelectorAll('[data-branch-group]').forEach(function(group) {
+    var selectAll = group.querySelector('[data-select-branch]');
+    var tickets = Array.prototype.slice.call(group.querySelectorAll('[data-ticket-check]'));
+    selectAll.addEventListener('change', function() {
+        tickets.forEach(function(ticket) { ticket.checked = selectAll.checked; });
+    });
+    tickets.forEach(function(ticket) {
+        ticket.addEventListener('change', function() {
+            selectAll.checked = tickets.length > 0 && tickets.every(function(item) { return item.checked; });
+            selectAll.indeterminate = tickets.some(function(item) { return item.checked; }) && !selectAll.checked;
+        });
+    });
+});
+</script>
+{% endblock %}

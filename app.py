@@ -30,7 +30,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, send_file, Response
 from werkzeug.exceptions import RequestEntityTooLarge
 
 try:
@@ -3568,6 +3568,285 @@ def _ticket_es_de_proveedor(ticket, nombres):
     return any(v in nombres for v in campos if v)
 
 
+JULIO_FUGA_TICKET_FIELDS = ("asignado", "proveedor_nombre", "asignado_proveedor")
+JULIO_FUGA_BASE_ALIASES = {
+    "Julio Fuga (JRF)",
+    "Julio Fuga",
+    "JRF",
+    "fuga",
+    "Ismael Allende (JRF)",
+    "Ismael Allende",
+    "ismael",
+}
+TICKET_FINAL_STATES = frozenset(ESTADOS_NO_OPERATIVOS)
+QUOTE_EXPORT_MAX_TICKETS = 500
+QUOTE_EXPORT_MAX_TEXT = 5000
+QUOTE_EXPORT_MAX_ATTACHMENTS_PER_TICKET = 10
+
+
+def _normalize_provider_alias(value):
+    """Normaliza sólo para comparar aliases exactos, sin búsquedas parciales."""
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return " ".join("".join(char if char.isalnum() else " " for char in text.casefold()).split())
+
+
+def _julio_fuga_aliases():
+    aliases = set(JULIO_FUGA_BASE_ALIASES)
+    for username in ("fuga", "ismael"):
+        info = DEFAULT_PROVEEDOR_USERS.get(username, {})
+        aliases.add(username)
+        aliases.add(info.get("nombre", ""))
+        aliases.update(info.get("proveedores") or [])
+    return {_normalize_provider_alias(alias) for alias in aliases if alias}
+
+
+def _ticket_es_de_julio_fuga(ticket):
+    aliases = _julio_fuga_aliases()
+    return any(
+        _normalize_provider_alias(ticket.get(field)) in aliases
+        for field in JULIO_FUGA_TICKET_FIELDS
+        if ticket.get(field)
+    )
+
+
+def _ticket_estado_final(ticket):
+    return str(ticket.get("estado") or "").strip() in TICKET_FINAL_STATES
+
+
+def _tickets_cotizables_julio_fuga(tickets, include_finalizados=False):
+    eligible = [
+        ticket for ticket in tickets
+        if isinstance(ticket, dict)
+        and _ticket_es_de_julio_fuga(ticket)
+        and (include_finalizados or not _ticket_estado_final(ticket))
+    ]
+    return sorted(eligible, key=_quote_ticket_sort_key)
+
+
+def _quote_ticket_sort_key(ticket):
+    sucursal = str(ticket.get("sucursal") or ticket.get("sucursal_num") or "Sin sucursal")
+    ticket_id = ticket.get("id")
+    try:
+        id_key = (0, int(ticket_id))
+    except (TypeError, ValueError):
+        id_key = (1, str(ticket_id or ""))
+    return (_normalize_provider_alias(sucursal), id_key)
+
+
+def _quote_safe_text(value, limit=QUOTE_EXPORT_MAX_TEXT):
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list, tuple, set)):
+        value = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    text = str(value).replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")
+    text = "".join(char for char in text if char in "\n\t" or ord(char) >= 32)
+    text = text[:limit]
+    # Evita que texto ingresado por usuarios se interprete como fórmula en Excel.
+    if text.startswith(("=", "+", "-", "@")):
+        text = "'" + text
+    return text
+
+
+def _quote_ticket_notes(ticket):
+    parts = []
+    if ticket.get("observaciones"):
+        parts.append(str(ticket.get("observaciones")))
+    for note in ticket.get("notas") or []:
+        if isinstance(note, dict) and note.get("texto"):
+            author = str(note.get("autor") or "").strip()
+            date = str(note.get("fecha") or "")[:16].replace("T", " ")
+            prefix = " · ".join(value for value in (date, author) if value)
+            parts.append(f"{prefix}: {note['texto']}" if prefix else str(note["texto"]))
+    for report in ticket.get("informes") or []:
+        if isinstance(report, dict) and report.get("texto"):
+            parts.append(f"Informe de proveedor: {report['texto']}")
+    return _quote_safe_text("\n".join(parts))
+
+
+def _quote_attachment_paths(ticket):
+    candidates = []
+    for field in ("fotos", "fotos_antes", "fotos_despues", "fotos_trabajo"):
+        value = ticket.get(field) or []
+        candidates.extend(value if isinstance(value, list) else [value])
+    for note in ticket.get("notas") or []:
+        if isinstance(note, dict):
+            value = note.get("fotos") or []
+            candidates.extend(value if isinstance(value, list) else [value])
+    for item in ticket.get("presupuestos") or []:
+        if isinstance(item, dict) and item.get("archivo"):
+            candidates.append(item["archivo"])
+    for item in ticket.get("informes") or []:
+        if isinstance(item, dict) and item.get("archivo"):
+            candidates.append(item["archivo"])
+    for field in ("archivo_presupuesto", "archivo_informe", "requisicion_archivo"):
+        if ticket.get(field):
+            prefix = "requisiciones/" if field == "requisicion_archivo" else ""
+            candidates.append(prefix + str(ticket[field]))
+
+    result = []
+    seen = set()
+    for raw in candidates:
+        value = str(raw or "").strip().replace("\\", "/")
+        path = Path(value)
+        if (
+            not value
+            or len(value) > 255
+            or path.is_absolute()
+            or ".." in path.parts
+            or value in seen
+        ):
+            continue
+        seen.add(value)
+        result.append(value)
+        if len(result) >= QUOTE_EXPORT_MAX_ATTACHMENTS_PER_TICKET:
+            break
+    return result
+
+
+def _quote_ticket_created(ticket):
+    return _parse_ticket_datetime(ticket.get("creado"))
+
+
+def _quote_ticket_age_days(ticket, generated_at):
+    created = _quote_ticket_created(ticket)
+    if not created:
+        return ""
+    return max(0, (generated_at - created).days)
+
+
+def _quote_sheet_name(value, used):
+    raw = _quote_safe_text(value or "Sin sucursal", 80)
+    clean = "".join("-" if char in "[]:*?/\\" else char for char in raw).strip(" '") or "Sin sucursal"
+    base = clean[:31]
+    candidate = base
+    suffix = 2
+    while candidate.casefold() in used:
+        marker = f" ({suffix})"
+        candidate = f"{base[:31-len(marker)]}{marker}"
+        suffix += 1
+    used.add(candidate.casefold())
+    return candidate
+
+
+def _quote_ticket_url(ticket):
+    try:
+        return url_for("admin_ticket", ticket_id=int(ticket.get("id")), _external=True)
+    except (TypeError, ValueError):
+        return ""
+
+
+def _quote_attachment_url(path):
+    return url_for("static", filename=f"uploads/{path}", _external=True)
+
+
+def _build_quote_workbook(tickets, proveedor_destino, generated_at=None):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    generated_at = generated_at or datetime.datetime.now()
+    groups = {}
+    for ticket in sorted(tickets, key=_quote_ticket_sort_key):
+        branch = _quote_safe_text(ticket.get("sucursal") or ticket.get("sucursal_num") or "Sin sucursal", 120)
+        groups.setdefault(branch, []).append(ticket)
+
+    max_attachments = min(
+        QUOTE_EXPORT_MAX_ATTACHMENTS_PER_TICKET,
+        max((len(_quote_attachment_paths(ticket)) for ticket in tickets), default=0),
+    )
+    headers = [
+        "Sucursal", "Ticket", "Categoría", "Subcategoría", "Descripción / problema",
+        "Zona / ubicación", "Prioridad", "Estado", "Fecha", "Antigüedad (días)",
+        "Observaciones relevantes", "Ver ticket",
+    ] + [f"Adjunto {number}" for number in range(1, max_attachments + 1)]
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Resumen"
+    summary.append(["Cotización de reparaciones"])
+    summary.append(["Proveedor destino", _quote_safe_text(proveedor_destino, 120) or "A definir"])
+    summary.append(["Fecha de generación", generated_at])
+    summary.append(["Tickets seleccionados", len(tickets)])
+    summary.append([])
+    summary.append(["Sucursal", "Cantidad"])
+    for branch, branch_tickets in groups.items():
+        summary.append([branch, len(branch_tickets)])
+    summary["A1"].font = Font(bold=True, size=16, color="FFFFFF")
+    summary["A1"].fill = PatternFill("solid", fgColor="1D4ED8")
+    summary["A6"].font = summary["B6"].font = Font(bold=True, color="FFFFFF")
+    summary["A6"].fill = summary["B6"].fill = PatternFill("solid", fgColor="334155")
+    summary["B3"].number_format = "dd/mm/yyyy hh:mm"
+    summary.column_dimensions["A"].width = 34
+    summary.column_dimensions["B"].width = 24
+    summary.freeze_panes = "A6"
+
+    used_names = {"resumen"}
+    header_fill = PatternFill("solid", fgColor="334155")
+    for branch, branch_tickets in groups.items():
+        sheet = workbook.create_sheet(_quote_sheet_name(branch, used_names))
+        sheet.append(["Cotización de reparaciones", branch])
+        sheet.append(["Proveedor destino", _quote_safe_text(proveedor_destino, 120) or "A definir"])
+        sheet.append(["Fecha de generación", generated_at])
+        sheet.append([])
+        sheet.append(headers)
+        for cell in sheet[5]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for ticket in branch_tickets:
+            created = _quote_ticket_created(ticket)
+            location = ticket.get("zona_afectada") or ticket.get("ubicacion") or ticket.get("sector_oficina") or ""
+            priority = ticket.get("prioridad")
+            try:
+                priority_label = PRIORIDADES.get(int(priority), str(priority or ""))
+            except (TypeError, ValueError):
+                priority_label = str(priority or "")
+            attachments = _quote_attachment_paths(ticket)
+            row = [
+                branch,
+                _quote_safe_text(ticket.get("id"), 80),
+                _quote_safe_text(ticket.get("categoria")),
+                _quote_safe_text(ticket.get("subcategoria")),
+                _quote_safe_text(ticket.get("descripcion")),
+                _quote_safe_text(location),
+                _quote_safe_text(priority_label, 80),
+                _quote_safe_text(ticket.get("estado"), 80),
+                created or _quote_safe_text(ticket.get("creado"), 80),
+                _quote_ticket_age_days(ticket, generated_at),
+                _quote_ticket_notes(ticket),
+                "Abrir ticket" if _quote_ticket_url(ticket) else "",
+            ] + ["Abrir adjunto" if index < len(attachments) else "" for index in range(max_attachments)]
+            sheet.append(row)
+            row_number = sheet.max_row
+            if created:
+                sheet.cell(row_number, 9).number_format = "dd/mm/yyyy hh:mm"
+            ticket_url = _quote_ticket_url(ticket)
+            if ticket_url:
+                ticket_cell = sheet.cell(row_number, 12)
+                ticket_cell.hyperlink = ticket_url
+                ticket_cell.style = "Hyperlink"
+            for index, path in enumerate(attachments):
+                attachment_cell = sheet.cell(row_number, 13 + index)
+                attachment_cell.hyperlink = _quote_attachment_url(path)
+                attachment_cell.style = "Hyperlink"
+            for cell in sheet[row_number]:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+        widths = [22, 12, 22, 24, 48, 25, 14, 18, 20, 18, 52, 18] + [18] * max_attachments
+        for index, width in enumerate(widths, start=1):
+            sheet.column_dimensions[get_column_letter(index)].width = width
+        sheet.auto_filter.ref = f"A5:{get_column_letter(len(headers))}{sheet.max_row}"
+        sheet.freeze_panes = "A6"
+        sheet.row_dimensions[1].height = 24
+        sheet["A1"].font = Font(bold=True, size=14, color="FFFFFF")
+        sheet["A1"].fill = PatternFill("solid", fgColor="1D4ED8")
+        sheet["B3"].number_format = "dd/mm/yyyy hh:mm"
+
+    return workbook
+
+
 def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, materiales, detalle=""):
     ahora = datetime.datetime.now().isoformat()
     materiales = (materiales or "").strip()
@@ -5626,6 +5905,76 @@ def admin_panel():
         metricas_resumen=metricas_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
+    )
+
+
+@app.route("/admin/cotizacion-reparaciones", methods=["GET", "POST"])
+@admin_required
+def admin_cotizacion_reparaciones():
+    include_finalizados = (
+        request.form.get("include_finalizados") == "1"
+        if request.method == "POST"
+        else request.args.get("include_finalizados") == "1"
+    )
+    eligible = _tickets_cotizables_julio_fuga(load_tickets(), include_finalizados=include_finalizados)
+
+    if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida."), 400
+
+        proveedor_destino = request.form.get("proveedor_destino", "").strip()
+        if len(proveedor_destino) > 120 or any(ord(char) < 32 for char in proveedor_destino):
+            return render_template("error.html", mensaje="El nombre del proveedor destino es inválido."), 400
+
+        selected_ids = request.form.getlist("ticket_ids")
+        if not selected_ids:
+            return render_template("error.html", mensaje="Seleccioná al menos un ticket para exportar."), 400
+        if len(selected_ids) > QUOTE_EXPORT_MAX_TICKETS or len(set(selected_ids)) != len(selected_ids):
+            return render_template("error.html", mensaje="La selección de tickets es inválida o supera el límite permitido."), 400
+
+        eligible_by_id = {str(ticket.get("id")): ticket for ticket in eligible}
+        if len(eligible_by_id) != len(eligible):
+            return render_template("error.html", mensaje="Hay identificadores de ticket duplicados; no se puede exportar con seguridad."), 409
+        if any(ticket_id not in eligible_by_id for ticket_id in selected_ids):
+            return render_template("error.html", mensaje="La selección contiene tickets que no son elegibles."), 400
+
+        selected = sorted((eligible_by_id[ticket_id] for ticket_id in selected_ids), key=_quote_ticket_sort_key)
+        generated_at = datetime.datetime.now().replace(microsecond=0)
+        workbook = _build_quote_workbook(selected, proveedor_destino, generated_at=generated_at)
+        output = io.BytesIO()
+        workbook.save(output)
+        workbook.close()
+        output.seek(0)
+        filename = f"cotizacion_reparaciones_{generated_at:%Y%m%d_%H%M}.xlsx"
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            max_age=0,
+        )
+
+    groups = {}
+    now = datetime.datetime.now()
+    for ticket in eligible:
+        branch = str(ticket.get("sucursal") or ticket.get("sucursal_num") or "Sin sucursal")
+        item = dict(ticket)
+        item["cotizacion_antiguedad"] = _quote_ticket_age_days(ticket, now)
+        item["cotizacion_adjuntos"] = len(_quote_attachment_paths(ticket))
+        try:
+            item["cotizacion_prioridad"] = PRIORIDADES.get(int(ticket.get("prioridad")), ticket.get("prioridad") or "-")
+        except (TypeError, ValueError):
+            item["cotizacion_prioridad"] = ticket.get("prioridad") or "-"
+        groups.setdefault(branch, []).append(item)
+
+    return render_template(
+        "admin_cotizacion_reparaciones.html",
+        groups=groups,
+        total_tickets=len(eligible),
+        include_finalizados=include_finalizados,
+        final_states=sorted(TICKET_FINAL_STATES),
+        prioridades=PRIORIDADES,
+        max_tickets=QUOTE_EXPORT_MAX_TICKETS,
     )
 
 

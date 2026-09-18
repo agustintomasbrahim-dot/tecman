@@ -10,6 +10,7 @@
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
     <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
     <a href="{{ url_for('admin_pedidos') }}">Pedidos de materiales</a>
+    <a href="{{ url_for('admin_cotizacion_reparaciones') }}">Cotización de reparaciones</a>
     <a href="{{ url_for('admin_panel', vista='alertas') }}">Alertas{% if (notif_admin|length + alertas|length) > 0 %} ({{ notif_admin|length + alertas|length }}){% endif %}</a>
     <a href="{{ url_for('admin_panel', vista='metricas') }}">Métricas</a>
     <a class="admin-nav-right" href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
