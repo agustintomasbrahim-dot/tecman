@@ -1,6 +1,8 @@
 import copy
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -232,6 +234,158 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self.assertNotIn("asignado_proveedor", persisted)
         self.assertEqual(persisted["proveedor_origen"], "Proveedor externo")
         self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], persisted)
+
+    def test_import_de_app_ejecuta_migracion_automaticamente(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            data_dir = root / "data"
+            uploads_dir = root / "uploads"
+            data_dir.mkdir()
+            ticket = self._material_ticket(
+                ticket_id=900,
+                asignado="Proveedor de arranque",
+                asignado_proveedor="Proveedor de arranque",
+                proveedor_nombre="Proveedor de arranque",
+            )
+            (data_dir / "tickets.json").write_text(json.dumps([ticket]), encoding="utf-8")
+            env = os.environ.copy()
+            env["TECMAN_DATA_DIR"] = str(data_dir)
+            env["TECMAN_UPLOADS_DIR"] = str(uploads_dir)
+            env.pop("DATABASE_URL", None)
+            result = subprocess.run(
+                [sys.executable, "-c", "import app"],
+                cwd=Path(__file__).resolve().parents[1],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            migrated = next(
+                item for item in json.loads((data_dir / "tickets.json").read_text())
+                if item.get("id") == 900
+            )
+            self.assertEqual(migrated["asignado"], "Soria")
+            self.assertNotIn("asignado_proveedor", migrated)
+            self.assertNotIn("proveedor_nombre", migrated)
+            self.assertEqual(migrated["proveedor_origen"], "Proveedor de arranque")
+            self.assertEqual(
+                len([n for n in migrated["notas"] if "Migración automática" in n.get("texto", "")]),
+                1,
+            )
+
+    def test_migracion_json_persiste_auditoria_una_sola_vez_y_preserva_presupuesto(self):
+        ticket = self._material_ticket(
+            asignado="Julio Fuga (JRF)",
+            asignado_proveedor="jrf",
+            proveedor_nombre="Julio Fuga (JRF)",
+            proveedor_presupuesto="Presupuestos SRL",
+            presupuestos=[{"proveedor": "Presupuestos SRL", "monto": "150000"}],
+            notas=[{"autor": "Proveedor", "texto": "Historial original"}],
+        )
+        tecman.TICKETS_FILE.write_text(json.dumps([ticket]), encoding="utf-8")
+
+        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
+        first_bytes = tecman.TICKETS_FILE.read_bytes()
+        migrated = json.loads(first_bytes)[0]
+        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertNotIn("asignado_proveedor", migrated)
+        self.assertNotIn("proveedor_nombre", migrated)
+        self.assertEqual(migrated["proveedor_origen"], "Julio Fuga (JRF)")
+        self.assertEqual(migrated["proveedor_presupuesto"], "Presupuestos SRL")
+        self.assertEqual(migrated["presupuestos"], [{"proveedor": "Presupuestos SRL", "monto": "150000"}])
+        self.assertEqual(migrated["notas"][0]["texto"], "Historial original")
+        notas_migracion = [
+            nota for nota in migrated["notas"]
+            if "Migración automática" in nota.get("texto", "")
+        ]
+        self.assertEqual(len(notas_migracion), 1)
+        self.assertEqual(
+            migrated["migracion_responsable_materiales"],
+            tecman.MIGRACION_MATERIALES_SORIA_VERSION,
+        )
+
+        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
+        self.assertEqual(tecman.TICKETS_FILE.read_bytes(), first_bytes)
+
+    def test_migracion_db_persiste_e_idempotente(self):
+        backing = [self._material_ticket(
+            asignado="CEYH",
+            asignado_proveedor="CEYH",
+            proveedor_nombre="CEYH",
+        )]
+        fake_model = object()
+
+        def fake_list(model):
+            self.assertIs(model, fake_model)
+            return copy.deepcopy(backing)
+
+        def fake_replace(model, items):
+            self.assertIs(model, fake_model)
+            backing[:] = copy.deepcopy(items)
+
+        with (
+            patch.object(tecman, "USE_DB", True),
+            patch.object(tecman, "TicketDB", fake_model, create=True),
+            patch.object(tecman, "_db_list", side_effect=fake_list),
+            patch.object(tecman, "_db_replace", side_effect=fake_replace) as db_replace,
+        ):
+            self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
+            self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
+
+        db_replace.assert_called_once()
+        migrated = backing[0]
+        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertNotIn("asignado_proveedor", migrated)
+        self.assertNotIn("proveedor_nombre", migrated)
+        self.assertEqual(migrated["proveedor_origen"], "CEYH")
+        self.assertEqual(
+            len([n for n in migrated["notas"] if "Migración automática" in n.get("texto", "")]),
+            1,
+        )
+
+    def test_migracion_no_persiste_finalizados_ni_inferidos_por_texto(self):
+        finalizado = self._material_ticket(
+            ticket_id=50,
+            estado="Cerrado",
+            asignado="Proveedor histórico",
+            asignado_proveedor="Proveedor histórico",
+        )
+        texto_libre = {
+            "id": 51,
+            "categoria": "Otro",
+            "subcategoria": "Otro",
+            "tipo": "incidente",
+            "descripcion": "Pedido de materiales para luminarias",
+            "estado": "Nuevo",
+            "asignado": "CEYH",
+            "asignado_proveedor": "CEYH",
+            "notas": [],
+        }
+        payload = [finalizado, texto_libre]
+        tecman.TICKETS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        before = tecman.TICKETS_FILE.read_bytes()
+
+        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
+        self.assertEqual(tecman.TICKETS_FILE.read_bytes(), before)
+        self.assertEqual(json.loads(before), payload)
+
+    def test_normalizacion_conserva_proveedor_de_retiro_logistico(self):
+        ticket = self._material_ticket(
+            asignado="Proveedor externo",
+            asignado_proveedor="Proveedor externo",
+            proveedor_nombre="Transporte Logístico",
+            retiro_tipo="proveedor",
+            retiro_proveedor=True,
+        )
+        tecman.TICKETS_FILE.write_text(json.dumps([ticket]), encoding="utf-8")
+
+        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
+        migrated = json.loads(tecman.TICKETS_FILE.read_text())[0]
+        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertNotIn("asignado_proveedor", migrated)
+        self.assertEqual(migrated["proveedor_nombre"], "Transporte Logístico")
+        self.assertEqual(migrated["proveedor_origen"], "Proveedor externo")
 
     def test_pedido_generado_desde_proveedor_queda_en_soria_con_origen(self):
         origen = {

@@ -273,6 +273,7 @@ ESTADO_FILTROS_ADMIN = [
 ]
 ESTADOS_NO_OPERATIVOS = {"Rechazado", "Resuelto", "Cerrado"}
 RESPONSABLE_MATERIALES = "Soria"
+MIGRACION_MATERIALES_SORIA_VERSION = "materiales_soria_2026_09_18_v1"
 
 import pathlib as _pathlib
 _SUCURSALES_INFRA_FILE = _pathlib.Path(__file__).parent / "data" / "sucursales_infra.json"
@@ -4163,14 +4164,25 @@ def _ticket_es_pedido_materiales(ticket):
     )
 
 
-def _normalizar_responsable_materiales(tickets):
-    """Mantiene todos los pedidos operativos de materiales bajo responsabilidad de Soria."""
+def _proveedor_nombre_es_logistico(ticket):
+    return ticket.get("retiro_tipo") == "proveedor" or bool(ticket.get("retiro_proveedor"))
+
+
+def _normalizar_responsable_materiales(tickets, auditar=False, ahora=None):
+    """Mantiene pedidos operativos de materiales en Soria y devuelve la misma lista."""
+    ahora = ahora or datetime.datetime.now().isoformat()
     for ticket in tickets:
         if not _ticket_es_pedido_materiales(ticket):
             continue
         if ticket.get("estado") in ESTADOS_NO_OPERATIVOS:
             continue
+        proveedor_nombre_asignado = (
+            ticket.get("proveedor_nombre")
+            if not _proveedor_nombre_es_logistico(ticket)
+            else None
+        )
         responsables_previos = [
+            proveedor_nombre_asignado,
             ticket.get("asignado_proveedor"),
             ticket.get("asignado"),
         ]
@@ -4178,20 +4190,51 @@ def _normalizar_responsable_materiales(tickets):
             if responsable and responsable != RESPONSABLE_MATERIALES and not ticket.get("proveedor_origen"):
                 ticket["proveedor_origen"] = responsable
                 break
+
+        cambio_real = (
+            ticket.get("asignado") != RESPONSABLE_MATERIALES
+            or bool(ticket.get("asignado_proveedor"))
+            or bool(proveedor_nombre_asignado)
+        )
         ticket["asignado"] = RESPONSABLE_MATERIALES
         ticket.pop("asignado_proveedor", None)
+        if proveedor_nombre_asignado:
+            ticket.pop("proveedor_nombre", None)
+
+        if auditar and cambio_real:
+            if ticket.get("migracion_responsable_materiales") != MIGRACION_MATERIALES_SORIA_VERSION:
+                anteriores = []
+                for responsable in responsables_previos:
+                    if responsable and responsable != RESPONSABLE_MATERIALES and responsable not in anteriores:
+                        anteriores.append(responsable)
+                detalle_anterior = ", ".join(anteriores) or "sin responsable registrado"
+                ticket.setdefault("notas", []).append({
+                    "autor": "Sistema",
+                    "fecha": ahora,
+                    "texto": (
+                        "Migración automática: pedido operativo de materiales reasignado a Soria. "
+                        f"Responsable/proveedor anterior: {detalle_anterior}."
+                    ),
+                })
+            ticket["migracion_responsable_materiales"] = MIGRACION_MATERIALES_SORIA_VERSION
+            ticket["migracion_responsable_materiales_fecha"] = ahora
     return tickets
 
 
-def load_tickets():
+def _load_tickets_raw():
     if USE_DB:
-        return _normalizar_responsable_materiales(_db_list(TicketDB))
+        return _db_list(TicketDB)
     if TICKETS_FILE.exists():
         try:
-            return _normalizar_responsable_materiales(json.loads(TICKETS_FILE.read_text()))
+            data = json.loads(TICKETS_FILE.read_text())
+            return data if isinstance(data, list) else []
         except (json.JSONDecodeError, OSError):
             pass
     return []
+
+
+def load_tickets():
+    return _normalizar_responsable_materiales(_load_tickets_raw())
 
 
 def save_tickets(tickets):
@@ -4199,6 +4242,23 @@ def save_tickets(tickets):
     if USE_DB:
         _db_replace(TicketDB, tickets)
     _atomic_write(TICKETS_FILE, tickets)
+
+
+def _migrar_responsables_materiales_operativos():
+    """Persiste una vez la reasignación de materiales existentes al iniciar."""
+    tickets = _load_tickets_raw()
+    if not tickets:
+        return 0
+    antes = copy.deepcopy(tickets)
+    ahora = datetime.datetime.now().isoformat()
+    _normalizar_responsable_materiales(tickets, auditar=True, ahora=ahora)
+    cambiados = sum(1 for previo, actual in zip(antes, tickets) if previo != actual)
+    if cambiados:
+        save_tickets(tickets)
+    return cambiados
+
+
+_migrar_responsables_materiales_operativos()
 
 
 MIGRATION_PENDING_PROVIDER_CLEANUP = {
