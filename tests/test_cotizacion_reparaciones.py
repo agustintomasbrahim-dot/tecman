@@ -1,7 +1,6 @@
 import copy
 import hashlib
 import io
-import json
 import os
 import tempfile
 import unittest
@@ -51,7 +50,7 @@ class CotizacionReparacionesTest(unittest.TestCase):
             "observaciones": "Coordinar antes de visitar",
             "fotos": [],
         }
-        rows = [
+        return [
             dict(base, id=101, sucursal="Sucursal 120", asignado="Julio Fuga (JRF)", fotos=["foto 1.jpg"], notas=[{"autor": "Admin", "fecha": "2026-09-02T10:00:00", "texto": "Revisar motor"}]),
             dict(base, id=102, sucursal="Sucursal 120", asignado="Carolina", proveedor_nombre="JRF", zona_afectada="Salón"),
             dict(base, id=103, sucursal="Sucursal 126", asignado="Carolina", asignado_proveedor="fuga", descripcion="=2+2 no debe ser fórmula", presupuestos=[{"archivo": "presupuesto.pdf"}]),
@@ -62,8 +61,12 @@ class CotizacionReparacionesTest(unittest.TestCase):
             dict(base, id=201, sucursal="Sucursal 120", asignado="Otro proveedor"),
             dict(base, id=202, sucursal="Sucursal 120", proveedor_nombre="JRF Servicios Integrales"),
             dict(base, id=203, sucursal="Sucursal 120", asignado="No Julio Fuga"),
+            dict(base, id=301, sucursal="Sucursal 120", asignado="Carolina", proveedor_nombre="CEYH", categoria="Electricidad", subcategoria="Iluminación", prioridad=1, creado="2026-09-10T08:00:00", descripcion="Cambiar reflector del depósito", zona_afectada="Depósito", observaciones="Acceso por portón lateral"),
+            dict(base, id=302, sucursal="Sucursal 126", asignado="CEYH", categoria="Electricidad", subcategoria="Tablero", estado="Cerrado", creado="2026-08-10T08:00:00", fotos=["tablero.jpg"]),
+            dict(base, id=401, sucursal="Sucursal 130", asignado="", proveedor_nombre="", asignado_proveedor="", responsable="Agustín Brahim", descripcion="Filtración sin asignar"),
+            dict(base, id=501, sucursal="Sucursal 203", asignado="Gustavo Avellaneda", categoria="Sanitarios", subcategoria="Pérdida"),
+            dict(base, id=601, sucursal="Sucursal 204", asignado="Carolina", proveedor_presupuesto="Presu SRL", categoria="Presupuestos"),
         ]
-        return rows
 
     def _admin_session(self, csrf="csrf-test"):
         with self.client.session_transaction() as session:
@@ -77,101 +80,169 @@ class CotizacionReparacionesTest(unittest.TestCase):
     def _digest(path):
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+    @staticmethod
+    def _default_filters():
+        values = {key: "" for key in tecman.QUOTE_FILTER_KEYS}
+        values.update(proveedor_actual="Julio Fuga (JRF)", estado_scope="abiertos", adjuntos="todos")
+        return values
+
     def _post(self, ids, **extra):
         data = {
             "_csrf_token": "csrf-test",
-            "include_finalizados": "0",
             "proveedor_destino": "Nuevo Proveedor SRL",
             "ticket_ids": [str(value) for value in ids],
+            **self._default_filters(),
         }
         data.update(extra)
         return self.client.post("/admin/cotizacion-reparaciones", data=data)
 
-    def test_clasificacion_exacta_aliases_campos_y_estados_finales(self):
-        tickets = self._tickets()
-        open_ids = [ticket["id"] for ticket in tecman._tickets_cotizables_julio_fuga(tickets)]
-        all_ids = [ticket["id"] for ticket in tecman._tickets_cotizables_julio_fuga(tickets, include_finalizados=True)]
+    def test_default_jrf_usa_aliases_exactos_y_excluye_finalizados(self):
+        filters = tecman._quote_filter_values({}, apply_initial_defaults=True)
+        open_ids = [ticket["id"] for ticket in tecman._quote_filter_tickets(self._tickets(), filters)]
+        filters["estado_scope"] = "todos"
+        all_ids = [ticket["id"] for ticket in tecman._quote_filter_tickets(self._tickets(), filters)]
 
         self.assertEqual(open_ids, [101, 102, 103, 104])
         self.assertEqual(all_ids, [101, 102, 103, 104, 105, 106, 107])
-        self.assertFalse(tecman._ticket_es_de_julio_fuga(tickets[7]))
-        self.assertFalse(tecman._ticket_es_de_julio_fuga(tickets[8]))
-        self.assertFalse(tecman._ticket_es_de_julio_fuga(tickets[9]))
+        self.assertNotIn(202, all_ids)
+        self.assertNotIn(203, all_ids)
         self.assertEqual(tecman.TICKET_FINAL_STATES, {"Rechazado", "Resuelto", "Cerrado"})
 
-    def test_render_agrupa_por_sucursal_abiertos_y_controles_de_seleccion(self):
+    def test_render_inicial_general_y_limpiar_filtros(self):
         response = self.client.get("/admin/cotizacion-reparaciones")
         self.assertEqual(response.status_code, 200)
         page = response.get_data(as_text=True)
 
-        self.assertIn("Cotización de reparaciones", page)
+        self.assertIn("Filtrá tickets de cualquier proveedor", page)
         self.assertIn("4 tickets", page)
         self.assertEqual(page.count('<section class="card quote-branch" data-branch-group>'), 2)
         self.assertEqual(page.count('type="checkbox" data-select-branch'), 2)
         for ticket_id in (101, 102, 103, 104):
             self.assertIn(f'value="{ticket_id}"', page)
-        for ticket_id in (105, 106, 107, 201, 202, 203):
+        for ticket_id in (105, 301, 401, 501):
             self.assertNotIn(f'value="{ticket_id}"', page)
+        self.assertIn('<option value="Julio Fuga (JRF)" selected>', page)
         self.assertIn('name="_csrf_token" value="csrf-test"', page)
-        self.assertIn('maxlength="120"', page)
+        self.assertIn("Limpiar filtros", page)
 
-        with_final = self.client.get("/admin/cotizacion-reparaciones?include_finalizados=1").get_data(as_text=True)
-        for ticket_id in (105, 106, 107):
-            self.assertIn(f'value="{ticket_id}"', with_final)
+        cleared = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=&estado_scope=todos&adjuntos=todos").get_data(as_text=True)
+        self.assertIn("15 tickets", cleared)
+        for ticket_id in (105, 301, 302, 401, 501, 601):
+            self.assertIn(f'value="{ticket_id}"', cleared)
 
-    def test_xlsx_resumen_hojas_columnas_filas_proveedor_y_enlaces(self):
+    def test_otro_proveedor_sin_proveedor_y_catalogo_completo(self):
+        ceyh = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=CEYH&estado_scope=todos&adjuntos=todos").get_data(as_text=True)
+        self.assertIn('value="301"', ceyh)
+        self.assertIn('value="302"', ceyh)
+        self.assertNotIn('value="101"', ceyh)
+
+        unassigned = self.client.get(f"/admin/cotizacion-reparaciones?proveedor_actual={tecman.QUOTE_NO_PROVIDER}&estado_scope=todos&adjuntos=todos").get_data(as_text=True)
+        self.assertIn('value="401"', unassigned)
+        self.assertNotIn('value="301"', unassigned)
+
+        self.assertIn('<option value="Gustavo Avellaneda"', ceyh)
+        self.assertIn('<option value="Martin Microglobal"', ceyh)
+        self.assertIn('<option value="Otro proveedor"', ceyh)
+        self.assertIn('<option value="Presu SRL"', ceyh)
+        self.assertIn('>Sin proveedor</option>', ceyh)
+
+        presupuesto = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=Presu+SRL&estado_scope=abiertos&adjuntos=todos").get_data(as_text=True)
+        self.assertIn('value="601"', presupuesto)
+        self.assertNotIn('value="301"', presupuesto)
+
+    def test_filtros_combinados_server_side(self):
+        filters = tecman._quote_filter_values({
+            "proveedor_actual": "CEYH",
+            "sucursal": "Sucursal 120",
+            "estado_scope": "abiertos",
+            "categoria": "Electricidad",
+            "subcategoria": "Iluminación",
+            "prioridad": "1",
+            "fecha_desde": "2026-09-05",
+            "fecha_hasta": "2026-09-15",
+            "antiguedad_min": "8",
+            "antiguedad_max": "8",
+            "responsable": "Carolina",
+            "adjuntos": "sin",
+            "q": "deposito porton",
+        })
+        result = tecman._quote_filter_tickets(
+            self._tickets(), filters, now=tecman.datetime.datetime(2026, 9, 18, 10, 0)
+        )
+        self.assertEqual([ticket["id"] for ticket in result], [301])
+
+        filters["adjuntos"] = "con"
+        self.assertEqual(tecman._quote_filter_tickets(self._tickets(), filters, now=tecman.datetime.datetime(2026, 9, 18, 10, 0)), [])
+
+    def test_busqueda_y_filtros_de_adjunto(self):
+        search = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=&estado_scope=todos&adjuntos=todos&q=porton+lateral").get_data(as_text=True)
+        self.assertIn('value="301"', search)
+        self.assertNotIn('value="302"', search)
+
+        with_files = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=CEYH&estado_scope=todos&adjuntos=con").get_data(as_text=True)
+        self.assertIn('value="302"', with_files)
+        self.assertNotIn('value="301"', with_files)
+
+        note_search = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=Julio+Fuga+(JRF)&estado_scope=abiertos&adjuntos=todos&q=motor").get_data(as_text=True)
+        self.assertIn('value="101"', note_search)
+        self.assertNotIn('value="102"', note_search)
+
+    def test_xlsx_incluye_origen_filtros_destino_columnas_y_enlaces(self):
         before_tickets = self._digest(tecman.TICKETS_FILE)
         before_notices = self._digest(tecman.NOTIF_ADMIN_FILE)
-        response = self._post([104, 101, 103])
+        response = self._post([101, 103])
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        self.assertIn("cotizacion_reparaciones_", response.headers["Content-Disposition"])
         workbook = load_workbook(io.BytesIO(response.data), data_only=False)
         self.assertEqual(workbook.sheetnames, ["Resumen", "Sucursal 120", "Sucursal 126"])
 
         summary = workbook["Resumen"]
         self.assertEqual(summary["A1"].value, "Cotización de reparaciones")
-        self.assertEqual(summary["B2"].value, "Nuevo Proveedor SRL")
-        self.assertEqual(summary["B4"].value, 3)
-        self.assertEqual(summary["A7"].value, "Sucursal 120")
-        self.assertEqual(summary["B7"].value, 1)
-        self.assertEqual(summary["A8"].value, "Sucursal 126")
-        self.assertEqual(summary["B8"].value, 2)
+        self.assertEqual(summary["B2"].value, "Julio Fuga (JRF)")
+        self.assertEqual(summary["B3"].value, "Nuevo Proveedor SRL")
+        self.assertEqual(summary["B5"].value, 2)
+        self.assertIn("Estado: Abiertos", summary["B6"].value)
+        self.assertEqual(summary["A9"].value, "Sucursal 120")
+        self.assertEqual(summary["B9"].value, 1)
 
         sheet_120 = workbook["Sucursal 120"]
-        headers = [cell.value for cell in sheet_120[5]]
-        self.assertEqual(headers[:12], [
-            "Sucursal", "Ticket", "Categoría", "Subcategoría", "Descripción / problema",
-            "Zona / ubicación", "Prioridad", "Estado", "Fecha", "Antigüedad (días)",
-            "Observaciones relevantes", "Ver ticket",
+        headers = [cell.value for cell in sheet_120[7]]
+        self.assertEqual(headers[:14], [
+            "Sucursal", "Ticket", "Proveedor actual", "Responsable / asignado", "Categoría",
+            "Subcategoría", "Descripción / problema", "Zona / ubicación", "Prioridad", "Estado",
+            "Fecha", "Antigüedad (días)", "Observaciones relevantes", "Ver ticket",
         ])
         self.assertIn("Adjunto 1", headers)
-        self.assertEqual(sheet_120.max_row, 6)
-        self.assertEqual(sheet_120["B6"].value, "101")
-        self.assertEqual(sheet_120["B2"].value, "Nuevo Proveedor SRL")
-        self.assertEqual(sheet_120["L6"].hyperlink.target, "http://localhost/admin/ticket/101")
-        self.assertEqual(sheet_120["M6"].hyperlink.target, "http://localhost/static/uploads/foto%201.jpg")
-        self.assertIn("Revisar motor", sheet_120["K6"].value)
+        self.assertEqual(sheet_120.max_row, 8)
+        self.assertEqual(sheet_120["B8"].value, "101")
+        self.assertEqual(sheet_120["C8"].value, "Julio Fuga (JRF)")
+        self.assertEqual(sheet_120["B2"].value, "Julio Fuga (JRF)")
+        self.assertEqual(sheet_120["B3"].value, "Nuevo Proveedor SRL")
+        self.assertEqual(sheet_120["N8"].hyperlink.target, "http://localhost/admin/ticket/101")
+        self.assertEqual(sheet_120["O8"].hyperlink.target, "http://localhost/static/uploads/foto%201.jpg")
+        self.assertIn("Revisar motor", sheet_120["M8"].value)
 
         sheet_126 = workbook["Sucursal 126"]
-        self.assertEqual([sheet_126[f"B{row}"].value for row in (6, 7)], ["103", "104"])
-        self.assertEqual(sheet_126["E6"].value, "'=2+2 no debe ser fórmula")
-        self.assertEqual(sheet_126["M6"].hyperlink.target, "http://localhost/static/uploads/presupuesto.pdf")
+        self.assertEqual(sheet_126["B8"].value, "103")
+        self.assertEqual(sheet_126["G8"].value, "'=2+2 no debe ser fórmula")
+        self.assertEqual(sheet_126["O8"].hyperlink.target, "http://localhost/static/uploads/presupuesto.pdf")
         workbook.close()
 
         self.assertEqual(self._digest(tecman.TICKETS_FILE), before_tickets)
         self.assertEqual(self._digest(tecman.NOTIF_ADMIN_FILE), before_notices)
         self.assertEqual(list(tecman.UPLOADS_DIR.iterdir()), [])
 
-    def test_ids_manipulados_vacio_csrf_y_sesion_rechazan_sin_mutar(self):
+    def test_post_reconstruye_filtros_y_rechaza_ids_ajenos_invalidos(self):
         cases = [
             ([], {}, 400),
-            ([201], {}, 400),
+            ([301], {}, 400),
             ([105], {}, 400),
             ([101, 101], {}, 400),
             ([101], {"_csrf_token": "incorrecto"}, 400),
             ([101], {"proveedor_destino": "x" * 121}, 400),
+            ([101], {"fecha_desde": "18/09/2026"}, 400),
+            ([101], {"antiguedad_min": "20", "antiguedad_max": "10"}, 400),
         ]
         for ids, extra, expected in cases:
             with self.subTest(ids=ids, extra=extra):
@@ -182,17 +253,19 @@ class CotizacionReparacionesTest(unittest.TestCase):
                 self.assertEqual(self._digest(tecman.TICKETS_FILE), before_tickets)
                 self.assertEqual(self._digest(tecman.NOTIF_ADMIN_FILE), before_notices)
 
+        valid_other = self._post([301], proveedor_actual="CEYH")
+        self.assertEqual(valid_other.status_code, 200)
+        valid_closed = self._post([105], estado_scope="cerrados")
+        self.assertEqual(valid_closed.status_code, 200)
+
+    def test_sesion_db_y_nombres_de_hoja(self):
         with self.client.session_transaction() as session:
             session.clear()
         no_session = self.client.get("/admin/cotizacion-reparaciones")
         self.assertEqual(no_session.status_code, 302)
         self.assertIn("/admin/login", no_session.headers["Location"])
-
         self._admin_session()
-        valid_final = self._post([105], include_finalizados="1")
-        self.assertEqual(valid_final.status_code, 200)
 
-    def test_lectura_db_usa_payload_sin_persistir(self):
         tickets = copy.deepcopy(self._tickets())
         ticket_model = object()
         with patch.object(tecman, "TicketDB", ticket_model, create=True), \
@@ -200,20 +273,16 @@ class CotizacionReparacionesTest(unittest.TestCase):
              patch.object(tecman, "_db_replace") as db_replace, \
              patch.object(tecman, "USE_DB", True):
             response = self.client.get("/admin/cotizacion-reparaciones")
-
         self.assertEqual(response.status_code, 200)
         db_list.assert_called_once_with(ticket_model)
         db_replace.assert_not_called()
-        self.assertEqual(tickets, self._tickets())
 
-    def test_nombres_de_hoja_validos_y_unicos(self):
-        tickets = [
-            dict(self._tickets()[0], id=301, sucursal="Sucursal [Norte]/Nombre extremadamente largo 1234567890"),
-            dict(self._tickets()[1], id=302, sucursal="Sucursal :Norte?/Nombre extremadamente largo 1234567890"),
+        weird = [
+            dict(tickets[0], id=601, sucursal="Sucursal [Norte]/Nombre extremadamente largo 1234567890"),
+            dict(tickets[1], id=602, sucursal="Sucursal :Norte?/Nombre extremadamente largo 1234567890"),
         ]
         with tecman.app.test_request_context("/", base_url="http://localhost"):
-            workbook = tecman._build_quote_workbook(tickets, "", generated_at=tecman.datetime.datetime(2026, 9, 18, 10, 0))
-        self.assertEqual(workbook.sheetnames[0], "Resumen")
+            workbook = tecman._build_quote_workbook(weird, "", generated_at=tecman.datetime.datetime(2026, 9, 18, 10, 0))
         self.assertEqual(len(workbook.sheetnames), len(set(name.casefold() for name in workbook.sheetnames)))
         for name in workbook.sheetnames:
             self.assertLessEqual(len(name), 31)

@@ -11,17 +11,20 @@
 <style>
     .quote-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
     .quote-header h2 { margin-bottom:6px; }
-    .quote-header p { color:#64748b; line-height:1.45; max-width:720px; font-size:13px; }
+    .quote-header p { color:#64748b; line-height:1.45; max-width:820px; font-size:13px; }
     .quote-count { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:10px; padding:9px 12px; font-weight:700; font-size:13px; }
-    .quote-filter { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    .quote-filter label { display:flex; align-items:center; gap:8px; color:#334155; font-size:13px; font-weight:600; }
+    .quote-filters { display:grid; grid-template-columns:repeat(4, minmax(160px, 1fr)); gap:12px; }
+    .quote-filters .form-group { margin:0; }
+    .quote-filters label { font-size:12px; }
+    .quote-filter-wide { grid-column:span 2; }
+    .quote-filter-actions { grid-column:1 / -1; display:flex; justify-content:flex-end; align-items:center; gap:9px; flex-wrap:wrap; padding-top:2px; }
     .quote-supplier { display:grid; grid-template-columns:minmax(240px, 1fr) auto; gap:12px; align-items:end; }
     .quote-branch { padding:0; overflow:hidden; margin-top:16px; }
     .quote-branch-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
     .quote-branch-head h3 { color:#0f172a; }
     .quote-select-all { display:flex; align-items:center; gap:7px; font-size:12px; color:#475569; font-weight:700; cursor:pointer; }
     .quote-table-wrap { overflow-x:auto; }
-    .quote-table { min-width:1100px; }
+    .quote-table { min-width:1450px; }
     .quote-table td { vertical-align:top; }
     .quote-check { width:42px; text-align:center; }
     .quote-id { color:#1d4ed8; font-weight:800; white-space:nowrap; }
@@ -30,8 +33,10 @@
     .quote-empty { text-align:center; padding:48px 20px; color:#64748b; }
     .quote-actions { position:sticky; bottom:12px; display:flex; justify-content:flex-end; margin-top:16px; }
     .quote-actions-inner { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px; box-shadow:0 10px 30px rgba(15,23,42,.12); }
+    @media (max-width:1000px) { .quote-filters { grid-template-columns:repeat(2, minmax(160px, 1fr)); } }
     @media (max-width:640px) {
-        .quote-supplier { grid-template-columns:1fr; }
+        .quote-filters, .quote-supplier { grid-template-columns:1fr; }
+        .quote-filter-wide, .quote-filter-actions { grid-column:1; }
         .quote-supplier .btn { width:100%; }
     }
 </style>
@@ -39,31 +44,109 @@
 <div class="quote-header">
     <div>
         <h2>Cotización de reparaciones</h2>
-        <p>Seleccioná los tickets vinculados a Julio Fuga / JRF para pedir cotización a otro proveedor. La exportación es de solo lectura: no reasigna, cierra ni modifica tickets o avisos.</p>
+        <p>Filtrá tickets de cualquier proveedor o responsable, seleccioná los que querés cotizar y exportalos por sucursal. La herramienta es de solo lectura: no reasigna, cierra ni modifica tickets o avisos.</p>
     </div>
     <div class="quote-count">{{ total_tickets }} ticket{{ '' if total_tickets == 1 else 's' }}</div>
 </div>
 
 <div class="card">
-    <form method="GET" class="quote-filter">
-        <label>
-            <input type="checkbox" name="include_finalizados" value="1" {% if include_finalizados %}checked{% endif %} onchange="this.form.submit()">
-            Incluir finalizados ({{ final_states | join(', ') }})
-        </label>
-        {% if include_finalizados %}<a href="{{ url_for('admin_cotizacion_reparaciones') }}" class="btn btn-outline btn-sm">Ver sólo abiertos</a>{% endif %}
+    <form method="GET" class="quote-filters">
+        <div class="form-group">
+            <label for="proveedor_actual">Proveedor actual</label>
+            <select id="proveedor_actual" name="proveedor_actual">
+                <option value="" {% if not filters.proveedor_actual %}selected{% endif %}>Todos los proveedores</option>
+                <option value="{{ no_provider_value }}" {% if filters.proveedor_actual == no_provider_value %}selected{% endif %}>Sin proveedor</option>
+                {% for proveedor in options.proveedores %}<option value="{{ proveedor }}" {% if filters.proveedor_actual == proveedor %}selected{% endif %}>{{ proveedor }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="sucursal">Sucursal</label>
+            <select id="sucursal" name="sucursal">
+                <option value="">Todas</option>
+                {% for value in options.sucursales %}<option value="{{ value }}" {% if filters.sucursal == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="estado_scope">Estado</label>
+            <select id="estado_scope" name="estado_scope">
+                <option value="abiertos" {% if filters.estado_scope == 'abiertos' %}selected{% endif %}>Abiertos</option>
+                <option value="cerrados" {% if filters.estado_scope == 'cerrados' %}selected{% endif %}>Cerrados / finalizados</option>
+                <option value="todos" {% if filters.estado_scope == 'todos' %}selected{% endif %}>Todos</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="responsable">Responsable / asignado</label>
+            <select id="responsable" name="responsable">
+                <option value="">Todos</option>
+                {% for value in options.responsables %}<option value="{{ value }}" {% if filters.responsable == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="categoria">Categoría</label>
+            <select id="categoria" name="categoria">
+                <option value="">Todas</option>
+                {% for value in options.categorias %}<option value="{{ value }}" {% if filters.categoria == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="subcategoria">Subcategoría</label>
+            <select id="subcategoria" name="subcategoria">
+                <option value="">Todas</option>
+                {% for value in options.subcategorias %}<option value="{{ value }}" {% if filters.subcategoria == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prioridad">Prioridad</label>
+            <select id="prioridad" name="prioridad">
+                <option value="">Todas</option>
+                {% for value, label in options.prioridades %}<option value="{{ value }}" {% if filters.prioridad == value %}selected{% endif %}>{{ value }} - {{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="adjuntos">Fotos o adjuntos</label>
+            <select id="adjuntos" name="adjuntos">
+                <option value="todos" {% if filters.adjuntos == 'todos' %}selected{% endif %}>Todos</option>
+                <option value="con" {% if filters.adjuntos == 'con' %}selected{% endif %}>Con fotos o adjuntos</option>
+                <option value="sin" {% if filters.adjuntos == 'sin' %}selected{% endif %}>Sin fotos ni adjuntos</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="fecha_desde">Fecha de creación desde</label>
+            <input id="fecha_desde" type="date" name="fecha_desde" value="{{ filters.fecha_desde }}">
+        </div>
+        <div class="form-group">
+            <label for="fecha_hasta">Fecha de creación hasta</label>
+            <input id="fecha_hasta" type="date" name="fecha_hasta" value="{{ filters.fecha_hasta }}">
+        </div>
+        <div class="form-group">
+            <label for="antiguedad_min">Antigüedad mínima (días)</label>
+            <input id="antiguedad_min" type="number" min="0" max="36500" name="antiguedad_min" value="{{ filters.antiguedad_min }}">
+        </div>
+        <div class="form-group">
+            <label for="antiguedad_max">Antigüedad máxima (días)</label>
+            <input id="antiguedad_max" type="number" min="0" max="36500" name="antiguedad_max" value="{{ filters.antiguedad_max }}">
+        </div>
+        <div class="form-group quote-filter-wide">
+            <label for="q">Buscar por ID, descripción, ubicación u observaciones</label>
+            <input id="q" name="q" maxlength="200" value="{{ filters.q }}" placeholder="Ej.: persiana, salón, 1234">
+        </div>
+        <div class="quote-filter-actions">
+            <a href="{{ url_for('admin_cotizacion_reparaciones', proveedor_actual='', estado_scope='todos', adjuntos='todos') }}" class="btn btn-outline">Limpiar filtros</a>
+            <button type="submit" class="btn">Aplicar filtros</button>
+        </div>
     </form>
 </div>
 
 <form method="POST" action="{{ url_for('admin_cotizacion_reparaciones') }}" id="quote-export-form">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="include_finalizados" value="{{ '1' if include_finalizados else '0' }}">
+    {% for key in filter_keys %}<input type="hidden" name="{{ key }}" value="{{ filters.get(key, '') }}">{% endfor %}
 
     <div class="card quote-supplier">
         <div class="form-group" style="margin:0;">
             <label for="proveedor_destino">Proveedor destino (opcional)</label>
             <input id="proveedor_destino" name="proveedor_destino" maxlength="120" placeholder="Ej.: Proveedor a cotizar">
         </div>
-        <button type="submit" class="btn btn-success" data-saving="Generando XLSX...">Generar XLSX</button>
+        <button type="submit" class="btn btn-success" data-saving="Generando XLSX..." {% if not groups %}disabled{% endif %}>Generar XLSX</button>
     </div>
 
     {% for branch, tickets in groups.items() %}
@@ -79,7 +162,7 @@
             <table class="quote-table">
                 <thead>
                     <tr>
-                        <th class="quote-check">Elegir</th><th>Ticket</th><th>Categoría</th><th>Problema</th><th>Zona</th><th>Prioridad</th><th>Estado</th><th>Fecha / antigüedad</th><th>Adjuntos</th>
+                        <th class="quote-check">Elegir</th><th>Ticket</th><th>Proveedor actual</th><th>Responsable</th><th>Categoría</th><th>Problema</th><th>Zona</th><th>Prioridad</th><th>Estado</th><th>Fecha / antigüedad</th><th>Adjuntos</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -87,6 +170,8 @@
                     <tr>
                         <td class="quote-check"><input type="checkbox" name="ticket_ids" value="{{ ticket.id }}" data-ticket-check aria-label="Seleccionar ticket {{ ticket.id }}"></td>
                         <td><a class="quote-id" href="{{ url_for('admin_ticket', ticket_id=ticket.id) }}">#{{ ticket.id }}</a></td>
+                        <td>{{ ticket.cotizacion_proveedor }}</td>
+                        <td>{{ ticket.cotizacion_responsable }}</td>
                         <td>
                             <strong>{{ ticket.categoria or '-' }}</strong>
                             <div class="quote-muted">{{ ticket.subcategoria or '-' }}</div>
@@ -112,7 +197,7 @@
     {% endfor %}
 
     {% if not groups %}
-    <div class="card quote-empty">No hay tickets elegibles con el filtro actual.</div>
+    <div class="card quote-empty">No hay tickets con los filtros actuales. Podés limpiar o cambiar los filtros.</div>
     {% else %}
     <div class="quote-actions">
         <div class="quote-actions-inner">
