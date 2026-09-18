@@ -169,7 +169,7 @@
                     {% for ticket in tickets %}
                     <tr>
                         <td class="quote-check"><input type="checkbox" name="ticket_ids" value="{{ ticket.id }}" data-ticket-check aria-label="Seleccionar ticket {{ ticket.id }}"></td>
-                        <td><a class="quote-id" href="{{ url_for('admin_ticket', ticket_id=ticket.id) }}">#{{ ticket.id }}</a></td>
+                        <td>{% if ticket.cotizacion_ticket_url %}<a class="quote-id" href="{{ ticket.cotizacion_ticket_url }}">#{{ ticket.id }}</a>{% else %}<span class="quote-id">#{{ ticket.id }}</span>{% endif %}</td>
                         <td>{{ ticket.cotizacion_proveedor }}</td>
                         <td>{{ ticket.cotizacion_responsable }}</td>
                         <td>

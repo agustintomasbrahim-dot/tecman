@@ -3568,7 +3568,7 @@ def _ticket_es_de_proveedor(ticket, nombres):
     return any(v in nombres for v in campos if v)
 
 
-QUOTE_PROVIDER_FIELDS = ("asignado", "proveedor_nombre", "asignado_proveedor", "proveedor_presupuesto")
+QUOTE_EXPLICIT_PROVIDER_FIELDS = ("proveedor_nombre", "asignado_proveedor", "proveedor_presupuesto")
 QUOTE_RESPONSIBLE_FIELDS = ("responsable", "asignado")
 QUOTE_DEFAULT_PROVIDER = "Julio Fuga (JRF)"
 QUOTE_NO_PROVIDER = "__sin_proveedor__"
@@ -3596,12 +3596,33 @@ def _quote_normalize(value):
     return " ".join("".join(char if char.isalnum() else " " for char in text.casefold()).split())
 
 
-def _quote_provider_values(ticket):
-    return [
+def _quote_known_provider_aliases(tickets=None):
+    values = {p.get("nombre", "") for p in PROVEEDORES if p.get("nombre")}
+    values.update(QUOTE_PROVIDER_LEGACY_ALIASES)
+    for username, info in load_proveedor_users().items():
+        values.add(username)
+        values.add(info.get("nombre", ""))
+        values.update(info.get("proveedores") or [])
+    for ticket in tickets or []:
+        if isinstance(ticket, dict):
+            values.update(
+                str(ticket.get(field) or "").strip()
+                for field in QUOTE_EXPLICIT_PROVIDER_FIELDS
+                if str(ticket.get(field) or "").strip()
+            )
+    return {_quote_normalize(value) for value in values if value}
+
+
+def _quote_provider_values(ticket, known_provider_aliases=None):
+    values = [
         str(ticket.get(field) or "").strip()
-        for field in QUOTE_PROVIDER_FIELDS
+        for field in QUOTE_EXPLICIT_PROVIDER_FIELDS
         if str(ticket.get(field) or "").strip()
     ]
+    assigned = str(ticket.get("asignado") or "").strip()
+    if known_provider_aliases is not None and _quote_normalize(assigned) in known_provider_aliases:
+        values.append(assigned)
+    return values
 
 
 def _quote_provider_aliases(selected):
@@ -3622,10 +3643,10 @@ def _quote_provider_aliases(selected):
     return aliases
 
 
-def _quote_ticket_provider_display(ticket):
+def _quote_ticket_provider_display(ticket, known_provider_aliases=None):
     values = []
     seen = set()
-    for value in _quote_provider_values(ticket):
+    for value in _quote_provider_values(ticket, known_provider_aliases=known_provider_aliases):
         normalized = _quote_normalize(value)
         if normalized and normalized not in seen:
             values.append(value)
@@ -3694,6 +3715,7 @@ def _quote_filter_values(source, apply_initial_defaults=False):
 
 def _quote_filter_tickets(tickets, filters, now=None):
     now = now or datetime.datetime.now()
+    known_provider_aliases = _quote_known_provider_aliases(tickets)
     provider_filter = filters.get("proveedor_actual", "")
     provider_aliases = _quote_provider_aliases(provider_filter) if provider_filter not in ("", QUOTE_NO_PROVIDER) else set()
     query = _quote_normalize(filters.get("q"))
@@ -3706,7 +3728,7 @@ def _quote_filter_tickets(tickets, filters, now=None):
     for ticket in tickets:
         if not isinstance(ticket, dict):
             continue
-        provider_values = _quote_provider_values(ticket)
+        provider_values = _quote_provider_values(ticket, known_provider_aliases=known_provider_aliases)
         provider_norms = {_quote_normalize(value) for value in provider_values}
         if provider_filter == QUOTE_NO_PROVIDER and provider_values:
             continue
@@ -3766,8 +3788,9 @@ def _quote_filter_options(tickets):
     providers = {p.get("nombre", "").strip() for p in PROVEEDORES if p.get("nombre")}
     for info in load_proveedor_users().values():
         providers.update(str(value).strip() for value in [info.get("nombre"), *(info.get("proveedores") or [])] if value)
+    known_provider_aliases = _quote_known_provider_aliases(tickets)
     for ticket in tickets:
-        providers.update(_quote_provider_values(ticket))
+        providers.update(_quote_provider_values(ticket, known_provider_aliases=known_provider_aliases))
 
     def unique(field_values):
         return sorted({str(value or "").strip() for value in field_values if str(value or "").strip()}, key=_quote_normalize)
@@ -3938,6 +3961,7 @@ def _build_quote_workbook(
     from openpyxl.utils import get_column_letter
 
     generated_at = generated_at or datetime.datetime.now()
+    known_provider_aliases = _quote_known_provider_aliases(tickets)
     groups = {}
     for ticket in sorted(tickets, key=_quote_ticket_sort_key):
         branch = _quote_safe_text(ticket.get("sucursal") or ticket.get("sucursal_num") or "Sin sucursal", 120)
@@ -4008,7 +4032,7 @@ def _build_quote_workbook(
             row = [
                 branch,
                 _quote_safe_text(ticket.get("id"), 80),
-                _quote_safe_text(_quote_ticket_provider_display(ticket), 240),
+                _quote_safe_text(_quote_ticket_provider_display(ticket, known_provider_aliases=known_provider_aliases), 240),
                 _quote_safe_text(_quote_ticket_responsible_display(ticket), 240),
                 _quote_safe_text(ticket.get("categoria")),
                 _quote_safe_text(ticket.get("subcategoria")),
@@ -6126,6 +6150,7 @@ def admin_cotizacion_reparaciones():
         return render_template("error.html", mensaje=str(exc)), 400
 
     tickets = load_tickets()
+    known_provider_aliases = _quote_known_provider_aliases(tickets)
     now = datetime.datetime.now().replace(microsecond=0)
     eligible = _quote_filter_tickets(tickets, filters, now=now)
 
@@ -6178,8 +6203,9 @@ def admin_cotizacion_reparaciones():
         item = dict(ticket)
         item["cotizacion_antiguedad"] = _quote_ticket_age_days(ticket, now)
         item["cotizacion_adjuntos"] = len(_quote_attachment_paths(ticket))
-        item["cotizacion_proveedor"] = _quote_ticket_provider_display(ticket)
+        item["cotizacion_proveedor"] = _quote_ticket_provider_display(ticket, known_provider_aliases=known_provider_aliases)
         item["cotizacion_responsable"] = _quote_ticket_responsible_display(ticket)
+        item["cotizacion_ticket_url"] = _quote_ticket_url(ticket)
         try:
             item["cotizacion_prioridad"] = PRIORIDADES.get(int(ticket.get("prioridad")), ticket.get("prioridad") or "-")
         except (TypeError, ValueError):

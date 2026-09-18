@@ -58,14 +58,16 @@ class CotizacionReparacionesTest(unittest.TestCase):
             dict(base, id=105, sucursal="Sucursal 139", asignado="Julio Fuga", estado="Resuelto"),
             dict(base, id=106, sucursal="Sucursal 139", proveedor_nombre="Ismael Allende", estado="Cerrado"),
             dict(base, id=107, sucursal="Sucursal 145", asignado_proveedor="ismael", estado="Rechazado"),
-            dict(base, id=201, sucursal="Sucursal 120", asignado="Otro proveedor"),
+            dict(base, id=201, sucursal="Sucursal 120", asignado="Carolina", proveedor_nombre="Otro proveedor"),
             dict(base, id=202, sucursal="Sucursal 120", proveedor_nombre="JRF Servicios Integrales"),
             dict(base, id=203, sucursal="Sucursal 120", asignado="No Julio Fuga"),
             dict(base, id=301, sucursal="Sucursal 120", asignado="Carolina", proveedor_nombre="CEYH", categoria="Electricidad", subcategoria="Iluminación", prioridad=1, creado="2026-09-10T08:00:00", descripcion="Cambiar reflector del depósito", zona_afectada="Depósito", observaciones="Acceso por portón lateral"),
             dict(base, id=302, sucursal="Sucursal 126", asignado="CEYH", categoria="Electricidad", subcategoria="Tablero", estado="Cerrado", creado="2026-08-10T08:00:00", fotos=["tablero.jpg"]),
             dict(base, id=401, sucursal="Sucursal 130", asignado="", proveedor_nombre="", asignado_proveedor="", responsable="Agustín Brahim", descripcion="Filtración sin asignar"),
+            dict(base, id=402, sucursal="Sucursal 131", asignado="Soria", proveedor_nombre="", asignado_proveedor="", descripcion="Solicitud interna sin proveedor"),
             dict(base, id=501, sucursal="Sucursal 203", asignado="Gustavo Avellaneda", categoria="Sanitarios", subcategoria="Pérdida"),
             dict(base, id=601, sucursal="Sucursal 204", asignado="Carolina", proveedor_presupuesto="Presu SRL", categoria="Presupuestos"),
+            dict(base, id="abc123", sucursal="Sucursal 205", asignado="Carolina", proveedor_nombre="CEYH", descripcion="ID externo heredado"),
         ]
 
     def _admin_session(self, csrf="csrf-test"):
@@ -126,8 +128,8 @@ class CotizacionReparacionesTest(unittest.TestCase):
         self.assertIn("Limpiar filtros", page)
 
         cleared = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=&estado_scope=todos&adjuntos=todos").get_data(as_text=True)
-        self.assertIn("15 tickets", cleared)
-        for ticket_id in (105, 301, 302, 401, 501, 601):
+        self.assertIn("17 tickets", cleared)
+        for ticket_id in (105, 301, 302, 401, 402, 501, 601, "abc123"):
             self.assertIn(f'value="{ticket_id}"', cleared)
 
     def test_otro_proveedor_sin_proveedor_y_catalogo_completo(self):
@@ -138,6 +140,7 @@ class CotizacionReparacionesTest(unittest.TestCase):
 
         unassigned = self.client.get(f"/admin/cotizacion-reparaciones?proveedor_actual={tecman.QUOTE_NO_PROVIDER}&estado_scope=todos&adjuntos=todos").get_data(as_text=True)
         self.assertIn('value="401"', unassigned)
+        self.assertIn('value="402"', unassigned)
         self.assertNotIn('value="301"', unassigned)
 
         self.assertIn('<option value="Gustavo Avellaneda"', ceyh)
@@ -145,6 +148,8 @@ class CotizacionReparacionesTest(unittest.TestCase):
         self.assertIn('<option value="Otro proveedor"', ceyh)
         self.assertIn('<option value="Presu SRL"', ceyh)
         self.assertIn('>Sin proveedor</option>', ceyh)
+        self.assertIn('value="abc123"', ceyh)
+        self.assertIn('<span class="quote-id">#abc123</span>', ceyh)
 
         presupuesto = self.client.get("/admin/cotizacion-reparaciones?proveedor_actual=Presu+SRL&estado_scope=abiertos&adjuntos=todos").get_data(as_text=True)
         self.assertIn('value="601"', presupuesto)
