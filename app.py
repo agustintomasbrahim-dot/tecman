@@ -272,6 +272,7 @@ ESTADO_FILTROS_ADMIN = [
     "Finalizados",
 ]
 ESTADOS_NO_OPERATIVOS = {"Rechazado", "Resuelto", "Cerrado"}
+RESPONSABLE_MATERIALES = "Soria"
 
 import pathlib as _pathlib
 _SUCURSALES_INFRA_FILE = _pathlib.Path(__file__).parent / "data" / "sucursales_infra.json"
@@ -3559,6 +3560,10 @@ def _proveedores_sin_montos(proveedores):
 
 
 def _ticket_es_de_proveedor(ticket, nombres):
+    # Un proveedor puede figurar como origen o referencia logística, pero no
+    # recibe acceso operativo al pedido de materiales mientras siga abierto.
+    if _ticket_es_pedido_materiales(ticket) and ticket.get("estado") not in ESTADOS_NO_OPERATIVOS:
+        return False
     campos = (
         ticket.get("asignado"),
         ticket.get("asignado_proveedor"),
@@ -4095,7 +4100,7 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
         "solicitante": prov_nombre,
         "prioridad": ticket_origen.get("prioridad", 2),
         "estado": "Nuevo",
-        "asignado": "Soria",
+        "asignado": RESPONSABLE_MATERIALES,
         "fotos": [],
         "observaciones": "",
         "creado": ahora,
@@ -4149,6 +4154,8 @@ _seed_data_dir()
 
 
 def _ticket_es_pedido_materiales(ticket):
+    if not isinstance(ticket, dict):
+        return False
     return (
         ticket.get("categoria") in ("Materiales", "Solicitud de materiales")
         or ticket.get("subcategoria") == "Solicitud de materiales"
@@ -4159,19 +4166,19 @@ def _ticket_es_pedido_materiales(ticket):
 def _normalizar_responsable_materiales(tickets):
     """Mantiene todos los pedidos operativos de materiales bajo responsabilidad de Soria."""
     for ticket in tickets:
-        if not isinstance(ticket, dict) or not _ticket_es_pedido_materiales(ticket):
+        if not _ticket_es_pedido_materiales(ticket):
             continue
-        if ticket.get("estado") in ("Resuelto", "Cerrado", "Rechazado"):
+        if ticket.get("estado") in ESTADOS_NO_OPERATIVOS:
             continue
         responsables_previos = [
-            ticket.get("asignado"),
             ticket.get("asignado_proveedor"),
+            ticket.get("asignado"),
         ]
         for responsable in responsables_previos:
-            if responsable and responsable != "Soria" and not ticket.get("proveedor_origen"):
+            if responsable and responsable != RESPONSABLE_MATERIALES and not ticket.get("proveedor_origen"):
                 ticket["proveedor_origen"] = responsable
                 break
-        ticket["asignado"] = "Soria"
+        ticket["asignado"] = RESPONSABLE_MATERIALES
         ticket.pop("asignado_proveedor", None)
     return tickets
 
@@ -4188,6 +4195,7 @@ def load_tickets():
 
 
 def save_tickets(tickets):
+    _normalizar_responsable_materiales(tickets)
     if USE_DB:
         _db_replace(TicketDB, tickets)
     _atomic_write(TICKETS_FILE, tickets)
@@ -4596,6 +4604,10 @@ def es_sucursal_ceyh(suc_num):
 
 
 def auto_assign(subcategoria, sucursal="", categoria=""):
+    # La responsabilidad de materiales prevalece sobre cierres, zonas y abonos.
+    if _ticket_es_pedido_materiales({"categoria": categoria, "subcategoria": subcategoria}):
+        return RESPONSABLE_MATERIALES
+
     # Extract sucursal number
     suc_num = sucursal.replace("Sucursal ", "").strip()
     if _is_sucursal_cerrada(suc_num):
@@ -4611,9 +4623,7 @@ def auto_assign(subcategoria, sucursal="", categoria=""):
 
     # By category
     if subcategoria == "Luminarias":
-        return "Soria"
-    if categoria == "Materiales" or subcategoria == "Solicitud de materiales":
-        return "Soria"
+        return RESPONSABLE_MATERIALES
     if categoria == "Compras no productivas":
         return "Compras no productivas"
     if categoria == "Seguridad e Higiene":
@@ -6745,9 +6755,9 @@ def admin_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if _is_material_ticket(ticket):
+        return redirect(url_for("admin_pedido", ticket_id=ticket_id))
     if session.get("rol") == "tecnico":
-        if _is_material_ticket(ticket):
-            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
         return render_template("error.html", mensaje="Acceso restringido. Solo pedidos de materiales."), 403
     ticket = _normalize_ceyh_ticket(ticket)
 
@@ -6848,7 +6858,7 @@ def admin_ticket(ticket_id):
 
         if accion == "asignar_proveedor_presupuesto":
             if _is_material_ticket(ticket):
-                ticket["asignado"] = "Soria"
+                ticket["asignado"] = RESPONSABLE_MATERIALES
                 ticket.pop("asignado_proveedor", None)
                 save_tickets(tickets)
                 flash("Los pedidos de materiales deben permanecer asignados a Soria.")
