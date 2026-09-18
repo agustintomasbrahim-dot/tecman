@@ -196,7 +196,12 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self.assertEqual(loaded["asignado"], "Soria")
         self.assertNotIn("asignado_proveedor", loaded)
         self.assertEqual(loaded["proveedor_origen"], "CEYH")
-        self.assertEqual(loaded["notas"], historial)
+        self.assertEqual(loaded["notas"][0], historial[0])
+        self.assertEqual(
+            len([n for n in loaded["notas"] if "Migración automática" in n.get("texto", "")]),
+            1,
+        )
+        self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], loaded)
 
     def test_carga_db_normaliza_material_mal_asignado(self):
         payload = [self._material_ticket(
@@ -208,10 +213,12 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             patch.object(tecman, "USE_DB", True),
             patch.object(tecman, "TicketDB", fake_model, create=True),
             patch.object(tecman, "_db_list", return_value=copy.deepcopy(payload)) as db_list,
+            patch.object(tecman, "_db_replace") as db_replace,
         ):
             loaded = tecman.load_tickets()[0]
 
         db_list.assert_called_once_with(fake_model)
+        db_replace.assert_called_once_with(fake_model, [loaded])
         self.assertEqual(loaded["asignado"], "Soria")
         self.assertNotIn("asignado_proveedor", loaded)
         self.assertEqual(loaded["proveedor_origen"], "JRF")
@@ -285,9 +292,13 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         )
         tecman.TICKETS_FILE.write_text(json.dumps([ticket]), encoding="utf-8")
 
-        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
-        first_bytes = tecman.TICKETS_FILE.read_bytes()
-        migrated = json.loads(first_bytes)[0]
+        with patch.object(tecman, "_atomic_write", wraps=tecman._atomic_write) as atomic_write:
+            migrated = tecman.load_tickets()[0]
+            first_bytes = tecman.TICKETS_FILE.read_bytes()
+            loaded_again = tecman.load_tickets()[0]
+
+        atomic_write.assert_called_once()
+        self.assertEqual(loaded_again, migrated)
         self.assertEqual(migrated["asignado"], "Soria")
         self.assertNotIn("asignado_proveedor", migrated)
         self.assertNotIn("proveedor_nombre", migrated)
@@ -305,7 +316,6 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             tecman.MIGRACION_MATERIALES_SORIA_VERSION,
         )
 
-        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
         self.assertEqual(tecman.TICKETS_FILE.read_bytes(), first_bytes)
 
     def test_migracion_db_persiste_e_idempotente(self):
@@ -330,8 +340,10 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             patch.object(tecman, "_db_list", side_effect=fake_list),
             patch.object(tecman, "_db_replace", side_effect=fake_replace) as db_replace,
         ):
-            self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
-            self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
+            first = tecman.load_tickets()[0]
+            second = tecman.load_tickets()[0]
+
+        self.assertEqual(second, first)
 
         db_replace.assert_called_once()
         migrated = backing[0]
@@ -343,6 +355,38 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             len([n for n in migrated["notas"] if "Migración automática" in n.get("texto", "")]),
             1,
         )
+
+    def test_fallo_persistencia_json_se_propaga_y_no_reemplaza_snapshot(self):
+        ticket = self._material_ticket(
+            asignado="Proveedor externo",
+            asignado_proveedor="Proveedor externo",
+        )
+        tecman.TICKETS_FILE.write_text(json.dumps([ticket]), encoding="utf-8")
+        before = tecman.TICKETS_FILE.read_bytes()
+
+        with patch.object(tecman, "_atomic_write", side_effect=OSError("fallo simulado")):
+            with self.assertRaisesRegex(OSError, "fallo simulado"):
+                tecman.load_tickets()
+
+        self.assertEqual(tecman.TICKETS_FILE.read_bytes(), before)
+
+    def test_fallo_persistencia_db_se_propaga_y_no_escribe_snapshot_json(self):
+        payload = [self._material_ticket(
+            asignado="Proveedor externo",
+            asignado_proveedor="Proveedor externo",
+        )]
+        fake_model = object()
+        with (
+            patch.object(tecman, "USE_DB", True),
+            patch.object(tecman, "TicketDB", fake_model, create=True),
+            patch.object(tecman, "_db_list", return_value=copy.deepcopy(payload)),
+            patch.object(tecman, "_db_replace", side_effect=RuntimeError("db caída")),
+            patch.object(tecman, "_atomic_write") as atomic_write,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "db caída"):
+                tecman.load_tickets()
+
+        atomic_write.assert_not_called()
 
     def test_migracion_no_persiste_finalizados_ni_inferidos_por_texto(self):
         finalizado = self._material_ticket(
@@ -366,7 +410,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         tecman.TICKETS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         before = tecman.TICKETS_FILE.read_bytes()
 
-        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 0)
+        self.assertEqual(tecman.load_tickets(), payload)
         self.assertEqual(tecman.TICKETS_FILE.read_bytes(), before)
         self.assertEqual(json.loads(before), payload)
 
@@ -380,8 +424,8 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         )
         tecman.TICKETS_FILE.write_text(json.dumps([ticket]), encoding="utf-8")
 
-        self.assertEqual(tecman._migrar_responsables_materiales_operativos(), 1)
-        migrated = json.loads(tecman.TICKETS_FILE.read_text())[0]
+        migrated = tecman.load_tickets()[0]
+        self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], migrated)
         self.assertEqual(migrated["asignado"], "Soria")
         self.assertNotIn("asignado_proveedor", migrated)
         self.assertEqual(migrated["proveedor_nombre"], "Transporte Logístico")

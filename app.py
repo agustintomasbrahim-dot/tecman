@@ -4234,7 +4234,16 @@ def _load_tickets_raw():
 
 
 def load_tickets():
-    return _normalizar_responsable_materiales(_load_tickets_raw())
+    tickets = _load_tickets_raw()
+    if not tickets:
+        return tickets
+    antes = copy.deepcopy(tickets)
+    _normalizar_responsable_materiales(tickets, auditar=True)
+    if tickets != antes:
+        # Persistir con las primitivas existentes. Los errores se propagan para
+        # no devolver un payload que aparenta estar guardado cuando no lo está.
+        save_tickets(tickets)
+    return tickets
 
 
 def save_tickets(tickets):
@@ -4242,23 +4251,6 @@ def save_tickets(tickets):
     if USE_DB:
         _db_replace(TicketDB, tickets)
     _atomic_write(TICKETS_FILE, tickets)
-
-
-def _migrar_responsables_materiales_operativos():
-    """Persiste una vez la reasignación de materiales existentes al iniciar."""
-    tickets = _load_tickets_raw()
-    if not tickets:
-        return 0
-    antes = copy.deepcopy(tickets)
-    ahora = datetime.datetime.now().isoformat()
-    _normalizar_responsable_materiales(tickets, auditar=True, ahora=ahora)
-    cambiados = sum(1 for previo, actual in zip(antes, tickets) if previo != actual)
-    if cambiados:
-        save_tickets(tickets)
-    return cambiados
-
-
-_migrar_responsables_materiales_operativos()
 
 
 MIGRATION_PENDING_PROVIDER_CLEANUP = {
