@@ -21,6 +21,8 @@ services:
         sync: false
       - key: PROVEEDOR_PASSWORD
         sync: false
+      - key: MATAFUEGOS_DEMO_PASSWORD
+        sync: false
       - key: SUCURSAL_PASSWORD_PREFIX
         sync: false
       - key: OFICINA_PASSWORD

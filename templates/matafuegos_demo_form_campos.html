@@ -4,7 +4,6 @@
     </label>
     <label>Capacidad (kg)
         <input type="number" name="capacidad_kg" min="0.01" max="1000" step="0.01" list="capacidades-demo" value="{{ item.capacidad_kg or '' }}" required placeholder="1 / 2,5 / 5 / 10 / 25 / Otro">
-        <datalist id="capacidades-demo">{% for value in capacidades %}<option value="{{ value }}">{{ value }} kg</option>{% endfor %}</datalist>
         <span class="mini">Presets: 1 · 2,5 · 5 · 10 · 25. Para Otro, escribí el valor.</span>
     </label>
     <label>Cantidad de unidades

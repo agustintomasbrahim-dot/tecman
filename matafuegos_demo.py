@@ -41,6 +41,7 @@ CAPACITY_PRESETS = ("1", "2.5", "5", "10", "25")
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DOCUMENT_EXTENSIONS = IMAGE_EXTENSIONS | {".pdf"}
 ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,80}$")
+DEMO_UPLOAD_RE = re.compile(r"^demo_[a-f0-9]{32}\.(?:pdf|jpg|jpeg|png|webp)$")
 
 
 class DemoValidationError(ValueError):
@@ -83,7 +84,6 @@ def _history(actor: str, action: str, detail: str = "") -> dict:
 def _seed_data() -> dict:
     today = _today()
     tomorrow = today + dt.timedelta(days=1)
-    next_month = today + dt.timedelta(days=30)
     next_year = today + dt.timedelta(days=365)
 
     def item(item_id: str, location: str, serial: str, capacity: str = "5", extinguisher_type: str = "ABC") -> dict:
@@ -187,6 +187,73 @@ def load_demo_data() -> dict:
 
 def save_demo_data(data: dict) -> None:
     _atomic_write(_data_file(), data)
+
+
+def _validated_reset_paths() -> tuple[Path, Path]:
+    """Devuelve sólo las ubicaciones fijas del demo, sin seguir symlinks."""
+    data_file = _data_file()
+    uploads_dir = Path(current_app.config["MATAFUEGOS_DEMO_UPLOADS_DIR"])
+    if data_file.name != "matafuegos_demo.json" or uploads_dir.name != "matafuegos_demo_uploads":
+        raise RuntimeError("Configuración insegura del almacenamiento DEMO.")
+    if data_file.is_symlink() or uploads_dir.is_symlink():
+        raise RuntimeError("El almacenamiento DEMO no admite enlaces simbólicos.")
+    data_root = data_file.parent.resolve(strict=False)
+    if uploads_dir.resolve(strict=False).parent != data_root:
+        raise RuntimeError("El directorio de adjuntos DEMO debe estar dentro de DATA_DIR.")
+    return data_file, uploads_dir
+
+
+def _demo_attachment_names(data: dict) -> set[str]:
+    names = set()
+    for order in data.get("ordenes", []):
+        for document in (order.get("documentos") or {}).values():
+            filename = str(document.get("archivo") or "")
+            if DEMO_UPLOAD_RE.fullmatch(filename):
+                names.add(filename)
+        for item in order.get("matafuegos", []):
+            for key in ("fotos_antes", "fotos_despues"):
+                for photo in item.get(key, []):
+                    filename = str(photo.get("archivo") or "")
+                    if DEMO_UPLOAD_RE.fullmatch(filename):
+                        names.add(filename)
+    return names
+
+
+def reset_demo_data(actor: str) -> int:
+    """Recrea el seed y borra sólo adjuntos seguros del directorio DEMO."""
+    data_file, uploads_dir = _validated_reset_paths()
+    clean_actor = _clean_text(actor, "Administrador", required=True, max_length=120)
+    data = _seed_data()
+    current_data = {}
+    if data_file.exists() and data_file.stat().st_size:
+        try:
+            candidate = json.loads(data_file.read_text(encoding="utf-8"))
+            if isinstance(candidate, dict):
+                current_data = candidate
+        except (OSError, json.JSONDecodeError):
+            current_data = {}
+
+    candidates = _demo_attachment_names(current_data)
+    if uploads_dir.exists():
+        for child in uploads_dir.iterdir():
+            if DEMO_UPLOAD_RE.fullmatch(child.name) and (child.is_file() or child.is_symlink()):
+                candidates.add(child.name)
+
+    deleted = 0
+    for filename in sorted(candidates):
+        path = uploads_dir / filename
+        if path.parent != uploads_dir or not DEMO_UPLOAD_RE.fullmatch(path.name):
+            continue
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+            deleted += 1
+
+    reset_event = _history(clean_actor, "Demo reiniciado", f"Seed restaurado; {deleted} adjunto(s) DEMO eliminado(s).")
+    data["historial_demo"] = [copy.deepcopy(reset_event)]
+    for order in data["ordenes"]:
+        order.setdefault("historial", []).append(copy.deepcopy(reset_event))
+    _atomic_write(data_file, data)
+    return deleted
 
 
 def _find_order(data: dict, order_id: str) -> dict | None:
@@ -664,6 +731,22 @@ def admin_panel():
     )
 
 
+@demo_bp.post("/admin/matafuegos-demo/reiniciar")
+@demo_admin_required
+def reset_demo():
+    invalid = _require_csrf()
+    if invalid:
+        return invalid
+    if request.form.get("confirmar") != "reiniciar":
+        return render_template("error.html", mensaje="Confirmá explícitamente el reinicio del entorno DEMO."), 400
+    try:
+        deleted = reset_demo_data(session.get("nombre", "Admin"))
+    except RuntimeError:
+        return render_template("error.html", mensaje="La configuración del almacenamiento DEMO no es segura."), 500
+    flash(f"Demo reiniciado: seed restaurado y {deleted} adjunto(s) DEMO eliminado(s).")
+    return redirect(url_for("matafuegos_demo.admin_panel"))
+
+
 @demo_bp.get("/admin/matafuegos-demo/orden/<order_id>")
 @demo_admin_required
 def admin_order_detail(order_id):
@@ -719,7 +802,7 @@ def return_order(order_id):
 
 
 def _referenced_filename(data: dict, filename: str) -> bool:
-    if Path(filename).name != filename or not re.fullmatch(r"demo_[a-f0-9]{32}\.(?:pdf|jpg|jpeg|png|webp)", filename):
+    if Path(filename).name != filename or not DEMO_UPLOAD_RE.fullmatch(filename):
         return False
     for order in data.get("ordenes", []):
         for document in (order.get("documentos") or {}).values():

@@ -163,6 +163,132 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         self.assertNotIn("Diprogom", serialized)
         self.assertEqual(self._hashes(self.real_files.values()), self.real_hashes)
 
+    def test_reset_requiere_admin_csrf_confirmacion_y_muestra_ui(self):
+        data = self._load()
+        data["ordenes"][0]["estado"] = "Validado"
+        self._save(data)
+
+        anonymous = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(anonymous.status_code, 302)
+        self.assertEqual(self._order("DEMO-001")["estado"], "Validado")
+
+        self._demo_session()
+        provider = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(provider.status_code, 302)
+        self.assertEqual(self._order("DEMO-001")["estado"], "Validado")
+
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess["user"] = "tecnico-test"
+            sess["rol"] = "tecnico"
+            sess["_csrf_token"] = "csrf-test"
+        technician = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(technician.status_code, 403)
+        self.assertEqual(self._order("DEMO-001")["estado"], "Validado")
+
+        self._admin_session()
+        invalid_csrf = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "incorrecto", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(invalid_csrf.status_code, 400)
+        self.assertEqual(self._order("DEMO-001")["estado"], "Validado")
+
+        missing_confirmation = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test"},
+        )
+        self.assertEqual(missing_confirmation.status_code, 400)
+        self.assertEqual(self._order("DEMO-001")["estado"], "Validado")
+
+        page = self.client.get("/admin/matafuegos-demo").get_data(as_text=True)
+        self.assertIn("Reiniciar demo", page)
+        self.assertIn('name="confirmar" value="reiniciar" required', page)
+        self.assertIn("return confirm(", page)
+
+    def test_reset_es_idempotente_auditable_y_limpia_solo_storage_demo(self):
+        data = self._load()
+        for order in data["ordenes"]:
+            order["estado"] = "Validado"
+        names = {
+            "document": f"demo_{'a' * 32}.pdf",
+            "photo": f"demo_{'b' * 32}.png",
+            "orphan": f"demo_{'c' * 32}.webp",
+            "symlink": f"demo_{'d' * 32}.pdf",
+        }
+        data["ordenes"][0]["documentos"]["remito"] = {"archivo": names["document"], "nombre_original": "demo.pdf"}
+        data["ordenes"][1]["matafuegos"][0]["fotos_antes"] = [{"archivo": names["photo"], "nombre_original": "demo.png"}]
+        data["ordenes"][0]["documentos"]["malicioso"] = {"archivo": "../../outside.txt", "nombre_original": "outside.txt"}
+        self._save(data)
+
+        self.uploads_dir.mkdir(parents=True, exist_ok=True)
+        (self.uploads_dir / names["document"]).write_bytes(PDF_BYTES)
+        (self.uploads_dir / names["photo"]).write_bytes(PNG_BYTES)
+        (self.uploads_dir / names["orphan"]).write_bytes(b"RIFFdemoWEBP")
+        keep_inside = self.uploads_dir / "no_es_adjunto_demo.txt"
+        keep_inside.write_text("conservar", encoding="utf-8")
+        outside = self.root / "outside.txt"
+        outside.write_text("runtime ajeno", encoding="utf-8")
+        (self.uploads_dir / names["symlink"]).symlink_to(outside)
+
+        self._admin_session()
+        response = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(response.status_code, 302)
+        reset = self._load()
+        self.assertEqual([order["estado"] for order in reset["ordenes"]], ["Pendiente", "Programado", "Realizado"])
+        self.assertEqual(reset["historial_demo"][-1]["accion"], "Demo reiniciado")
+        self.assertEqual(reset["historial_demo"][-1]["actor"], "Admin Demo")
+        self.assertTrue(all(order["historial"][-1]["accion"] == "Demo reiniciado" for order in reset["ordenes"]))
+        for filename in names.values():
+            self.assertFalse((self.uploads_dir / filename).exists())
+        self.assertTrue(keep_inside.exists())
+        self.assertTrue(outside.exists())
+        self.assertEqual(outside.read_text(encoding="utf-8"), "runtime ajeno")
+        self.assertEqual(self._hashes(self.real_files.values()), self.real_hashes)
+
+        repeated = self.client.post(
+            "/admin/matafuegos-demo/reiniciar",
+            data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+        )
+        self.assertEqual(repeated.status_code, 302)
+        self.assertTrue(keep_inside.exists())
+        self.assertEqual(self._load()["historial_demo"][-1]["accion"], "Demo reiniciado")
+
+        unsafe_dir = self.root / "outside-data-root" / "matafuegos_demo_uploads"
+        unsafe_dir.mkdir(parents=True)
+        unsafe_file = unsafe_dir / f"demo_{'e' * 32}.pdf"
+        unsafe_file.write_bytes(PDF_BYTES)
+        original_dir = tecman.app.config["MATAFUEGOS_DEMO_UPLOADS_DIR"]
+        tecman.app.config["MATAFUEGOS_DEMO_UPLOADS_DIR"] = str(unsafe_dir)
+        try:
+            unsafe = self.client.post(
+                "/admin/matafuegos-demo/reiniciar",
+                data={"_csrf_token": "csrf-test", "confirmar": "reiniciar"},
+            )
+        finally:
+            tecman.app.config["MATAFUEGOS_DEMO_UPLOADS_DIR"] = original_dir
+        self.assertEqual(unsafe.status_code, 500)
+        self.assertTrue(unsafe_file.exists())
+        self.assertEqual(self._hashes(self.real_files.values()), self.real_hashes)
+
+    def test_render_declara_password_demo_sync_false_sin_valor(self):
+        text = (Path(tecman.__file__).parent / "render.yaml").read_text(encoding="utf-8")
+        block = text.split("- key: MATAFUEGOS_DEMO_PASSWORD", 1)[1].split("- key:", 1)[0]
+        self.assertIn("sync: false", block)
+        self.assertNotIn("value:", block)
+
     def test_permisos_cruzados_y_rutas_dedicadas(self):
         anonymous = self.client.get("/proveedor/matafuegos-demo")
         self.assertEqual(anonymous.status_code, 302)
@@ -213,6 +339,8 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         self.assertIn("Capacidad (kg)", detail_text)
         self.assertIn("Cantidad de unidades", detail_text)
         self.assertIn("Anular sin borrar", detail_text)
+        self.assertEqual(detail_text.count('id="capacidades-demo"'), 1)
+        self.assertGreaterEqual(detail_text.count('list="capacidades-demo"'), 2)
 
     def test_programacion_valida_y_rechaza_saltos_sin_mutar(self):
         self._demo_session()

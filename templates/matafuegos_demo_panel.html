@@ -14,7 +14,7 @@
 {% endblock %}
 {% block content %}
 <style>
-.demo-hero{background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-radius:20px;padding:22px;margin-bottom:16px}.demo-kicker{font-size:11px;font-weight:800;letter-spacing:.14em;opacity:.85}.demo-hero h2{font-size:25px;margin:6px 0;color:#fff}.demo-hero p{font-size:13px;line-height:1.5;opacity:.9}.demo-states{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.demo-state{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;text-decoration:none;color:#111827}.demo-state.active{border:2px solid #7c3aed;background:#f5f3ff}.demo-state b{display:block;font-size:24px}.demo-state span{font-size:11px;color:#6b7280}.demo-orders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.demo-order{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;text-decoration:none;color:#111827}.demo-order:hover{border-color:#8b5cf6}.demo-order-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.demo-id{font-size:12px;color:#6d28d9;font-weight:800}.demo-order h3{font-size:17px;margin:5px 0 10px}.demo-meta{font-size:12px;color:#6b7280;line-height:1.7}.demo-badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#ede9fe;color:#5b21b6}.demo-clear{font-size:12px;color:#6d28d9;text-decoration:none;font-weight:700}@media(max-width:640px){.demo-states{grid-template-columns:repeat(2,1fr)}.demo-orders{grid-template-columns:1fr}.demo-hero{border-radius:16px;padding:18px}.demo-order{padding:15px}}
+.demo-hero{background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-radius:20px;padding:22px;margin-bottom:16px}.demo-kicker{font-size:11px;font-weight:800;letter-spacing:.14em;opacity:.85}.demo-hero h2{font-size:25px;margin:6px 0;color:#fff}.demo-hero p{font-size:13px;line-height:1.5;opacity:.9}.demo-states{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.demo-state{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;text-decoration:none;color:#111827}.demo-state.active{border:2px solid #7c3aed;background:#f5f3ff}.demo-state b{display:block;font-size:24px}.demo-state span{font-size:11px;color:#6b7280}.demo-orders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.demo-order{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;text-decoration:none;color:#111827}.demo-order:hover{border-color:#8b5cf6}.demo-order-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.demo-id{font-size:12px;color:#6d28d9;font-weight:800}.demo-order h3{font-size:17px;margin:5px 0 10px}.demo-meta{font-size:12px;color:#6b7280;line-height:1.7}.demo-badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#ede9fe;color:#5b21b6}.demo-clear{font-size:12px;color:#6d28d9;text-decoration:none;font-weight:700}.demo-reset{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:14px;margin:12px 0}.demo-reset p{font-size:12px;color:#9a3412;margin-top:3px}.demo-reset form{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.demo-reset label{font-size:11px;color:#7c2d12;font-weight:700}.demo-reset button{background:#b91c1c;color:white}@media(max-width:640px){.demo-states{grid-template-columns:repeat(2,1fr)}.demo-orders{grid-template-columns:1fr}.demo-hero{border-radius:16px;padding:18px}.demo-order{padding:15px}.demo-reset{align-items:flex-start;flex-direction:column}}
 </style>
 <div class="demo-hero">
     <div class="demo-kicker">DEMO · DATOS FICTICIOS · ENTORNO AISLADO</div>
@@ -28,6 +28,16 @@
     </a>
     {% endfor %}
 </div>
+{% if is_admin %}
+<div class="demo-reset">
+    <div><b>Reiniciar entorno DEMO</b><p>Restaura las tres órdenes ficticias y elimina únicamente los adjuntos del almacenamiento DEMO.</p></div>
+    <form method="post" action="{{ url_for('matafuegos_demo.reset_demo') }}" onsubmit="return confirm('¿Reiniciar el entorno DEMO? Se perderán sólo los cambios y adjuntos ficticios.');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <label><input type="checkbox" name="confirmar" value="reiniciar" required> Confirmo el reinicio</label>
+        <button type="submit" class="btn">Reiniciar demo</button>
+    </form>
+</div>
+{% endif %}
 {% if filtro_estado %}<div style="margin-bottom:12px;"><a class="demo-clear" href="{{ url_for('matafuegos_demo.panel') }}">Ver todos los estados</a></div>{% endif %}
 <div class="demo-orders">
 {% for orden in ordenes %}
