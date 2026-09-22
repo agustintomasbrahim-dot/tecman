@@ -25,6 +25,17 @@
     </div>
 </div>
 
+<div class="card" style="padding: 16px; margin-bottom: 16px; border: 2px solid #c4b5fd; background: #f5f3ff;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#6d28d9;">ENTORNO DEMO AISLADO</div>
+            <h3 style="margin:4px 0;color:#4c1d95;">Demo portal matafuegos</h3>
+            <p style="font-size:13px;color:#6b7280;">Previsualizá órdenes, relevamientos, documentación y validación sin tocar datos reales.</p>
+        </div>
+        <a href="{{ url_for('matafuegos_demo.admin_panel') }}" class="btn" style="background:#6d28d9;color:white;">Abrir demo</a>
+    </div>
+</div>
+
 <div class="card" style="padding: 14px; margin-bottom: 16px;">
     <form style="display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 8px; align-items: end;">
         <input type="hidden" name="vista" value="{{ vista }}">

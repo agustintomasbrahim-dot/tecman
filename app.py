@@ -141,6 +141,10 @@ REPO_SUPERVISORES_FILE = Path(__file__).parent / "data" / "supervisores_sucursal
 OFICINA_ACCESOS_FILE = DATA_DIR / "oficina_accesos.json"
 REPO_OFICINA_ACCESOS_FILE = Path(__file__).parent / "data" / "oficina_accesos.json"
 PROVEEDOR_USERS_FILE = DATA_DIR / "proveedor_users.json"
+MATAFUEGOS_DEMO_FILE = DATA_DIR / "matafuegos_demo.json"
+MATAFUEGOS_DEMO_UPLOADS_DIR = DATA_DIR / "matafuegos_demo_uploads"
+app.config["MATAFUEGOS_DEMO_DATA_FILE"] = str(MATAFUEGOS_DEMO_FILE)
+app.config["MATAFUEGOS_DEMO_UPLOADS_DIR"] = str(MATAFUEGOS_DEMO_UPLOADS_DIR)
 
 # Uploads: también en disco persistente en Render; aislables en tests.
 if os.environ.get("TECMAN_UPLOADS_DIR", "").strip():
@@ -3340,9 +3344,11 @@ SUCS_MENDOZA = {"128","132","145","206","207","236"}
 SUCS_SANJUAN = {"159","172"}
 
 _PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
+_MATAFUEGOS_DEMO_PWD = os.environ.get("MATAFUEGOS_DEMO_PASSWORD") or _PROVEEDOR_PWD
 
 # Proveedor login
 DEFAULT_PROVEEDOR_USERS = {
+    "matafuegos_demo": {"password": _MATAFUEGOS_DEMO_PWD, "nombre": "Demo Matafuegos", "tipo_cuenta": "matafuegos_demo", "proveedores": []},
     "ceyh": {"password": _PROVEEDOR_PWD, "nombre": "CEYH", "tipo_cuenta": "abono_fijo", "proveedores": ["CEYH"]},
     "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda", "tipo_cuenta": "abono_fijo", "proveedores": ["Gustavo Avellaneda"]},
     "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)", "tipo_cuenta": "proveedor", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
@@ -3385,6 +3391,9 @@ def load_proveedor_users():
                     users[username.lower().strip()] = info
         except Exception as exc:
             print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
+    # La cuenta DEMO es fija y aislada: un archivo operativo no puede agregarle
+    # aliases, proveedores reales ni cambiar su tipo de cuenta.
+    users["matafuegos_demo"] = copy.deepcopy(DEFAULT_PROVEEDOR_USERS["matafuegos_demo"])
     return users
 
 
@@ -3529,6 +3538,9 @@ ZONAS = sorted(set(p["zona"] for p in PROVEEDORES))
 
 
 def _proveedor_nombres_usuario(user=None):
+    selected_user = user or session.get("prov_user")
+    if selected_user == "matafuegos_demo":
+        return []
     if user is None and session.get("prov_full_access"):
         nombres = [p.get("nombre") for p in PROVEEDORES if p.get("nombre")]
         for info in load_proveedor_users().values():
@@ -7136,6 +7148,14 @@ def admin_ticket(ticket_id):
     )
 
 
+# --- Portal DEMO aislado de matafuegos ---
+# Se registra una vez que los helpers de sesión y los paths de DATA_DIR ya existen.
+from matafuegos_demo import demo_bp
+
+app.config["TECMAN_SESSION_AUTH_VALIDATOR"] = _session_auth_is_valid
+app.register_blueprint(demo_bp)
+
+
 # --- Routes: Proveedores ---
 
 @app.route("/admin/proveedores")
@@ -7366,14 +7386,21 @@ def prov_ceyh_parada_estado(jid, orden):
 @app.route("/proveedores/login", methods=["GET", "POST"])
 def prov_login():
     if request.method == "POST":
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         proveedor_users = load_proveedor_users()
         user_info = proveedor_users.get(user)
         if user_info and _proveedor_login_ok(user_info, pwd):
+            if user_info.get("tipo_cuenta") == "matafuegos_demo":
+                session.clear()
+                session.permanent = True
             session["prov_user"] = user
             session["prov_nombre"] = user_info["nombre"]
             session["prov_tipo_cuenta"] = user_info.get("tipo_cuenta", "proveedor")
+            if session["prov_tipo_cuenta"] == "matafuegos_demo":
+                return redirect(url_for("matafuegos_demo.panel"))
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template("prov_login.html", entra_enabled=_entra_is_configured())
@@ -7392,6 +7419,8 @@ def prov_logout():
 @app.route("/proveedores")
 @prov_login_required
 def prov_panel():
+    if session.get("prov_tipo_cuenta") == "matafuegos_demo":
+        return redirect(url_for("matafuegos_demo.panel"))
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
     filtro_sucursal = request.args.get("sucursal", "").strip()
@@ -7467,6 +7496,8 @@ def prov_panel():
 @app.route("/proveedor/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @prov_login_required
 def prov_ticket(ticket_id):
+    if session.get("prov_tipo_cuenta") == "matafuegos_demo":
+        return render_template("error.html", mensaje="La cuenta DEMO no tiene acceso a tickets reales."), 403
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:

@@ -1,0 +1,43 @@
+<div class="form-grid">
+    <label>Tipo
+        <select name="tipo" required>{% for value in tipos %}<option value="{{ value }}" {% if item.tipo == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
+    </label>
+    <label>Capacidad (kg)
+        <input type="number" name="capacidad_kg" min="0.01" max="1000" step="0.01" list="capacidades-demo" value="{{ item.capacidad_kg or '' }}" required placeholder="1 / 2,5 / 5 / 10 / 25 / Otro">
+        <datalist id="capacidades-demo">{% for value in capacidades %}<option value="{{ value }}">{{ value }} kg</option>{% endfor %}</datalist>
+        <span class="mini">Presets: 1 · 2,5 · 5 · 10 · 25. Para Otro, escribí el valor.</span>
+    </label>
+    <label>Cantidad de unidades
+        <input type="number" name="cantidad_unidades" min="1" max="1000" step="1" value="{{ item.cantidad_unidades or 1 }}" required>
+    </label>
+    <label>Ubicación
+        <input type="text" name="ubicacion" maxlength="160" value="{{ item.ubicacion or '' }}" required>
+    </label>
+    <label class="wide">Número de serie / identificación
+        <input type="text" name="identificacion" maxlength="120" value="{{ item.identificacion or '' }}" required>
+    </label>
+    <label>Encontrado
+        <select name="encontrado" required><option value="si" {% if item.encontrado != 'no' %}selected{% endif %}>Sí</option><option value="no" {% if item.encontrado == 'no' %}selected{% endif %}>No</option></select>
+    </label>
+    <label>Estado físico
+        <select name="estado_fisico" required>{% for value in estados_fisicos %}<option value="{{ value }}" {% if item.estado_fisico == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
+    </label>
+    <label>Trabajo realizado
+        <select name="trabajo_realizado" required>{% for value in trabajos %}<option value="{{ value }}" {% if item.trabajo_realizado == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}</select>
+    </label>
+    <label>Fecha de recarga
+        <input type="date" name="fecha_recarga" value="{{ item.fecha_recarga or '' }}" required>
+    </label>
+    <label>Próximo vencimiento
+        <input type="date" name="proximo_vencimiento" value="{{ item.proximo_vencimiento or '' }}" required>
+    </label>
+    <label class="wide">Observación
+        <textarea name="observacion" maxlength="1000">{{ item.observacion or '' }}</textarea>
+    </label>
+    <label>Foto antes (opcional)
+        <input type="file" name="foto_antes" accept=".jpg,.jpeg,.png,.webp">
+    </label>
+    <label>Foto después (opcional)
+        <input type="file" name="foto_despues" accept=".jpg,.jpeg,.png,.webp">
+    </label>
+</div>

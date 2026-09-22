@@ -16,6 +16,7 @@
     </div>
     {% endif %}
     <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label>Usuario</label>
             <input type="text" name="usuario" required placeholder="Ej: gustavo" autocapitalize="none" autocorrect="off">

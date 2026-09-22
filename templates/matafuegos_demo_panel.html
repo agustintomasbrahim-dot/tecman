@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Tecman · DEMO Matafuegos{% endblock %}
+{% block nav %}
+<div class="nav">
+    {% if is_admin %}
+    <a href="{{ url_for('admin_proveedores') }}">← Proveedores</a>
+    <a href="{{ url_for('matafuegos_demo.admin_panel') }}" style="color:#6d28d9;border-bottom-color:#6d28d9;">Demo matafuegos</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left:auto;">Salir</a>
+    {% else %}
+    <a href="{{ url_for('matafuegos_demo.panel') }}" style="color:#6d28d9;border-bottom-color:#6d28d9;">Órdenes DEMO</a>
+    <a href="{{ url_for('prov_logout') }}" style="margin-left:auto;">Salir</a>
+    {% endif %}
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.demo-hero{background:linear-gradient(135deg,#4c1d95,#7c3aed);color:#fff;border-radius:20px;padding:22px;margin-bottom:16px}.demo-kicker{font-size:11px;font-weight:800;letter-spacing:.14em;opacity:.85}.demo-hero h2{font-size:25px;margin:6px 0;color:#fff}.demo-hero p{font-size:13px;line-height:1.5;opacity:.9}.demo-states{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.demo-state{display:block;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px;text-decoration:none;color:#111827}.demo-state.active{border:2px solid #7c3aed;background:#f5f3ff}.demo-state b{display:block;font-size:24px}.demo-state span{font-size:11px;color:#6b7280}.demo-orders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.demo-order{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;text-decoration:none;color:#111827}.demo-order:hover{border-color:#8b5cf6}.demo-order-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.demo-id{font-size:12px;color:#6d28d9;font-weight:800}.demo-order h3{font-size:17px;margin:5px 0 10px}.demo-meta{font-size:12px;color:#6b7280;line-height:1.7}.demo-badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#ede9fe;color:#5b21b6}.demo-clear{font-size:12px;color:#6d28d9;text-decoration:none;font-weight:700}@media(max-width:640px){.demo-states{grid-template-columns:repeat(2,1fr)}.demo-orders{grid-template-columns:1fr}.demo-hero{border-radius:16px;padding:18px}.demo-order{padding:15px}}
+</style>
+<div class="demo-hero">
+    <div class="demo-kicker">DEMO · DATOS FICTICIOS · ENTORNO AISLADO</div>
+    <h2>{% if is_admin %}Previsualización administrativa{% else %}Portal de matafuegos{% endif %}</h2>
+    <p>Flujo simple: Pendiente → Programado → Realizado → Validado. Este entorno no contiene sucursales, contactos ni tickets reales.</p>
+</div>
+<div class="demo-states">
+    {% for estado in estados %}
+    <a class="demo-state {% if filtro_estado == estado %}active{% endif %}" href="{% if is_admin %}{{ url_for('matafuegos_demo.admin_panel') }}{% else %}{{ url_for('matafuegos_demo.panel', estado=estado) }}{% endif %}">
+        <b>{{ conteos[estado] }}</b><span>{{ estado }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% if filtro_estado %}<div style="margin-bottom:12px;"><a class="demo-clear" href="{{ url_for('matafuegos_demo.panel') }}">Ver todos los estados</a></div>{% endif %}
+<div class="demo-orders">
+{% for orden in ordenes %}
+    <a class="demo-order" href="{% if is_admin %}{{ url_for('matafuegos_demo.admin_order_detail', order_id=orden.id) }}{% else %}{{ url_for('matafuegos_demo.order_detail', order_id=orden.id) }}{% endif %}">
+        <div class="demo-order-top"><div><div class="demo-id">{{ orden.id }} · DEMO</div><h3>{{ orden.sucursal }}</h3></div><span class="demo-badge">{{ orden.estado }}</span></div>
+        <div class="demo-meta">{{ orden.direccion }}<br>{% if orden.fecha_programada %}Programado: {{ orden.fecha_programada }} · {% endif %}{{ orden.matafuegos|selectattr('activo','ne',false)|list|length }} matafuego(s) activo(s)</div>
+    </a>
+{% else %}
+    <div class="card" style="grid-column:1/-1;text-align:center;color:#6b7280;">No hay órdenes DEMO para este filtro.</div>
+{% endfor %}
+</div>
+{% endblock %}
