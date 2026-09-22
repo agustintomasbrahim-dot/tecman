@@ -3541,6 +3541,11 @@ def _proveedor_session_is_valid():
     username = str(session.get("prov_user") or "").strip().lower()
     if not username:
         return False
+    if session.get("auth_provider") == "entra":
+        return bool(
+            session.get("entra_role") == "proveedor"
+            and session.get("prov_full_access") is True
+        )
     account = load_proveedor_users().get(username)
     if not account or account.get("status", "active") != "active":
         return False
@@ -5918,6 +5923,10 @@ def entra_callback():
         session["prov_full_access"] = True
         session["auth_provider"] = "entra"
         session["entra_role"] = "proveedor"
+        if auth_user:
+            auth_info = _user_to_session(auth_user, "entra")
+            session["auth_user_id"] = auth_info.get("id")
+            session["auth_session_version"] = auth_info.get("session_version", 1)
         _audit_event("login_success", user=auth_user, provider="entra", details={"role": "proveedor", "source": "full_portal_access"})
         return redirect(url_for("prov_panel"))
 
@@ -7554,7 +7563,7 @@ def admin_inventario():
 def prov_login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "prov_user" not in session or not _proveedor_session_is_valid():
+        if "prov_user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("prov_login"))
         return f(*args, **kwargs)

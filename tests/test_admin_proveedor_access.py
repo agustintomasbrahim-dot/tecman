@@ -75,6 +75,63 @@ class AdminProveedorAccessTest(unittest.TestCase):
             data={"_csrf_token": csrf, "usuario": username, "password": password},
         )
 
+    def _entra_provider_session(self, **overrides):
+        values = {
+            "prov_user": "preview.admin",
+            "prov_nombre": "Previsualización Microsoft",
+            "prov_tipo_cuenta": "admin_total",
+            "prov_full_access": True,
+            "auth_provider": "entra",
+            "entra_role": "proveedor",
+        }
+        values.update(overrides)
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess.update(values)
+
+    def test_entra_full_access_funciona_sin_debilitar_sesiones_incompletas_o_revocadas(self):
+        self._entra_provider_session()
+        allowed = self.client.get("/proveedor")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertIn("Portal de proveedor", allowed.get_data(as_text=True))
+
+        incomplete_sessions = (
+            {"prov_full_access": False},
+            {"entra_role": "admin"},
+            {"auth_provider": "local"},
+        )
+        for overrides in incomplete_sessions:
+            with self.subTest(overrides=overrides):
+                self._entra_provider_session(**overrides)
+                denied = self.client.get("/proveedor")
+                self.assertEqual(denied.status_code, 302)
+                self.assertTrue(denied.headers["Location"].endswith("/proveedores/login"))
+                with self.client.session_transaction() as sess:
+                    self.assertNotIn("prov_user", sess)
+
+        tecman.USERS_FILE.write_text(
+            json.dumps({
+                "users": [{
+                    "id": "entra-preview-user",
+                    "username": "preview.admin",
+                    "email": "preview.admin@example.com",
+                    "status": "disabled",
+                    "session_version": 2,
+                }]
+            }),
+            encoding="utf-8",
+        )
+        self._entra_provider_session(auth_user_id="entra-preview-user", auth_session_version=2)
+        self.assertEqual(self.client.get("/proveedor").status_code, 302)
+
+        users = tecman._load_users_json()
+        users["users"][0]["status"] = "active"
+        tecman._save_users_json(users)
+        self._entra_provider_session(auth_user_id="entra-preview-user", auth_session_version=1)
+        self.assertEqual(self.client.get("/proveedor").status_code, 302)
+        self._entra_provider_session(auth_user_id="entra-preview-user", auth_session_version=2)
+        self.assertEqual(self.client.get("/proveedor").status_code, 200)
+
     def test_alta_desde_usuarios_asigna_tipo_hash_login_y_alcance(self):
         self._admin_session()
         cases = (
