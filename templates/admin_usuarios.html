@@ -1,159 +1,121 @@
 {% extends "base.html" %}
-{% block title %}Tecman - Usuarios{% endblock %}
+{% block title %}Tecman - Usuarios y accesos{% endblock %}
 {% block content %}
 <div class="nav">
     <a href="{{ url_for('admin_panel') }}">Dashboard</a>
-    <a href="{{ url_for('admin_usuarios') }}" style="color: #e63946; border-bottom: 2px solid #e63946;">Usuarios</a>
-    <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
+    <a href="{{ url_for('admin_usuarios') }}" style="color:#e63946;border-bottom:2px solid #e63946;">Usuarios</a>
+    <a href="{{ url_for('admin_logout') }}" style="margin-left:auto;">Salir ({{ session.nombre }})</a>
 </div>
 
-<div class="card">
-    <h2>Usuarios</h2>
-    <p style="color:#6b7280;font-size:13px;margin-top:4px;">Cuentas autorizadas para ingreso local, Microsoft Entra ID o ambos.</p>
+<div class="card" style="border-left:4px solid #2563eb;">
+    <h2 style="margin-bottom:6px;">Gestión de accesos</h2>
+    <p style="font-weight:700;color:#1e3a8a;">Personal y sucursales ingresan con Microsoft. Proveedores externos usan este usuario y contraseña.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;" role="tablist" aria-label="Tipos de acceso">
+        <a class="btn btn-primary" role="tab" href="#personal">Personal y sucursales (Microsoft)</a>
+        <a class="btn btn-outline" role="tab" href="#proveedores">Proveedores externos (usuario y contraseña)</a>
+    </div>
+</div>
+
+<section id="personal" class="card" style="scroll-margin-top:16px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:start;">
+        <div>
+            <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#2563eb;">MICROSOFT ENTRA</div>
+            <h2 style="margin:4px 0;">Personal y sucursales</h2>
+            <p style="color:#6b7280;font-size:13px;max-width:760px;">Las cuentas internas se autorizan acá y su ingreso predeterminado es Microsoft. Las credenciales locales quedan sólo como excepción técnica documentada.</p>
+        </div>
+    </div>
+
     <div style="overflow-x:auto;margin-top:16px;">
         <table>
-            <thead>
-                <tr>
-                    <th>Nombre</th>
-                    <th>Usuario</th>
-                    <th>Email</th>
-                    <th>Rol</th>
-                    <th>Auth</th>
-                    <th>Estado</th>
-                    <th>Seguridad</th>
-                    <th>Entra Object ID</th>
-                    <th>Último acceso</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Nombre</th><th>Usuario</th><th>Email</th><th>Rol</th><th>Auth</th><th>Estado</th><th>Seguridad</th><th>Entra Object ID</th><th>Último acceso</th><th>Acciones</th></tr></thead>
             <tbody>
                 {% for u in usuarios %}
                 <tr>
-                    <td>{{ u.name }}</td>
-                    <td>{{ u.username or '-' }}</td>
-                    <td>{{ u.email or '-' }}</td>
-                    <td>{{ u.role }}</td>
-                    <td>{{ u.auth_provider }}</td>
+                    <td>{{ u.name }}</td><td>{{ u.username or '-' }}</td><td>{{ u.email or '-' }}</td><td>{{ u.role }}</td>
+                    <td><span class="badge" style="background:{% if u.auth_provider == 'entra' %}#dbeafe{% else %}#fef3c7{% endif %};color:{% if u.auth_provider == 'entra' %}#1d4ed8{% else %}#92400e{% endif %};">{{ u.auth_provider }}</span></td>
                     <td>{{ u.status }}</td>
-                    <td>
-                        <div style="font-size:12px;color:#6b7280;">Intentos: {{ u.failed_attempts or 0 }}</div>
-                        {% if u.locked_until %}<div style="font-size:12px;color:#b45309;">Bloqueado hasta {{ u.locked_until }}</div>{% endif %}
-                        {% if u.must_change_password %}<div style="font-size:12px;color:#b45309;">Debe cambiar contraseña</div>{% endif %}
-                    </td>
-                    <td style="font-family:monospace;font-size:11px;">{{ u.entra_object_id or '-' }}</td>
-                    <td>{{ u.last_login_at or '-' }}</td>
+                    <td><div style="font-size:12px;color:#6b7280;">Intentos: {{ u.failed_attempts or 0 }}</div>{% if u.locked_until %}<div style="font-size:12px;color:#b45309;">Bloqueado hasta {{ u.locked_until }}</div>{% endif %}{% if u.must_change_password %}<div style="font-size:12px;color:#b45309;">Debe cambiar contraseña</div>{% endif %}</td>
+                    <td style="font-family:monospace;font-size:11px;">{{ u.entra_object_id or '-' }}</td><td>{{ u.last_login_at or '-' }}</td>
                     <td>
                         <form method="POST" action="{{ url_for('admin_usuarios_accion', user_id=u.id) }}" style="display:flex;gap:4px;flex-wrap:wrap;">
                             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            {% if u.status != 'active' %}
-                            <button class="btn btn-sm btn-success" name="action" value="enable" type="submit">Habilitar</button>
-                            {% else %}
-                            <button class="btn btn-sm btn-outline" name="action" value="disable" type="submit">Deshabilitar</button>
-                            <button class="btn btn-sm btn-outline" name="action" value="block" type="submit">Bloquear</button>
-                            {% endif %}
+                            {% if u.status != 'active' %}<button class="btn btn-sm btn-success" name="action" value="enable" type="submit">Habilitar</button>{% else %}<button class="btn btn-sm btn-outline" name="action" value="disable" type="submit">Deshabilitar</button><button class="btn btn-sm btn-outline" name="action" value="block" type="submit">Bloquear</button>{% endif %}
                             <button class="btn btn-sm btn-outline" name="action" value="unblock" type="submit">Desbloquear</button>
                             <button class="btn btn-sm btn-outline" name="action" value="force_password_change" type="submit">Forzar cambio</button>
-                            {% if u.auth_provider in ['local', 'both'] %}
-                            <button class="btn btn-sm btn-warning" name="action" value="generate_temp_password" type="submit">Generar temporal</button>
-                            {% endif %}
+                            {% if u.auth_provider in ['local', 'both'] %}<button class="btn btn-sm btn-warning" name="action" value="generate_temp_password" type="submit">Generar temporal</button>{% endif %}
                             <button class="btn btn-sm btn-outline" name="action" value="revoke_sessions" type="submit">Revocar sesiones</button>
                         </form>
                     </td>
                 </tr>
-                {% endfor %}
+                {% else %}<tr><td colspan="10" style="color:#6b7280;">No hay autorizaciones internas cargadas.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
-</div>
 
-<div class="card">
-    <h3>Crear usuario</h3>
-    <form method="POST" style="margin-top:16px;">
+    <div style="margin-top:22px;padding-top:18px;border-top:1px solid #e5e7eb;">
+        <h3>Autorizar personal o sucursal</h3>
+        <form method="POST" style="margin-top:14px;">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                <div class="form-group"><label>Nombre</label><input type="text" name="name" required></div>
+                <div class="form-group"><label>Email de Microsoft <span style="font-weight:400;color:#6b7280;">(o completá Object ID)</span></label><input type="email" name="email" autocapitalize="none" autocorrect="off"></div>
+                <div class="form-group"><label>Rol</label><select name="role"><option value="admin">admin</option><option value="tecnico">tecnico</option><option value="syh">syh</option><option value="equipo_central">equipo_central</option><option value="compras">compras</option><option value="supervisor">supervisor</option></select></div>
+                <div class="form-group"><label>Estado</label><select name="status"><option value="active">active</option><option value="blocked">blocked</option><option value="disabled">disabled</option></select></div>
+                <div class="form-group"><label>Entra Object ID <span style="font-weight:400;color:#6b7280;">(opcional)</span></label><input type="text" name="entra_object_id" autocapitalize="none" autocorrect="off"></div>
+            </div>
+            <details style="margin:4px 0 16px;padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;">
+                <summary style="cursor:pointer;font-weight:700;color:#92400e;">Excepción técnica: habilitar credenciales locales</summary>
+                <p style="font-size:12px;color:#92400e;margin:10px 0;">No usar para altas normales de personal, administradores o sucursales. Documentar primero la necesidad técnica.</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    <div class="form-group"><label>Método</label><select name="auth_provider"><option value="entra" selected>Microsoft Entra (predeterminado)</option><option value="both">Microsoft + local (excepción)</option><option value="local">Sólo local (excepción)</option></select></div>
+                    <div class="form-group"><label>Usuario local</label><input type="text" name="username" autocapitalize="none" autocorrect="off" autocomplete="off"></div>
+                    <div class="form-group"><label>Contraseña local</label><input type="password" name="password" minlength="10" autocomplete="new-password"></div>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;color:#6b7280;font-size:13px;"><input type="checkbox" name="must_change_password" value="1" style="width:auto;">Cambiar contraseña en el primer ingreso</label>
+            </details>
+            <button type="submit" class="btn btn-primary">Autorizar con Microsoft</button>
+        </form>
+    </div>
+</section>
+
+<section id="proveedores" class="card" style="scroll-margin-top:16px;border-top:4px solid #7c3aed;">
+    <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#7c3aed;">PORTAL DE PROVEEDORES</div>
+    <h2 style="margin:4px 0;">Proveedores externos (usuario y contraseña)</h2>
+    <p style="color:#6b7280;font-size:13px;">Estos accesos ingresan únicamente por <b>/proveedor/login</b> y quedan limitados al proveedor elegido. La contraseña actual nunca puede consultarse.</p>
+
+    <form method="POST" action="{{ url_for('admin_usuarios_proveedor_crear') }}" style="margin-top:16px;padding:16px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text" name="name" required>
-            </div>
-            <div class="form-group">
-                <label>Usuario local</label>
-                <input type="text" name="username" autocapitalize="none" autocorrect="off">
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" autocapitalize="none" autocorrect="off">
-            </div>
-            <div class="form-group">
-                <label>Rol</label>
-                <select name="role">
-                    <option value="admin">admin</option>
-                    <option value="tecnico">tecnico</option>
-                    <option value="syh">syh</option>
-                    <option value="equipo_central">equipo_central</option>
-                    <option value="compras">compras</option>
-                    <option value="supervisor">supervisor</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Método</label>
-                <select name="auth_provider">
-                    <option value="local">local</option>
-                    <option value="entra">entra</option>
-                    <option value="both">both</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Estado</label>
-                <select name="status">
-                    <option value="active">active</option>
-                    <option value="blocked">blocked</option>
-                    <option value="disabled">disabled</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Entra Object ID</label>
-                <input type="text" name="entra_object_id" autocapitalize="none" autocorrect="off">
-            </div>
-            <div class="form-group">
-                <label>Contraseña local</label>
-                <input type="password" name="password" minlength="10">
-            </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;">
+            <div class="form-group" style="margin-bottom:0;"><label>Proveedor del catálogo</label><select name="proveedor_nombre" required><option value="">Seleccionar proveedor…</option>{% for p in proveedores_catalogo %}<option value="{{ p.nombre }}">{{ p.nombre }} · {{ p.acceso_tipo }}</option>{% endfor %}</select></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Usuario</label><input type="text" name="usuario" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,63}" autocomplete="off" required></div>
+            <div class="form-group" style="margin-bottom:0;"><label>Contraseña <span style="font-weight:400;color:#6b7280;">(opcional)</span></label><input type="password" name="password" minlength="10" autocomplete="new-password" placeholder="Generar temporal"></div>
+            <button type="submit" class="btn" style="background:#7c3aed;color:white;">Crear acceso</button>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;color:#6b7280;font-size:13px;margin:4px 0 16px;">
-            <input type="checkbox" name="must_change_password" value="1" style="width:auto;">
-            Cambiar contraseña en el primer ingreso
-        </label>
-        <button type="submit" class="btn btn-primary">Crear usuario</button>
+        <p style="font-size:12px;color:#6b7280;margin-top:10px;">Si se omite, Tecman genera una contraseña temporal segura y la muestra una sola vez. Compartila por un canal privado.</p>
     </form>
-</div>
+
+    <div style="overflow-x:auto;margin-top:20px;">
+        <table>
+            <thead><tr><th>Proveedor</th><th>Usuario</th><th>Tipo de cuenta</th><th>Estado</th><th>Creación</th><th>Gestión</th></tr></thead>
+            <tbody>
+                {% for acceso in proveedor_accesos %}
+                <tr>
+                    <td>{{ acceso.proveedor }}</td><td><code>{{ acceso.username }}</code></td><td>{{ acceso.tipo_cuenta }}</td>
+                    <td><span class="badge" style="background:{% if acceso.status == 'active' %}#d1fae5{% else %}#fee2e2{% endif %};color:{% if acceso.status == 'active' %}#065f46{% else %}#991b1b{% endif %};">{{ acceso.status }}</span></td>
+                    <td>{{ acceso.created_at or 'Cuenta predeterminada' }}</td>
+                    <td>
+                        {% if acceso.is_default %}<span style="font-size:12px;color:#6b7280;">Sólo lectura</span>
+                        {% else %}<form method="POST" action="{{ url_for('admin_usuarios_proveedor_accion', username=acceso.username) }}" style="display:flex;gap:4px;flex-wrap:wrap;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">{% if acceso.status == 'active' %}<button class="btn btn-sm btn-outline" type="submit" name="action" value="disable">Deshabilitar</button>{% else %}<button class="btn btn-sm btn-success" type="submit" name="action" value="enable">Habilitar</button>{% endif %}<button class="btn btn-sm btn-warning" type="submit" name="action" value="reset_password">Restablecer temporal</button></form>{% endif %}
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="6" style="color:#6b7280;">No hay accesos de proveedores.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
 
 <div class="card">
     <h3>Auditoría reciente</h3>
-    <div style="overflow-x:auto;margin-top:16px;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Evento</th>
-                    <th>Usuario</th>
-                    <th>Método</th>
-                    <th>IP</th>
-                    <th>Detalle</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for e in eventos %}
-                <tr>
-                    <td>{{ e.created_at }}</td>
-                    <td>{{ e.event_type }}</td>
-                    <td>{{ e.user_id or '-' }}</td>
-                    <td>{{ e.provider or '-' }}</td>
-                    <td>{{ e.ip_address or '-' }}</td>
-                    <td style="font-size:12px;color:#6b7280;">{{ e.details or {} }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <div style="overflow-x:auto;margin-top:16px;"><table><thead><tr><th>Fecha</th><th>Evento</th><th>Usuario interno</th><th>Método</th><th>IP</th><th>Detalle</th></tr></thead><tbody>{% for e in eventos %}<tr><td>{{ e.created_at }}</td><td>{{ e.event_type }}</td><td>{{ e.user_id or '-' }}</td><td>{{ e.provider or '-' }}</td><td>{{ e.ip_address or '-' }}</td><td style="font-size:12px;color:#6b7280;">{{ e.details or {} }}</td></tr>{% else %}<tr><td colspan="6" style="color:#6b7280;">Sin eventos recientes.</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endblock %}

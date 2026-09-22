@@ -153,9 +153,10 @@
                     <span class="badge" style="background:#ecfdf5;color:#047857;">{{ p.portal_user }}</span>
                     {% else %}
                     <form method="POST" action="{{ url_for('admin_proveedores_acceso') }}" style="display:grid;gap:4px;min-width:190px;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="proveedor_nombre" value="{{ p.nombre }}">
-                        <input type="text" name="usuario" placeholder="usuario" style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
-                        <input type="text" name="password" placeholder="clave temporal opcional" style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
+                        <input type="text" name="usuario" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{2,63}" autocomplete="off" placeholder="usuario" required style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
+                        <input type="password" name="password" minlength="10" autocomplete="new-password" placeholder="clave temporal opcional" style="padding:7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;">
                         <button type="submit" class="btn btn-sm btn-outline">Crear acceso</button>
                     </form>
                     {% endif %}

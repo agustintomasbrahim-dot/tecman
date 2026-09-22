@@ -1246,6 +1246,8 @@ def _seed_auth_users():
 
 
 def _session_auth_is_valid():
+    if session.get("prov_user") and not _proveedor_session_is_valid():
+        return False
     auth_user_id = session.get("auth_user_id")
     if not auth_user_id:
         return True
@@ -1488,7 +1490,7 @@ def _create_auth_user(form):
     name = form.get("name", "").strip()
     first_name, last_name = _split_name(name)
     role = form.get("role", "admin").strip() or "admin"
-    auth_provider = form.get("auth_provider", "local").strip()
+    auth_provider = form.get("auth_provider", "entra").strip()
     status = form.get("status", "active").strip()
     entra_object_id = form.get("entra_object_id", "").strip() or None
     password = form.get("password", "")
@@ -3387,29 +3389,167 @@ def load_proveedor_users():
         try:
             data = json.loads(PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
             for username, info in (data.get("users") or {}).items():
-                if username:
-                    users[username.lower().strip()] = info
+                normalized = str(username or "").lower().strip()
+                if normalized and normalized not in DEFAULT_PROVEEDOR_USERS and isinstance(info, dict):
+                    account = copy.deepcopy(info)
+                    account.setdefault("status", "active")
+                    account.setdefault("session_version", 1)
+                    users[normalized] = account
         except Exception as exc:
             print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
-    # La cuenta DEMO es fija y aislada: un archivo operativo no puede agregarle
-    # aliases, proveedores reales ni cambiar su tipo de cuenta.
-    users["matafuegos_demo"] = copy.deepcopy(DEFAULT_PROVEEDOR_USERS["matafuegos_demo"])
+    # Las cuentas incluidas con la aplicación son fijas: el archivo operativo
+    # sólo puede agregar cuentas personalizadas, nunca sobrescribir defaults.
     return users
 
 
 def save_proveedor_users(users):
     custom_users = {}
     for username, info in users.items():
-        if username in DEFAULT_PROVEEDOR_USERS and info == DEFAULT_PROVEEDOR_USERS[username]:
+        if username in DEFAULT_PROVEEDOR_USERS:
             continue
         custom_users[username] = info
     _atomic_write(PROVEEDOR_USERS_FILE, {"users": custom_users})
 
 
 def _proveedor_login_ok(user_info, password):
+    if user_info.get("status", "active") != "active":
+        return False
     if user_info.get("password_hash"):
         return _verify_password(password, user_info.get("password_hash"))
     return bool(user_info.get("password") == password)
+
+
+PROVEEDOR_USERNAME_MIN_LENGTH = 3
+PROVEEDOR_USERNAME_MAX_LENGTH = 64
+PROVEEDOR_RESERVED_USERNAMES = {
+    "admin", "administrador", "root", "system", "sistema", "microsoft", "entra",
+    "proveedor", "proveedores", "sucursal", "sucursales", "tecnico", "soporte",
+}
+
+
+def _proveedor_tipo_cuenta(proveedor):
+    workflow = str(proveedor.get("workflow") or "").lower()
+    tipo = str(proveedor.get("tipo") or "").lower()
+    if "matafuego" in workflow or "matafuego" in tipo:
+        return "matafuegos"
+    if "fumigacion" in workflow or "fumigaci" in tipo:
+        return "fumigacion"
+    if proveedor.get("fijo"):
+        return "abono_fijo"
+    return "proveedor"
+
+
+def _proveedor_internal_identifiers():
+    identifiers = set(PROVEEDOR_RESERVED_USERNAMES)
+    for mapping_name in (
+        "ADMINS", "COMPRAS_USERS", "EQUIPO_USERS", "SYH_USERS",
+        "OFICINA_LOCAL_USERS", "SUCURSAL_USERS",
+    ):
+        identifiers.update(str(value).strip().lower() for value in globals().get(mapping_name, {}) if value)
+    identifiers.update(str(value).strip().lower() for value in LEGACY_DISABLED_USERNAMES if value)
+    internal_emails = set(SUCURSAL_EMAILS.values())
+    for collection_name in ("COMPRAS_ACCESS_EMAILS", "FULL_PORTAL_ACCESS_EMAILS"):
+        internal_emails.update(globals().get(collection_name, set()))
+    internal_emails.update(_supervisores_by_email())
+    internal_emails.update(_oficina_by_email())
+    for email in internal_emails:
+        normalized = str(email or "").strip().lower()
+        if normalized:
+            identifiers.update((normalized, normalized.split("@", 1)[0]))
+    for user in _list_auth_users():
+        values = (
+            (user.username, user.email, user.id)
+            if USE_DB else
+            (user.get("username"), user.get("email"), user.get("id"))
+        )
+        for value in values:
+            normalized = str(value or "").strip().lower()
+            if normalized:
+                identifiers.add(normalized)
+                identifiers.add(normalized.split("@", 1)[0])
+    return identifiers
+
+
+def _validate_proveedor_username(username):
+    username = str(username or "").strip().lower()
+    allowed = all(char.isascii() and (char.isalnum() or char in "_-") for char in username)
+    if not (
+        PROVEEDOR_USERNAME_MIN_LENGTH <= len(username) <= PROVEEDOR_USERNAME_MAX_LENGTH
+        and username[:1].isalnum()
+        and allowed
+    ):
+        raise ValueError(
+            "El usuario debe tener entre 3 y 64 caracteres, comenzar con letra o número "
+            "y usar sólo letras, números, guion o guion bajo"
+        )
+    if username in _proveedor_internal_identifiers():
+        raise ValueError("El usuario está reservado o coincide con un acceso interno")
+    return username
+
+
+def _create_proveedor_user(proveedor_nombre, username, password=""):
+    proveedor_nombre = str(proveedor_nombre or "").strip()
+    username = _validate_proveedor_username(username)
+    proveedor = next((p for p in PROVEEDORES if p.get("nombre") == proveedor_nombre), None)
+    if not proveedor or proveedor.get("estado_operativo") == "Recurso interno":
+        raise ValueError("Proveedor no encontrado")
+
+    users = load_proveedor_users()
+    if username in users:
+        raise ValueError("El usuario ya existe")
+
+    generated_password = not password
+    password = password or _generate_temporary_password()
+    if len(password) < 10:
+        raise ValueError("La contraseña debe tener al menos 10 caracteres")
+
+    account = {
+        "password_hash": _hash_password(password),
+        "nombre": proveedor_nombre,
+        "tipo_cuenta": _proveedor_tipo_cuenta(proveedor),
+        "proveedores": [proveedor_nombre],
+        "status": "active",
+        "session_version": 1,
+        "created_at": _now_utc().isoformat(),
+        "created_by": session.get("nombre", "Admin"),
+    }
+    users[username] = account
+    save_proveedor_users(users)
+    _audit_event(
+        "provider_user_created",
+        provider="proveedor_local",
+        details={"username": username, "proveedor": proveedor_nombre, "tipo_cuenta": account["tipo_cuenta"]},
+    )
+    return account, (password if generated_password else None)
+
+
+def _proveedor_access_rows():
+    rows = []
+    for username, info in load_proveedor_users().items():
+        rows.append({
+            "username": username,
+            "proveedor": info.get("nombre") or ", ".join(info.get("proveedores") or []) or "-",
+            "tipo_cuenta": info.get("tipo_cuenta", "proveedor"),
+            "status": info.get("status", "active"),
+            "created_at": info.get("created_at", ""),
+            "is_default": username in DEFAULT_PROVEEDOR_USERS,
+        })
+    return sorted(rows, key=lambda row: (row["is_default"], row["proveedor"].casefold(), row["username"]))
+
+
+def _proveedor_session_is_valid():
+    username = str(session.get("prov_user") or "").strip().lower()
+    if not username:
+        return False
+    account = load_proveedor_users().get(username)
+    if not account or account.get("status", "active") != "active":
+        return False
+    try:
+        account_version = int(account.get("session_version", 1))
+        session_version = int(session.get("prov_session_version", 1))
+    except (TypeError, ValueError):
+        return False
+    return account_version == session_version
 
 
 def _proveedor_account_for_name(nombre, users=None):
@@ -6383,7 +6523,96 @@ def admin_usuarios():
         except Exception as e:
             flash(str(e))
         return redirect(url_for("admin_usuarios"))
-    return render_template("admin_usuarios.html", usuarios=_auth_user_rows(), eventos=_recent_auth_events(), use_db=USE_DB)
+    proveedores_catalogo = sorted(
+        (
+            {**p, "acceso_tipo": _proveedor_tipo_cuenta(p)} for p in PROVEEDORES
+            if p.get("nombre") and p.get("estado_operativo") != "Recurso interno"
+        ),
+        key=lambda p: (p.get("nombre") or "").casefold(),
+    )
+    return render_template(
+        "admin_usuarios.html",
+        usuarios=_auth_user_rows(),
+        proveedor_accesos=_proveedor_access_rows(),
+        proveedores_catalogo=proveedores_catalogo,
+        eventos=_recent_auth_events(),
+        use_db=USE_DB,
+    )
+
+
+@app.route("/admin/usuarios/proveedores", methods=["POST"])
+@admin_required
+def admin_usuarios_proveedor_crear():
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida."), 400
+    try:
+        account, temporary_password = _create_proveedor_user(
+            request.form.get("proveedor_nombre", ""),
+            request.form.get("usuario", ""),
+            request.form.get("password", ""),
+        )
+        if temporary_password:
+            flash(
+                f"Acceso creado para {account['nombre']}. Contraseña temporal (mostrar una sola vez): "
+                f"{temporary_password}. Compartila por un canal privado."
+            )
+        else:
+            flash(f"Acceso creado para {account['nombre']}")
+    except ValueError as exc:
+        flash(str(exc))
+    return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+
+
+@app.route("/admin/usuarios/proveedores/<username>/accion", methods=["POST"])
+@admin_required
+def admin_usuarios_proveedor_accion(username):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida."), 400
+    username = str(username or "").strip().lower()
+    action = request.form.get("action", "")
+    users = load_proveedor_users()
+    account = users.get(username)
+    if not account:
+        flash("Acceso de proveedor no encontrado")
+        return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+    if username in DEFAULT_PROVEEDOR_USERS:
+        flash("Las cuentas predeterminadas son de sólo lectura desde esta pantalla")
+        return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+
+    if action == "disable":
+        account["status"] = "disabled"
+        account["session_version"] = int(account.get("session_version", 1)) + 1
+        event_type = "provider_user_disabled"
+        message = "Acceso de proveedor deshabilitado y sesiones revocadas"
+    elif action == "enable":
+        account["status"] = "active"
+        account["session_version"] = int(account.get("session_version", 1)) + 1
+        event_type = "provider_user_enabled"
+        message = "Acceso de proveedor habilitado"
+    elif action == "reset_password":
+        temporary_password = _generate_temporary_password()
+        account["password_hash"] = _hash_password(temporary_password)
+        account.pop("password", None)
+        account["session_version"] = int(account.get("session_version", 1)) + 1
+        account["password_changed_at"] = _now_utc().isoformat()
+        event_type = "provider_temporary_password_generated"
+        message = (
+            f"Contraseña temporal para {username} (mostrar una sola vez): {temporary_password}. "
+            "Compartila por un canal privado."
+        )
+    else:
+        flash("Acción inválida")
+        return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+
+    users[username] = account
+    save_proveedor_users(users)
+    _audit_event(
+        event_type,
+        provider="proveedor_local",
+        details={"username": username, "proveedor": account.get("nombre", "")},
+    )
+    flash(message)
+    return redirect(url_for("admin_usuarios", _anchor="proveedores"))
 
 
 @app.route("/admin/usuarios/<user_id>/accion", methods=["POST"])
@@ -7226,43 +7455,25 @@ def admin_proveedores():
 @app.route("/admin/proveedores/acceso", methods=["POST"])
 @admin_required
 def admin_proveedores_acceso():
-    proveedor_nombre = request.form.get("proveedor_nombre", "").strip()
-    usuario = request.form.get("usuario", "").lower().strip()
-    password = request.form.get("password", "").strip()
-    if not proveedor_nombre or not usuario:
-        flash("Indicá proveedor y usuario")
-        return redirect(url_for("admin_proveedores", vista="lista"))
-    if len(usuario) < 3 or not usuario.replace("_", "").replace("-", "").isalnum():
-        flash("El usuario debe tener al menos 3 caracteres y usar letras, números, guion o guion bajo")
-        return redirect(url_for("admin_proveedores", vista="lista"))
-    password_generada = False
-    if not password:
-        password = secrets.token_urlsafe(8)
-        password_generada = True
-    elif len(password) < 8:
-        flash("La contraseña debe tener al menos 8 caracteres")
-        return redirect(url_for("admin_proveedores", vista="lista"))
-
-    proveedor = next((p for p in PROVEEDORES if p.get("nombre") == proveedor_nombre), None)
-    if not proveedor:
-        flash("Proveedor no encontrado")
-        return redirect(url_for("admin_proveedores", vista="lista"))
-
-    users = load_proveedor_users()
-    users[usuario] = {
-        "password_hash": _hash_password(password),
-        "nombre": proveedor_nombre,
-        "tipo_cuenta": "abono_fijo" if proveedor.get("fijo") else "proveedor",
-        "proveedores": [proveedor_nombre],
-        "created_at": datetime.datetime.now().isoformat(),
-        "created_by": session.get("nombre", "Admin"),
-    }
-    save_proveedor_users(users)
-    if password_generada:
-        flash(f"Acceso creado para {proveedor_nombre}. Contraseña temporal: {password}")
-    else:
-        flash(f"Acceso creado para {proveedor_nombre}")
-    return redirect(url_for("admin_proveedores", vista="lista", q=proveedor_nombre))
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida."), 400
+    proveedor_nombre = request.form.get("proveedor_nombre", "")
+    try:
+        account, temporary_password = _create_proveedor_user(
+            proveedor_nombre,
+            request.form.get("usuario", ""),
+            request.form.get("password", ""),
+        )
+        if temporary_password:
+            flash(
+                f"Acceso creado para {account['nombre']}. Contraseña temporal (mostrar una sola vez): "
+                f"{temporary_password}. Compartila por un canal privado."
+            )
+        else:
+            flash(f"Acceso creado para {account['nombre']}")
+    except ValueError as exc:
+        flash(str(exc))
+    return redirect(url_for("admin_proveedores", vista="lista", q=str(proveedor_nombre).strip()))
 
 
 # --- Routes: Inventario ---
@@ -7343,7 +7554,8 @@ def admin_inventario():
 def prov_login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "prov_user" not in session:
+        if "prov_user" not in session or not _proveedor_session_is_valid():
+            session.clear()
             return redirect(url_for("prov_login"))
         return f(*args, **kwargs)
     return decorated
@@ -7393,12 +7605,12 @@ def prov_login():
         proveedor_users = load_proveedor_users()
         user_info = proveedor_users.get(user)
         if user_info and _proveedor_login_ok(user_info, pwd):
-            if user_info.get("tipo_cuenta") == "matafuegos_demo":
-                session.clear()
-                session.permanent = True
+            session.clear()
+            session.permanent = True
             session["prov_user"] = user
             session["prov_nombre"] = user_info["nombre"]
             session["prov_tipo_cuenta"] = user_info.get("tipo_cuenta", "proveedor")
+            session["prov_session_version"] = int(user_info.get("session_version", 1))
             if session["prov_tipo_cuenta"] == "matafuegos_demo":
                 return redirect(url_for("matafuegos_demo.panel"))
             return redirect(url_for("prov_panel"))
@@ -7411,6 +7623,7 @@ def prov_logout():
     session.pop("prov_user", None)
     session.pop("prov_nombre", None)
     session.pop("prov_tipo_cuenta", None)
+    session.pop("prov_session_version", None)
     session.pop("prov_full_access", None)
     return redirect(url_for("login_landing"))
 
