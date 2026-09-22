@@ -175,6 +175,10 @@ def serve_persistent_uploads_from_static_path():
     if not request.path.startswith("/static/uploads/"):
         return None
     filename = request.path.removeprefix("/static/uploads/")
+    # El namespace real de matafuegos se sirve sólo por su ruta con autorización
+    # de ticket; nunca por el acceso genérico de uploads para cualquier sesión.
+    if filename.startswith("matafuegos_real/"):
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
     # Dejar que la ruta protegida de guias aplique @any_session_required.
     if filename.startswith("guias/"):
         return None
@@ -7392,12 +7396,64 @@ def admin_ticket(ticket_id):
     )
 
 
-# --- Portal DEMO aislado de matafuegos ---
-# Se registra una vez que los helpers de sesión y los paths de DATA_DIR ya existen.
+# --- Portales de matafuegos ---
+# Se registran una vez que los helpers de sesión, tickets y proveedores existen.
 from matafuegos_demo import demo_bp
+from matafuegos_real import real_bp
 
-app.config["TECMAN_SESSION_AUTH_VALIDATOR"] = _session_auth_is_valid
+
+def _proveedor_tipo_efectivo(info):
+    """Clasifica por coincidencia exacta de catálogo y conserva custom legacy."""
+    nombres = {str(info.get("nombre") or "").strip()}
+    nombres.update(str(value or "").strip() for value in (info.get("proveedores") or []))
+    nombres.discard("")
+    catalogo = [p for p in PROVEEDORES if str(p.get("nombre") or "").strip() in nombres]
+    if catalogo:
+        tipos = {_proveedor_tipo_cuenta(p) for p in catalogo}
+        return tipos.pop() if len(tipos) == 1 else "proveedor"
+    # Compatibilidad con cuentas personalizadas históricas que ya persistieron
+    # un tipo explícito, sin inferencias parciales por nombre libre.
+    persisted = str(info.get("tipo_cuenta") or "proveedor")
+    return persisted if persisted in {"proveedor", "abono_fijo", "fumigacion", "matafuegos"} else "proveedor"
+
+
+def _refresh_proveedor_session_tipo():
+    username = str(session.get("prov_user") or "").strip().lower()
+    if username == "matafuegos_demo":
+        session["prov_tipo_cuenta"] = "matafuegos_demo"
+        return "matafuegos_demo"
+    info = load_proveedor_users().get(username)
+    if not info:
+        return ""
+    tipo = _proveedor_tipo_efectivo(info)
+    session["prov_tipo_cuenta"] = tipo
+    session["prov_nombre"] = info.get("nombre") or session.get("prov_nombre") or username
+    return tipo
+
+
+def _ticket_es_matafuegos_admin(ticket):
+    for info in load_proveedor_users().values():
+        if _proveedor_tipo_efectivo(info) == "matafuegos" and _ticket_es_de_proveedor(ticket, list(dict.fromkeys([
+            info.get("nombre"), *(info.get("proveedores") or [])
+        ]))):
+            return True
+    return False
+
+
+app.config.update(
+    TECMAN_SESSION_AUTH_VALIDATOR=_session_auth_is_valid,
+    MATAFUEGOS_REAL_LOAD_TICKETS=load_tickets,
+    MATAFUEGOS_REAL_SAVE_TICKETS=save_tickets,
+    MATAFUEGOS_REAL_PROVIDER_NAMES=_proveedor_nombres_usuario,
+    MATAFUEGOS_REAL_TICKET_ALLOWED=_ticket_es_de_proveedor,
+    MATAFUEGOS_REAL_ADMIN_TICKET_ALLOWED=_ticket_es_matafuegos_admin,
+    MATAFUEGOS_REAL_REFRESH_SESSION=_refresh_proveedor_session_tipo,
+    MATAFUEGOS_REAL_UPLOADS_DIR=str(UPLOADS_DIR / "matafuegos_real"),
+    MATAFUEGOS_REAL_LEGACY_UPLOADS_DIR=str(UPLOADS_DIR),
+    MATAFUEGOS_REAL_MAX_FILE_BYTES=10 * 1024 * 1024,
+)
 app.register_blueprint(demo_bp)
+app.register_blueprint(real_bp)
 
 
 # --- Routes: Proveedores ---
@@ -7628,6 +7684,8 @@ def prov_login():
             session["prov_session_version"] = int(user_info.get("session_version", 1))
             if session["prov_tipo_cuenta"] == "matafuegos_demo":
                 return redirect(url_for("matafuegos_demo.panel"))
+            if _refresh_proveedor_session_tipo() == "matafuegos":
+                return redirect(url_for("matafuegos_real.panel"))
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template("prov_login.html", entra_enabled=_entra_is_configured())
@@ -7649,6 +7707,8 @@ def prov_logout():
 def prov_panel():
     if session.get("prov_tipo_cuenta") == "matafuegos_demo":
         return redirect(url_for("matafuegos_demo.panel"))
+    if _refresh_proveedor_session_tipo() == "matafuegos":
+        return redirect(url_for("matafuegos_real.panel"))
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
     filtro_sucursal = request.args.get("sucursal", "").strip()
@@ -7726,6 +7786,8 @@ def prov_panel():
 def prov_ticket(ticket_id):
     if session.get("prov_tipo_cuenta") == "matafuegos_demo":
         return render_template("error.html", mensaje="La cuenta DEMO no tiene acceso a tickets reales."), 403
+    if _refresh_proveedor_session_tipo() == "matafuegos":
+        return redirect(url_for("matafuegos_real.detail", ticket_id=ticket_id))
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
