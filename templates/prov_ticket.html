@@ -65,6 +65,15 @@
     {% endif %}
 </div>
 
+{% if ticket.abono_cobertura %}
+<div class="card" style="border-left:4px solid {% if ticket.abono_cobertura == 'cubierto' %}#16a34a{% else %}#f59e0b{% endif %};">
+    <h3 style="font-size:15px;color:#334155;">Cobertura del abono</h3>
+    <p style="margin-top:8px;font-weight:700;color:{% if ticket.abono_cobertura == 'cubierto' %}#166534{% else %}#92400e{% endif %};">{{ 'Trabajo cubierto por el abono' if ticket.abono_cobertura == 'cubierto' else 'Trabajo fuera del abono: presupuesto requerido' }}</p>
+    {% if ticket.abono_cobertura_detalle %}<p style="font-size:13px;color:#64748b;margin-top:5px;">{{ ticket.abono_cobertura_detalle }}</p>{% endif %}
+    {% if ticket.abono_remito_estado == 'pendiente_carga' %}<p style="font-size:13px;color:#0e7490;margin-top:6px;">Trabajo terminado: la sucursal debe cargar el remito antes del cierre.</p>{% endif %}
+</div>
+{% endif %}
+
 {% if session.prov_nombre == 'CEYH' and retiros_ticket %}
 <div class="card" style="border-left:4px solid #1d4ed8;">
     <h3 style="margin-bottom:12px;color:#1d4ed8;font-size:14px;">Retiros en Dabra Central</h3>
@@ -73,19 +82,19 @@
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;">
             <strong style="color:#1d4ed8;">{{ r.estado }}</strong>
             {% if r.estado == 'Listo para retirar' %}
-            <form method="POST" style="margin:0;">
+            <form method="POST" style="margin:0;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="confirmar_retiro_ceyh">
                 <input type="hidden" name="retiro_id" value="{{ r.id }}">
                 <button type="submit" class="btn btn-sm" style="background:#1d4ed8;color:white;" onclick="return confirm('¿Confirmar que CEYH retiró estos materiales en Dabra Central?')">Confirmar retiro</button>
             </form>
             {% elif r.estado == 'Retirado por CEYH' %}
-            <form method="POST" style="margin:0;">
+            <form method="POST" style="margin:0;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="material_aplicado_ceyh">
                 <input type="hidden" name="retiro_id" value="{{ r.id }}">
                 <button type="submit" class="btn btn-sm" style="background:#059669;color:white;" onclick="return confirm('¿Confirmar que estos materiales se usaron para ejecutar el ticket?')">Material aplicado al trabajo</button>
             </form>
             {% elif r.estado == 'Material aplicado al trabajo' %}
-            <form method="POST" style="margin:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <form method="POST" style="margin:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="sobrante_ceyh">
                 <input type="hidden" name="retiro_id" value="{{ r.id }}">
                 <select name="destino_sobrante" style="padding:8px;border-radius:6px;">
@@ -110,7 +119,7 @@
 <div class="card" style="border-left:4px solid #0f766e;">
     <h3 style="margin-bottom:10px;color:#0f766e;font-size:15px;">Solicitar materiales a Soria</h3>
     <p style="margin:0 0 12px;color:#6b7280;font-size:13px;">Usar cuando el relevamiento o el trabajo requiere materiales para continuar.</p>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="solicitar_materiales_soria">
         <textarea name="materiales_solicitados" required placeholder="Ej: 2 reflectores LED, 1 contactor, 20m de cable" style="width:100%;padding:12px;border:1px solid #d1fae5;border-radius:8px;background:#f8fafc;color:#111827;height:82px;font-size:14px;"></textarea>
         <input type="text" name="detalle_materiales" placeholder="Detalle opcional: motivo, medida, ubicación o comentario" style="width:100%;margin-top:8px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#111827;font-size:14px;">
@@ -170,7 +179,7 @@
 <!-- Boton principal de avance -->
 <div style="margin: 16px 0;">
     {% if etapa == 'pendiente' %}
-    <form method="POST"><input type="hidden" name="accion" value="recibido">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="recibido">
         <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 17px; padding: 16px;">&#128065; Marcar como RECIBIDO</button>
     </form>
     {% elif etapa == 'recibido' %}
@@ -194,13 +203,13 @@
     </form>
     {% elif etapa == 'relevado' %}
     <div style="display: flex; flex-direction: column; gap: 10px;">
-        <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="en_progreso_prov">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128296; EN PROGRESO - Estoy trabajando</button>
         </form>
-        <form method="POST"><input type="hidden" name="accion" value="esperando_materiales">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="esperando_materiales">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">&#128230; ESPERANDO MATERIALES</button>
         </form>
-        <form method="POST"><input type="hidden" name="accion" value="hecho">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
         <button type="button" class="btn btn-block" style="background: #fff; border: 1px solid #e5e7eb; color: #374151; padding: 14px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
@@ -210,10 +219,10 @@
         <div class="card" style="padding: 12px; border-left: 4px solid #1a1a2e; margin: 0;">
             <p style="font-weight: 600; color: #1a1a2e;">&#128296; En progreso</p>
         </div>
-        <form method="POST"><input type="hidden" name="accion" value="trabajo_continua_manana"><input type="hidden" name="motivo_continua" value="Falta de materiales">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="trabajo_continua_manana"><input type="hidden" name="motivo_continua" value="Falta de materiales">
             <button type="submit" class="btn btn-block" style="background: #b45309; color: white; padding: 14px;">⏭️ No terminado por falta de materiales — continúa mañana</button>
         </form>
-        <form method="POST"><input type="hidden" name="accion" value="hecho">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
     </div>
@@ -222,10 +231,10 @@
         <div class="card" style="padding: 12px; border-left: 4px solid #b45309; margin: 0;">
             <p style="font-weight: 600; color: #b45309;">⏭️ Trabajo no terminado — continúa al día siguiente</p>
         </div>
-        <form method="POST"><input type="hidden" name="accion" value="en_progreso_prov">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="en_progreso_prov">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; padding: 14px;">Retomar trabajo</button>
         </form>
-        <form method="POST"><input type="hidden" name="accion" value="hecho">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
     </div>
@@ -235,13 +244,13 @@
             <p style="font-weight: 600; color: #b45309;">&#128230; Esperando materiales</p>
             <p style="color: #6b7280; font-size: 13px; margin-top: 4px;">Se notificara cuando los materiales lleguen a la sucursal</p>
         </div>
-        <form method="POST"><input type="hidden" name="accion" value="hecho">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
     </div>
     {% elif etapa == 'esperando_presupuesto' %}
     <div style="display: flex; flex-direction: column; gap: 10px;">
-        <form method="POST"><input type="hidden" name="accion" value="hecho">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="hecho">
             <button type="submit" class="btn btn-block" style="background: #e63946; color: white; font-size: 16px; padding: 16px;" onclick="return confirm('Confirmar trabajo HECHO?')">&#10004; TRABAJO HECHO</button>
         </form>
         <button type="button" class="btn btn-block" style="background: #fff; border: 1px solid #e5e7eb; color: #374151; padding: 14px;" onclick="showPresupuestoAlert()">&#128176; ESPERANDO APROBACION PRESUPUESTO</button>
@@ -261,13 +270,13 @@
     <!-- Tab: Fotos -->
     <div id="tab-fotos" class="action-content active">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="foto_antes">
                 <label style="color: #e63946; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto o video ANTES</label>
                 <input type="file" name="foto" accept="{{ media_accept }}" style="padding: 8px; width: 100%;" required>
                 <button type="submit" class="btn btn-sm" style="background: #e63946; color: white; margin-top: 8px; width: 100%;">Subir</button>
             </form>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="accion" value="foto_despues">
                 <label style="color: #374151; font-size: 13px; font-weight: 600; display: block; margin-bottom: 8px;">Foto o video DESPUES</label>
                 <input type="file" name="foto" accept="{{ media_accept }}" style="padding: 8px; width: 100%;" required>
@@ -279,6 +288,7 @@
     <!-- Tab: Presupuesto -->
     <div id="tab-presupuesto" class="action-content">
         <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="presupuesto">
             <p style="color: #374151; font-size: 13px; margin-bottom: 12px;">Para trabajos que no estan incluidos en el abono</p>
             <textarea name="detalle_presupuesto" placeholder="Detalle del trabajo adicional..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 70px; font-size: 15px;" required></textarea>
@@ -298,7 +308,7 @@
 
     <!-- Tab: Informe -->
     <div id="tab-informe" class="action-content">
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="informe">
             <textarea name="informe" placeholder="Descripcion del trabajo, materiales usados, observaciones tecnicas..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 100px; font-size: 15px;" required></textarea>
             <div style="margin-top: 10px;">
@@ -311,7 +321,7 @@
 
     <!-- Tab: Problema -->
     <div id="tab-problema" class="action-content">
-        <form method="POST">
+        <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="no_se_pudo">
             <p style="color: #e63946; font-size: 13px; margin-bottom: 12px;">Indicar por que no se pudo realizar el trabajo</p>
             <textarea name="motivo" placeholder="Ej: No habia acceso, falta material, problema mayor al esperado..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #1a1a2e; height: 80px; font-size: 15px;" required></textarea>
@@ -375,7 +385,7 @@
     <div style="background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between;"><span style="color: #374151; font-weight: 700; font-size: 18px;">${{ p.monto }}</span><span style="color: #475569; font-size: 12px;">{{ p.fecha[:10] }}</span></div>
         <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">{{ p.detalle }}</p>
-        {% if p.archivo %}<a href="/static/uploads/{{ p.archivo }}" target="_blank" style="color: #374151; font-size: 12px;">Ver adjunto</a>{% endif %}
+        {% if p.archivo %}<a href="{% if p.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=p.archivo) }}{% else %}/static/uploads/{{ p.archivo }}{% endif %}" target="_blank" style="color: #374151; font-size: 12px;">Ver adjunto</a>{% endif %}
     </div>
     {% endfor %}
 </div>
@@ -447,6 +457,7 @@
 
 <!-- Form oculto para cambiar etapa -->
 <form id="presupuestoForm" method="POST" style="display: none;">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="accion" value="esperando_presupuesto">
 </form>
 
@@ -490,7 +501,7 @@ function confirmPresupuesto() {
         tab.style.border = '1px solid #f59e0b';
         setTimeout(function() { tab.style.boxShadow = ''; tab.style.border = ''; }, 3000);
     };
-    xhr.send('accion=esperando_presupuesto');
+    xhr.send('accion=esperando_presupuesto&_csrf_token=' + encodeURIComponent('{{ csrf_token() }}'));
 }
 
 // Close modal on click outside

@@ -172,9 +172,13 @@ GRUPOS_ELECTROGENOS_UPLOADS_DIR = UPLOADS_DIR / "grupos_electrogenos"
 GRUPOS_ELECTROGENOS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 FUMIGACION_REMITOS_DIR = UPLOADS_DIR / "fumigacion_remitos"
 FUMIGACION_REMITOS_DIR.mkdir(parents=True, exist_ok=True)
+TICKET_DOCUMENTOS_DIR = UPLOADS_DIR / "ticket_documentos"
+TICKET_DOCUMENTOS_DIR.mkdir(parents=True, exist_ok=True)
 
 FUMIGACION_REMITO_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 FUMIGACION_REMITO_MAX_BYTES = 10 * 1024 * 1024
+TICKET_DOCUMENT_EXTENSIONS = FUMIGACION_REMITO_EXTENSIONS
+TICKET_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
 
 
 @app.before_request
@@ -188,6 +192,18 @@ def serve_persistent_uploads_from_static_path():
         return render_template("error.html", mensaje="Archivo no encontrado."), 404
     if filename.startswith("grupos_electrogenos/"):
         return render_template("error.html", mensaje="Foto no encontrada."), 404
+    if filename.startswith("ticket_documentos/"):
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    tickets = _load_tickets_raw()
+    budget_tickets = [
+        ticket for ticket in tickets
+        if any(p.get("archivo") == filename for p in ticket.get("presupuestos", []))
+    ]
+    if budget_tickets:
+        if "suc_user" in session:
+            return render_template("error.html", mensaje="Los archivos de presupuesto son internos."), 403
+        if not any(_session_can_view_ticket(ticket, tickets) for ticket in budget_tickets):
+            return render_template("error.html", mensaje="Acceso restringido al archivo."), 403
     legacy_guard = app.config.get("MATAFUEGOS_REAL_LEGACY_FILE_GUARD")
     if legacy_guard and legacy_guard(filename) is False:
         return render_template("error.html", mensaje="Acceso restringido al archivo."), 403
@@ -3916,18 +3932,18 @@ def _fecha_fumigacion_visible(value):
         return str(value or "")
 
 
-def _validar_remito_fumigacion(archivo):
+def _validar_archivo_ticket(archivo, etiqueta="archivo"):
     if not archivo or not archivo.filename:
-        raise ValueError("Seleccioná un remito para subir.")
+        raise ValueError(f"Seleccioná un {etiqueta} para subir.")
     nombre_original = Path(archivo.filename).name
     extension = Path(nombre_original).suffix.lower()
-    if extension not in FUMIGACION_REMITO_EXTENSIONS:
+    if extension not in TICKET_DOCUMENT_EXTENSIONS:
         raise ValueError("Formato no permitido. Usá PDF, JPG, JPEG, PNG o WebP.")
-    contenido = archivo.stream.read(FUMIGACION_REMITO_MAX_BYTES + 1)
+    contenido = archivo.stream.read(TICKET_DOCUMENT_MAX_BYTES + 1)
     if not contenido:
         raise ValueError("El archivo está vacío.")
-    if len(contenido) > FUMIGACION_REMITO_MAX_BYTES:
-        raise ValueError("El remito supera el límite de 10 MB.")
+    if len(contenido) > TICKET_DOCUMENT_MAX_BYTES:
+        raise ValueError(f"El {etiqueta} supera el límite de 10 MB.")
     firmas = {
         ".pdf": contenido.startswith(b"%PDF-"),
         ".jpg": contenido.startswith(b"\xff\xd8\xff"),
@@ -3938,6 +3954,113 @@ def _validar_remito_fumigacion(archivo):
     if not firmas.get(extension):
         raise ValueError("El contenido del archivo no coincide con su extensión.")
     return nombre_original, extension, contenido
+
+
+def _validar_remito_fumigacion(archivo):
+    return _validar_archivo_ticket(archivo, "remito")
+
+
+def _ticket_abono_proveedor(ticket):
+    suc_num = _sucursal_num_from_value(ticket.get("sucursal_num") or ticket.get("sucursal"))
+    return get_proveedor_abono_sucursal(suc_num) if suc_num else None
+
+
+def _ticket_en_circuito_abono(ticket):
+    return ticket.get("abono_cobertura") in {"cubierto", "no_cubierto"}
+
+
+def _ticket_tiene_presupuesto(ticket):
+    return bool(
+        ticket.get("categoria") == "Presupuestos"
+        or ticket.get("requiere_presupuesto_proveedor")
+        or ticket.get("presupuestos")
+        or ticket.get("abono_cobertura") == "no_cubierto"
+    )
+
+
+def _comentario_publico_sin_importes(texto):
+    """Admite sólo comentarios operativos inequívocamente no económicos."""
+    value = " ".join(str(texto or "").split())
+    if not value or len(value) > 1000:
+        return False
+    normalized = _normalizar_clave_fumigacion(value)
+    economic_terms = {
+        "monto", "importe", "precio", "costo", "cotizacion", "pesos",
+        "dolares", "dolar", "usd", "ars", "iva", "cuotas",
+    }
+    if any(char.isdigit() for char in value) or any(symbol in value for symbol in ("$", "€", "£")):
+        return False
+    return not any(term in normalized.split() for term in economic_terms)
+
+
+def _ticket_para_sucursal(ticket):
+    """Proyecta un ticket sin información económica ni adjuntos de cotización."""
+    visible = copy.deepcopy(ticket)
+    if not _ticket_tiene_presupuesto(ticket):
+        return visible
+    for field in (
+        "presupuestos", "archivo_presupuesto", "requisicion_archivo",
+        "requisicion_archivo_nombre", "requisicion_numero", "requisicion_nota",
+        "proveedor_presupuesto", "abono_historial", "abono_cobertura_detalle",
+    ):
+        visible.pop(field, None)
+    visible["respuesta_sucursal_presupuesto"] = ticket.get("presupuesto_comentario_publico", "")
+    visible["notas"] = [
+        copy.deepcopy(nota) for nota in ticket.get("notas", [])
+        if nota.get("visibilidad") == "sucursal"
+    ]
+    visible["notificaciones"] = [
+        copy.deepcopy(aviso) for aviso in ticket.get("notificaciones", [])
+        if aviso.get("visibilidad") == "sucursal"
+    ]
+    return visible
+
+
+def _abono_auditar(ticket, accion, actor, detalle="", documento_id=None, fecha=None):
+    evento = {
+        "accion": accion,
+        "fecha": fecha or datetime.datetime.now().isoformat(),
+        "actor": actor,
+        "detalle": detalle,
+    }
+    if documento_id:
+        evento["documento_id"] = documento_id
+    ticket.setdefault("abono_historial", []).append(evento)
+    return evento
+
+
+def _solicitar_presupuesto_ticket(ticket, proveedor, detalle, actor):
+    ahora = datetime.datetime.now().isoformat()
+    ticket["asignado"] = proveedor
+    ticket["asignado_proveedor"] = proveedor
+    ticket["proveedor_nombre"] = proveedor
+    ticket["proveedor_presupuesto"] = proveedor
+    ticket["requiere_presupuesto_proveedor"] = True
+    ticket["estado_presupuesto"] = "Pendiente"
+    ticket["presupuesto_etapa"] = "solicitado"
+    ticket["etapa_prov"] = "esperando_presupuesto"
+    if ticket.get("estado") in ("Nuevo", "Abierto", "En progreso"):
+        ticket["estado"] = "Pendiente"
+    texto = f"Presupuesto solicitado a proveedor: {proveedor}" + (f" - {detalle}" if detalle else "")
+    ticket.setdefault("notas", []).append({
+        "autor": actor,
+        "fecha": ahora,
+        "texto": texto,
+        "visibilidad": "interna",
+    })
+    ticket.setdefault("notificaciones_prov", []).append({
+        "fecha": ahora,
+        "texto": "Tenés un ticket asignado para cotizar. Cargá el presupuesto desde el portal.",
+        "leida": False,
+    })
+    ticket.setdefault("notificaciones", []).append({
+        "fecha": ahora,
+        "texto": "El trabajo requiere presupuesto. Estado: solicitado.",
+        "leida": False,
+        "visibilidad": "sucursal",
+    })
+    ticket["actualizado"] = ahora
+    return ahora
 
 
 def _remito_estado_actual(ticket, remito_id):
@@ -5379,8 +5502,9 @@ def suc_seleccionar():
 def suc_panel():
     tickets = load_tickets()
     is_general = _sucursal_session_is_general()
-    mis_tickets = [t for t in tickets if _sucursal_session_can_access_item(t)]
-    mis_tickets.sort(key=lambda t: t["creado"], reverse=True)
+    mis_tickets_raw = [t for t in tickets if _sucursal_session_can_access_item(t)]
+    mis_tickets_raw.sort(key=lambda t: t["creado"], reverse=True)
+    mis_tickets = [_ticket_para_sucursal(t) for t in mis_tickets_raw]
 
     # Find providers for this sucursal
     suc_num = "" if is_general else session["suc_nombre"].replace("Sucursal ", "").strip()
@@ -5444,7 +5568,7 @@ def suc_panel():
     proveedores_fumigacion = _proveedores_fumigacion_para_scope(scope_nums)
     tiene_fumigaciones = bool(
         proveedores_fumigacion
-        or any(_ticket_es_fumigacion(t) for t in mis_tickets)
+        or any(_ticket_es_fumigacion(t) for t in mis_tickets_raw)
     )
 
     return render_template(
@@ -5916,9 +6040,10 @@ def estado_ticket(ticket_id):
         return render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403
     suc_num = str(ticket.get("sucursal_num", "") or ticket.get("sucursal", "")).replace("Sucursal ", "").strip()
     tiene_abono = bool(get_proveedor_abono_sucursal(suc_num))
+    ticket_vista = _ticket_para_sucursal(ticket) if "suc_user" in session else ticket
     return render_template(
         "estado_ticket.html",
-        ticket=ticket,
+        ticket=ticket_vista,
         prioridades=PRIORIDADES,
         tiene_abono=tiene_abono,
         puede_responder_sucursal=_sucursal_session_can_reply_to_ticket(ticket),
@@ -5954,6 +6079,7 @@ def responder_ticket_desde_sucursal(ticket_id):
         "autor": autor,
         "fecha": ahora,
         "texto": f"Respuesta de sucursal: {respuesta}",
+        "visibilidad": "sucursal",
     })
     ticket["actualizado"] = ahora
     save_tickets(tickets)
@@ -5966,6 +6092,102 @@ def responder_ticket_desde_sucursal(ticket_id):
     )
     flash("Respuesta enviada a administración")
     return redirect(url_for("estado_ticket", ticket_id=ticket_id))
+
+
+@app.route("/estado/<int:ticket_id>/remito-trabajo", methods=["POST"])
+@suc_login_required
+def cargar_remito_trabajo(ticket_id):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+    if not _sucursal_session_can_access_item(ticket):
+        return render_template("error.html", mensaje="No tenés permiso para cargar un remito en este ticket."), 403
+    if not _ticket_en_circuito_abono(ticket):
+        return render_template("error.html", mensaje="Este ticket no pertenece al circuito de abono."), 409
+    if ticket.get("estado") in ESTADOS_NO_OPERATIVOS:
+        return render_template("error.html", mensaje="El ticket ya está cerrado."), 409
+    if not ticket.get("abono_trabajo_finalizado"):
+        return render_template("error.html", mensaje="El remito se carga cuando el proveedor informa que terminó el trabajo."), 409
+    if ticket.get("abono_remito_estado") not in ("pendiente_carga", "devuelto"):
+        return render_template("error.html", mensaje="El remito no está pendiente de carga."), 409
+
+    comentario = request.form.get("comentario", "").strip()
+    if len(comentario) > 1000:
+        return render_template("error.html", mensaje="El comentario supera los 1000 caracteres."), 400
+    try:
+        nombre_original, extension, contenido = _validar_archivo_ticket(request.files.get("remito"), "remito")
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 400
+
+    ahora = datetime.datetime.now().isoformat()
+    actor = _session_sucursal_label("Portal Sucursales")
+    documento_id = uuid.uuid4().hex
+    filename = f"{documento_id}{extension}"
+    subdir = TICKET_DOCUMENTOS_DIR / str(ticket_id) / "remitos"
+    subdir.mkdir(parents=True, exist_ok=True)
+    destino = subdir / filename
+    destino.write_bytes(contenido)
+    registro = {
+        "id": documento_id,
+        "archivo": filename,
+        "nombre_original": nombre_original,
+        "fecha": ahora,
+        "actor": actor,
+        "comentario": comentario,
+    }
+    try:
+        ticket.setdefault("abono_remitos", []).append(registro)
+        ticket["abono_remito_actual_id"] = documento_id
+        ticket["abono_remito_estado"] = "pendiente_validacion"
+        ticket["actualizado"] = ahora
+        _abono_auditar(ticket, "remito_cargado", actor, comentario or nombre_original, documento_id, ahora)
+        ticket.setdefault("notas", []).append({
+            "autor": actor,
+            "fecha": ahora,
+            "texto": f"Remito del trabajo cargado: {nombre_original}. Pendiente de validación.",
+        })
+        save_tickets(tickets)
+    except Exception:
+        destino.unlink(missing_ok=True)
+        raise
+    agregar_notif_admin(
+        titulo=f"Remito pendiente en ticket #{ticket_id}",
+        detalle=f"{ticket.get('sucursal', actor)} cargó {nombre_original} para validar.",
+        tipo="proveedores",
+        autor=actor,
+        link=url_for("admin_ticket", ticket_id=ticket_id),
+    )
+    flash("Remito cargado. Quedó pendiente de validación.")
+    return redirect(url_for("estado_ticket", ticket_id=ticket_id))
+
+
+@app.route("/tickets/<int:ticket_id>/documentos/<tipo>/<filename>")
+@any_session_required
+def ticket_documento_archivo(ticket_id, tipo, filename):
+    if tipo not in {"remitos", "presupuestos"} or Path(filename).name != filename:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+    if not ticket:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if not _session_can_view_ticket(ticket, tickets):
+        return render_template("error.html", mensaje="No tenés permiso para ver este archivo."), 403
+    if tipo == "presupuestos" and "suc_user" in session:
+        return render_template("error.html", mensaje="Los archivos de presupuesto son internos."), 403
+    if tipo == "remitos":
+        referenciado = any(r.get("archivo") == filename for r in ticket.get("abono_remitos", []))
+    else:
+        referenciado = any(
+            p.get("archivo_seguro") and p.get("archivo") == filename
+            for p in ticket.get("presupuestos", [])
+        )
+    if not referenciado:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    return send_from_directory(str(TICKET_DOCUMENTOS_DIR / str(ticket_id) / tipo), filename)
 
 
 @app.route("/confirmar-recepcion/<int:ticket_id>", methods=["POST"])
@@ -7397,6 +7619,8 @@ def admin_presupuestos():
 @app.route("/uploads/presupuestos/<filename>")
 @any_session_required
 def serve_presupuesto(filename):
+    if "suc_user" in session:
+        return render_template("error.html", mensaje="Los archivos de presupuesto son internos."), 403
     return send_from_directory(str(PRESUPUESTOS_DIR), filename)
 
 
@@ -7421,6 +7645,85 @@ def admin_ticket(ticket_id):
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
+        if _ticket_en_circuito_abono(ticket) and not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+        if accion == "definir_cobertura_abono":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+            proveedor_abono = _ticket_abono_proveedor(ticket)
+            if not proveedor_abono:
+                return render_template("error.html", mensaje="La sucursal no tiene un proveedor de abono configurado."), 409
+            cobertura = request.form.get("cobertura_abono", "").strip()
+            detalle = request.form.get("detalle_cobertura_abono", "").strip()
+            if cobertura not in {"cubierto", "no_cubierto"}:
+                return render_template("error.html", mensaje="Indicá si el trabajo está cubierto por el abono."), 400
+            if len(detalle) > 1000:
+                return render_template("error.html", mensaje="El detalle de cobertura supera los 1000 caracteres."), 400
+            actor = session.get("nombre", "Admin")
+            ahora = datetime.datetime.now().isoformat()
+            ticket["abono_cobertura"] = cobertura
+            ticket["abono_proveedor"] = proveedor_abono
+            ticket["abono_cobertura_detalle"] = detalle
+            ticket["abono_cobertura_fecha"] = ahora
+            ticket["abono_cobertura_por"] = actor
+            if cobertura == "cubierto":
+                ticket["asignado"] = proveedor_abono
+                ticket["asignado_proveedor"] = proveedor_abono
+                ticket["proveedor_nombre"] = proveedor_abono
+                ticket["estado"] = "En progreso"
+                ticket["etapa_prov"] = ticket.get("etapa_prov") or "pendiente"
+                ticket["requiere_presupuesto_proveedor"] = False
+                mensaje = f"El trabajo está cubierto por el abono de {proveedor_abono}."
+                if detalle:
+                    mensaje += f" {detalle}"
+            else:
+                proveedor_presupuesto = request.form.get("proveedor_presupuesto", "").strip()
+                if not proveedor_presupuesto:
+                    return render_template("error.html", mensaje="Seleccioná el proveedor al que se solicitará presupuesto."), 400
+                _solicitar_presupuesto_ticket(ticket, proveedor_presupuesto, detalle, actor)
+                mensaje = f"El trabajo no está cubierto por el abono. Se solicitó presupuesto a {proveedor_presupuesto}."
+                if detalle:
+                    mensaje += f" {detalle}"
+            ticket.setdefault("notificaciones", []).append({"fecha": ahora, "texto": mensaje, "leida": False})
+            ticket.setdefault("notas", []).append({"autor": actor, "fecha": ahora, "texto": mensaje})
+            _abono_auditar(ticket, f"cobertura_{cobertura}", actor, detalle or mensaje, fecha=ahora)
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+            flash("Cobertura del abono registrada")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+        if accion in ("validar_remito_abono", "devolver_remito_abono"):
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+            if not _ticket_en_circuito_abono(ticket):
+                return render_template("error.html", mensaje="El ticket no pertenece al circuito de abono."), 409
+            documento_id = request.form.get("documento_id", "").strip()
+            remito = next((r for r in ticket.get("abono_remitos", []) if r.get("id") == documento_id), None)
+            if not remito or ticket.get("abono_remito_actual_id") != documento_id or ticket.get("abono_remito_estado") != "pendiente_validacion":
+                return render_template("error.html", mensaje="El remito no está pendiente de validación."), 409
+            observacion = request.form.get("observacion", "").strip()
+            if len(observacion) > 1000:
+                return render_template("error.html", mensaje="La observación supera los 1000 caracteres."), 400
+            if accion == "devolver_remito_abono" and not observacion:
+                return render_template("error.html", mensaje="La devolución requiere una observación."), 400
+            ahora = datetime.datetime.now().isoformat()
+            actor = session.get("nombre", "Admin")
+            if accion == "validar_remito_abono":
+                ticket["abono_remito_estado"] = "validado"
+                evento = "remito_validado"
+                texto = "Remito del trabajo validado. El ticket ya puede cerrarse."
+            else:
+                ticket["abono_remito_estado"] = "devuelto"
+                evento = "remito_devuelto"
+                texto = f"El remito fue devuelto para corregir: {observacion}"
+            _abono_auditar(ticket, evento, actor, observacion or texto, documento_id, ahora)
+            ticket.setdefault("notas", []).append({"autor": actor, "fecha": ahora, "texto": texto})
+            ticket.setdefault("notificaciones", []).append({"fecha": ahora, "texto": texto, "leida": False})
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+            flash("Remito validado" if evento == "remito_validado" else "Remito devuelto a la sucursal")
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         if accion in ("validar_remito_fumigacion", "devolver_remito_fumigacion"):
             if not _validate_csrf():
                 return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
@@ -7498,20 +7801,36 @@ def admin_ticket(ticket_id):
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         if accion == "estado_presupuesto":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
             nuevo_estado = request.form.get("nuevo_estado_presupuesto", "").strip() or "Nuevo"
+            if nuevo_estado not in {"Nuevo", "Pendiente", "Aprobado", "Rechazado"}:
+                return render_template("error.html", mensaje="Estado de presupuesto inválido."), 400
             comentario = request.form.get("comentario_presupuesto", "").strip()
+            if comentario and not _comentario_publico_sin_importes(comentario):
+                return render_template(
+                    "error.html",
+                    mensaje="El comentario público no puede incluir importes, números ni términos económicos.",
+                ), 400
             estado_presupuesto_anterior = ticket.get("estado_presupuesto")
             requeria_requisicion_antes = bool(ticket.get("requiere_requisicion"))
             aviso_rita = None
             ticket["estado_presupuesto"] = nuevo_estado
+            ticket["presupuesto_etapa"] = {
+                "Aprobado": "aprobado",
+                "Rechazado": "rechazado",
+                "Pendiente": ticket.get("presupuesto_etapa") or "solicitado",
+                "Nuevo": "nuevo",
+            }[nuevo_estado]
             ticket["estado"] = "Pendiente" if nuevo_estado == "Nuevo" else nuevo_estado
             if nuevo_estado == "Aprobado":
                 ticket["requiere_requisicion"] = True
                 ticket["asignado_rita"] = True
                 ticket.setdefault("notificaciones", []).append({
                     "fecha": datetime.datetime.now().isoformat(),
-                    "texto": "Presupuesto aprobado. El proveedor puede avanzar.",
+                    "texto": "Estado del presupuesto: aprobado.",
                     "leida": False,
+                    "visibilidad": "sucursal",
                 })
                 if estado_presupuesto_anterior != "Aprobado" or not requeria_requisicion_antes:
                     evento = f"presupuesto_aprobado:{datetime.datetime.now().isoformat()}"
@@ -7527,19 +7846,29 @@ def admin_ticket(ticket_id):
                     "autor": session.get("nombre", "Admin"),
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": f"Presupuesto {nuevo_estado}: {comentario}",
+                    "visibilidad": "sucursal",
                 })
                 ticket.setdefault("notificaciones", []).append({
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": comentario,
                     "leida": False,
+                    "visibilidad": "sucursal",
                 })
                 ticket["respuesta_sucursal_presupuesto"] = comentario
+                ticket["presupuesto_comentario_publico"] = comentario
             else:
                 ticket.setdefault("notas", []).append({
                     "autor": session.get("nombre", "Admin"),
                     "fecha": datetime.datetime.now().isoformat(),
                     "texto": f"Estado de presupuesto actualizado a {nuevo_estado}",
+                    "visibilidad": "sucursal",
                 })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": datetime.datetime.now().isoformat(),
+                "texto": f"Estado del presupuesto: {nuevo_estado.lower()}.",
+                "leida": False,
+                "visibilidad": "sucursal",
+            })
             ticket["actualizado"] = datetime.datetime.now().isoformat()
             save_tickets(tickets)
             if aviso_rita in ("error", "disabled"):
@@ -7549,6 +7878,8 @@ def admin_ticket(ticket_id):
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
         if accion == "asignar_proveedor_presupuesto":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
             if _is_material_ticket(ticket):
                 ticket["asignado"] = RESPONSABLE_MATERIALES
                 ticket.pop("asignado_proveedor", None)
@@ -7562,32 +7893,7 @@ def admin_ticket(ticket_id):
             if not proveedor:
                 flash("Seleccioná un proveedor")
                 return redirect(url_for("admin_ticket", ticket_id=ticket_id))
-            now_iso = datetime.datetime.now().isoformat()
-            ticket["asignado"] = proveedor
-            ticket["asignado_proveedor"] = proveedor
-            ticket["proveedor_nombre"] = proveedor
-            ticket["proveedor_presupuesto"] = proveedor
-            ticket["requiere_presupuesto_proveedor"] = True
-            ticket["estado_presupuesto"] = "Pendiente"
-            ticket["etapa_prov"] = "esperando_presupuesto"
-            if ticket.get("estado") in ("Nuevo", "Abierto", "En progreso"):
-                ticket["estado"] = "Pendiente"
-            ticket.setdefault("notas", []).append({
-                "autor": session.get("nombre", "Admin"),
-                "fecha": now_iso,
-                "texto": f"Presupuesto solicitado a proveedor: {proveedor}" + (f" - {detalle}" if detalle else ""),
-            })
-            ticket.setdefault("notificaciones_prov", []).append({
-                "fecha": now_iso,
-                "texto": "Tenés un ticket asignado para cotizar. Cargá el presupuesto desde el portal.",
-                "leida": False,
-            })
-            ticket.setdefault("notificaciones", []).append({
-                "fecha": now_iso,
-                "texto": f"Estamos esperando presupuesto del proveedor {proveedor}.",
-                "leida": False,
-            })
-            ticket["actualizado"] = now_iso
+            _solicitar_presupuesto_ticket(ticket, proveedor, detalle, session.get("nombre", "Admin"))
             save_tickets(tickets)
             flash(f"Ticket asignado a {proveedor} para presupuesto")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
@@ -7753,7 +8059,13 @@ def admin_ticket(ticket_id):
                 "texto": nueva_nota,
             })
         else:
-            ticket["estado"] = request.form.get("estado", ticket["estado"])
+            nuevo_estado_ticket = request.form.get("estado", ticket["estado"])
+            if _ticket_en_circuito_abono(ticket) and nuevo_estado_ticket in {"Resuelto", "Cerrado"}:
+                if not _validate_csrf():
+                    return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+                if ticket.get("abono_remito_estado") != "validado":
+                    return render_template("error.html", mensaje="No se puede cerrar el ticket hasta que la sucursal cargue el remito y administración lo valide."), 409
+            ticket["estado"] = nuevo_estado_ticket
             ticket["asignado"] = request.form.get("asignado", ticket["asignado"])
             ticket["prioridad"] = int(request.form.get("prioridad", ticket["prioridad"]))
             ticket["observaciones"] = request.form.get("observaciones", ticket["observaciones"])
@@ -8218,7 +8530,11 @@ def prov_ticket(ticket_id):
     if request.method == "POST":
         accion = request.form.get("accion", "")
         prov_nombre = session.get("prov_nombre", "Proveedor")
-        if accion in ("planificado", "relevado") and not _validate_csrf():
+        archivo_nuevo_path = None
+        notificacion_admin_pendiente = None
+        if _ticket_en_circuito_abono(ticket) and not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+        if accion in ("planificado", "relevado", "presupuesto", "hecho", "trabajo_terminado") and not _validate_csrf():
             return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
         if "notas" not in ticket:
             ticket["notas"] = []
@@ -8238,12 +8554,29 @@ def prov_ticket(ticket_id):
 
         if accion in etapa_labels:
             label, estado = etapa_labels[accion]
+            if (
+                ticket.get("abono_cobertura") == "no_cubierto"
+                and accion in {"en_progreso_prov", "hecho", "trabajo_iniciado", "trabajo_terminado"}
+                and ticket.get("estado_presupuesto") != "Aprobado"
+            ):
+                return render_template("error.html", mensaje="El trabajo no puede avanzar hasta que administración apruebe el presupuesto."), 409
             es_fumigacion = session.get("prov_tipo_cuenta") == "fumigacion" and _ticket_es_fumigacion(ticket)
             fecha_visita = request.form.get("fecha_visita", "").strip() if accion == "planificado" else ""
             if accion == "planificado" and es_fumigacion and not _fecha_es_iso_valida(fecha_visita):
                 return render_template("error.html", mensaje="Ingresá una fecha de visita válida."), 400
             ticket["etapa_prov"] = accion
             ticket["estado"] = estado
+
+            if accion in ("hecho", "trabajo_terminado") and _ticket_en_circuito_abono(ticket):
+                ahora_fin = datetime.datetime.now().isoformat()
+                ticket["abono_trabajo_finalizado"] = ahora_fin
+                ticket["abono_remito_estado"] = "pendiente_carga"
+                ticket["estado"] = "Pendiente"
+                ticket["etapa_prov"] = "trabajo_terminado_pendiente_remito"
+                aviso = "El proveedor informó que terminó el trabajo. La sucursal debe cargar el remito antes del cierre."
+                ticket.setdefault("notificaciones", []).append({"fecha": ahora_fin, "texto": aviso, "leida": False})
+                _abono_auditar(ticket, "trabajo_finalizado", prov_nombre, aviso, fecha=ahora_fin)
+                label = "Trabajo terminado; remito pendiente"
 
             # Save visit date if planificado
             nota_texto = f"Etapa: {label}"
@@ -8389,33 +8722,65 @@ def prov_ticket(ticket_id):
                 })
         elif accion == "presupuesto":
             detalle = request.form.get("detalle_presupuesto", "").strip()
-            monto = request.form.get("monto_presupuesto", "")
+            monto = request.form.get("monto_presupuesto", "").strip()
+            if _ticket_en_circuito_abono(ticket) and ticket.get("abono_cobertura") != "no_cubierto":
+                return render_template("error.html", mensaje="Este trabajo está cubierto por el abono y no requiere presupuesto."), 409
+            if _ticket_en_circuito_abono(ticket) and not ticket.get("requiere_presupuesto_proveedor"):
+                return render_template("error.html", mensaje="Administración todavía no solicitó un presupuesto para este ticket."), 409
+            if not detalle:
+                return render_template("error.html", mensaje="Ingresá el detalle del presupuesto."), 400
+            if len(detalle) > 2000 or len(monto) > 50:
+                return render_template("error.html", mensaje="El presupuesto supera el tamaño permitido."), 400
             archivo = ""
+            archivo_nombre = ""
             f = request.files.get("archivo_presupuesto")
             if f and f.filename:
-                ext = Path(f.filename).suffix.lower()
-                if ext in TICKET_ATTACHMENT_EXTENSIONS:
-                    fname = f"{ticket_id}_ppto_{uuid.uuid4().hex[:8]}{ext}"
-                    f.save(str(UPLOADS_DIR / fname))
-                    archivo = fname
-                else:
-                    flash("Formato no soportado")
-                    return redirect(url_for("prov_ticket", ticket_id=ticket_id))
-            if detalle:
-                if "presupuestos" not in ticket:
-                    ticket["presupuestos"] = []
-                ticket["presupuestos"].append({
-                    "autor": prov_nombre,
-                    "fecha": datetime.datetime.now().isoformat(),
-                    "detalle": detalle,
-                    "monto": monto,
-                    "archivo": archivo,
-                })
-                ticket["notas"].append({
-                    "autor": prov_nombre,
-                    "fecha": datetime.datetime.now().isoformat(),
-                    "texto": f"Envio presupuesto adicional: ${monto} - {detalle[:80]}",
-                })
+                try:
+                    archivo_nombre, ext, contenido = _validar_archivo_ticket(f, "presupuesto")
+                except ValueError as exc:
+                    return render_template("error.html", mensaje=str(exc)), 400
+                archivo = f"{uuid.uuid4().hex}{ext}"
+                subdir = TICKET_DOCUMENTOS_DIR / str(ticket_id) / "presupuestos"
+                subdir.mkdir(parents=True, exist_ok=True)
+                archivo_nuevo_path = subdir / archivo
+                archivo_nuevo_path.write_bytes(contenido)
+            ahora_presupuesto = datetime.datetime.now().isoformat()
+            ticket.setdefault("presupuestos", []).append({
+                "id": uuid.uuid4().hex,
+                "autor": prov_nombre,
+                "proveedor": prov_nombre,
+                "fecha": ahora_presupuesto,
+                "detalle": detalle,
+                "monto": monto,
+                "archivo": archivo,
+                "archivo_nombre": archivo_nombre,
+                "archivo_seguro": bool(archivo),
+            })
+            ticket["estado_presupuesto"] = "Pendiente"
+            ticket["presupuesto_etapa"] = "recibido"
+            ticket["estado"] = "Pendiente"
+            ticket["etapa_prov"] = "esperando_presupuesto"
+            ticket["notas"].append({
+                "autor": prov_nombre,
+                "fecha": ahora_presupuesto,
+                "texto": f"Envió presupuesto: ${monto or '-'} - {detalle[:80]}",
+                "visibilidad": "interna",
+            })
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": ahora_presupuesto,
+                "texto": "Estado del presupuesto: en revisión.",
+                "leida": False,
+                "visibilidad": "sucursal",
+            })
+            if _ticket_en_circuito_abono(ticket):
+                _abono_auditar(ticket, "presupuesto_recibido", prov_nombre, f"${monto or '-'} - {detalle[:200]}", fecha=ahora_presupuesto)
+            notificacion_admin_pendiente = {
+                "titulo": f"Presupuesto recibido en ticket #{ticket_id}",
+                "detalle": f"{prov_nombre} cargó un presupuesto para {ticket.get('sucursal', '-')}.",
+                "tipo": "proveedores",
+                "autor": prov_nombre,
+                "link": url_for("admin_ticket", ticket_id=ticket_id),
+            }
         elif accion == "informe":
             informe_texto = request.form.get("informe", "").strip()
             archivo = ""
@@ -8517,7 +8882,14 @@ def prov_ticket(ticket_id):
             })
 
         ticket["actualizado"] = datetime.datetime.now().isoformat()
-        save_tickets(tickets)
+        try:
+            save_tickets(tickets)
+        except Exception:
+            if archivo_nuevo_path:
+                archivo_nuevo_path.unlink(missing_ok=True)
+            raise
+        if notificacion_admin_pendiente:
+            agregar_notif_admin(**notificacion_admin_pendiente)
         flash("Actualizado")
         return redirect(url_for("prov_ticket", ticket_id=ticket_id))
 

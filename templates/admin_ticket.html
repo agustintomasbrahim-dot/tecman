@@ -117,7 +117,7 @@
         {% for p in ticket.presupuestos %}
             {% if p.archivo %}
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                <a href="/static/uploads/{{ p.archivo }}" target="_blank" class="btn" style="background:#0f766e;color:white;text-decoration:none;">⬇ Descargar presupuesto</a>
+                <a href="{% if p.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=p.archivo) }}{% else %}/static/uploads/{{ p.archivo }}{% endif %}" target="_blank" class="btn" style="background:#0f766e;color:white;text-decoration:none;">⬇ Descargar presupuesto</a>
                 <span style="font-size:12px;color:#475569;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</span>
             </div>
             {% endif %}
@@ -138,6 +138,7 @@
                 <span class="badge" style="background:{% if ep == 'Aprobado' %}#d1fae5{% elif ep == 'Pendiente' %}#fef3c7{% elif ep == 'Rechazado' %}#fee2e2{% else %}#e5e7eb{% endif %};color:{% if ep == 'Aprobado' %}#065f46{% elif ep == 'Pendiente' %}#b45309{% elif ep == 'Rechazado' %}#b91c1c{% else %}#475569{% endif %};">Presupuesto {{ ep }}</span>
                 {% if ticket.requiere_requisicion %}<span class="badge" style="background:#ccfbf1;color:#0f766e;">Rita pendiente</span>{% endif %}
             {% endif %}
+            {% if ticket.abono_cobertura %}<span class="badge" style="background:{% if ticket.abono_cobertura == 'cubierto' %}#dcfce7{% else %}#fef3c7{% endif %};color:{% if ticket.abono_cobertura == 'cubierto' %}#166534{% else %}#92400e{% endif %};">Abono: {{ 'cubierto' if ticket.abono_cobertura == 'cubierto' else 'fuera de cobertura' }}</span>{% endif %}
         </div>
     </div>
 
@@ -252,11 +253,55 @@
 </div>
 {% endif %}
 
+{% if tiene_abono_suc or ticket.abono_cobertura %}
+<div class="card" style="border-left:4px solid #0891b2;">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+        <div><div class="ticket-section-title" style="margin-bottom:5px;">Mantenimiento tercerizado</div><h3>Cobertura de abono y cierre</h3></div>
+        {% if ticket.abono_cobertura %}<span class="badge" style="background:{% if ticket.abono_cobertura == 'cubierto' %}#dcfce7{% else %}#fef3c7{% endif %};color:#334155;">{{ 'Cubierto por abono' if ticket.abono_cobertura == 'cubierto' else 'No cubierto · requiere presupuesto' }}</span>{% endif %}
+    </div>
+    <div style="margin-top:10px;color:#475569;font-size:13px;">Proveedor de abono: <strong>{{ ticket.abono_proveedor or ticket.asignado_proveedor or '-' }}</strong>{% if ticket.abono_cobertura_detalle %} · {{ ticket.abono_cobertura_detalle }}{% endif %}</div>
+    {% if tiene_abono_suc and session.nombre != 'Rita' %}
+    <form method="POST" style="display:grid;gap:10px;margin-top:14px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="accion" value="definir_cobertura_abono">
+        <div class="radio-cards">
+            <label class="radio-card"><input type="radio" name="cobertura_abono" value="cubierto" required {% if ticket.abono_cobertura == 'cubierto' %}checked{% endif %}><span><strong>Cubierto por el abono</strong><br><small>El proveedor ejecuta sin presupuesto adicional.</small></span></label>
+            <label class="radio-card"><input type="radio" name="cobertura_abono" value="no_cubierto" required {% if ticket.abono_cobertura == 'no_cubierto' %}checked{% endif %}><span><strong>No cubierto</strong><br><small>Solicitar presupuesto por Tecman.</small></span></label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group" style="margin:0;"><label>Proveedor para presupuesto (obligatorio si no está cubierto)</label><input type="text" name="proveedor_presupuesto" list="proveedores-ticket-list" value="{{ ticket.proveedor_presupuesto or '' }}" placeholder="Proveedor a cotizar"></div>
+            <div class="form-group" style="margin:0;"><label>Detalle de cobertura</label><input type="text" name="detalle_cobertura_abono" maxlength="1000" value="{{ ticket.abono_cobertura_detalle or '' }}" placeholder="Alcance contractual o motivo"></div>
+        </div>
+        <button type="submit" class="btn" style="background:#0891b2;color:white;">Guardar cobertura y continuar</button>
+    </form>
+    {% endif %}
+
+    {% if ticket.abono_remitos %}
+    <div style="margin-top:16px;display:grid;gap:10px;">
+        <h4>Remitos cargados</h4>
+        {% for r in ticket.abono_remitos|reverse %}
+        <div style="padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc;">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;"><div><strong>{{ r.nombre_original }}</strong><div style="font-size:12px;color:#64748b;">{{ r.fecha[:16].replace('T',' ') }} · {{ r.actor }}</div></div><a class="btn btn-outline btn-sm" target="_blank" href="{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='remitos', filename=r.archivo) }}">Abrir archivo</a></div>
+            {% if r.comentario %}<p style="font-size:13px;color:#475569;margin-top:8px;">{{ r.comentario }}</p>{% endif %}
+            {% if ticket.abono_remito_actual_id == r.id and ticket.abono_remito_estado == 'pendiente_validacion' %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+                <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="validar_remito_abono"><input type="hidden" name="documento_id" value="{{ r.id }}"><input type="text" name="observacion" maxlength="1000" placeholder="Observación opcional"><button type="submit" class="btn" style="background:#16a34a;color:white;width:100%;margin-top:7px;">Validar remito</button></form>
+                <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="devolver_remito_abono"><input type="hidden" name="documento_id" value="{{ r.id }}"><input type="text" name="observacion" maxlength="1000" required placeholder="Corrección requerida"><button type="submit" class="btn" style="background:#dc2626;color:white;width:100%;margin-top:7px;">Devolver</button></form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if ticket.abono_historial %}<details style="margin-top:14px;"><summary style="cursor:pointer;font-weight:600;color:#475569;">Ver auditoría del circuito</summary>{% for e in ticket.abono_historial|reverse %}<div style="font-size:12px;color:#64748b;margin-top:6px;">{{ e.fecha[:16].replace('T',' ') }} · {{ e.actor }} · {{ e.accion.replace('_',' ') }}{% if e.detalle %} — {{ e.detalle }}{% endif %}</div>{% endfor %}</details>{% endif %}
+</div>
+{% endif %}
+
 {% if ticket.materiales_recibidos and not ticket.siguiente_paso and session.nombre != 'Rita' %}
 <div class="card" style="border-left: 4px solid #16a34a; background: #f0fdf4;">
     <h3 style="margin-bottom: 8px; color: #166534;">📦 Materiales recibidos — Definir siguiente paso</h3>
     <p style="font-size: 13px; color: #374151; margin-bottom: 14px;">La sucursal confirmó la recepción con remito. Elegí cómo se va a ejecutar el trabajo.</p>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="definir_siguiente_paso">
         <div class="radio-cards" style="margin-bottom: 14px;">
             <label class="radio-card">
@@ -287,7 +332,7 @@
 <div class="ceyh-soft-card">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">CEYH</h3>
     <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Este ticket está en el circuito de CEYH. Si querés, podés pasarlo al equipo propio.</p>
-    <form method="POST" onsubmit="return confirm('¿Enviar este ticket a personal propio?');">
+    <form method="POST" onsubmit="return confirm('¿Enviar este ticket a personal propio?');"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="derivar_equipo_desde_ceyh">
         <button type="submit" class="btn" style="background: #ea580c; color: white;">Enviar a personal propio</button>
     </form>
@@ -297,7 +342,7 @@
 {% if es_ceyh %}
 <div class="card" style="border-left: 4px solid #ea580c;">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #9a3412;">Control operativo CEYH</h3>
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="actualizar_ceyh">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
             <label style="display:flex;align-items:center;gap:8px;padding-top:28px;"><input type="checkbox" name="requiere_materiales" value="1" {% if ticket.requiere_materiales %}checked{% endif %}> Requiere materiales</label>
@@ -334,6 +379,7 @@
         </div>
     </div>
     <form method="POST" style="display:grid;gap:10px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="asignar_proveedor_presupuesto">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="form-group" style="margin-bottom:0;">
@@ -360,7 +406,7 @@
             <div style="padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;">
                 <div style="font-weight:700;color:#111827;">{{ p.proveedor or p.autor or 'Proveedor' }}{% if p.monto %} - ${{ p.monto }}{% endif %}</div>
                 <div style="font-size:13px;color:#6b7280;margin-top:4px;">{{ p.detalle }}</div>
-                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver adjunto' }}</a></div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:6px;"><a href="{% if p.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=p.archivo) }}{% else %}/static/uploads/{{ p.archivo }}{% endif %}" target="_blank">{{ p.archivo_nombre or 'Ver adjunto' }}</a></div>{% endif %}
             </div>
             {% endfor %}
         </div>
@@ -387,6 +433,7 @@
         </div>
     </div>
     <form method="POST" style="display:grid;gap:12px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="estado_presupuesto">
         <div style="display:grid;grid-template-columns:220px 1fr;gap:12px;">
             <div class="form-group" style="margin-bottom:0;">
@@ -412,7 +459,7 @@
             <div style="padding:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;">
                 <div style="font-weight:700;color:#111827;">{{ p.proveedor or p.autor or 'Proveedor' }}{% if p.monto %} — ${{ p.monto }}{% endif %}</div>
                 <div style="font-size:13px;color:#6b7280;margin-top:4px;">{{ p.detalle }}</div>
-                {% if p.archivo %}<div style="margin-top:6px;"><a href="/static/uploads/{{ p.archivo }}" target="_blank">{{ p.archivo_nombre or 'Ver archivo adjunto' }}</a></div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:6px;"><a href="{% if p.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=p.archivo) }}{% else %}/static/uploads/{{ p.archivo }}{% endif %}" target="_blank">{{ p.archivo_nombre or 'Ver archivo adjunto' }}</a></div>{% endif %}
             </div>
             {% endfor %}
         </div>
@@ -444,7 +491,7 @@
         <div style="padding:12px;border:1px solid #ccfbf1;border-radius:12px;background:#f0fdfa;">
             <strong>Archivo de referencia:</strong><br>
             {% for p in ticket.presupuestos %}
-                {% if p.archivo %}<div style="margin-top:8px; font-size:12px; color:#475569;"><a href="/uploads/presupuestos/{{ p.archivo }}" target="_blank" style="color:#0f766e;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</a></div>{% endif %}
+                {% if p.archivo %}<div style="margin-top:8px; font-size:12px; color:#475569;"><a href="{% if p.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=p.archivo) }}{% else %}/static/uploads/{{ p.archivo }}{% endif %}" target="_blank" style="color:#0f766e;">{{ p.archivo_nombre or 'Adjunto de sucursal' }}</a></div>{% endif %}
             {% endfor %}
         </div>
         {% endif %}
@@ -464,7 +511,7 @@
 {% elif ticket.requiere_requisicion %}
 <div class="card" style="border-left:4px solid #0f766e;">
     <h3 style="margin-bottom:12px;font-size:15px;color:#0f766e;">Cargar requisición</h3>
-    <form method="POST" enctype="multipart/form-data" style="display:grid;gap:12px;">
+    <form method="POST" enctype="multipart/form-data" style="display:grid;gap:12px;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="cargar_requisicion">
         <div class="form-group" style="margin-bottom:0;">
             <label>N° Requisición *</label>
@@ -489,7 +536,7 @@
 <div class="card" style="border-left:4px solid #b91c1c;background:#fff7f7;">
     <h3 style="margin-bottom:10px;color:#b91c1c;">🧯 Gestión rápida de matafuego rechazado</h3>
     <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">Cuando Patricia/Admin resuelva el caso, puede cerrarlo desde acá sin dar vueltas.</p>
-    <form method="POST" style="display:grid;gap:10px;">
+    <form method="POST" style="display:grid;gap:10px;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="resolver_matafuego_rechazado">
         <input type="text" name="detalle_resolucion" placeholder="Ej: reemplazado / recargado / retirado de servicio">
         <button type="submit" class="btn" style="background:#b91c1c;color:white;">Marcar como resuelto</button>
@@ -518,7 +565,7 @@
     <p style="color: #475569; margin-bottom: 16px;">Sin notas todavia</p>
     {% endif %}
 
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <textarea name="nueva_nota" placeholder="Escribir una nota o comentario..." style="height: 70px;"></textarea>
         </div>
@@ -534,7 +581,7 @@
     {% if ticket.estado_respuesta %}
     <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Última respuesta: <strong>{{ ticket.estado_respuesta }}</strong></p>
     {% endif %}
-    <form method="POST">
+    <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="responder_suc">
         <div class="radio-cards" style="margin-bottom: 10px;">
             <label class="radio-card">
@@ -566,6 +613,7 @@
 <div class="card">
     <h3 style="margin-bottom: 16px; color: #94a3b8; font-size: 13px; text-transform: uppercase;">Gestionar ticket</h3>
     <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
                 <label>Estado</label>
