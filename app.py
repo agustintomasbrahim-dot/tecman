@@ -179,6 +179,9 @@ def serve_persistent_uploads_from_static_path():
     # de ticket; nunca por el acceso genérico de uploads para cualquier sesión.
     if filename.startswith("matafuegos_real/"):
         return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    legacy_guard = app.config.get("MATAFUEGOS_REAL_LEGACY_FILE_GUARD")
+    if legacy_guard and legacy_guard(filename) is False:
+        return render_template("error.html", mensaje="Acceso restringido al archivo."), 403
     # Dejar que la ruta protegida de guias aplique @any_session_required.
     if filename.startswith("guias/"):
         return None
@@ -7399,7 +7402,7 @@ def admin_ticket(ticket_id):
 # --- Portales de matafuegos ---
 # Se registran una vez que los helpers de sesión, tickets y proveedores existen.
 from matafuegos_demo import demo_bp
-from matafuegos_real import real_bp
+from matafuegos_real import _existing_attachments, real_bp
 
 
 def _proveedor_tipo_efectivo(info):
@@ -7440,13 +7443,50 @@ def _ticket_es_matafuegos_admin(ticket):
     return False
 
 
+def _ticket_visible_matafuegos(ticket):
+    """Replica el alcance operativo del panel genérico sin ampliar permisos."""
+    return ticket.get("estado") != "Rechazado" and not _is_ticket_sucursal_cerrada(ticket)
+
+
+def _matafuegos_legacy_file_guard(filename):
+    """Protege adjuntos legacy asociados a tickets reales de matafuegos.
+
+    Devuelve ``None`` cuando el archivo no pertenece a este flujo, ``True``
+    para dueño/admin y ``False`` para cualquier otra sesión.
+    """
+    if Path(filename).name != filename:
+        return None
+    matching = [
+        ticket for ticket in _load_tickets_raw()
+        if _ticket_visible_matafuegos(ticket)
+        and _ticket_es_matafuegos_admin(ticket)
+        and filename in _existing_attachments(ticket)
+    ]
+    if not matching:
+        return None
+    is_admin = bool(
+        session.get("user") and session.get("rol") == "admin" and _session_auth_is_valid()
+        and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin")
+    )
+    if is_admin:
+        return True
+    if not session.get("prov_user") or not _session_auth_is_valid():
+        return False
+    if _refresh_proveedor_session_tipo() != "matafuegos":
+        return False
+    nombres = _proveedor_nombres_usuario()
+    return any(_ticket_es_de_proveedor(ticket, nombres) for ticket in matching)
+
+
 app.config.update(
     TECMAN_SESSION_AUTH_VALIDATOR=_session_auth_is_valid,
     MATAFUEGOS_REAL_LOAD_TICKETS=load_tickets,
     MATAFUEGOS_REAL_SAVE_TICKETS=save_tickets,
     MATAFUEGOS_REAL_PROVIDER_NAMES=_proveedor_nombres_usuario,
     MATAFUEGOS_REAL_TICKET_ALLOWED=_ticket_es_de_proveedor,
+    MATAFUEGOS_REAL_TICKET_VISIBLE=_ticket_visible_matafuegos,
     MATAFUEGOS_REAL_ADMIN_TICKET_ALLOWED=_ticket_es_matafuegos_admin,
+    MATAFUEGOS_REAL_LEGACY_FILE_GUARD=_matafuegos_legacy_file_guard,
     MATAFUEGOS_REAL_REFRESH_SESSION=_refresh_proveedor_session_tipo,
     MATAFUEGOS_REAL_UPLOADS_DIR=str(UPLOADS_DIR / "matafuegos_real"),
     MATAFUEGOS_REAL_LEGACY_UPLOADS_DIR=str(UPLOADS_DIR),

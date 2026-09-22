@@ -48,7 +48,10 @@ def _provider_names():
 
 
 def _ticket_allowed(ticket):
-    return bool(current_app.config["MATAFUEGOS_REAL_TICKET_ALLOWED"](ticket, _provider_names()))
+    return bool(
+        current_app.config["MATAFUEGOS_REAL_TICKET_VISIBLE"](ticket)
+        and current_app.config["MATAFUEGOS_REAL_TICKET_ALLOWED"](ticket, _provider_names())
+    )
 
 
 def _refresh_session():
@@ -148,10 +151,21 @@ def _history(actor, action, detail=""):
 
 
 def _base_workflow(ticket):
+    etapa = str(ticket.get("etapa_prov") or "").strip().lower()
+    estado_ticket = str(ticket.get("estado") or "").strip().lower()
+    if etapa in {"hecho", "trabajo_terminado"} or estado_ticket in {"resuelto", "cerrado"}:
+        initial_state = "Realizado"
+    elif ticket.get("fecha_visita") or etapa in {
+        "planificado", "relevado", "en_progreso_prov", "esperando_materiales",
+        "esperando_presupuesto", "en_camino", "trabajo_iniciado", "continua_manana",
+    }:
+        initial_state = "Programado"
+    else:
+        initial_state = "Pendiente"
     return {
         "schema_version": 1,
-        "estado": "Pendiente",
-        "fecha_programada": "",
+        "estado": initial_state,
+        "fecha_programada": str(ticket.get("fecha_visita") or ""),
         "observacion_devolucion": "",
         "matafuegos": [],
         "documentos": {},
@@ -180,6 +194,8 @@ def _authorized_ticket(ticket_id, *, admin=False):
     tickets = _load_tickets()
     ticket = _find_ticket(tickets, ticket_id)
     if not ticket:
+        return tickets, None, (render_template("error.html", mensaje="Ticket no encontrado."), 404)
+    if not current_app.config["MATAFUEGOS_REAL_TICKET_VISIBLE"](ticket):
         return tickets, None, (render_template("error.html", mensaje="Ticket no encontrado."), 404)
     if not admin and not _ticket_allowed(ticket):
         return tickets, None, (render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403)
@@ -314,7 +330,10 @@ def _panel_orders(*, admin=False):
     if admin:
         # Administración ve únicamente tickets asignados a una cuenta de tipo matafuegos.
         matcher = current_app.config["MATAFUEGOS_REAL_ADMIN_TICKET_ALLOWED"]
-        tickets = [ticket for ticket in tickets if matcher(ticket)]
+        tickets = [
+            ticket for ticket in tickets
+            if current_app.config["MATAFUEGOS_REAL_TICKET_VISIBLE"](ticket) and matcher(ticket)
+        ]
     else:
         tickets = [ticket for ticket in tickets if _ticket_allowed(ticket)]
     return tickets
@@ -328,7 +347,7 @@ def panel():
     tickets = _panel_orders()
     counts = {state: sum(_workflow(ticket)["estado"] == state for ticket in tickets) for state in STATES}
     filtered = [ticket for ticket in tickets if not state_filter or _workflow(ticket)["estado"] == state_filter]
-    return render_template("matafuegos_real_panel.html", tickets=filtered, conteos=counts, estados=STATES, filtro_estado=state_filter, is_admin=False)
+    return render_template("matafuegos_real_panel.html", ordenes=[(ticket, _workflow(ticket)) for ticket in filtered], conteos=counts, estados=STATES, filtro_estado=state_filter, is_admin=False)
 
 
 @real_bp.get("/proveedor/matafuegos/ticket/<int:ticket_id>")
@@ -458,7 +477,7 @@ def admin_panel():
     tickets = _panel_orders(admin=True)
     counts = {state: sum(_workflow(ticket)["estado"] == state for ticket in tickets) for state in STATES}
     filtered = [ticket for ticket in tickets if not state_filter or _workflow(ticket)["estado"] == state_filter]
-    return render_template("matafuegos_real_panel.html", tickets=filtered, conteos=counts, estados=STATES, filtro_estado=state_filter, is_admin=True)
+    return render_template("matafuegos_real_panel.html", ordenes=[(ticket, _workflow(ticket)) for ticket in filtered], conteos=counts, estados=STATES, filtro_estado=state_filter, is_admin=True)
 
 
 @real_bp.get("/admin/proveedores/matafuegos/ticket/<int:ticket_id>")
@@ -481,6 +500,7 @@ def _admin_transition(ticket_id, validate):
     try:
         if workflow["estado"] != "Realizado": raise ValidationError("Sólo un trabajo Realizado puede revisarse.")
         if validate:
+            _validate_completion_records(workflow)
             workflow["estado"] = "Validado"; detail = "Trabajo aprobado"; action = "Validado"
         else:
             detail = _clean(request.form.get("observacion"), "Observación de devolución", required=True, max_length=1000)
@@ -501,6 +521,20 @@ def validate(ticket_id): return _admin_transition(ticket_id, True)
 def return_for_changes(ticket_id): return _admin_transition(ticket_id, False)
 
 
+def _validate_completion_records(workflow):
+    active = [item for item in workflow.get("matafuegos", []) if item.get("activo", True)]
+    if not active:
+        raise ValidationError("No se puede validar sin al menos un matafuego activo relevado.")
+    documents = workflow.get("documentos") or {}
+    if not documents.get("remito") or not documents.get("certificado"):
+        raise ValidationError("No se puede validar sin remito y certificado.")
+    # Reutiliza las mismas validaciones de campos y fechas sin exigir que el
+    # estado continúe Programado.
+    probe = copy.deepcopy(workflow)
+    probe["estado"] = "Programado"
+    _validate_completion(probe)
+
+
 def _referenced(workflow, filename):
     if Path(filename).name != filename or not REAL_UPLOAD_RE.fullmatch(filename): return False
     for document in workflow.get("documentos", {}).values():
@@ -513,7 +547,10 @@ def _referenced(workflow, filename):
 
 @real_bp.get("/proveedor/matafuegos/ticket/<int:ticket_id>/archivo/<filename>")
 def serve_file(ticket_id, filename):
-    is_admin = bool(session.get("user") and session.get("rol") == "admin" and _session_valid())
+    is_admin = bool(
+        session.get("user") and session.get("rol") == "admin" and _session_valid()
+        and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin")
+    )
     is_provider = bool(session.get("prov_user") and _session_valid() and _refresh_session() == "matafuegos")
     if not (is_admin or is_provider): return render_template("error.html", mensaje="Acceso restringido al archivo."), 403
     _, ticket, error = _authorized_ticket(ticket_id, admin=is_admin)
@@ -525,7 +562,10 @@ def serve_file(ticket_id, filename):
 
 @real_bp.get("/proveedor/matafuegos/ticket/<int:ticket_id>/adjunto-existente/<path:filename>")
 def serve_existing_file(ticket_id, filename):
-    is_admin = bool(session.get("user") and session.get("rol") == "admin" and _session_valid())
+    is_admin = bool(
+        session.get("user") and session.get("rol") == "admin" and _session_valid()
+        and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin")
+    )
     is_provider = bool(session.get("prov_user") and _session_valid() and _refresh_session() == "matafuegos")
     if not (is_admin or is_provider) or Path(filename).name != filename:
         return render_template("error.html", mensaje="Acceso restringido al archivo."), 403

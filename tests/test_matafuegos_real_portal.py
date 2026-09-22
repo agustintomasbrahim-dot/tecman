@@ -146,7 +146,7 @@ class MatafuegosRealPortalTest(unittest.TestCase):
         self.assertEqual(self.workflow()["matafuegos"][0]["anulado_motivo"], "Equipo retirado")
 
         data = self.load(); wf = next(t for t in data if t["id"] == 101)["matafuegos_portal"]
-        wf["matafuegos"][0]["activo"] = True; wf["estado"] = "Realizado"; tecman.TICKETS_FILE.write_text(json.dumps(data), encoding="utf-8")
+        wf["matafuegos"][0]["activo"] = True; wf["estado"] = "Realizado"; wf["documentos"] = {"remito": {"archivo": "remito.pdf", "nombre_original": "remito.pdf"}, "certificado": {"archivo": "certificado.pdf", "nombre_original": "certificado.pdf"}}; tecman.TICKETS_FILE.write_text(json.dumps(data), encoding="utf-8")
         self.admin(); self.client.post("/admin/proveedores/matafuegos/ticket/101/validar", data={"_csrf_token": "csrf"})
         self.assertEqual(self.workflow()["estado"], "Validado")
         self.provider(); before = copy.deepcopy(self.workflow())
