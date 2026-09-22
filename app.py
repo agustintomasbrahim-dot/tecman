@@ -168,6 +168,8 @@ PRESUPUESTOS_DIR = UPLOADS_DIR / "presupuestos"
 PRESUPUESTOS_DIR.mkdir(parents=True, exist_ok=True)
 REQUISICIONES_DIR = UPLOADS_DIR / "requisiciones"
 REQUISICIONES_DIR.mkdir(parents=True, exist_ok=True)
+GRUPOS_ELECTROGENOS_UPLOADS_DIR = UPLOADS_DIR / "grupos_electrogenos"
+GRUPOS_ELECTROGENOS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @app.before_request
@@ -2080,6 +2082,13 @@ GENERADOR_IMPORT_HEADERS = (
     "ubicacion", "estado", "ultima revision", "proximo mantenimiento", "proveedor",
     "observaciones",
 )
+GENERADOR_NOVEDAD_TIPOS = {
+    "encendido_prueba": "Encendido / prueba",
+    "mantenimiento_proveedor": "Mantenimiento de proveedor",
+    "problema_falla": "Problema / falla",
+}
+GENERADOR_FOTO_MAX_BYTES = 10 * 1024 * 1024
+GENERADOR_FOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def load_grupos_electrogenos():
@@ -2110,6 +2119,46 @@ def _generador_historial(item, accion, detalle="", actor=None):
         "accion": accion,
         "detalle": str(detalle or "").strip(),
     })
+
+
+def _generador_foto_tipo(raw):
+    if raw.startswith(b"\xff\xd8\xff"):
+        return ".jpg", "image/jpeg"
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png", "image/png"
+    if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return ".webp", "image/webp"
+    return None
+
+
+def _generador_preparar_foto(file_storage):
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Adjuntá una foto del equipo")
+    original = Path(file_storage.filename).name
+    extension = Path(original).suffix.lower()
+    if extension not in GENERADOR_FOTO_EXTENSIONS:
+        raise ValueError("Formato de foto no permitido. Usá JPG, JPEG, PNG o WebP")
+    raw = file_storage.read(GENERADOR_FOTO_MAX_BYTES + 1)
+    if not raw:
+        raise ValueError("La foto está vacía")
+    if len(raw) > GENERADOR_FOTO_MAX_BYTES:
+        raise ValueError("La foto supera el límite de 10 MB")
+    detected = _generador_foto_tipo(raw)
+    if not detected:
+        raise ValueError("El contenido del archivo no corresponde a una imagen admitida")
+    canonical_extension, mimetype = detected
+    extension_family = ".jpg" if extension in (".jpg", ".jpeg") else extension
+    if extension_family != canonical_extension:
+        raise ValueError("La extensión de la foto no coincide con su contenido")
+    filename = f"ge_{uuid.uuid4().hex}{canonical_extension}"
+    return raw, {
+        "archivo": filename,
+        "nombre_original": original,
+        "extension": canonical_extension,
+        "mime": mimetype,
+        "tamano": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
 
 
 def _normalizar_encabezado_generador(value):
@@ -9954,11 +10003,14 @@ def admin_grupos_electrogenos():
     items = [x for x in data.get("grupos_electrogenos", []) if not _is_sucursal_cerrada(x.get("sucursal_num") or x.get("sucursal"))]
     filtro_sucursal = request.args.get("sucursal", "").strip()
     filtro_estado = request.args.get("estado_validacion", "").strip()
+    filtro_novedad = request.args.get("tipo_novedad", "").strip()
     if filtro_sucursal:
         filtro_num = _sucursal_num_from_value(filtro_sucursal)
         items = [x for x in items if _sucursal_num_from_value(x.get("sucursal_num") or x.get("sucursal")) == filtro_num]
     if filtro_estado in GENERADOR_ESTADOS_VALIDACION:
         items = [x for x in items if x.get("estado_validacion", "pendiente_validacion") == filtro_estado]
+    if filtro_novedad in GENERADOR_NOVEDAD_TIPOS:
+        items = [x for x in items if any(n.get("tipo") == filtro_novedad for n in x.get("novedades", []))]
     items.sort(key=lambda x: (x.get("sucursal_num", ""), x.get("marca", ""), x.get("modelo", "")))
     stats = {estado: 0 for estado in GENERADOR_ESTADOS_VALIDACION}
     for item in data.get("grupos_electrogenos", []):
@@ -9975,6 +10027,8 @@ def admin_grupos_electrogenos():
         estados_validacion=GENERADOR_ESTADOS_VALIDACION,
         filtro_sucursal=filtro_sucursal,
         filtro_estado=filtro_estado,
+        filtro_novedad=filtro_novedad,
+        novedad_tipos=GENERADOR_NOVEDAD_TIPOS,
         stats=stats,
     )
 
@@ -10054,7 +10108,126 @@ def suc_grupos_electrogenos():
         if _sucursal_session_can_access_item(x)
     ]
     equipos.sort(key=lambda x: (x.get("estado_validacion", "pendiente_validacion") != "pendiente_validacion", x.get("marca", ""), x.get("modelo", "")))
-    return render_template("suc_grupos_electrogenos.html", equipos=equipos)
+    return render_template(
+        "suc_grupos_electrogenos.html",
+        equipos=equipos,
+        novedad_tipos=GENERADOR_NOVEDAD_TIPOS,
+        fecha_evento_default=datetime.date.today().isoformat(),
+    )
+
+
+@app.route("/suc/grupos-electrogenos/<equipo_id>/novedades", methods=["POST"])
+@suc_login_required
+def suc_grupo_electrogeno_novedad(equipo_id):
+    if session.get("oficina_user"):
+        return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    if not _session_auth_is_valid():
+        session.clear()
+        return render_template("error.html", mensaje="Sesión inválida o vencida."), 403
+    if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
+        return render_template("error.html", mensaje="Esta sesión no tiene sucursales asignadas."), 403
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+    data = load_grupos_electrogenos()
+    equipo = next((
+        x for x in data.get("grupos_electrogenos", [])
+        if x.get("id") == equipo_id and _sucursal_session_can_access_item(x)
+    ), None)
+    if not equipo:
+        return render_template("error.html", mensaje="Equipo no encontrado."), 404
+
+    tipo = request.form.get("tipo", "").strip()
+    if tipo not in GENERADOR_NOVEDAD_TIPOS:
+        return render_template("error.html", mensaje="Tipo de novedad inválido."), 400
+    fecha_evento_raw = request.form.get("fecha_evento", "").strip()
+    try:
+        fecha_evento = datetime.date.fromisoformat(fecha_evento_raw)
+    except ValueError:
+        return render_template("error.html", mensaje="La fecha del evento es inválida."), 400
+    if fecha_evento > datetime.date.today():
+        return render_template("error.html", mensaje="La fecha del evento no puede ser futura."), 400
+    observacion = request.form.get("observacion", "").strip()
+    if len(observacion) > 2000:
+        return render_template("error.html", mensaje="La observación no puede superar los 2000 caracteres."), 400
+    if tipo == "problema_falla" and not observacion:
+        return render_template("error.html", mensaje="Detallá el problema o la falla."), 400
+    proveedor_tecnico = request.form.get("proveedor_tecnico", "").strip() if tipo == "mantenimiento_proveedor" else ""
+    if len(proveedor_tecnico) > 200:
+        return render_template("error.html", mensaje="El proveedor o técnico no puede superar los 200 caracteres."), 400
+    try:
+        foto_bytes, foto = _generador_preparar_foto(request.files.get("foto"))
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 400
+
+    ahora = datetime.datetime.now().isoformat()
+    novedad = {
+        "id": uuid.uuid4().hex[:16],
+        "actor": _generador_actor(),
+        "cargado_at": ahora,
+        "tipo": tipo,
+        "fecha_evento": fecha_evento.isoformat(),
+        "observacion": observacion,
+        "proveedor_tecnico": proveedor_tecnico,
+        "foto": foto,
+    }
+    destino = GRUPOS_ELECTROGENOS_UPLOADS_DIR / foto["archivo"]
+    temporal = destino.with_suffix(destino.suffix + ".tmp")
+    try:
+        temporal.write_bytes(foto_bytes)
+        temporal.replace(destino)
+        equipo.setdefault("novedades", []).append(novedad)
+        equipo["updated_at"] = ahora
+        _generador_historial(
+            equipo,
+            "novedad_registrada",
+            f"{GENERADOR_NOVEDAD_TIPOS[tipo]} ({fecha_evento.isoformat()})",
+            actor=novedad["actor"],
+        )
+        save_grupos_electrogenos(data)
+    except Exception:
+        temporal.unlink(missing_ok=True)
+        destino.unlink(missing_ok=True)
+        raise
+
+    if tipo == "problema_falla":
+        agregar_notif_admin(
+            f"Falla en grupo electrógeno — {equipo.get('sucursal', '')}",
+            f"{observacion}\nEquipo: {(equipo.get('marca', '') + ' ' + equipo.get('modelo', '')).strip() or equipo.get('numero_serie', '') or 'Sin identificación'} · ID {equipo.get('id', '')}",
+            tipo="grupos_electrogenos",
+            autor=novedad["actor"],
+            link=url_for("admin_grupos_electrogenos", sucursal=equipo.get("sucursal", ""), tipo_novedad=tipo),
+        )
+    flash("Novedad registrada correctamente")
+    return redirect(url_for("suc_grupos_electrogenos"))
+
+
+@app.route("/grupos-electrogenos/<equipo_id>/novedades/<novedad_id>/foto")
+def grupo_electrogeno_novedad_foto(equipo_id, novedad_id):
+    es_admin = (
+        session.get("user")
+        and session.get("rol") == "admin"
+        and _session_auth_is_valid()
+        and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin")
+    )
+    es_sucursal = session.get("suc_user") and not session.get("oficina_user") and _session_auth_is_valid()
+    if not es_admin and not es_sucursal:
+        if session.get("user") or session.get("suc_user"):
+            session.clear()
+        return render_template("error.html", mensaje="Acceso restringido."), 403
+    if es_sucursal and _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
+        return render_template("error.html", mensaje="Esta sesión no tiene sucursales asignadas."), 403
+    equipo = next((x for x in load_grupos_electrogenos().get("grupos_electrogenos", []) if x.get("id") == equipo_id), None)
+    if not equipo or (not es_admin and not _sucursal_session_can_access_item(equipo)):
+        return render_template("error.html", mensaje="Foto no encontrada."), 404
+    novedad = next((n for n in equipo.get("novedades", []) if n.get("id") == novedad_id), None)
+    foto = novedad.get("foto", {}) if novedad else {}
+    filename = str(foto.get("archivo") or "")
+    if not filename or Path(filename).name != filename or Path(filename).suffix.lower() not in (".jpg", ".png", ".webp"):
+        return render_template("error.html", mensaje="Foto no encontrada."), 404
+    path = GRUPOS_ELECTROGENOS_UPLOADS_DIR / filename
+    if not path.is_file():
+        return render_template("error.html", mensaje="Foto no encontrada."), 404
+    return send_from_directory(str(GRUPOS_ELECTROGENOS_UPLOADS_DIR), filename, mimetype=foto.get("mime"))
 
 
 @app.route("/suc/grupos-electrogenos/<equipo_id>/validar", methods=["POST"])

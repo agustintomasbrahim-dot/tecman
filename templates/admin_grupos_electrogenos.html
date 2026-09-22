@@ -9,7 +9,7 @@
 {% endblock %}
 {% block content %}
 <style>
-.ge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.ge-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.ge-table{overflow-x:auto}.ge-table table{min-width:1100px}.ge-history{font-size:12px;color:#64748b}.ge-status{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.ge-pending{background:#fef3c7;color:#92400e}.ge-ok{background:#d1fae5;color:#065f46}.ge-diff{background:#fee2e2;color:#991b1b}@media(max-width:640px){.ge-actions>*{width:100%}.ge-actions .btn{width:100%;text-align:center}}
+.ge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.ge-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.ge-table{overflow-x:auto}.ge-table table{min-width:1250px}.ge-history{font-size:12px;color:#64748b}.ge-status{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.ge-pending{background:#fef3c7;color:#92400e}.ge-ok{background:#d1fae5;color:#065f46}.ge-diff{background:#fee2e2;color:#991b1b}.ge-news-admin{display:grid;grid-template-columns:52px 1fr;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:12px}.ge-news-admin img{width:52px;height:52px;object-fit:cover;border-radius:7px}@media(max-width:640px){.ge-actions>*{width:100%}.ge-actions .btn{width:100%;text-align:center}}
 </style>
 <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px;">
   <div><h2 style="margin:0;">Grupos electrógenos</h2><p style="color:#64748b;font-size:13px;margin-top:4px;">Inventario y validación por sucursal. La importación es atómica: ante un error no se guarda ninguna fila.</p></div>
@@ -50,17 +50,19 @@
   <form method="GET" class="ge-actions">
     <div class="form-group" style="margin:0;"><label>Sucursal</label><select name="sucursal"><option value="">Todas</option>{% for s in sucursales %}<option value="{{ s }}" {% if filtro_sucursal == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
     <div class="form-group" style="margin:0;"><label>Validación</label><select name="estado_validacion"><option value="">Todos</option>{% for e in estados_validacion %}<option value="{{ e }}" {% if filtro_estado == e %}selected{% endif %}>{{ e.replace('_',' ')|title }}</option>{% endfor %}</select></div>
+    <div class="form-group" style="margin:0;"><label>Novedad</label><select name="tipo_novedad"><option value="">Todas</option>{% for key,label in novedad_tipos.items() %}<option value="{{ key }}" {% if filtro_novedad == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
     <button class="btn btn-outline" type="submit">Filtrar</button>
   </form>
 </div>
 <div class="card ge-table" style="padding:0;">
-<table><thead><tr><th>Sucursal</th><th>Equipo</th><th>Potencia / combustible</th><th>Serie</th><th>Ubicación</th><th>Estado</th><th>Mantenimiento</th><th>Observaciones</th><th>Validación</th><th>Auditoría</th></tr></thead>
+<table><thead><tr><th>Sucursal</th><th>Equipo</th><th>Potencia / combustible</th><th>Serie</th><th>Ubicación</th><th>Estado</th><th>Mantenimiento</th><th>Observaciones</th><th>Validación</th><th>Novedades</th><th>Auditoría</th></tr></thead>
 <tbody>{% for e in equipos %}<tr>
 <td style="font-weight:700;">{{ e.sucursal }}</td><td><strong>{{ e.marca or '-' }} {{ e.modelo or '' }}</strong><div style="font-size:12px;color:#64748b;">{{ e.proveedor or 'Sin proveedor' }}</div></td>
 <td>{{ e.potencia or '-' }}<div style="font-size:12px;color:#64748b;">{{ e.combustible or '-' }}</div></td><td>{{ e.numero_serie or '-' }}</td><td>{{ e.ubicacion or '-' }}</td><td>{{ e.estado_equipo or '-' }}</td>
 <td><div>Última: {{ e.ultima_revision or '-' }}</div><div>Próxima: {{ e.proximo_mantenimiento or '-' }}</div></td><td>{{ e.observaciones or '-' }}</td>
 <td>{% if e.estado_validacion == 'validado' %}<span class="ge-status ge-ok">Validado</span>{% elif e.estado_validacion == 'con_diferencias' %}<span class="ge-status ge-diff">Con diferencias</span><div style="font-size:12px;margin-top:5px;max-width:240px;">{{ e.diferencias }}</div>{% else %}<span class="ge-status ge-pending">Pendiente</span>{% endif %}</td>
+<td style="min-width:260px;">{% for n in e.novedades|default([], true)|reverse %}<div class="ge-news-admin"><a href="{{ url_for('grupo_electrogeno_novedad_foto', equipo_id=e.id, novedad_id=n.id) }}" target="_blank" rel="noopener"><img src="{{ url_for('grupo_electrogeno_novedad_foto', equipo_id=e.id, novedad_id=n.id) }}" alt="Foto" loading="lazy"></a><div><strong>{{ novedad_tipos.get(n.tipo, n.tipo.replace('_',' ')|title) }}</strong><br>{{ n.fecha_evento }} · {{ n.actor }}{% if n.proveedor_tecnico %}<br>{{ n.proveedor_tecnico }}{% endif %}{% if n.observacion %}<br>{{ n.observacion }}{% endif %}</div></div>{% else %}<span style="color:#94a3b8;">Sin novedades</span>{% endfor %}</td>
 <td><details class="ge-history"><summary>{{ e.historial|length }} evento{{ '' if e.historial|length == 1 else 's' }}</summary>{% for h in e.historial|reverse %}<div style="margin-top:6px;"><strong>{{ h.accion.replace('_',' ') }}</strong><br>{{ h.fecha[:16].replace('T',' ') }} · {{ h.actor }}{% if h.detalle %}<br>{{ h.detalle }}{% endif %}</div>{% endfor %}</details></td>
-</tr>{% else %}<tr><td colspan="10" style="text-align:center;padding:40px;color:#94a3b8;">No hay equipos cargados.</td></tr>{% endfor %}</tbody></table>
+</tr>{% else %}<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8;">No hay equipos cargados.</td></tr>{% endfor %}</tbody></table>
 </div>
 {% endblock %}

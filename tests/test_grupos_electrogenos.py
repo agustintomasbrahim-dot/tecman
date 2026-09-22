@@ -2,6 +2,8 @@ import io
 import os
 import tempfile
 import unittest
+from unittest import mock
+from werkzeug.datastructures import FileStorage
 
 _TEST_DATA = tempfile.TemporaryDirectory()
 os.environ["TECMAN_DATA_DIR"] = _TEST_DATA.name
@@ -17,10 +19,19 @@ class GruposElectrogenosTest(unittest.TestCase):
         tecman.USE_DB = False
         tecman.GRUPOS_ELECTROGENOS_FILE = tecman.Path(_TEST_DATA.name) / "grupos_electrogenos.json"
         tecman.NOTIF_ADMIN_FILE = tecman.Path(_TEST_DATA.name) / "notif_admin.json"
+        tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR = tecman.Path(_TEST_DATA.name) / "uploads" / "grupos_electrogenos"
+        tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
         for path in (tecman.GRUPOS_ELECTROGENOS_FILE, tecman.NOTIF_ADMIN_FILE):
             if path.exists():
                 path.unlink()
+        for path in tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.iterdir():
+            path.unlink()
         self.client = tecman.app.test_client()
+
+    PNG_1X1 = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDAT\x08\xd7c\xf8\xcf\xc0\xf0\x1f\x00\x05\x00\x01\xff\x89\x99\r\x1d\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
 
     def _admin_session(self):
         with self.client.session_transaction() as sess:
@@ -45,6 +56,28 @@ class GruposElectrogenosTest(unittest.TestCase):
             if scope is not None:
                 sess["suc_scope_nums"] = scope
             sess["_csrf_token"] = "csrf-test"
+
+    def _equipo(self, sucursal=None, marca="Equipo Test"):
+        with tecman.app.test_request_context("/"):
+            return tecman._generador_from_values(
+                {"sucursal": sucursal or tecman.SUCURSALES[0], "marca": marca}, "Admin", "test"
+            )
+
+    def _post_novedad(self, equipo, tipo, **overrides):
+        payload = {
+            "_csrf_token": "csrf-test",
+            "tipo": tipo,
+            "fecha_evento": tecman.datetime.date.today().isoformat(),
+            "observacion": "Detalle de prueba" if tipo == "problema_falla" else "",
+            "proveedor_tecnico": "Técnico Test",
+            "foto": (io.BytesIO(self.PNG_1X1), "equipo.png"),
+        }
+        payload.update(overrides)
+        return self.client.post(
+            f"/suc/grupos-electrogenos/{equipo['id']}/novedades",
+            data=payload,
+            content_type="multipart/form-data",
+        )
 
     def test_admin_manual_csv_and_empty_template(self):
         self._admin_session()
@@ -216,6 +249,136 @@ class GruposElectrogenosTest(unittest.TestCase):
         response = self.client.post("/admin/grupos-electrogenos", data={"sucursal": tecman.SUCURSALES[0]})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"], [])
+
+    def test_novedades_validas_persisten_foto_auditoria_y_campos_por_tipo(self):
+        equipo = self._equipo()
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo]})
+        self._sucursal_session(equipo["sucursal"])
+        for tipo in tecman.GENERADOR_NOVEDAD_TIPOS:
+            response = self._post_novedad(equipo, tipo)
+            self.assertEqual(response.status_code, 302)
+
+        saved = tecman.load_grupos_electrogenos()["grupos_electrogenos"][0]
+        self.assertEqual([n["tipo"] for n in saved["novedades"]], list(tecman.GENERADOR_NOVEDAD_TIPOS))
+        self.assertTrue(all(n["actor"] == equipo["sucursal"] for n in saved["novedades"]))
+        self.assertTrue(all(n["cargado_at"] and n["fecha_evento"] for n in saved["novedades"]))
+        self.assertEqual(saved["novedades"][0]["proveedor_tecnico"], "")
+        self.assertEqual(saved["novedades"][1]["proveedor_tecnico"], "Técnico Test")
+        self.assertEqual(saved["novedades"][2]["proveedor_tecnico"], "")
+        self.assertEqual(sum(h["accion"] == "novedad_registrada" for h in saved["historial"]), 3)
+        for novedad in saved["novedades"]:
+            photo = tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR / novedad["foto"]["archivo"]
+            self.assertTrue(photo.is_file())
+            self.assertEqual(novedad["foto"]["mime"], "image/png")
+            self.assertEqual(novedad["foto"]["sha256"], tecman.hashlib.sha256(self.PNG_1X1).hexdigest())
+        notifications = tecman.load_notif_admin()["notificaciones"]
+        self.assertEqual(len(notifications), 1)
+        self.assertIn(equipo["sucursal"], notifications[0]["titulo"])
+        self.assertIn(equipo["id"], notifications[0]["detalle"])
+        self.client.get("/suc/grupos-electrogenos")
+        self.assertEqual(len(tecman.load_notif_admin()["notificaciones"]), 1)
+
+    def test_novedades_invalidas_no_mutan_ni_dejan_archivos(self):
+        equipo = self._equipo()
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo]})
+        self._sucursal_session(equipo["sucursal"])
+        tomorrow = (tecman.datetime.date.today() + tecman.datetime.timedelta(days=1)).isoformat()
+        cases = [
+            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat()}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": "22/09/2026", "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": tomorrow, "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+            ({"tipo": "problema_falla", "fecha_evento": tecman.datetime.date.today().isoformat(), "observacion": "", "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.gif")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(b"no-es-imagen"), "a.png")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.jpg")}, 400),
+            ({"_csrf_token": "malo", "tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+        ]
+        for payload, status in cases:
+            with self.subTest(payload={k: v for k, v in payload.items() if k != "foto"}):
+                payload.setdefault("_csrf_token", "csrf-test")
+                response = self.client.post(
+                    f"/suc/grupos-electrogenos/{equipo['id']}/novedades",
+                    data=payload,
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(response.status_code, status)
+                response.close()
+                current = tecman.load_grupos_electrogenos()["grupos_electrogenos"][0]
+                self.assertNotIn("novedades", current)
+                self.assertEqual(list(tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.iterdir()), [])
+        oversized = FileStorage(
+            stream=io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"x" * tecman.GENERADOR_FOTO_MAX_BYTES),
+            filename="grande.png",
+        )
+        with self.assertRaisesRegex(ValueError, "supera el límite"):
+            tecman._generador_preparar_foto(oversized)
+        oversized.close()
+        self.assertEqual(tecman.load_notif_admin()["notificaciones"], [])
+
+    def test_foto_protegida_por_referencia_equipo_y_alcance(self):
+        one = self._equipo(tecman.SUCURSALES[0], "Visible")
+        two = self._equipo(tecman.SUCURSALES[1], "Oculto")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [one, two]})
+        self._sucursal_session(one["sucursal"])
+        self.assertEqual(self._post_novedad(one, "encendido_prueba").status_code, 302)
+        saved = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
+        one_saved = next(x for x in saved if x["id"] == one["id"])
+        novedad = one_saved["novedades"][0]
+        good = f"/grupos-electrogenos/{one['id']}/novedades/{novedad['id']}/foto"
+        wrong_equipment = f"/grupos-electrogenos/{two['id']}/novedades/{novedad['id']}/foto"
+        response = self.client.get(good)
+        self.assertEqual(response.status_code, 200)
+        response.close()
+        self.assertEqual(self.client.get(wrong_equipment).status_code, 404)
+        self.assertEqual(self.client.get(f"/grupos-electrogenos/{one['id']}/novedades/no-referenciada/foto").status_code, 404)
+        self._sucursal_session(two["sucursal"])
+        self.assertEqual(self.client.get(good).status_code, 404)
+        self._admin_session()
+        response = self.client.get(good)
+        self.assertEqual(response.status_code, 200)
+        response.close()
+        with self.client.session_transaction() as sess:
+            sess.clear()
+        self.assertEqual(self.client.get(good).status_code, 403)
+
+    def test_novedad_cross_equipo_sesion_invalida_y_error_guardado_limpian(self):
+        one = self._equipo(tecman.SUCURSALES[0])
+        two = self._equipo(tecman.SUCURSALES[1])
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [one, two]})
+        self._sucursal_session(one["sucursal"])
+        self.assertEqual(self._post_novedad(two, "encendido_prueba").status_code, 404)
+        with mock.patch.object(tecman, "_session_auth_is_valid", return_value=False):
+            self.assertEqual(self._post_novedad(one, "encendido_prueba").status_code, 403)
+        self._sucursal_session(one["sucursal"])
+        with mock.patch.object(tecman, "save_grupos_electrogenos", side_effect=OSError("fallo simulado")):
+            with self.assertRaises(OSError):
+                self._post_novedad(one, "encendido_prueba")
+        self.assertEqual(list(tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.iterdir()), [])
+        saved = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
+        self.assertTrue(all(not x.get("novedades") for x in saved))
+
+    def test_admin_filtra_y_renderiza_novedades_sin_edicion(self):
+        equipo = self._equipo()
+        otro = self._equipo(marca="Sin novedad")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo, otro]})
+        self._sucursal_session(equipo["sucursal"])
+        self._post_novedad(equipo, "mantenimiento_proveedor")
+        self._admin_session()
+        response = self.client.get("/admin/grupos-electrogenos?tipo_novedad=mantenimiento_proveedor")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Equipo Test", response.data)
+        self.assertNotIn(b"Sin novedad", response.data)
+        self.assertIn("Mantenimiento de proveedor".encode(), response.data)
+        self.assertNotIn(b"Borrar novedad", response.data)
+
+    def test_compatibilidad_payload_db_y_json(self):
+        equipo = self._equipo()
+        equipo["novedades"] = [{"id": "nov-1", "tipo": "encendido_prueba", "foto": {"archivo": "x.png"}}]
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo]})
+        self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"][0]["novedades"][0]["id"], "nov-1")
+        from models import GrupoElectrogenoDB
+        row = GrupoElectrogenoDB.from_dict(equipo)
+        self.assertEqual(row.to_dict()["novedades"][0]["foto"]["archivo"], "x.png")
 
 
 if __name__ == "__main__":
