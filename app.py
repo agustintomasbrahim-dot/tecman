@@ -170,6 +170,11 @@ REQUISICIONES_DIR = UPLOADS_DIR / "requisiciones"
 REQUISICIONES_DIR.mkdir(parents=True, exist_ok=True)
 GRUPOS_ELECTROGENOS_UPLOADS_DIR = UPLOADS_DIR / "grupos_electrogenos"
 GRUPOS_ELECTROGENOS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+FUMIGACION_REMITOS_DIR = UPLOADS_DIR / "fumigacion_remitos"
+FUMIGACION_REMITOS_DIR.mkdir(parents=True, exist_ok=True)
+
+FUMIGACION_REMITO_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+FUMIGACION_REMITO_MAX_BYTES = 10 * 1024 * 1024
 
 
 @app.before_request
@@ -3790,6 +3795,169 @@ def _ticket_es_de_proveedor(ticket, nombres):
     return any(v in nombres for v in campos if v)
 
 
+def _normalizar_clave_fumigacion(value):
+    value = unicodedata.normalize("NFKD", str(value or "").strip().lower())
+    return " ".join("".join(c for c in value if not unicodedata.combining(c)).split())
+
+
+def _proveedor_fumigacion_de_ticket(ticket):
+    """Devuelve el proveedor catalogado de fumigación asignado al ticket."""
+    nombres = {
+        str(ticket.get(campo) or "").strip()
+        for campo in ("asignado", "asignado_proveedor", "proveedor_nombre", "proveedor_presupuesto")
+        if ticket.get(campo)
+    }
+    if not nombres:
+        return None
+    for proveedor in PROVEEDORES:
+        if proveedor.get("nombre") not in nombres:
+            continue
+        if _proveedor_tipo_cuenta(proveedor) == "fumigacion":
+            return proveedor
+    return None
+
+
+def _ticket_es_fumigacion(ticket):
+    if _proveedor_fumigacion_de_ticket(ticket):
+        return True
+    valores_explicitos = {
+        _normalizar_clave_fumigacion(ticket.get(campo))
+        for campo in ("categoria", "subcategoria", "tipo", "workflow")
+    }
+    return bool(valores_explicitos & {
+        "fumigacion", "fumigaciones", "control de plagas", "fumigacion_remito",
+    })
+
+
+def _proveedores_fumigacion_para_scope(scope_nums):
+    if scope_nums is None:
+        return []
+    resultado = []
+    for proveedor in _proveedores_enriquecidos():
+        if _proveedor_tipo_cuenta(proveedor) != "fumigacion":
+            continue
+        if "sin servicio" in _normalizar_clave_fumigacion(proveedor.get("estado_operativo")):
+            continue
+        if any(_sucursal_num_from_value(s) in scope_nums for s in proveedor.get("sucursales", [])):
+            resultado.append(proveedor)
+    return resultado
+
+
+def _fumigacion_scope_sucursal():
+    scope_nums = _sucursal_session_scope_nums()
+    if scope_nums is not None:
+        return scope_nums
+    if _sucursal_session_is_general():
+        return None
+    propio = _sucursal_num_from_value(session.get("suc_nombre"))
+    return {propio} if propio else set()
+
+
+def _fumigacion_estado(ticket):
+    """Deriva estado de registros nuevos y tickets heredados sin migrarlos."""
+    remito_estado = ticket.get("remito_estado")
+    if not remito_estado:
+        if ticket.get("remitos_fumigacion"):
+            remito_estado = "pendiente_validacion"
+        elif ticket.get("fumigacion_estado") == "realizada" or ticket.get("etapa_prov") == "relevado":
+            remito_estado = "pendiente_carga"
+    realizada = bool(
+        ticket.get("fumigacion_estado") == "realizada"
+        or ticket.get("etapa_prov") == "relevado"
+        or remito_estado
+    )
+    return {
+        "realizada": realizada,
+        "fumigacion_estado": ticket.get("fumigacion_estado") or ("realizada" if realizada else ("programada" if ticket.get("fecha_visita") else "pendiente")),
+        "remito_estado": remito_estado or "sin_requerir",
+    }
+
+
+def _fumigacion_auditar(ticket, accion, actor, detalle="", remito_id=None, fecha=None):
+    evento = {
+        "accion": accion,
+        "fecha": fecha or datetime.datetime.now().isoformat(),
+        "actor": actor,
+        "detalle": detalle,
+    }
+    if remito_id:
+        evento["remito_id"] = remito_id
+    ticket.setdefault("fumigacion_historial", []).append(evento)
+    return evento
+
+
+def _agregar_notificacion_ticket_unica(ticket, clave, texto, fecha=None):
+    notificaciones = ticket.setdefault("notificaciones", [])
+    if any(n.get("clave") == clave for n in notificaciones):
+        return False
+    notificaciones.append({
+        "fecha": fecha or datetime.datetime.now().isoformat(),
+        "texto": texto,
+        "leida": False,
+        "clave": clave,
+    })
+    return True
+
+
+def _fecha_es_iso_valida(value):
+    try:
+        datetime.date.fromisoformat(str(value or ""))
+        return True
+    except ValueError:
+        return False
+
+
+def _fecha_fumigacion_visible(value):
+    try:
+        return datetime.date.fromisoformat(str(value)).strftime("%d/%m/%Y")
+    except ValueError:
+        return str(value or "")
+
+
+def _validar_remito_fumigacion(archivo):
+    if not archivo or not archivo.filename:
+        raise ValueError("Seleccioná un remito para subir.")
+    nombre_original = Path(archivo.filename).name
+    extension = Path(nombre_original).suffix.lower()
+    if extension not in FUMIGACION_REMITO_EXTENSIONS:
+        raise ValueError("Formato no permitido. Usá PDF, JPG, JPEG, PNG o WebP.")
+    contenido = archivo.stream.read(FUMIGACION_REMITO_MAX_BYTES + 1)
+    if not contenido:
+        raise ValueError("El archivo está vacío.")
+    if len(contenido) > FUMIGACION_REMITO_MAX_BYTES:
+        raise ValueError("El remito supera el límite de 10 MB.")
+    firmas = {
+        ".pdf": contenido.startswith(b"%PDF-"),
+        ".jpg": contenido.startswith(b"\xff\xd8\xff"),
+        ".jpeg": contenido.startswith(b"\xff\xd8\xff"),
+        ".png": contenido.startswith(b"\x89PNG\r\n\x1a\n"),
+        ".webp": len(contenido) >= 12 and contenido[:4] == b"RIFF" and contenido[8:12] == b"WEBP",
+    }
+    if not firmas.get(extension):
+        raise ValueError("El contenido del archivo no coincide con su extensión.")
+    return nombre_original, extension, contenido
+
+
+def _remito_estado_actual(ticket, remito_id):
+    for evento in reversed(ticket.get("fumigacion_historial", [])):
+        if evento.get("remito_id") == remito_id and evento.get("accion") in ("remito_cargado", "remito_validado", "remito_devuelto"):
+            return {
+                "remito_cargado": "pendiente_validacion",
+                "remito_validado": "validado",
+                "remito_devuelto": "devuelto",
+            }[evento["accion"]]
+    return "pendiente_validacion"
+
+
+def _fumigacion_ticket_para_vista(ticket):
+    item = copy.deepcopy(ticket)
+    item.update(_fumigacion_estado(ticket))
+    item["fecha_visita_visible"] = _fecha_fumigacion_visible(ticket.get("fecha_visita"))
+    for remito in item.get("remitos_fumigacion", []):
+        remito["estado_actual"] = _remito_estado_actual(ticket, remito.get("id"))
+    return item
+
+
 QUOTE_EXPLICIT_PROVIDER_FIELDS = ("proveedor_nombre", "asignado_proveedor", "proveedor_presupuesto")
 QUOTE_RESPONSIBLE_FIELDS = ("responsable", "asignado")
 QUOTE_DEFAULT_PROVIDER = "Julio Fuga (JRF)"
@@ -5270,6 +5438,12 @@ def suc_panel():
     permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if _sucursal_session_can_access_item(p)]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     estado_syh = {} if is_general else load_syh().get(suc_num, {})
+    scope_nums = _fumigacion_scope_sucursal()
+    proveedores_fumigacion = _proveedores_fumigacion_para_scope(scope_nums)
+    tiene_fumigaciones = bool(
+        proveedores_fumigacion
+        or any(_ticket_es_fumigacion(t) for t in mis_tickets)
+    )
 
     return render_template(
         "suc_panel.html",
@@ -5284,8 +5458,126 @@ def suc_panel():
         resumen_matafuegos=resumen_matafuegos,
         permisos_suc=permisos,
         estado_syh=estado_syh,
+        tiene_fumigaciones=tiene_fumigaciones,
         hoy=datetime.date.today().isoformat(),
     )
+
+
+@app.route("/suc/fumigaciones")
+@suc_login_required
+def suc_fumigaciones():
+    scope_nums = _fumigacion_scope_sucursal()
+    if scope_nums is None:
+        return render_template("error.html", mensaje="Seleccioná un alcance de sucursales para ver fumigaciones."), 403
+    tickets = [
+        _fumigacion_ticket_para_vista(t)
+        for t in load_tickets()
+        if _sucursal_session_can_access_item(t) and _ticket_es_fumigacion(t)
+    ]
+    proveedores = _proveedores_fumigacion_para_scope(scope_nums)
+    if not tickets and not proveedores:
+        return render_template("error.html", mensaje="No hay un circuito de fumigaciones asignado a esta sucursal."), 404
+    proximas = [t for t in tickets if t.get("fecha_visita") and not t.get("realizada")]
+    pendientes = [t for t in tickets if t.get("realizada") and t.get("remito_estado") != "validado"]
+    historicos = [t for t in tickets if t.get("remitos_fumigacion")]
+    proximas.sort(key=lambda t: t.get("fecha_visita") or "9999-99-99")
+    pendientes.sort(key=lambda t: t.get("actualizado") or t.get("creado") or "", reverse=True)
+    historicos.sort(key=lambda t: t.get("actualizado") or t.get("creado") or "", reverse=True)
+    return render_template(
+        "suc_fumigaciones.html",
+        proximas=proximas,
+        pendientes=pendientes,
+        historicos=historicos,
+        proveedores=_proveedores_sin_montos(proveedores),
+    )
+
+
+@app.route("/suc/fumigaciones/<int:ticket_id>/remito", methods=["POST"])
+@suc_login_required
+def suc_fumigacion_remito(ticket_id):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+    if not ticket or not _ticket_es_fumigacion(ticket):
+        return render_template("error.html", mensaje="Trabajo de fumigación no encontrado."), 404
+    if not _sucursal_session_can_access_item(ticket):
+        return render_template("error.html", mensaje="No tenés permiso para cargar un remito en este ticket."), 403
+    estado = _fumigacion_estado(ticket)
+    if not estado["realizada"] or estado["remito_estado"] not in ("pendiente_carga", "devuelto"):
+        return render_template("error.html", mensaje="El remito sólo puede cargarse después de realizada la fumigación o de una devolución."), 409
+    comentario = request.form.get("comentario", "").strip()
+    if len(comentario) > 1000:
+        return render_template("error.html", mensaje="El comentario supera los 1000 caracteres."), 400
+    try:
+        nombre_original, extension, contenido = _validar_remito_fumigacion(request.files.get("remito"))
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 400
+
+    ahora = datetime.datetime.now().isoformat()
+    remito_id = uuid.uuid4().hex
+    subdir = FUMIGACION_REMITOS_DIR / str(ticket_id)
+    archivo = f"{remito_id}{extension}"
+    ruta = subdir / archivo
+    actor = _session_sucursal_label("Portal Sucursales")
+    registro = {
+        "id": remito_id,
+        "nombre_original": nombre_original,
+        "archivo": archivo,
+        "tamano": len(contenido),
+        "fecha": ahora,
+        "actor": actor,
+        "comentario": comentario,
+        "estado_inicial": "pendiente_validacion",
+    }
+    try:
+        subdir.mkdir(parents=True, exist_ok=True)
+        with ruta.open("xb") as salida:
+            salida.write(contenido)
+        ticket.setdefault("remitos_fumigacion", []).append(registro)
+        ticket["fumigacion_estado"] = "realizada"
+        ticket["remito_estado"] = "pendiente_validacion"
+        ticket["remito_actual_id"] = remito_id
+        ticket["actualizado"] = ahora
+        _fumigacion_auditar(ticket, "remito_cargado", actor, comentario or "Remito cargado", remito_id, ahora)
+        ticket.setdefault("notas", []).append({
+            "autor": actor,
+            "fecha": ahora,
+            "texto": f"Remito de fumigación cargado: {nombre_original}",
+        })
+        save_tickets(tickets)
+    except Exception:
+        if ruta.exists():
+            ruta.unlink()
+        raise
+    agregar_notif_admin(
+        f"Remito de fumigación pendiente · Ticket #{ticket_id}",
+        f"{ticket.get('sucursal', actor)} cargó {nombre_original}. Revisar y validar el remito.",
+        tipo="fumigaciones",
+        autor=actor,
+        link=url_for("admin_ticket", ticket_id=ticket_id),
+    )
+    flash("Remito cargado. Quedó pendiente de validación.")
+    return redirect(url_for("suc_fumigaciones"))
+
+
+@app.route("/fumigaciones/<int:ticket_id>/remitos/<filename>")
+def fumigacion_remito_archivo(ticket_id, filename):
+    if filename != Path(filename).name or not filename:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    es_admin = bool(session.get("user") and session.get("rol") == "admin")
+    es_sucursal = bool(session.get("suc_user"))
+    if not (es_admin or es_sucursal) or not _session_auth_is_valid():
+        return render_template("error.html", mensaje="Acceso restringido."), 403
+    ticket = next((t for t in load_tickets() if t.get("id") == ticket_id and _ticket_es_fumigacion(t)), None)
+    if not ticket:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if es_sucursal and not _sucursal_session_can_access_item(ticket):
+        return render_template("error.html", mensaje="Acceso restringido."), 403
+    referenciado = any(r.get("archivo") == filename for r in ticket.get("remitos_fumigacion", []))
+    if not referenciado:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    return send_from_directory(str(FUMIGACION_REMITOS_DIR / str(ticket_id)), filename)
 
 
 @app.route("/suc/syh")
@@ -7127,6 +7419,40 @@ def admin_ticket(ticket_id):
 
     if request.method == "POST":
         accion = request.form.get("accion", "")
+        if accion in ("validar_remito_fumigacion", "devolver_remito_fumigacion"):
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+            if not _ticket_es_fumigacion(ticket):
+                return render_template("error.html", mensaje="El ticket no corresponde a fumigaciones."), 404
+            remito_id = request.form.get("remito_id", "").strip()
+            remito = next((r for r in ticket.get("remitos_fumigacion", []) if r.get("id") == remito_id), None)
+            if not remito or ticket.get("remito_actual_id") != remito_id or ticket.get("remito_estado") != "pendiente_validacion":
+                return render_template("error.html", mensaje="El remito no está pendiente de validación."), 409
+            observacion = request.form.get("observacion", "").strip()
+            if len(observacion) > 1000:
+                return render_template("error.html", mensaje="La observación supera los 1000 caracteres."), 400
+            if accion == "devolver_remito_fumigacion" and not observacion:
+                return render_template("error.html", mensaje="La devolución requiere una observación."), 400
+            ahora = datetime.datetime.now().isoformat()
+            actor = session.get("nombre", "Admin")
+            if accion == "validar_remito_fumigacion":
+                ticket["remito_estado"] = "validado"
+                evento = "remito_validado"
+                texto = f"Remito de fumigación validado para el ticket #{ticket_id}."
+                detalle = observacion or "Remito validado"
+                flash("Remito de fumigación validado.")
+            else:
+                ticket["remito_estado"] = "pendiente_carga"
+                evento = "remito_devuelto"
+                texto = f"El remito de fumigación del ticket #{ticket_id} fue devuelto: {observacion}. Subí una versión corregida."
+                detalle = observacion
+                flash("Remito devuelto a la sucursal para corregir.")
+            ticket["actualizado"] = ahora
+            _fumigacion_auditar(ticket, evento, actor, detalle, remito_id, ahora)
+            ticket.setdefault("notas", []).append({"autor": actor, "fecha": ahora, "texto": texto})
+            _agregar_notificacion_ticket_unica(ticket, f"{evento}:{remito_id}:{ahora}", texto, ahora)
+            save_tickets(tickets)
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
         # Accion rapida: responder a la sucursal con una de las 3 opciones
         if accion == "responder_suc":
             motivo = request.form.get("motivo", "").strip()
@@ -7445,6 +7771,8 @@ def admin_ticket(ticket_id):
         es_presupuesto=(ticket.get("categoria") == "Presupuestos"),
         tiene_abono_suc=bool(get_proveedor_abono_sucursal(_suc_num_at)),
         proveedores_catalogo=_proveedores_catalogo_ticket(_suc_num_at),
+        es_fumigacion=_ticket_es_fumigacion(ticket),
+        fumigacion=_fumigacion_ticket_para_vista(ticket) if _ticket_es_fumigacion(ticket) else None,
     )
 
 
@@ -7888,6 +8216,8 @@ def prov_ticket(ticket_id):
     if request.method == "POST":
         accion = request.form.get("accion", "")
         prov_nombre = session.get("prov_nombre", "Proveedor")
+        if accion in ("planificado", "relevado") and not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
         if "notas" not in ticket:
             ticket["notas"] = []
 
@@ -7906,24 +8236,35 @@ def prov_ticket(ticket_id):
 
         if accion in etapa_labels:
             label, estado = etapa_labels[accion]
+            es_fumigacion = session.get("prov_tipo_cuenta") == "fumigacion" and _ticket_es_fumigacion(ticket)
+            fecha_visita = request.form.get("fecha_visita", "").strip() if accion == "planificado" else ""
+            if accion == "planificado" and es_fumigacion and not _fecha_es_iso_valida(fecha_visita):
+                return render_template("error.html", mensaje="Ingresá una fecha de visita válida."), 400
             ticket["etapa_prov"] = accion
             ticket["estado"] = estado
 
             # Save visit date if planificado
             nota_texto = f"Etapa: {label}"
             if accion == "planificado":
-                fecha_visita = request.form.get("fecha_visita", "")
                 if fecha_visita:
                     ticket["fecha_visita"] = fecha_visita
                     nota_texto = f"Visita planificada para {fecha_visita}"
-                    # Create notification for sucursal
-                    if "notificaciones" not in ticket:
-                        ticket["notificaciones"] = []
-                    ticket["notificaciones"].append({
-                        "fecha": datetime.datetime.now().isoformat(),
-                        "texto": f"{prov_nombre} visitara la sucursal el {fecha_visita}",
-                        "leida": False,
-                    })
+                    if es_fumigacion:
+                        ahora = datetime.datetime.now().isoformat()
+                        ticket["fumigacion_estado"] = "programada"
+                        clave = f"fumigacion_programada:{fecha_visita}:{prov_nombre}"
+                        texto = (
+                            f"Fumigación programada para {_fecha_fumigacion_visible(fecha_visita)} · "
+                            f"Proveedor: {prov_nombre} · Ticket #{ticket_id}"
+                        )
+                        if _agregar_notificacion_ticket_unica(ticket, clave, texto, ahora):
+                            _fumigacion_auditar(ticket, "visita_programada", prov_nombre, texto, fecha=ahora)
+                    else:
+                        _agregar_notificacion_ticket_unica(
+                            ticket,
+                            f"visita_programada:{fecha_visita}:{prov_nombre}",
+                            f"{prov_nombre} visitará la sucursal el {fecha_visita}",
+                        )
 
             if accion == "relevado" and session.get("prov_tipo_cuenta") in ("fumigacion", "matafuegos"):
                 if session.get("prov_tipo_cuenta") == "matafuegos":
@@ -7933,20 +8274,25 @@ def prov_ticket(ticket_id):
                     )
                 else:
                     mensaje_remito = (
-                        f"{prov_nombre} informó que realizó/relevó la fumigación. "
-                        "Por favor adjunten el remito para que Mantenimiento pueda validarlo."
+                        f"Fumigación realizada por {prov_nombre} en el ticket #{ticket_id}. "
+                        "Ingresá a Fumigaciones y subí el remito para que Mantenimiento pueda validarlo."
                     )
-                ticket.setdefault("notificaciones", []).append({
-                    "fecha": datetime.datetime.now().isoformat(),
-                    "texto": mensaje_remito,
-                    "leida": False,
-                })
-                agregar_notif_admin(
-                    "Remito pendiente de sucursal",
-                    f"{ticket.get('sucursal', '-')} debe adjuntar remito por visita de {prov_nombre}. Avisar/revisar con Rita.",
-                    tipo="proveedores",
-                    link=url_for("admin_ticket", ticket_id=ticket.get("id")),
-                )
+                ahora = datetime.datetime.now().isoformat()
+                clave = f"fumigacion_realizada:{ticket_id}" if es_fumigacion else f"relevado:{session.get('prov_tipo_cuenta')}:{ticket_id}"
+                aviso_nuevo = _agregar_notificacion_ticket_unica(ticket, clave, mensaje_remito, ahora)
+                if es_fumigacion:
+                    ticket["fumigacion_estado"] = "realizada"
+                    if ticket.get("remito_estado") not in ("pendiente_validacion", "validado"):
+                        ticket["remito_estado"] = "pendiente_carga"
+                    if aviso_nuevo:
+                        _fumigacion_auditar(ticket, "fumigacion_realizada", prov_nombre, mensaje_remito, fecha=ahora)
+                if aviso_nuevo:
+                    agregar_notif_admin(
+                        "Remito pendiente de sucursal",
+                        f"{ticket.get('sucursal', '-')} debe adjuntar remito por visita de {prov_nombre}. Avisar/revisar con Rita.",
+                        tipo="fumigaciones" if es_fumigacion else "proveedores",
+                        link=url_for("admin_ticket", ticket_id=ticket.get("id")),
+                    )
 
             ticket["notas"].append({
                 "autor": prov_nombre,

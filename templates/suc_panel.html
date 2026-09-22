@@ -5,6 +5,7 @@
     <a href="{{ url_for('suc_panel') }}">Inicio</a>
     {% if not session.oficina_user %}
     <a href="{{ url_for('suc_syh') }}">Seguridad e Higiene</a>
+    {% if tiene_fumigaciones %}<a href="{{ url_for('suc_fumigaciones') }}">Fumigaciones</a>{% endif %}
     <a href="{{ url_for('suc_grupos_electrogenos') }}">Grupos electrógenos</a>
     <a href="{{ url_for('suc_panel') }}#stock-recibido">Stock recibido</a>
     <a href="{{ url_for('suc_proveedores') }}">Proveedores</a>
@@ -107,6 +108,13 @@
             <div class="suc-mini-value">Ver equipos</div>
             <div style="font-size:12px;color:#6b7280;margin-top:4px;">Validar inventario asignado →</div>
         </a>
+        {% if tiene_fumigaciones %}
+        <a href="{{ url_for('suc_fumigaciones') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
+            <div class="suc-mini-label">Fumigaciones</div>
+            <div class="suc-mini-value">Visitas y remitos</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Ver circuito →</div>
+        </a>
+        {% endif %}
         <a href="#permisos-sucursal" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Permisos</div>
             <div class="suc-mini-value">{{ permisos_suc|length if permisos_suc else 0 }}</div>

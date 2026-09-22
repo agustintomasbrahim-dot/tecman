@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Tecman - Fumigaciones{% endblock %}
+{% block nav %}
+<div class="nav">
+    <a href="{{ url_for('suc_panel') }}">Inicio</a>
+    <a href="{{ url_for('suc_fumigaciones') }}">Fumigaciones</a>
+    <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
+    <a href="{{ url_for('suc_logout') }}" style="margin-left:auto;">Salir ({{ session.suc_nombre }})</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+.fum-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}.fum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.fum-item{border:1px solid #e5e7eb;border-radius:14px;padding:16px;background:#fff}.fum-meta{font-size:12px;color:#64748b;margin-top:5px}.fum-state{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700}.fum-file{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #f1f5f9}.fum-upload{margin-top:14px;padding-top:14px;border-top:1px solid #e5e7eb}.fum-upload input,.fum-upload textarea{width:100%;box-sizing:border-box;margin:5px 0 10px;padding:10px;border:1px solid #d1d5db;border-radius:8px}.empty{padding:22px;text-align:center;color:#64748b;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px}@media(max-width:600px){.fum-grid{grid-template-columns:1fr}.fum-item{padding:14px}.fum-file{align-items:flex-start;flex-direction:column}}
+</style>
+<div class="fum-head"><div><h2>Fumigaciones</h2><p style="color:#64748b;margin-top:5px;">Consultá las visitas y cargá el remito una vez realizado el trabajo.</p></div><a class="btn btn-outline" href="{{ url_for('suc_panel') }}">← Volver</a></div>
+
+<div class="card">
+<h3 style="margin-bottom:12px;">Próximas visitas</h3>
+{% if proximas %}<div class="fum-grid">{% for t in proximas %}<article class="fum-item"><span class="fum-state" style="background:#ede9fe;color:#6d28d9;">Programada</span><h3 style="margin-top:10px;">{{ t.fecha_visita_visible }}</h3><div class="fum-meta">{{ t.asignado_proveedor or t.proveedor_nombre or t.asignado or 'Proveedor a confirmar' }} · Ticket #{{ t.id }}</div><a href="{{ url_for('estado_ticket', ticket_id=t.id) }}" style="display:inline-block;margin-top:10px;">Ver ticket →</a></article>{% endfor %}</div>{% else %}<div class="empty">Todavía no hay visitas programadas. Cuando el proveedor informe una fecha, aparecerá acá.</div>{% endif %}
+</div>
+
+<div class="card">
+<h3 style="margin-bottom:12px;">Realizadas · remito pendiente</h3>
+{% if pendientes %}<div class="fum-grid">{% for t in pendientes %}<article class="fum-item"><span class="fum-state" style="background:{% if t.remito_estado == 'pendiente_validacion' %}#fef3c7{% else %}#fee2e2{% endif %};color:{% if t.remito_estado == 'pendiente_validacion' %}#92400e{% else %}#991b1b{% endif %};">{% if t.remito_estado == 'pendiente_validacion' %}Pendiente de validación{% else %}Pendiente de carga{% endif %}</span><h3 style="margin-top:10px;">Ticket #{{ t.id }}</h3><div class="fum-meta">{{ t.asignado_proveedor or t.proveedor_nombre or t.asignado or 'Proveedor' }}{% if t.fecha_visita_visible %} · {{ t.fecha_visita_visible }}{% endif %}</div>{% if t.remito_estado in ['pendiente_carga','devuelto'] %}<form class="fum-upload" method="POST" enctype="multipart/form-data" action="{{ url_for('suc_fumigacion_remito', ticket_id=t.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><label for="remito-{{ t.id }}"><strong>Subir remito</strong> (PDF o imagen, hasta 10 MB)</label><input id="remito-{{ t.id }}" type="file" name="remito" accept=".pdf,.jpg,.jpeg,.png,.webp" required><label for="comentario-{{ t.id }}">Comentario opcional</label><textarea id="comentario-{{ t.id }}" name="comentario" maxlength="1000" rows="2" placeholder="Aclaración para Mantenimiento"></textarea><button class="btn btn-primary" type="submit">Subir remito</button></form>{% else %}<p style="margin-top:12px;color:#92400e;font-size:13px;">Mantenimiento está revisando el remito cargado.</p>{% endif %}</article>{% endfor %}</div>{% else %}<div class="empty">No hay trabajos realizados pendientes de remito o validación.</div>{% endif %}
+</div>
+
+<div class="card">
+<h3 style="margin-bottom:12px;">Historial de remitos</h3>
+{% if historicos %}{% for t in historicos %}<section class="fum-item" style="margin-bottom:12px;"><h3>Ticket #{{ t.id }} <span class="fum-state" style="background:{% if t.remito_estado == 'validado' %}#dcfce7{% elif t.remito_estado == 'pendiente_validacion' %}#fef3c7{% else %}#f1f5f9{% endif %};color:#334155;">{{ t.remito_estado.replace('_',' ')|title }}</span></h3>{% for r in t.remitos_fumigacion|reverse %}<div class="fum-file"><div><strong>{{ r.nombre_original }}</strong><div class="fum-meta">{{ r.fecha[:16].replace('T',' ') }} · {{ r.actor }} · {{ (r.tamano / 1024)|round|int }} KB · {{ r.estado_actual.replace('_',' ') }}</div>{% if r.comentario %}<div class="fum-meta">{{ r.comentario }}</div>{% endif %}</div><a class="btn btn-outline btn-sm" target="_blank" href="{{ url_for('fumigacion_remito_archivo', ticket_id=t.id, filename=r.archivo) }}">Abrir</a></div>{% endfor %}</section>{% endfor %}{% else %}<div class="empty">Aún no hay remitos cargados.</div>{% endif %}
+</div>
+
+{% if proveedores and not proximas and not pendientes and not historicos %}<div class="card" style="border-left:4px solid #2563eb;"><h3>Servicio asignado</h3><p style="color:#475569;margin-top:6px;">Tu sucursal tiene proveedor de fumigación, pero todavía no hay una visita informada.</p>{% for p in proveedores %}<div style="margin-top:8px;font-weight:600;">{{ p.nombre }}</div>{% endfor %}</div>{% endif %}
+{% endblock %}

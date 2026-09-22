@@ -225,6 +225,33 @@
     </div>
 </div>
 
+{% if es_fumigacion %}
+<div class="card" style="border-left:4px solid #7c3aed;">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
+        <div><div class="ticket-section-title" style="margin-bottom:5px;">Fumigaciones</div><h3>Remito del trabajo</h3></div>
+        <span class="badge" style="background:{% if fumigacion.remito_estado == 'validado' %}#dcfce7{% elif fumigacion.remito_estado == 'pendiente_validacion' %}#fef3c7{% else %}#fee2e2{% endif %};color:#334155;">{{ fumigacion.remito_estado.replace('_',' ')|title }}</span>
+    </div>
+    <div style="margin-top:10px;color:#475569;font-size:13px;">Estado: {{ fumigacion.fumigacion_estado|title }}{% if fumigacion.fecha_visita_visible %} · Visita {{ fumigacion.fecha_visita_visible }}{% endif %}</div>
+    {% if fumigacion.remitos_fumigacion %}
+    <div style="margin-top:14px;display:grid;gap:10px;">
+        {% for r in fumigacion.remitos_fumigacion|reverse %}
+        <div style="padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc;">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;"><div><strong>{{ r.nombre_original }}</strong><div style="font-size:12px;color:#64748b;margin-top:3px;">{{ r.fecha[:16].replace('T',' ') }} · {{ r.actor }} · {{ r.estado_actual.replace('_',' ') }}</div></div><a class="btn btn-outline btn-sm" target="_blank" href="{{ url_for('fumigacion_remito_archivo', ticket_id=ticket.id, filename=r.archivo) }}">Abrir archivo</a></div>
+            {% if r.comentario %}<p style="font-size:13px;color:#475569;margin-top:8px;">{{ r.comentario }}</p>{% endif %}
+            {% if ticket.remito_actual_id == r.id and ticket.remito_estado == 'pendiente_validacion' %}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+                <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="validar_remito_fumigacion"><input type="hidden" name="remito_id" value="{{ r.id }}"><input type="text" name="observacion" maxlength="1000" placeholder="Observación opcional" style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:7px;box-sizing:border-box;"><button type="submit" class="btn" style="background:#16a34a;color:white;width:100%;">Validar remito</button></form>
+                <form method="POST"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="devolver_remito_fumigacion"><input type="hidden" name="remito_id" value="{{ r.id }}"><input type="text" name="observacion" maxlength="1000" required placeholder="Corrección requerida" style="width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:7px;box-sizing:border-box;"><button type="submit" class="btn" style="background:#dc2626;color:white;width:100%;">Devolver para corregir</button></form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}<p style="margin-top:12px;color:#64748b;">La sucursal todavía no cargó un remito.</p>{% endif %}
+    {% if fumigacion.fumigacion_historial %}<details style="margin-top:14px;"><summary style="cursor:pointer;font-weight:600;color:#475569;">Ver auditoría</summary><div style="margin-top:8px;display:grid;gap:6px;">{% for e in fumigacion.fumigacion_historial|reverse %}<div style="font-size:12px;color:#64748b;">{{ e.fecha[:16].replace('T',' ') }} · {{ e.actor }} · {{ e.accion.replace('_',' ') }}{% if e.detalle %} — {{ e.detalle }}{% endif %}</div>{% endfor %}</div></details>{% endif %}
+</div>
+{% endif %}
+
 {% if ticket.materiales_recibidos and not ticket.siguiente_paso and session.nombre != 'Rita' %}
 <div class="card" style="border-left: 4px solid #16a34a; background: #f0fdf4;">
     <h3 style="margin-bottom: 8px; color: #166534;">📦 Materiales recibidos — Definir siguiente paso</h3>
