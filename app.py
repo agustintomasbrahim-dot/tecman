@@ -464,6 +464,9 @@ ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
 ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
 ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
 ENTRA_AUTH_PROMPT = (os.environ.get("ENTRA_AUTH_PROMPT") or "select_account").strip()
+SUCURSAL_LOCAL_LOGIN_ENABLED = os.environ.get(
+    "SUCURSAL_LOCAL_LOGIN_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "si", "on")
 LOCAL_LOGIN_WINDOW_SECONDS = 15 * 60
 LOCAL_LOGIN_MAX_ATTEMPTS = 8
 LOCAL_LOCK_MINUTES = 15
@@ -5033,6 +5036,9 @@ def login_landing():
 @app.route("/sucursal/login", methods=["GET", "POST"])
 def suc_login():
     if request.method == "POST":
+        if not SUCURSAL_LOCAL_LOGIN_ENABLED:
+            flash("El ingreso local de sucursales está deshabilitado. Ingresá con Microsoft.")
+            return redirect(url_for("suc_login"))
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
@@ -5043,7 +5049,7 @@ def suc_login():
     return render_template(
         "suc_login.html",
         entra_enabled=_entra_is_configured(),
-        local_login_enabled=True,
+        local_login_enabled=SUCURSAL_LOCAL_LOGIN_ENABLED,
     )
 
 
