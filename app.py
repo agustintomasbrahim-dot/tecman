@@ -182,10 +182,12 @@ def serve_persistent_uploads_from_static_path():
     if not request.path.startswith("/static/uploads/"):
         return None
     filename = request.path.removeprefix("/static/uploads/")
-    # El namespace real de matafuegos se sirve sólo por su ruta con autorización
-    # de ticket; nunca por el acceso genérico de uploads para cualquier sesión.
+    # Los namespaces con autorización por registro nunca se sirven por el
+    # acceso genérico de uploads para cualquier sesión autenticada.
     if filename.startswith("matafuegos_real/"):
         return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if filename.startswith("grupos_electrogenos/"):
+        return render_template("error.html", mensaje="Foto no encontrada."), 404
     legacy_guard = app.config.get("MATAFUEGOS_REAL_LEGACY_FILE_GUARD")
     if legacy_guard and legacy_guard(filename) is False:
         return render_template("error.html", mensaje="Acceso restringido al archivo."), 403
@@ -2089,7 +2091,7 @@ GENERADOR_IMPORT_HEADERS = (
 )
 GENERADOR_NOVEDAD_TIPOS = {
     "encendido_prueba": "Encendido / prueba",
-    "mantenimiento_proveedor": "Mantenimiento de proveedor",
+    "mantenimiento_proveedor": "Mantenimiento del proveedor",
     "problema_falla": "Problema / falla",
 }
 GENERADOR_FOTO_MAX_BYTES = 10 * 1024 * 1024
@@ -10458,7 +10460,7 @@ def suc_grupos_electrogenos():
         "suc_grupos_electrogenos.html",
         equipos=equipos,
         novedad_tipos=GENERADOR_NOVEDAD_TIPOS,
-        fecha_evento_default=datetime.date.today().isoformat(),
+        fecha_evento_default=datetime.datetime.now().replace(second=0, microsecond=0).isoformat(timespec="minutes"),
     )
 
 
@@ -10487,11 +10489,13 @@ def suc_grupo_electrogeno_novedad(equipo_id):
         return render_template("error.html", mensaje="Tipo de novedad inválido."), 400
     fecha_evento_raw = request.form.get("fecha_evento", "").strip()
     try:
-        fecha_evento = datetime.date.fromisoformat(fecha_evento_raw)
+        if "T" not in fecha_evento_raw:
+            raise ValueError
+        fecha_evento = datetime.datetime.fromisoformat(fecha_evento_raw)
     except ValueError:
-        return render_template("error.html", mensaje="La fecha del evento es inválida."), 400
-    if fecha_evento > datetime.date.today():
-        return render_template("error.html", mensaje="La fecha del evento no puede ser futura."), 400
+        return render_template("error.html", mensaje="La fecha y hora del evento son inválidas."), 400
+    if fecha_evento > datetime.datetime.now():
+        return render_template("error.html", mensaje="La fecha y hora del evento no pueden ser futuras."), 400
     observacion = request.form.get("observacion", "").strip()
     if len(observacion) > 2000:
         return render_template("error.html", mensaje="La observación no puede superar los 2000 caracteres."), 400

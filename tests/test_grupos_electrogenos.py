@@ -67,7 +67,7 @@ class GruposElectrogenosTest(unittest.TestCase):
         payload = {
             "_csrf_token": "csrf-test",
             "tipo": tipo,
-            "fecha_evento": tecman.datetime.date.today().isoformat(),
+            "fecha_evento": (tecman.datetime.datetime.now() - tecman.datetime.timedelta(minutes=1)).replace(second=0, microsecond=0).isoformat(timespec="minutes"),
             "observacion": "Detalle de prueba" if tipo == "problema_falla" else "",
             "proveedor_tecnico": "Técnico Test",
             "foto": (io.BytesIO(self.PNG_1X1), "equipo.png"),
@@ -282,16 +282,17 @@ class GruposElectrogenosTest(unittest.TestCase):
         equipo = self._equipo()
         tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo]})
         self._sucursal_session(equipo["sucursal"])
-        tomorrow = (tecman.datetime.date.today() + tecman.datetime.timedelta(days=1)).isoformat()
+        valid_datetime = (tecman.datetime.datetime.now() - tecman.datetime.timedelta(minutes=1)).replace(second=0, microsecond=0).isoformat(timespec="minutes")
+        tomorrow = (tecman.datetime.datetime.now() + tecman.datetime.timedelta(days=1)).replace(second=0, microsecond=0).isoformat(timespec="minutes")
         cases = [
-            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat()}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": valid_datetime}, 400),
             ({"tipo": "encendido_prueba", "fecha_evento": "22/09/2026", "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
             ({"tipo": "encendido_prueba", "fecha_evento": tomorrow, "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
-            ({"tipo": "problema_falla", "fecha_evento": tecman.datetime.date.today().isoformat(), "observacion": "", "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
-            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.gif")}, 400),
-            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(b"no-es-imagen"), "a.png")}, 400),
-            ({"tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.jpg")}, 400),
-            ({"_csrf_token": "malo", "tipo": "encendido_prueba", "fecha_evento": tecman.datetime.date.today().isoformat(), "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+            ({"tipo": "problema_falla", "fecha_evento": valid_datetime, "observacion": "", "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": valid_datetime, "foto": (io.BytesIO(self.PNG_1X1), "a.gif")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": valid_datetime, "foto": (io.BytesIO(b"no-es-imagen"), "a.png")}, 400),
+            ({"tipo": "encendido_prueba", "fecha_evento": valid_datetime, "foto": (io.BytesIO(self.PNG_1X1), "a.jpg")}, 400),
+            ({"_csrf_token": "malo", "tipo": "encendido_prueba", "fecha_evento": valid_datetime, "foto": (io.BytesIO(self.PNG_1X1), "a.png")}, 400),
         ]
         for payload, status in cases:
             with self.subTest(payload={k: v for k, v in payload.items() if k != "foto"}):
@@ -329,6 +330,8 @@ class GruposElectrogenosTest(unittest.TestCase):
         response = self.client.get(good)
         self.assertEqual(response.status_code, 200)
         response.close()
+        direct_static = f"/static/uploads/grupos_electrogenos/{novedad['foto']['archivo']}"
+        self.assertEqual(self.client.get(direct_static).status_code, 404)
         self.assertEqual(self.client.get(wrong_equipment).status_code, 404)
         self.assertEqual(self.client.get(f"/grupos-electrogenos/{one['id']}/novedades/no-referenciada/foto").status_code, 404)
         self._sucursal_session(two["sucursal"])
@@ -368,7 +371,7 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Equipo Test", response.data)
         self.assertNotIn(b"Sin novedad", response.data)
-        self.assertIn("Mantenimiento de proveedor".encode(), response.data)
+        self.assertIn("Mantenimiento del proveedor".encode(), response.data)
         self.assertNotIn(b"Borrar novedad", response.data)
 
     def test_compatibilidad_payload_db_y_json(self):
