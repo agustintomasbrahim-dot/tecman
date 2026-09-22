@@ -130,12 +130,16 @@ class FumigacionesSucursalTest(unittest.TestCase):
         self.assertEqual(len(ticket["remitos_fumigacion"]), 1)
         filename = ticket["remitos_fumigacion"][0]["archivo"]
         self.assertTrue((tecman.FUMIGACION_REMITOS_DIR / "901" / filename).is_file())
-        self.assertEqual(self.client.get(f"/fumigaciones/901/remitos/{filename}").status_code, 200)
+        response = self.client.get(f"/fumigaciones/901/remitos/{filename}")
+        self.assertEqual(response.status_code, 200)
+        response.close()
 
         self._sucursal_session("Sucursal 167")
         self.assertEqual(self.client.get(f"/fumigaciones/901/remitos/{filename}").status_code, 403)
         self._admin_session()
-        self.assertEqual(self.client.get(f"/fumigaciones/901/remitos/{filename}").status_code, 200)
+        response = self.client.get(f"/fumigaciones/901/remitos/{filename}")
+        self.assertEqual(response.status_code, 200)
+        response.close()
         validated = self.client.post(
             "/admin/ticket/901",
             data={
@@ -148,6 +152,14 @@ class FumigacionesSucursalTest(unittest.TestCase):
         ticket = tecman.load_tickets()[0]
         self.assertEqual(ticket["remito_estado"], "validado")
         self.assertTrue(any(e["accion"] == "remito_validado" for e in ticket["fumigacion_historial"]))
+
+    def test_deteccion_estructurada_admite_tipo_cuenta_y_rechaza_texto_amplio(self):
+        self.assertTrue(tecman._ticket_es_fumigacion({"tipo_cuenta": "fumigacion"}))
+        self.assertTrue(tecman._ticket_es_fumigacion({"workflow": "fumigacion_remito"}))
+        self.assertFalse(tecman._ticket_es_fumigacion({
+            "categoria": "Mantenimiento",
+            "descripcion": "Hay olor luego de una fumigación anterior",
+        }))
 
     def test_devolucion_permita_recarga_y_validaciones_no_dejan_archivos(self):
         self._save_ticket(fumigacion_estado="realizada", remito_estado="pendiente_carga")

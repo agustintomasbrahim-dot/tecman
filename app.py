@@ -3822,7 +3822,7 @@ def _ticket_es_fumigacion(ticket):
         return True
     valores_explicitos = {
         _normalizar_clave_fumigacion(ticket.get(campo))
-        for campo in ("categoria", "subcategoria", "tipo", "workflow")
+        for campo in ("categoria", "subcategoria", "tipo", "workflow", "tipo_cuenta")
     }
     return bool(valores_explicitos & {
         "fumigacion", "fumigaciones", "control de plagas", "fumigacion_remito",
