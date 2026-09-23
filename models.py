@@ -72,6 +72,28 @@ class MatafuegoDB(db.Model):
         return self.payload
 
 
+class MatafuegoVisitaDB(db.Model):
+    __tablename__ = 'matafuegos_visitas'
+    id = db.Column(db.String(50), primary_key=True)
+    sucursal_num = db.Column(db.String(10), nullable=False, index=True)
+    proveedor_key = db.Column(db.String(120), nullable=False, index=True)
+    estado = db.Column(db.String(30), nullable=False, index=True)
+    payload = db.Column(JSONB, nullable=False)
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            id=_ensure_id(d),
+            sucursal_num=str(d.get('sucursal_num', '') or ''),
+            proveedor_key=str(d.get('proveedor_key', '') or ''),
+            estado=str(d.get('estado', 'Pendiente') or 'Pendiente'),
+            payload=d,
+        )
+
+    def to_dict(self):
+        return self.payload
+
+
 class GrupoElectrogenoDB(db.Model):
     __tablename__ = 'grupos_electrogenos'
     id = db.Column(db.String(50), primary_key=True)

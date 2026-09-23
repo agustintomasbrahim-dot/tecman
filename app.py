@@ -86,7 +86,7 @@ if _DB_URL.startswith("postgres://"):
 USE_DB = False
 if _DB_URL:
     try:
-        from models import (db, TicketDB, MatafuegoDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
+        from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
                             StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                             VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
                             CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB, LogisticsStateDB,
@@ -125,6 +125,7 @@ STOCK_LOTES_FILE = DATA_DIR / "stock_lotes.json"
 GUIAS_COUNTER_FILE = DATA_DIR / "guias_counter.json"
 HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
+MATAFUEGOS_VISITAS_FILE = DATA_DIR / "matafuegos_visitas.json"
 GRUPOS_ELECTROGENOS_FILE = DATA_DIR / "grupos_electrogenos.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
@@ -2092,6 +2093,23 @@ def save_matafuegos(data):
     if USE_DB:
         _db_replace(MatafuegoDB, data.get("matafuegos", []))
     _atomic_write(MATAFUEGOS_FILE, data)
+
+
+def load_matafuegos_visitas():
+    if USE_DB:
+        return {"visitas": _db_list(MatafuegoVisitaDB)}
+    if MATAFUEGOS_VISITAS_FILE.exists():
+        try:
+            return json.loads(MATAFUEGOS_VISITAS_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"visitas": []}
+
+
+def save_matafuegos_visitas(data):
+    if USE_DB:
+        _db_replace(MatafuegoVisitaDB, data.get("visitas", []))
+    _atomic_write(MATAFUEGOS_VISITAS_FILE, data)
 
 
 GENERADOR_ESTADOS_VALIDACION = ("pendiente_validacion", "validado", "con_diferencias")
@@ -5735,7 +5753,16 @@ def suc_matafuegos():
     matafuegos = [_enrich_matafuego(m) for m in load_matafuegos().get("matafuegos", []) if _sucursal_session_can_access_item(m)]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     resumen = _resumen_matafuegos_sucursal(matafuegos)
-    return render_template("suc_matafuegos.html", matafuegos_suc=matafuegos, resumen_matafuegos=resumen, hoy=datetime.date.today().isoformat())
+    sucursales_visibles = {_normalizar_sucursal_matafuegos(m.get("sucursal_num") or m.get("sucursal")) for m in matafuegos}
+    avisos_visita = [
+        {**aviso, "proveedor": visita.get("proveedor", "Proveedor")}
+        for visita in load_matafuegos_visitas().get("visitas", [])
+        if visita.get("estado") in ("Programado", "Realizado")
+        and _normalizar_sucursal_matafuegos(visita.get("sucursal_num")) in sucursales_visibles
+        for aviso in visita.get("avisos_sucursal", [])[-1:]
+    ]
+    avisos_visita.sort(key=lambda aviso: aviso.get("fecha", ""), reverse=True)
+    return render_template("suc_matafuegos.html", matafuegos_suc=matafuegos, resumen_matafuegos=resumen, avisos_visita=avisos_visita, hoy=datetime.date.today().isoformat())
 
 
 @app.route("/suc/permisos/<permiso_id>/fao", methods=["POST"])
@@ -8091,9 +8118,9 @@ def admin_ticket(ticket_id):
 
 
 # --- Portales de matafuegos ---
-# Se registran una vez que los helpers de sesión, tickets y proveedores existen.
+# Se registran una vez que los helpers de sesión, inventario y proveedores existen.
 from matafuegos_demo import demo_bp
-from matafuegos_real import _existing_attachments, real_bp
+from matafuegos_real import real_bp
 
 
 def _proveedor_tipo_efectivo(info):
@@ -8125,62 +8152,59 @@ def _refresh_proveedor_session_tipo():
     return tipo
 
 
-def _ticket_es_matafuegos_admin(ticket):
-    for info in load_proveedor_users().values():
-        if _proveedor_tipo_efectivo(info) == "matafuegos" and _ticket_es_de_proveedor(ticket, list(dict.fromkeys([
-            info.get("nombre"), *(info.get("proveedores") or [])
-        ]))):
-            return True
-    return False
+def _normalizar_sucursal_matafuegos(value):
+    raw = str(value or "").replace("Sucursal", "").strip()
+    return raw.zfill(3) if raw.isdigit() else ""
 
 
-def _ticket_visible_matafuegos(ticket):
-    """Replica el alcance operativo del panel genérico sin ampliar permisos."""
-    return ticket.get("estado") != "Rechazado" and not _is_ticket_sucursal_cerrada(ticket)
+def _cartera_matafuegos_usuario():
+    nombres = set(_proveedor_nombres_usuario())
+    if session.get("prov_full_access"):
+        nombres = {p.get("nombre") for p in PROVEEDORES}
+    cartera = {}
+    for proveedor in PROVEEDORES:
+        if proveedor.get("nombre") not in nombres or _proveedor_tipo_cuenta(proveedor) != "matafuegos":
+            continue
+        for sucursal in proveedor.get("sucursales", []):
+            numero = _normalizar_sucursal_matafuegos(sucursal)
+            if numero:
+                cartera[numero] = proveedor.get("nombre") or session.get("prov_nombre") or "Proveedor"
+    return cartera
 
 
-def _matafuegos_legacy_file_guard(filename):
-    """Protege adjuntos legacy asociados a tickets reales de matafuegos.
+def _cartera_matafuegos_admin():
+    cartera = {}
+    for proveedor in PROVEEDORES:
+        if _proveedor_tipo_cuenta(proveedor) != "matafuegos":
+            continue
+        for sucursal in proveedor.get("sucursales", []):
+            numero = _normalizar_sucursal_matafuegos(sucursal)
+            if numero:
+                cartera.setdefault(numero, []).append(proveedor.get("nombre") or "Proveedor")
+    return cartera
 
-    Devuelve ``None`` cuando el archivo no pertenece a este flujo, ``True``
-    para dueño/admin y ``False`` para cualquier otra sesión.
-    """
-    if Path(filename).name != filename:
-        return None
-    matching = [
-        ticket for ticket in _load_tickets_raw()
-        if _ticket_visible_matafuegos(ticket)
-        and _ticket_es_matafuegos_admin(ticket)
-        and filename in _existing_attachments(ticket)
-    ]
-    if not matching:
-        return None
-    is_admin = bool(
-        session.get("user") and session.get("rol") == "admin" and _session_auth_is_valid()
-        and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin")
+
+def _notificar_programacion_matafuegos(visita, owner):
+    agregar_notif_admin(
+        "Visita de matafuegos programada",
+        f"{visita.get('proveedor')} programó la visita de {visita.get('sucursal')} para el {visita.get('fecha_programada')}. La sucursal verá el aviso en su inventario.",
+        tipo="syh_matafuegos",
+        autor=visita.get("proveedor", ""),
+        link=url_for("matafuegos_real.admin_detail", branch=visita.get("sucursal_num")),
     )
-    if is_admin:
-        return True
-    if not session.get("prov_user") or not _session_auth_is_valid():
-        return False
-    if _refresh_proveedor_session_tipo() != "matafuegos":
-        return False
-    nombres = _proveedor_nombres_usuario()
-    return any(_ticket_es_de_proveedor(ticket, nombres) for ticket in matching)
 
 
 app.config.update(
     TECMAN_SESSION_AUTH_VALIDATOR=_session_auth_is_valid,
-    MATAFUEGOS_REAL_LOAD_TICKETS=load_tickets,
-    MATAFUEGOS_REAL_SAVE_TICKETS=save_tickets,
-    MATAFUEGOS_REAL_PROVIDER_NAMES=_proveedor_nombres_usuario,
-    MATAFUEGOS_REAL_TICKET_ALLOWED=_ticket_es_de_proveedor,
-    MATAFUEGOS_REAL_TICKET_VISIBLE=_ticket_visible_matafuegos,
-    MATAFUEGOS_REAL_ADMIN_TICKET_ALLOWED=_ticket_es_matafuegos_admin,
-    MATAFUEGOS_REAL_LEGACY_FILE_GUARD=_matafuegos_legacy_file_guard,
+    MATAFUEGOS_REAL_LOAD_INVENTORY=load_matafuegos,
+    MATAFUEGOS_REAL_SAVE_INVENTORY=save_matafuegos,
+    MATAFUEGOS_REAL_LOAD_VISITS=load_matafuegos_visitas,
+    MATAFUEGOS_REAL_SAVE_VISITS=save_matafuegos_visitas,
+    MATAFUEGOS_REAL_PROVIDER_PORTFOLIO=_cartera_matafuegos_usuario,
+    MATAFUEGOS_REAL_ADMIN_PORTFOLIO=_cartera_matafuegos_admin,
+    MATAFUEGOS_REAL_NOTIFY_SCHEDULE=_notificar_programacion_matafuegos,
     MATAFUEGOS_REAL_REFRESH_SESSION=_refresh_proveedor_session_tipo,
     MATAFUEGOS_REAL_UPLOADS_DIR=str(UPLOADS_DIR / "matafuegos_real"),
-    MATAFUEGOS_REAL_LEGACY_UPLOADS_DIR=str(UPLOADS_DIR),
     MATAFUEGOS_REAL_MAX_FILE_BYTES=10 * 1024 * 1024,
 )
 app.register_blueprint(demo_bp)
@@ -8518,7 +8542,7 @@ def prov_ticket(ticket_id):
     if session.get("prov_tipo_cuenta") == "matafuegos_demo":
         return render_template("error.html", mensaje="La cuenta DEMO no tiene acceso a tickets reales."), 403
     if _refresh_proveedor_session_tipo() == "matafuegos":
-        return redirect(url_for("matafuegos_real.detail", ticket_id=ticket_id))
+        return redirect(url_for("matafuegos_real.panel"))
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
