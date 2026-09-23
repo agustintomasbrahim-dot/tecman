@@ -86,7 +86,7 @@ if _DB_URL.startswith("postgres://"):
 USE_DB = False
 if _DB_URL:
     try:
-        from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
+        from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, FumigacionDB, HabilitacionDB, ComprobanteDB,
                             StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                             VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
                             CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB, LogisticsStateDB,
@@ -127,6 +127,7 @@ HABILITACIONES_FILE = DATA_DIR / "habilitaciones.json"
 MATAFUEGOS_FILE = DATA_DIR / "matafuegos.json"
 MATAFUEGOS_VISITAS_FILE = DATA_DIR / "matafuegos_visitas.json"
 GRUPOS_ELECTROGENOS_FILE = DATA_DIR / "grupos_electrogenos.json"
+FUMIGACIONES_FILE = DATA_DIR / "fumigaciones.json"
 VEHICULOS_FILE = DATA_DIR / "vehiculos_equipo.json"
 PERMISOS_FILE = DATA_DIR / "permisos.json"
 ALERTAS_SYH_FILE = DATA_DIR / "alertas_syh.json"
@@ -173,6 +174,8 @@ GRUPOS_ELECTROGENOS_UPLOADS_DIR = UPLOADS_DIR / "grupos_electrogenos"
 GRUPOS_ELECTROGENOS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 FUMIGACION_REMITOS_DIR = UPLOADS_DIR / "fumigacion_remitos"
 FUMIGACION_REMITOS_DIR.mkdir(parents=True, exist_ok=True)
+FUMIGACIONES_UPLOADS_DIR = UPLOADS_DIR / "fumigaciones"
+FUMIGACIONES_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 TICKET_DOCUMENTOS_DIR = UPLOADS_DIR / "ticket_documentos"
 TICKET_DOCUMENTOS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -190,6 +193,8 @@ def serve_persistent_uploads_from_static_path():
     # Los namespaces con autorización por registro nunca se sirven por el
     # acceso genérico de uploads para cualquier sesión autenticada.
     if filename.startswith("matafuegos_real/"):
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if filename.startswith("fumigaciones/"):
         return render_template("error.html", mensaje="Archivo no encontrado."), 404
     if filename.startswith("grupos_electrogenos/"):
         return render_template("error.html", mensaje="Foto no encontrada."), 404
@@ -1848,6 +1853,24 @@ def save_notif_admin(data):
     if USE_DB:
         _db_replace(NotifAdminDB, data.get("notificaciones", []))
     _atomic_write(NOTIF_ADMIN_FILE, data)
+
+
+def load_fumigaciones():
+    if USE_DB:
+        return _db_list(FumigacionDB)
+    if FUMIGACIONES_FILE.exists():
+        try:
+            data = json.loads(FUMIGACIONES_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, list) else data.get("visitas", [])
+        except (json.JSONDecodeError, OSError, AttributeError):
+            pass
+    return []
+
+
+def save_fumigaciones(data):
+    if USE_DB:
+        _db_replace(FumigacionDB, data)
+    _atomic_write(FUMIGACIONES_FILE, data)
 
 
 def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
@@ -5619,7 +5642,8 @@ def suc_fumigaciones():
         if _sucursal_session_can_access_item(t) and _ticket_es_fumigacion(t)
     ]
     proveedores = _proveedores_fumigacion_para_scope(scope_nums)
-    if not tickets and not proveedores:
+    visitas = fumigaciones_branch_visits(scope_nums)
+    if not tickets and not proveedores and not visitas:
         return render_template("error.html", mensaje="No hay un circuito de fumigaciones asignado a esta sucursal."), 404
     proximas = [t for t in tickets if t.get("fecha_visita") and not t.get("realizada")]
     pendientes = [t for t in tickets if t.get("realizada") and t.get("remito_estado") != "validado"]
@@ -5633,6 +5657,7 @@ def suc_fumigaciones():
         pendientes=pendientes,
         historicos=historicos,
         proveedores=_proveedores_sin_montos(proveedores),
+        visitas=visitas,
     )
 
 
@@ -8121,6 +8146,7 @@ def admin_ticket(ticket_id):
 # Se registran una vez que los helpers de sesión, inventario y proveedores existen.
 from matafuegos_demo import demo_bp
 from matafuegos_real import real_bp
+from fumigaciones_real import branch_visits as fumigaciones_branch_visits, fumigaciones_bp
 
 
 def _proveedor_tipo_efectivo(info):
@@ -8194,6 +8220,29 @@ def _notificar_programacion_matafuegos(visita, owner):
     )
 
 
+def _fumigaciones_portfolio(nombres):
+    nombres = set(nombres or [])
+    entries = []
+    seen = set()
+    for proveedor in _proveedores_enriquecidos():
+        nombre = str(proveedor.get("nombre") or "").strip()
+        if nombre not in nombres or _proveedor_tipo_cuenta(proveedor) != "fumigacion":
+            continue
+        for value in proveedor.get("sucursales", []):
+            num = _sucursal_num_from_value(value)
+            if not num or num in SUCURSALES_CERRADAS or (nombre, num) in seen:
+                continue
+            seen.add((nombre, num))
+            label = next((s for s in SUCURSALES if _sucursal_num_from_value(s) == num), f"Sucursal {num}")
+            entries.append({"proveedor": nombre, "sucursal_num": num, "sucursal": label})
+    return sorted(entries, key=lambda item: (item["sucursal_num"], item["proveedor"]))
+
+
+def _fumigaciones_branch_info(num):
+    from sucursales_data import SUCURSALES_INFO
+    return copy.deepcopy(SUCURSALES_INFO.get(str(num).zfill(3), {}))
+
+
 app.config.update(
     TECMAN_SESSION_AUTH_VALIDATOR=_session_auth_is_valid,
     MATAFUEGOS_REAL_LOAD_INVENTORY=load_matafuegos,
@@ -8206,9 +8255,20 @@ app.config.update(
     MATAFUEGOS_REAL_REFRESH_SESSION=_refresh_proveedor_session_tipo,
     MATAFUEGOS_REAL_UPLOADS_DIR=str(UPLOADS_DIR / "matafuegos_real"),
     MATAFUEGOS_REAL_MAX_FILE_BYTES=10 * 1024 * 1024,
+    FUMIGACIONES_LOAD=load_fumigaciones,
+    FUMIGACIONES_SAVE=save_fumigaciones,
+    FUMIGACIONES_PROVIDER_NAMES=_proveedor_nombres_usuario,
+    FUMIGACIONES_PORTFOLIO=_fumigaciones_portfolio,
+    FUMIGACIONES_BRANCH_INFO=_fumigaciones_branch_info,
+    FUMIGACIONES_NORMALIZE_BRANCH=_sucursal_num_from_value,
+    FUMIGACIONES_BRANCH_SCOPE=_fumigacion_scope_sucursal,
+    FUMIGACIONES_REFRESH_SESSION=_refresh_proveedor_session_tipo,
+    FUMIGACIONES_UPLOADS_DIR=str(FUMIGACIONES_UPLOADS_DIR),
+    FUMIGACIONES_MAX_FILE_BYTES=10 * 1024 * 1024,
 )
 app.register_blueprint(demo_bp)
 app.register_blueprint(real_bp)
+app.register_blueprint(fumigaciones_bp)
 
 
 # --- Routes: Proveedores ---
@@ -8441,6 +8501,8 @@ def prov_login():
                 return redirect(url_for("matafuegos_demo.panel"))
             if _refresh_proveedor_session_tipo() == "matafuegos":
                 return redirect(url_for("matafuegos_real.panel"))
+            if session.get("prov_tipo_cuenta") == "fumigacion":
+                return redirect(url_for("fumigaciones_real.panel"))
             return redirect(url_for("prov_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template("prov_login.html", entra_enabled=_entra_is_configured())
@@ -8464,6 +8526,8 @@ def prov_panel():
         return redirect(url_for("matafuegos_demo.panel"))
     if _refresh_proveedor_session_tipo() == "matafuegos":
         return redirect(url_for("matafuegos_real.panel"))
+    if session.get("prov_tipo_cuenta") == "fumigacion":
+        return redirect(url_for("fumigaciones_real.panel"))
     tickets = load_tickets()
     prov_nombre = session.get("prov_nombre", "")
     filtro_sucursal = request.args.get("sucursal", "").strip()
@@ -8543,6 +8607,8 @@ def prov_ticket(ticket_id):
         return render_template("error.html", mensaje="La cuenta DEMO no tiene acceso a tickets reales."), 403
     if _refresh_proveedor_session_tipo() == "matafuegos":
         return redirect(url_for("matafuegos_real.panel"))
+    if session.get("prov_tipo_cuenta") == "fumigacion":
+        return render_template("error.html", mensaje="El circuito de fumigaciones se gestiona por sucursal y no mediante tickets."), 404
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:

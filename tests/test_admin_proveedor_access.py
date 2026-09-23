@@ -155,6 +155,8 @@ class AdminProveedorAccessTest(unittest.TestCase):
             self.assertEqual(login.status_code, 302)
             if expected_type == "matafuegos":
                 self.assertTrue(login.headers["Location"].endswith("/proveedor/matafuegos"))
+            elif expected_type == "fumigacion":
+                self.assertTrue(login.headers["Location"].endswith("/proveedor/fumigaciones"))
             else:
                 self.assertTrue(login.headers["Location"].endswith("/proveedores") or login.headers["Location"].endswith("/proveedor"))
             with self.client.session_transaction() as sess:

@@ -101,24 +101,23 @@ class FumigacionesSucursalTest(unittest.TestCase):
             content_type="multipart/form-data",
         )
 
-    def test_programacion_realizacion_carga_validacion_y_archivo_protegido(self):
+    def test_ticket_proveedor_se_rechaza_y_historico_conserva_carga_validacion_y_archivo(self):
         self._save_ticket()
         self._provider_session()
+        before = tecman.load_tickets()
         planned = self.client.post(
             "/proveedor/ticket/901",
             data={"_csrf_token": "csrf-test", "accion": "planificado", "fecha_visita": "2026-09-25"},
         )
-        self.assertEqual(planned.status_code, 302)
-        realized = self.client.post(
-            "/proveedor/ticket/901",
-            data={"_csrf_token": "csrf-test", "accion": "relevado"},
-        )
-        self.assertEqual(realized.status_code, 302)
-        ticket = tecman.load_tickets()[0]
-        self.assertEqual(ticket["fumigacion_estado"], "realizada")
-        self.assertEqual(ticket["remito_estado"], "pendiente_carga")
-        self.assertIn("Fumigación realizada", ticket["notificaciones"][-1]["texto"])
+        self.assertEqual(planned.status_code, 404)
+        self.assertEqual(tecman.load_tickets(), before)
 
+        self._save_ticket(
+            fumigacion_estado="realizada",
+            remito_estado="pendiente_carga",
+            etapa_prov="relevado",
+            fecha_visita="2026-09-25",
+        )
         self._sucursal_session()
         panel = self.client.get("/suc/fumigaciones")
         self.assertEqual(panel.status_code, 200)

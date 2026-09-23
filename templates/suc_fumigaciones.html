@@ -4,7 +4,6 @@
 <div class="nav">
     <a href="{{ url_for('suc_panel') }}">Inicio</a>
     <a href="{{ url_for('suc_fumigaciones') }}">Fumigaciones</a>
-    <a href="{{ url_for('nuevo_ticket') }}">Nuevo ticket</a>
     <a href="{{ url_for('suc_logout') }}" style="margin-left:auto;">Salir ({{ session.suc_nombre }})</a>
 </div>
 {% endblock %}
@@ -14,7 +13,12 @@
 </style>
 <div class="fum-head"><div><h2>Fumigaciones</h2><p style="color:#64748b;margin-top:5px;">Consultá las visitas y cargá el remito una vez realizado el trabajo.</p></div><a class="btn btn-outline" href="{{ url_for('suc_panel') }}">← Volver</a></div>
 
-<div class="card">
+{% if visitas %}<div class="card" style="margin-bottom:16px;border-left:4px solid #059669;"><h3>Visitas programadas e historial</h3><p style="color:#64748b;font-size:13px;">Estos registros los genera directamente el proveedor para tu sucursal, sin crear tickets.</p>{% for visita in visitas %}<div class="fum-file"><div><strong>{{ visita.fecha_programada }} · {{ visita.proveedor }}</strong><div class="fum-meta">{{ visita.estado }}{% if visita.relevamiento and visita.relevamiento.trabajo_realizado %} · {{ visita.relevamiento.trabajo_realizado }}{% endif %}</div>{% for aviso in visita.notificaciones_sucursal or [] %}<div style="margin-top:5px;color:#047857;font-size:12px;">🔔 {{ aviso.texto }}</div>{% endfor %}</div>{% if visita.documentos %}<div>{% for tipo, doc in visita.documentos.items() %}<a class="btn btn-outline btn-sm" href="{{ url_for('fumigaciones_real.serve_file', record_id=visita.id, filename=doc.archivo) }}">{{ tipo|capitalize }}</a>{% endfor %}</div>{% endif %}</div>{% endfor %}</div>{% endif %}
+
+{% if proximas or pendientes or historicos %}
+<div class="card" style="border-left:4px solid #94a3b8;">
+<h3 style="margin-bottom:4px;">Registros históricos del circuito anterior</h3>
+<p class="fum-meta" style="margin-bottom:12px;">Sólo consulta y documentación de trabajos que ya existían como ticket.</p>
 <h3 style="margin-bottom:12px;">Próximas visitas</h3>
 {% if proximas %}<div class="fum-grid">{% for t in proximas %}<article class="fum-item"><span class="fum-state" style="background:#ede9fe;color:#6d28d9;">Programada</span><h3 style="margin-top:10px;">{{ t.fecha_visita_visible }}</h3><div class="fum-meta">{{ t.asignado_proveedor or t.proveedor_nombre or t.asignado or 'Proveedor a confirmar' }} · Ticket #{{ t.id }}</div><a href="{{ url_for('estado_ticket', ticket_id=t.id) }}" style="display:inline-block;margin-top:10px;">Ver ticket →</a></article>{% endfor %}</div>{% else %}<div class="empty">Todavía no hay visitas programadas. Cuando el proveedor informe una fecha, aparecerá acá.</div>{% endif %}
 </div>
@@ -28,6 +32,7 @@
 <h3 style="margin-bottom:12px;">Historial de remitos</h3>
 {% if historicos %}{% for t in historicos %}<section class="fum-item" style="margin-bottom:12px;"><h3>Ticket #{{ t.id }} <span class="fum-state" style="background:{% if t.remito_estado == 'validado' %}#dcfce7{% elif t.remito_estado == 'pendiente_validacion' %}#fef3c7{% else %}#f1f5f9{% endif %};color:#334155;">{{ t.remito_estado.replace('_',' ')|title }}</span></h3>{% for r in t.remitos_fumigacion|reverse %}<div class="fum-file"><div><strong>{{ r.nombre_original }}</strong><div class="fum-meta">{{ r.fecha[:16].replace('T',' ') }} · {{ r.actor }} · {{ (r.tamano / 1024)|round|int }} KB · {{ r.estado_actual.replace('_',' ') }}</div>{% if r.comentario %}<div class="fum-meta">{{ r.comentario }}</div>{% endif %}</div><a class="btn btn-outline btn-sm" target="_blank" href="{{ url_for('fumigacion_remito_archivo', ticket_id=t.id, filename=r.archivo) }}">Abrir</a></div>{% endfor %}</section>{% endfor %}{% else %}<div class="empty">Aún no hay remitos cargados.</div>{% endif %}
 </div>
+{% endif %}
 
-{% if proveedores and not proximas and not pendientes and not historicos %}<div class="card" style="border-left:4px solid #2563eb;"><h3>Servicio asignado</h3><p style="color:#475569;margin-top:6px;">Tu sucursal tiene proveedor de fumigación, pero todavía no hay una visita informada.</p>{% for p in proveedores %}<div style="margin-top:8px;font-weight:600;">{{ p.nombre }}</div>{% endfor %}</div>{% endif %}
+{% if proveedores and not visitas and not proximas and not pendientes and not historicos %}<div class="card" style="border-left:4px solid #2563eb;"><h3>Servicio asignado</h3><p style="color:#475569;margin-top:6px;">Tu sucursal tiene proveedor de fumigación, pero todavía no hay una visita informada.</p>{% for p in proveedores %}<div style="margin-top:8px;font-weight:600;">{{ p.nombre }}</div>{% endfor %}</div>{% endif %}
 {% endblock %}

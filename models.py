@@ -114,6 +114,31 @@ class GrupoElectrogenoDB(db.Model):
         return self.payload
 
 
+class FumigacionDB(db.Model):
+    """Visita de fumigación por sucursal, independiente de los tickets."""
+    __tablename__ = 'fumigaciones'
+    id = db.Column(db.String(50), primary_key=True)
+    sucursal_num = db.Column(db.String(10), nullable=False, index=True)
+    proveedor = db.Column(db.String(255), nullable=False, index=True)
+    estado = db.Column(db.String(40), nullable=False, index=True)
+    fecha_programada = db.Column(db.String(10), index=True)
+    payload = db.Column(JSONB, nullable=False)
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            id=_ensure_id(d),
+            sucursal_num=str(d.get('sucursal_num', '') or ''),
+            proveedor=str(d.get('proveedor', '') or ''),
+            estado=str(d.get('estado', 'Programada') or 'Programada'),
+            fecha_programada=str(d.get('fecha_programada', '') or ''),
+            payload=d,
+        )
+
+    def to_dict(self):
+        return self.payload
+
+
 class HabilitacionDB(db.Model):
     __tablename__ = 'habilitaciones'
     id = db.Column(db.String(50), primary_key=True)

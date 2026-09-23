@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Tecman · Validación de fumigaciones{% endblock %}
+{% block nav %}<div class="nav"><a href="{{ url_for('admin_proveedores') }}">← Proveedores</a><a href="{{ url_for('fumigaciones_real.admin_panel') }}">Fumigaciones</a><a href="{{ url_for('admin_logout') }}" style="margin-left:auto">Salir</a></div>{% endblock %}
+{% block content %}
+<style>.head{background:#064e3b;color:white;padding:22px;border-radius:18px}.head h2{color:white}.rows{display:grid;gap:10px;margin-top:14px}.row-f{display:flex;justify-content:space-between;gap:12px;background:white;border:1px solid #d1fae5;border-radius:13px;padding:15px;text-decoration:none;color:#111827}.meta{font-size:12px;color:#6b7280}.badge-f{align-self:center;background:#ecfdf5;color:#047857;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800}</style>
+<div class="head"><small>ADMINISTRACIÓN · CIRCUITO SIN TICKETS</small><h2>Validación de fumigaciones</h2><p>Relevamientos y remitos enviados por los proveedores.</p></div><div class="rows">{% for visita in visitas %}<a class="row-f" href="{{ url_for('fumigaciones_real.admin_detail', record_id=visita.id) }}"><div><b>Sucursal {{ visita.sucursal_num }} · {{ visita.proveedor }}</b><div class="meta">{{ visita.fecha_programada }} · {{ visita.id }}</div></div><span class="badge-f">{{ visita.estado }}</span></a>{% else %}<div class="card">No hay visitas registradas.</div>{% endfor %}</div>
+{% endblock %}
