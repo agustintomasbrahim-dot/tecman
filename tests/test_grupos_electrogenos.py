@@ -250,6 +250,29 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"], [])
 
+    def test_inventory_2026_09_is_idempotent_and_preserves_existing_values(self):
+        with tecman.app.test_request_context("/"):
+            existing = tecman._generador_from_values({
+                "sucursal": "Sucursal 077",
+                "marca": "Marca confirmada por sucursal",
+            }, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [existing]})
+
+        with tecman.app.app_context():
+            first = tecman._ensure_grupos_electrogenos_inventario_2026_09()
+            second = tecman._ensure_grupos_electrogenos_inventario_2026_09()
+
+        self.assertEqual(first, 21)
+        self.assertEqual(second, 0)
+        items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
+        self.assertEqual(len(items), 21)
+        by_branch = {item["sucursal_num"]: item for item in items}
+        self.assertEqual(by_branch["077"]["marca"], "Marca confirmada por sucursal")
+        self.assertEqual(by_branch["077"]["modelo"], "35 HP")
+        self.assertEqual(by_branch["195"]["numero_serie"], "10231124")
+        self.assertEqual(by_branch["241"]["estado_equipo"], "Compartido con Sucursal 239")
+        self.assertTrue(all(item.get("notificacion_sucursal_pendiente") for item in items))
+
     def test_novedades_validas_persisten_foto_auditoria_y_campos_por_tipo(self):
         equipo = self._equipo()
         tecman.save_grupos_electrogenos({"grupos_electrogenos": [equipo]})
