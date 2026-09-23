@@ -3179,6 +3179,14 @@ def _formatear_guia_numero(n):
 
 
 METODOS_GUIA_INTERNA_MATERIALES = {"Envio desde Central", "Recoge CEYH"}
+METODOS_SALIDA_PARCIAL = {
+    "Envio desde Central",
+    "Recoge CEYH",
+    "Envio directo a sucursal",
+    "Retira proveedor",
+    "Retira personal propio",
+}
+TIPOS_CARGA_SALIDA = {"Bultos", "Pallets"}
 
 
 def _ensure_guia_interna_materiales(ticket):
@@ -3205,6 +3213,55 @@ def _guardar_datos_carga_guia(ticket, form):
         ticket["guia_carga_tipo"] = carga_tipo
     if carga_cantidad:
         ticket["guia_carga_cantidad"] = carga_cantidad
+
+
+def _parsear_items_salida_parcial(form):
+    """Valida renglones libres sin consultar ni reservar stock."""
+    materiales = form.getlist("salida_material[]")
+    cantidades = form.getlist("salida_cantidad[]")
+    if len(materiales) != len(cantidades):
+        raise ValueError("Los renglones de materiales están incompletos")
+    items = []
+    for material_raw, cantidad_raw in zip(materiales, cantidades):
+        material = str(material_raw or "").strip()
+        cantidad_texto = str(cantidad_raw or "").strip()
+        if not material and not cantidad_texto:
+            continue
+        cantidad = _parse_int_or_none(cantidad_texto)
+        if not material:
+            raise ValueError("Cada renglón debe indicar el material")
+        if cantidad is None or cantidad <= 0:
+            raise ValueError("Las cantidades deben ser números enteros positivos")
+        items.append({"material": material, "cantidad": cantidad})
+    if not items:
+        raise ValueError("Agregá al menos un material a la salida")
+    return items
+
+
+def _preparar_numero_salida_parcial(tickets, comprobantes, counter_data):
+    """Reserva en memoria el próximo número sin tocar el contador persistido."""
+    try:
+        ultimo = int(counter_data.get("ultimo", 87889))
+    except (TypeError, ValueError):
+        ultimo = 87889
+    usados = {
+        str(salida.get("numero") or "").strip()
+        for ticket in tickets
+        for salida in (ticket.get("salidas_parciales") or [])
+        if isinstance(salida, dict)
+    }
+    usados.update(
+        str(comprobante.get("numero") or "").strip()
+        for comprobante in comprobantes.get("comprobantes", [])
+        if isinstance(comprobante, dict)
+    )
+    while True:
+        ultimo += 1
+        numero = _formatear_guia_numero(ultimo)
+        if numero not in usados:
+            actualizado = copy.deepcopy(counter_data)
+            actualizado["ultimo"] = ultimo
+            return numero, actualizado
 
 
 def _get_precio_historico(item_key, hasta=None):
@@ -11331,6 +11388,115 @@ def admin_pedido(ticket_id):
             flash("Respuesta enviada a la sucursal")
             return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
+        if accion == "crear_salida_parcial":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+            if not _is_material_ticket(ticket) or not _is_ticket_operativo(ticket):
+                return render_template("error.html", mensaje="El ticket debe ser un pedido de materiales activo."), 400
+
+            metodo = (request.form.get("salida_metodo") or "").strip()
+            destino = (request.form.get("salida_destino") or "").strip()
+            carga_tipo = (request.form.get("salida_carga_tipo") or "").strip()
+            carga_cantidad = _parse_int_or_none(request.form.get("salida_carga_cantidad", ""))
+            observaciones = (request.form.get("salida_observaciones") or "").strip()
+            destinos_validos = _salida_parcial_destinos(ticket)
+            try:
+                items_salida = _parsear_items_salida_parcial(request.form)
+                if metodo not in METODOS_SALIDA_PARCIAL or (metodo == "Recoge CEYH" and not es_amba):
+                    raise ValueError("Seleccioná un método de envío o retiro válido")
+                if destino not in destinos_validos:
+                    raise ValueError("Seleccioná un destino válido")
+                if carga_tipo not in TIPOS_CARGA_SALIDA:
+                    raise ValueError("Seleccioná el tipo de carga")
+                if carga_cantidad is None or carga_cantidad <= 0:
+                    raise ValueError("La cantidad de carga debe ser un número entero positivo")
+            except ValueError as exc:
+                return render_template("error.html", mensaje=str(exc)), 400
+
+            ahora = datetime.datetime.now().isoformat()
+            actor = session.get("nombre") or session.get("user") or "Administración"
+            salida_id = uuid.uuid4().hex[:12]
+            comprobante_id = uuid.uuid4().hex[:12]
+            comprobantes = load_comprobantes()
+            contador_anterior = _load_guias_counter()
+            numero, contador_actualizado = _preparar_numero_salida_parcial(
+                tickets, comprobantes, contador_anterior
+            )
+            tickets_anteriores = copy.deepcopy(tickets)
+            comprobantes_anteriores = copy.deepcopy(comprobantes)
+            salida = {
+                "id": salida_id,
+                "numero": numero,
+                "fecha": ahora,
+                "actor": actor,
+                "items": items_salida,
+                "metodo": metodo,
+                "destino": destino,
+                "destino_direccion": destinos_validos[destino],
+                "carga_tipo": carga_tipo,
+                "carga_cantidad": carga_cantidad,
+                "observaciones": observaciones,
+                "no_descuenta_stock": True,
+                "comprobante_id": comprobante_id,
+            }
+            comprobante = {
+                "id": comprobante_id,
+                "tipo": "remito_interno",
+                "numero": numero,
+                "fecha": ahora[:10],
+                "proveedor": "Remito interno",
+                "monto": 0.0,
+                "descripcion": observaciones,
+                "ticket_ids": [ticket_id],
+                "archivo": "",
+                "items_factura": [
+                    {"item": item["material"], "cantidad": item["cantidad"], "precio_unitario": 0.0}
+                    for item in items_salida
+                ],
+                "created_at": ahora,
+                "cargado_por": actor,
+                "destino": destino,
+                "destino_direccion": destinos_validos[destino],
+                "retiro_tipo": metodo,
+                "retiro_detalle": f"{carga_cantidad} {carga_tipo}",
+                "metodo": metodo,
+                "carga_tipo": carga_tipo,
+                "carga_cantidad": carga_cantidad,
+                "salida_parcial_id": salida_id,
+                "no_descuenta_stock": True,
+            }
+            comprobantes.setdefault("comprobantes", []).append(comprobante)
+            ticket.setdefault("salidas_parciales", []).append(salida)
+            ticket["estado"] = "En progreso"
+            ticket["actualizado"] = ahora
+            ticket["notas"].append({
+                "autor": actor,
+                "fecha": ahora,
+                "texto": (
+                    f"Salida parcial {numero}: {len(items_salida)} renglón(es), "
+                    f"{carga_cantidad} {carga_tipo}. No descuenta stock."
+                ),
+            })
+            try:
+                save_tickets(tickets)
+                save_comprobantes(comprobantes)
+                _save_guias_counter(contador_actualizado)
+            except Exception:
+                # Las tres persistencias forman una sola operación lógica. Si
+                # una falla, restaurar todo lo que haya llegado a escribirse.
+                for restaurar, anterior in (
+                    (save_tickets, tickets_anteriores),
+                    (save_comprobantes, comprobantes_anteriores),
+                    (_save_guias_counter, contador_anterior),
+                ):
+                    try:
+                        restaurar(anterior)
+                    except Exception:
+                        app.logger.exception("No se pudo restaurar una salida parcial fallida")
+                raise
+            flash(f"Salida parcial registrada: {numero}. El ticket continúa en progreso.")
+            return redirect(url_for("admin_pedido", ticket_id=ticket_id))
+
         if accion == "subir_guia":
             archivo = request.files.get("guia_archivo")
             numero = request.form.get("guia_numero", "").strip()
@@ -11714,6 +11880,7 @@ def admin_pedido(ticket_id):
         stock_similares=stock_similares,
         es_ceyh=es_ceyh,
         material_categorias=MATERIAL_CATEGORIAS,
+        salida_destinos=_salida_parcial_destinos(ticket),
     )
 
 
@@ -12111,13 +12278,27 @@ def _direccion_para_destino(destino):
         return ""
     if destino in DESTINOS_FIJOS:
         return DESTINOS_FIJOS[destino]
-    if destino.startswith("Suc "):
+    if destino.startswith("Suc ") or destino.startswith("Sucursal "):
         from sucursales_data import SUCURSALES_INFO
-        num = destino[4:].split("-", 1)[0].strip()
+        prefijo = "Sucursal " if destino.startswith("Sucursal ") else "Suc "
+        num = destino[len(prefijo):].split("-", 1)[0].strip()
         info = SUCURSALES_INFO.get(num, {})
         partes = [p for p in (info.get("direccion", ""), info.get("ciudad", ""), info.get("provincia", "")) if p]
         return ", ".join(partes)
     return ""
+
+
+def _salida_parcial_destinos(ticket):
+    """Destinos elegibles; nunca acepta texto libre enviado por el cliente."""
+    destinos = {}
+    sucursal_ticket = str(ticket.get("sucursal") or "").strip()
+    if sucursal_ticket and not _is_sucursal_cerrada(sucursal_ticket):
+        destinos[sucursal_ticket] = _direccion_para_destino(sucursal_ticket)
+    for nombre, direccion in DESTINOS_FIJOS.items():
+        destinos[nombre] = direccion
+    for item in _destinos_sucursales():
+        destinos[item["label"]] = item["direccion"]
+    return destinos
 
 
 def _bloquear_comprobantes_a_tecnico():
@@ -12438,13 +12619,18 @@ def api_destino_direccion():
 @app.route("/admin/comprobantes/<cid>/imprimir")
 @login_required
 def admin_comprobantes_imprimir(cid):
-    bloqueado = _bloquear_comprobantes_a_tecnico()
-    if bloqueado:
-        return bloqueado
     data = load_comprobantes()
     comp = next((c for c in data.get("comprobantes", []) if c.get("id") == cid), None)
     if not comp:
         return "Comprobante no encontrado", 404
+    if session.get("rol") == "tecnico":
+        es_salida_parcial = bool(
+            comp.get("tipo") == "remito_interno"
+            and comp.get("salida_parcial_id")
+            and comp.get("no_descuenta_stock") is True
+        )
+        if not es_salida_parcial:
+            return render_template("error.html", mensaje="Acceso restringido. Soria solo puede imprimir remitos de salidas parciales."), 403
     try:
         fecha_fmt = datetime.datetime.strptime(comp.get("fecha", ""), "%Y-%m-%d").strftime("%d/%m/%Y")
     except (ValueError, TypeError):

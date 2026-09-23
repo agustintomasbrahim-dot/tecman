@@ -2,7 +2,11 @@
 {% block title %}Remito Interno - {{ c.numero }}{% endblock %}
 {% block nav %}
 <div class="nav no-print">
+    {% if c.salida_parcial_id and c.ticket_ids %}
+    <a href="{{ url_for('admin_pedido', ticket_id=c.ticket_ids[0]) }}">← Volver al pedido</a>
+    {% else %}
     <a href="{{ url_for('admin_comprobantes') }}">← Volver a comprobantes</a>
+    {% endif %}
     <a href="{{ url_for('admin_logout') }}" style="margin-left: auto;">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
@@ -107,7 +111,7 @@
 
 <div class="no-print" style="display:flex; gap:10px; padding:16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; align-items:center;">
     <button type="button" onclick="window.print()" style="background:#1d4ed8;color:white;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">🖨️ Imprimir / Descargar PDF</button>
-    <a href="{{ url_for('admin_comprobantes') }}" style="padding:10px 16px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;text-decoration:none;color:#374151;font-size:14px;font-weight:600;">← Volver</a>
+    <a href="{% if c.salida_parcial_id and c.ticket_ids %}{{ url_for('admin_pedido', ticket_id=c.ticket_ids[0]) }}{% else %}{{ url_for('admin_comprobantes') }}{% endif %}" style="padding:10px 16px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;text-decoration:none;color:#374151;font-size:14px;font-weight:600;">← Volver</a>
     <span style="font-size:12px;color:#9ca3af;margin-left:8px;">💡 Para descargar como PDF: Imprimir → Guardar como PDF</span>
 </div>
 
@@ -149,6 +153,16 @@
             </span>
         </div>
         {% endif %}
+        {% if c.metodo %}
+        <div class="campo">
+            <label>Método:</label>
+            <span class="valor">{{ c.metodo }}</span>
+        </div>
+        <div class="campo">
+            <label>Carga:</label>
+            <span class="valor">{{ c.carga_cantidad }} {{ c.carga_tipo }}</span>
+        </div>
+        {% endif %}
     </div>
 
     {% if c.retiro_tipo %}
@@ -165,7 +179,9 @@
             <tr>
                 <th style="width:80px; text-align:center;">Cantidad</th>
                 <th>Detalle</th>
+                {% if not c.no_descuenta_stock %}
                 <th style="width:120px; text-align:right;">Precio unit.</th>
+                {% endif %}
             </tr>
         </thead>
         <tbody>
@@ -173,13 +189,15 @@
             <tr>
                 <td class="cant">{{ it.cantidad }}</td>
                 <td>{{ it.item }}</td>
+                {% if not c.no_descuenta_stock %}
                 <td class="precio">$ {{ '{:,.2f}'.format(it.precio_unitario | float) }}</td>
+                {% endif %}
             </tr>
             {% endfor %}
             {% set faltan = 6 - (c.items_factura | length if c.items_factura else 0) %}
             {% if faltan > 0 %}
                 {% for _ in range(faltan) %}
-                <tr class="vacia"><td class="cant">.</td><td>.</td><td class="precio">.</td></tr>
+                <tr class="vacia"><td class="cant">.</td><td>.</td>{% if not c.no_descuenta_stock %}<td class="precio">.</td>{% endif %}</tr>
                 {% endfor %}
             {% endif %}
         </tbody>

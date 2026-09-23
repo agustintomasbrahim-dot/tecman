@@ -377,6 +377,108 @@
     {% endif %}
 </div>
 
+<div class="card" style="border-left:4px solid #7c3aed;">
+    <h3 style="margin-bottom:6px;">Salidas parciales / remitos propios</h3>
+    <p class="pedido-help" style="margin-bottom:14px;">Registrá solamente lo que sale en este despacho. No requiere stock cargado, no descuenta existencias ni genera movimientos.</p>
+
+    {% if ticket.estado not in ('Rechazado', 'Resuelto', 'Cerrado') %}
+    <form method="POST" id="salida-parcial-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="accion" value="crear_salida_parcial">
+        <div class="form-group">
+            <label>Materiales de esta salida</label>
+            <div id="salida-items">
+                <div class="pedido-two-cols salida-item" style="grid-template-columns:1fr 130px; margin-bottom:8px;">
+                    <input type="text" name="salida_material[]" placeholder="Material / descripción libre" maxlength="300" required>
+                    <input type="number" name="salida_cantidad[]" min="1" step="1" value="1" required aria-label="Cantidad">
+                </div>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="agregar-salida-item">+ Agregar renglón</button>
+        </div>
+        <div class="pedido-two-cols" style="grid-template-columns:1fr 1fr;">
+            <div class="form-group">
+                <label>Método de envío / retiro</label>
+                <select name="salida_metodo" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="Envio desde Central">Envío desde Central</option>
+                    <option value="Envio directo a sucursal">Envío directo a sucursal</option>
+                    {% if es_amba %}<option value="Recoge CEYH">Recoge CEYH</option>{% endif %}
+                    <option value="Retira proveedor">Retira proveedor</option>
+                    <option value="Retira personal propio">Retira personal propio</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Destino</label>
+                <select name="salida_destino" required>
+                    <option value="">Seleccionar...</option>
+                    {% for nombre, direccion in salida_destinos.items() %}
+                    <option value="{{ nombre }}" {% if nombre == ticket.sucursal %}selected{% endif %}>{{ nombre }}{% if direccion %} — {{ direccion }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="pedido-two-cols" style="grid-template-columns:1fr 1fr;">
+            <div class="form-group">
+                <label>Tipo de carga</label>
+                <select name="salida_carga_tipo" required>
+                    <option value="">Seleccionar...</option>
+                    <option value="Bultos">Bultos</option>
+                    <option value="Pallets">Pallets</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Cantidad de carga</label>
+                <input type="number" name="salida_carga_cantidad" min="1" step="1" required placeholder="Ej: 2">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Observaciones</label>
+            <textarea name="salida_observaciones" maxlength="2000" placeholder="Detalle opcional para el remito"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" onclick="return confirm('¿Registrar esta salida parcial sin descontar stock?')">Generar salida y remito interno</button>
+    </form>
+    <script>
+    (function() {
+        var container = document.getElementById('salida-items');
+        var add = document.getElementById('agregar-salida-item');
+        if (!container || !add) return;
+        add.addEventListener('click', function() {
+            var row = document.createElement('div');
+            row.className = 'pedido-two-cols salida-item';
+            row.style.cssText = 'grid-template-columns:1fr 130px; margin-bottom:8px;';
+            row.innerHTML = '<input type="text" name="salida_material[]" placeholder="Material / descripción libre" maxlength="300" required>' +
+                '<input type="number" name="salida_cantidad[]" min="1" step="1" value="1" required aria-label="Cantidad">';
+            container.appendChild(row);
+        });
+    })();
+    </script>
+    {% else %}
+    <div style="padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;color:#475569;">El ticket está finalizado y no admite nuevas salidas.</div>
+    {% endif %}
+
+    {% if ticket.salidas_parciales %}
+    <div style="margin-top:18px;border-top:1px solid #e5e7eb;padding-top:14px;">
+        <h4 style="margin-bottom:10px;">Remitos emitidos ({{ ticket.salidas_parciales|length }})</h4>
+        <div style="overflow-x:auto;">
+        <table style="margin-bottom:0;">
+            <thead><tr><th>Número</th><th>Fecha / actor</th><th>Ítems</th><th>Envío / carga</th><th></th></tr></thead>
+            <tbody>
+            {% for salida in ticket.salidas_parciales|reverse %}
+            <tr>
+                <td><strong>{{ salida.numero }}</strong><div style="font-size:11px;color:#047857;">Sin descuento de stock</div></td>
+                <td>{{ salida.fecha[:16].replace('T', ' ') }}<div style="font-size:12px;color:#6b7280;">{{ salida.actor }}</div></td>
+                <td>{% for item in salida['items'] %}<div>{{ item.material }} × {{ item.cantidad }}</div>{% endfor %}</td>
+                <td>{{ salida.metodo }}<div style="font-size:12px;color:#6b7280;">{{ salida.carga_cantidad }} {{ salida.carga_tipo }} · {{ salida.destino }}</div></td>
+                <td style="text-align:right;"><a href="{{ url_for('admin_comprobantes_imprimir', cid=salida.comprobante_id) }}" target="_blank" class="btn btn-outline btn-sm">Abrir / imprimir</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
 {% if trabajo_prov_ticket %}
 {% set tp = trabajo_prov_ticket %}
 {% set etapa_tp = tp.get('etapa_prov', 'pendiente') %}
