@@ -98,7 +98,7 @@
             {% for t in materiales.columns.nuevo %}
             <a class="pedido-simple-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
                 <div>
-                    <div class="pedido-simple-main">#{{ t.id }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
+                    <div class="pedido-simple-main">#{{ ticket_codigo(t) }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
                     <div class="pedido-simple-meta">{{ t.sucursal }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}{% if t.cantidad_mat %} · Cantidad {{ t.cantidad_mat }}{% endif %}</div>
                 </div>
                 <div class="pedido-simple-action">Abrir</div>
@@ -122,7 +122,7 @@
             <a class="pedido-simple-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
                 <div>
                     <div style="margin-bottom:6px;"><span class="pedido-badge" style="background:{{ meta.bg }};color:{{ meta.color }};">{{ meta.label }}</span></div>
-                    <div class="pedido-simple-main">#{{ t.id }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
+                    <div class="pedido-simple-main">#{{ ticket_codigo(t) }} · {{ t.categoria_mat or t.subcategoria or 'Material' }}{% if t.subitem_mat %} › {{ t.subitem_mat }}{% endif %}</div>
                     <div class="pedido-simple-meta">{{ t.sucursal }}{% if t.zona_afectada %} · {{ t.zona_afectada }}{% endif %}</div>
                 </div>
                 <div class="pedido-simple-action" style="background:#f8fafc;color:#334155;border:1px solid #e5e7eb;">Ver</div>
@@ -175,7 +175,7 @@
             {% for t in items %}
             <a class="pedido-card" href="{{ url_for('admin_pedido', ticket_id=t.id) }}">
                 <div class="pedido-card-top">
-                    <span class="pedido-id">#{{ t.id }}</span>
+                    <span class="pedido-id">#{{ ticket_codigo(t) }}</span>
                     <span class="pedido-date">{{ t.creado[:10] if t.creado else '' }}</span>
                 </div>
                 <div class="pedido-main">

@@ -78,7 +78,7 @@
                 {% for t in tickets %}
                 {% set es_material = t.categoria in ['Materiales', 'Solicitud de materiales'] or t.subcategoria == 'Solicitud de materiales' or t.tipo == 'materiales' %}
                 <tr onclick="window.location='{{ url_for('admin_pedido' if es_material else 'admin_ticket', ticket_id=t.id) }}'" style="cursor:pointer;">
-                    <td style="font-weight:800;color:#e63946;">#{{ t.id }}</td>
+                    <td style="font-weight:800;color:#e63946;">#{{ ticket_codigo(t) }}</td>
                     <td>
                         <strong>{{ t.sucursal | replace('Sucursal ', 'Suc ') }}</strong>
                         {% if t.sector_oficina %}<div style="font-size:12px;color:#64748b;">{{ t.sector_oficina }}</div>{% endif %}

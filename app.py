@@ -64,10 +64,23 @@ def is_video_file(filename):
     return Path(str(filename or "")).suffix.lower() in VIDEO_EXTENSIONS
 
 
+def ticket_codigo_visible(ticket):
+    """Código mostrado; los pedidos de materiales CEYH heredan el número raíz + M."""
+    if not isinstance(ticket, dict):
+        return str(ticket or "")
+    codigo = str(ticket.get("codigo_ticket") or "").strip()
+    if codigo:
+        return codigo
+    if ticket.get("origen") == "proveedor_ceyh" and ticket.get("origen_ticket_id") not in (None, ""):
+        return f"{ticket['origen_ticket_id']}M"
+    return str(ticket.get("id") or "")
+
+
 @app.context_processor
 def inject_upload_helpers():
     return {
         "is_video_file": is_video_file,
+        "ticket_codigo": ticket_codigo_visible,
         "media_accept": MEDIA_ACCEPT,
         "ticket_attachment_accept": TICKET_ATTACHMENT_ACCEPT,
         "max_upload_bytes": MAX_UPLOAD_BYTES,
@@ -4756,8 +4769,12 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
     ahora = datetime.datetime.now().isoformat()
     materiales = (materiales or "").strip()
     detalle = (detalle or "").strip()
+    ticket_fuente_id = ticket_origen.get("id")
+    ticket_raiz_id = ticket_origen.get("origen_ticket_id") or ticket_fuente_id
+    codigo_materiales = f"{ticket_raiz_id}M"
     descripcion = (
-        f"Solicitud de materiales generada por {prov_nombre} desde el ticket #{ticket_origen.get('id')}.\n\n"
+        f"Solicitud de materiales {codigo_materiales} generada por {prov_nombre} "
+        f"desde el ticket #{ticket_raiz_id}.\n\n"
         f"Materiales solicitados:\n{materiales}"
     )
     if detalle:
@@ -4783,12 +4800,14 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
         "zona_afectada": ticket_origen.get("zona_afectada") or ticket_origen.get("sector_oficina") or "A relevar",
         "tipo": "materiales",
         "origen": "proveedor_ceyh",
-        "origen_ticket_id": ticket_origen.get("id"),
+        "origen_ticket_id": ticket_raiz_id,
+        "ticket_fuente_ceyh_id": ticket_fuente_id,
+        "codigo_ticket": codigo_materiales,
         "proveedor_origen": prov_nombre,
         "notas": [{
             "autor": prov_nombre,
             "fecha": ahora,
-            "texto": f"Solicitó materiales desde el ticket #{ticket_origen.get('id')}: {materiales[:180]}",
+            "texto": f"Solicitó materiales desde el ticket #{ticket_raiz_id}: {materiales[:180]}",
         }],
     }
     tickets.append(nuevo_ticket)
@@ -4798,6 +4817,7 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
     ticket_origen["ultima_novedad_operativa"] = "CEYH solicitó materiales a Soria"
     ticket_origen.setdefault("solicitudes_materiales", []).append({
         "ticket_id": nuevo_ticket["id"],
+        "codigo_ticket": codigo_materiales,
         "fecha": ahora,
         "materiales": materiales,
         "detalle": detalle,
@@ -4806,7 +4826,7 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
     ticket_origen.setdefault("notas", []).append({
         "autor": prov_nombre,
         "fecha": ahora,
-        "texto": f"Solicitó materiales a Soria. Pedido generado #{nuevo_ticket['id']}: {materiales[:180]}",
+        "texto": f"Solicitó materiales a Soria. Pedido generado #{codigo_materiales}: {materiales[:180]}",
     })
     return nuevo_ticket
 
@@ -8887,7 +8907,8 @@ def prov_ticket(ticket_id):
             ticket["estado"] = "Pendiente"
             agregar_notif_admin(
                 "CEYH solicitó materiales",
-                f"CEYH pidió materiales para el ticket #{ticket_id}. Se generó el pedido #{nuevo_ticket['id']} para Soria.",
+                f"CEYH pidió materiales para el ticket #{nuevo_ticket['origen_ticket_id']}. "
+                f"Se generó el pedido #{ticket_codigo_visible(nuevo_ticket)} para Soria.",
                 tipo="materiales",
                 link=url_for("admin_pedido", ticket_id=nuevo_ticket["id"]),
             )

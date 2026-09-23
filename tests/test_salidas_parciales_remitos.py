@@ -171,6 +171,21 @@ class SalidasParcialesRemitosTest(unittest.TestCase):
         self.assertIn("2 Bultos", printed_body)
         self.assertIn(f"/admin/pedido/{self.TICKET_ID}", printed_body)
 
+    def test_pedido_ceyh_legacy_muestra_codigo_del_ticket_original_mas_m(self):
+        tecman.save_tickets([self._ticket(
+            origen="proveedor_ceyh",
+            origen_ticket_id=100185,
+            ticket_fuente_ceyh_id=100397,
+        )])
+        page = self.client.get(f"/admin/pedido/{self.TICKET_ID}")
+        self.assertEqual(page.status_code, 200)
+        body = page.get_data(as_text=True)
+        self.assertIn("Pedido #100185M", body)
+        self.assertNotIn("Pedido #100400", body)
+        self.assertIn("Vinculado al ticket original", body)
+        self.assertIn('/admin/ticket/100185', body)
+        self.assertIn("trabajo CEYH #100397", body)
+
     def test_rechazos_son_atomicos_y_no_avanzan_contador(self):
         invalid_cases = [
             {"_csrf_token": ""},

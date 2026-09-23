@@ -130,7 +130,7 @@
         <div style="font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;">Solicitudes enviadas</div>
         {% for solicitud in ticket.solicitudes_materiales|reverse %}
         <div style="margin-top:8px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;font-size:13px;color:#374151;">
-            Pedido #{{ solicitud.ticket_id }} · {{ solicitud.estado or 'Enviado a Soria' }}
+            Pedido #{{ solicitud.codigo_ticket or ((ticket.origen_ticket_id or ticket.id) ~ 'M') }} · {{ solicitud.estado or 'Enviado a Soria' }}
             <div style="font-size:12px;color:#6b7280;margin-top:4px;">{{ solicitud.fecha[:16].replace('T', ' ') if solicitud.fecha else '' }}</div>
         </div>
         {% endfor %}

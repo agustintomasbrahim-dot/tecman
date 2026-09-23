@@ -450,7 +450,37 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self.assertNotIn("asignado_proveedor", pedido)
         self.assertEqual(pedido["proveedor_origen"], "CEYH")
         self.assertEqual(pedido["origen_ticket_id"], 20)
+        self.assertEqual(pedido["ticket_fuente_ceyh_id"], 20)
+        self.assertEqual(pedido["codigo_ticket"], "20M")
+        self.assertEqual(tecman.ticket_codigo_visible(pedido), "20M")
+        self.assertEqual(origen["solicitudes_materiales"][0]["codigo_ticket"], "20M")
         self.assertFalse(tecman._ticket_es_de_proveedor(pedido, ["CEYH"]))
+
+    def test_pedido_ceyh_usa_numero_del_ticket_raiz_y_migra_visualmente_existentes(self):
+        original = {"id": 100185, "sucursal": "Sucursal 142", "estado": "En progreso", "notas": []}
+        trabajo_ceyh = {
+            "id": 100397,
+            "origen_ticket_id": 100185,
+            "sucursal": "Sucursal 142",
+            "prioridad": 2,
+            "estado": "En progreso",
+            "tipo": "trabajo_proveedor",
+            "asignado": "CEYH",
+            "notas": [],
+        }
+        tickets = [original, trabajo_ceyh]
+        pedido = tecman._crear_ticket_materiales_desde_ceyh(
+            tickets, trabajo_ceyh, "CEYH", "2 reflectores", "Para salón"
+        )
+
+        self.assertEqual(pedido["id"], 100398)
+        self.assertEqual(pedido["origen_ticket_id"], 100185)
+        self.assertEqual(pedido["ticket_fuente_ceyh_id"], 100397)
+        self.assertEqual(pedido["codigo_ticket"], "100185M")
+        self.assertIn("Pedido generado #100185M", trabajo_ceyh["notas"][-1]["texto"])
+        legacy = {"id": 100398, "origen": "proveedor_ceyh", "origen_ticket_id": 100185}
+        self.assertEqual(tecman.ticket_codigo_visible(legacy), "100185M")
+        self.assertEqual(tecman.ticket_codigo_visible({"id": 100185}), "100185")
 
     def test_intento_admin_de_asignar_proveedor_no_modifica_pedido(self):
         tecman.save_tickets([self._material_ticket(ticket_id=33)])

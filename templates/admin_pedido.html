@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Tecman - Pedido #{{ ticket.id }}{% endblock %}
+{% block title %}Tecman - Pedido #{{ ticket_codigo(ticket) }}{% endblock %}
 {% block nav %}
 <div class="nav">
     {% if session.rol == "tecnico" %}
@@ -70,7 +70,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <a href="{{ url_for('admin_pedidos') }}" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600;">← Pedidos</a>
-            <h2 style="margin: 0;">Pedido #{{ ticket.id }}</h2>
+            <h2 style="margin: 0;">Pedido #{{ ticket_codigo(ticket) }}</h2>
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
             {% if session.rol != 'tecnico' %}
@@ -85,6 +85,12 @@
         <div><span style="color: #6b7280;">Zona:</span> {% if es_amba %}<span class="badge" style="background: #dbeafe; color: #1d4ed8;">AMBA</span>{% else %}<span class="badge" style="background: #fef3c7; color: #b45309;">Interior</span>{% endif %}</div>
         <div><span style="color: #6b7280;">Fecha:</span> {{ ticket.creado[:10] }}</div>
     </div>
+    {% if ticket.origen == 'proveedor_ceyh' and ticket.origen_ticket_id %}
+    <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:#ecfeff;border:1px solid #a5f3fc;font-size:13px;color:#155e75;">
+        Vinculado al ticket original <a href="{{ url_for('admin_ticket', ticket_id=ticket.origen_ticket_id) }}" style="font-weight:800;color:#0e7490;">#{{ ticket.origen_ticket_id }}</a>
+        {% if ticket.ticket_fuente_ceyh_id and ticket.ticket_fuente_ceyh_id != ticket.origen_ticket_id %} · Solicitud realizada desde el trabajo CEYH #{{ ticket.ticket_fuente_ceyh_id }}{% endif %}
+    </div>
+    {% endif %}
     {% if ticket.categoria_mat %}
     <div style="margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #ede9fe; border: 1px solid #ddd6fe;">
         <strong style="color: #6d28d9;">Tipo:</strong> {{ ticket.categoria_mat }}{% if ticket.subitem_mat %} &rsaquo; {{ ticket.subitem_mat }}{% endif %}{% if ticket.cantidad_mat %} &mdash; <strong>Cantidad: {{ ticket.cantidad_mat }}</strong>{% endif %}
