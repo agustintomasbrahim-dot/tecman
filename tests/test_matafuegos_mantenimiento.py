@@ -89,6 +89,25 @@ class MatafuegosMantenimientoTest(unittest.TestCase):
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2024, 2, 29)), tecman.datetime.date(2025, 2, 28))
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2026, 1, 31)), tecman.datetime.date(2027, 1, 31))
 
+    def test_vencimiento_proveedor_es_fallback_y_manual_prevalece(self):
+        item = self._item("proveedor", "014", "", "2026-01-01")
+        item["fecha_vencimiento_proveedor"] = "2027-03-01"
+        enriched = tecman._enrich_matafuego(item)
+        self.assertEqual(enriched["fecha_control_calc"], "2027-03-01")
+        self.assertEqual(enriched["fuente_control"], "fecha_vencimiento_proveedor")
+        item["fecha_vencimiento_manual"] = "2028-04-01"
+        enriched = tecman._enrich_matafuego(item)
+        self.assertEqual(enriched["fecha_control_calc"], "2028-04-01")
+        self.assertEqual(enriched["fuente_control"], "fecha_vencimiento_manual")
+
+    def test_catalogo_fuego_cero_no_activa_portal_y_separa_147(self):
+        proveedor = next(p for p in tecman.PROVEEDORES if p.get("nombre") == "Fuego Cero")
+        self.assertEqual(len(proveedor["sucursales"]), 34)
+        self.assertNotIn("147", proveedor["sucursales"])
+        self.assertEqual(proveedor["sucursales_pendientes"], {"147": "pendiente_confirmacion"})
+        self.assertNotIn("requiere_portal", proveedor)
+        self.assertNotIn("036", proveedor["sucursales"])
+
     def test_fecha_historica_puede_corregirse_y_conserva_auditoria(self):
         first = self._post(
             fecha_carga="2024-02-29",

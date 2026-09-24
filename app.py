@@ -2527,9 +2527,14 @@ def _sumar_un_anio(fecha):
 
 
 def _fecha_control_matafuego(item):
-    fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento_manual") or item.get("fecha_vencimiento"))
+    # Una corrección de la sucursal siempre prevalece. El vencimiento informado
+    # por proveedor queda separado y sólo actúa como fallback auditable.
+    fecha_manual = _parse_fecha_matafuego(item.get("fecha_vencimiento_manual"))
+    if fecha_manual:
+        return fecha_manual, "fecha_vencimiento_manual"
+    fecha_venc = _parse_fecha_matafuego(item.get("fecha_vencimiento_proveedor") or item.get("fecha_vencimiento"))
     if fecha_venc:
-        return fecha_venc, "fecha_vencimiento"
+        return fecha_venc, "fecha_vencimiento_proveedor" if item.get("fecha_vencimiento_proveedor") else "fecha_vencimiento"
     fecha_carga = _parse_fecha_matafuego(item.get("fecha_carga"))
     if fecha_carga:
         return _sumar_un_anio(fecha_carga), "fecha_carga"
@@ -2561,7 +2566,7 @@ def _enrich_matafuego(m):
     except ValueError:
         fecha_carga_input = ""
     x["fecha_carga_input"] = fecha_carga_input
-    fecha_venc_valor = x.get("fecha_vencimiento_manual") or x.get("fecha_vencimiento")
+    fecha_venc_valor = x.get("fecha_vencimiento_manual") or x.get("fecha_vencimiento_proveedor") or x.get("fecha_vencimiento")
     fecha_venc = _parse_fecha_matafuego(fecha_venc_valor)
     x["fecha_vencimiento_input"] = fecha_venc.isoformat() if fecha_venc else ""
     x["fecha_vencimiento_original"] = x.get("fecha_vencimiento_original") or (
@@ -3975,7 +3980,7 @@ PROVEEDORES = [
     {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["080","082","188","216","065","194","051","171","195","209","222","011","058","077","083","142","211","146","158"], "mostrar_sucursal": False},
     {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["076","078","123","124","203","233"], "mostrar_sucursal": False},
     {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": ["222"]},
-    {"nombre": "Fuego Cero", "zona": "Pendiente", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos / futuro portal", "portal_futuro": True, "canal_comunicacion": "Pendiente", "workflow": "matafuegos_remito_vencimiento", "sucursales": [], "observacion": "Proveedor de matafuegos. Sucursales pendientes de confirmar; portal a futuro por complejidad administrativa"},
+    {"nombre": "Fuego Cero", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Cartera confirmada sin portal", "portal_futuro": True, "canal_comunicacion": "Pendiente", "workflow": "matafuegos_remito_vencimiento", "sucursales": ["011","014","020","023","035","049","051","052","054","058","065","080","082","083","102","111","121","125","141","142","148","156","157","165","170","186","192","195","196","211","228","234","237","238"], "sucursales_pendientes": {"147": "pendiente_confirmacion"}, "observacion": "Cartera derivada de Fuego Cero 2026-09-24: 34 sucursales numeradas confirmadas; 147 pendiente. Don Torcuato y Garín no se asignan porque la fuente no informa LOCAL. No habilita credenciales ni portal."},
     {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["126","139","193"], "mostrar_sucursal": False},
     {"nombre": "Contreras Mauricio Sergio", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["159","172"], "mostrar_sucursal": False},
     {"nombre": "Manggini Pablo y Ulises", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["043","204"], "mostrar_sucursal": False},

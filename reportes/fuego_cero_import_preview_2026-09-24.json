@@ -1,0 +1,165 @@
+{
+  "schema": "tecman.fuego-cero-plan/v1",
+  "version": "fuego-cero-import-v1",
+  "mode": "dry-run",
+  "input_sha256": "dca6f2b2ab25ef7e7eb186067d9ef91c1fc0a462a52dfe31babc39b1d213f769",
+  "xlsx_sha256": "d779d4ce56960264063bda20301da0ae1f630cd098dffa1d3407bd538504deb8",
+  "safety": {
+    "network": false,
+    "production": false,
+    "in_place": false,
+    "pending_147_mutations": 0
+  },
+  "source_summary": {
+    "numbered_branches_observed": 35,
+    "numbered_branches_expected": 35,
+    "confirmed_branches": 34,
+    "pending_branches": 1,
+    "pending_branch": "147",
+    "numbered_equipment": 415,
+    "pending_equipment": 6,
+    "confirmed_equipment": 409,
+    "unnumbered_equipment": 94,
+    "total_equipment": 509,
+    "total_equipment_expected": 509,
+    "count_validation": "ok"
+  },
+  "confirmed_branch_numbers": [
+    "011",
+    "014",
+    "020",
+    "023",
+    "035",
+    "049",
+    "051",
+    "052",
+    "054",
+    "058",
+    "065",
+    "080",
+    "082",
+    "083",
+    "102",
+    "111",
+    "121",
+    "125",
+    "141",
+    "142",
+    "148",
+    "156",
+    "157",
+    "165",
+    "170",
+    "186",
+    "192",
+    "195",
+    "196",
+    "211",
+    "228",
+    "234",
+    "237",
+    "238"
+  ],
+  "pending": {
+    "147": "pendiente_confirmacion"
+  },
+  "unnumbered": [
+    {
+      "row": 37,
+      "name": "DABRA DON TORCUATO",
+      "equipment": 0,
+      "counts": {
+        "ABC x 5": 0,
+        "ABC x 10": 0,
+        "CO2 x 3.5": 0,
+        "CO2 x 5": 0,
+        "HCFC x 2.5": 0,
+        "HCFC x 5": 0
+      },
+      "reason": "LOCAL ausente; no importable automáticamente"
+    },
+    {
+      "row": 38,
+      "name": "DABRA DON TORCUATO",
+      "equipment": 1,
+      "counts": {
+        "ABC x 5": 0,
+        "ABC x 10": 0,
+        "CO2 x 3.5": 0,
+        "CO2 x 5": 1,
+        "HCFC x 2.5": 0,
+        "HCFC x 5": 0
+      },
+      "reason": "LOCAL ausente; no importable automáticamente"
+    },
+    {
+      "row": 39,
+      "name": "DABRA GARIN",
+      "equipment": 93,
+      "counts": {
+        "ABC x 5": 81,
+        "ABC x 10": 0,
+        "CO2 x 3.5": 1,
+        "CO2 x 5": 4,
+        "HCFC x 2.5": 0,
+        "HCFC x 5": 7
+      },
+      "reason": "LOCAL ausente; no importable automáticamente"
+    }
+  ],
+  "summary": {
+    "adds": 67,
+    "updates": 342,
+    "safe_deletes": 0,
+    "conflicts": 6,
+    "operations": 409,
+    "input_total": 1254,
+    "final_total": 1321,
+    "confirmed_branches": 34,
+    "pending_branches": 1
+  },
+  "conflicts": [
+    {
+      "item_id": "fce5e2a3514c",
+      "sucursal_num": "102",
+      "tipo": "ABC",
+      "capacidad": "5 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    },
+    {
+      "item_id": "d2f2d5c73d0a",
+      "sucursal_num": "125",
+      "tipo": "ABC",
+      "capacidad": "10 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    },
+    {
+      "item_id": "d3f9aae75812",
+      "sucursal_num": "141",
+      "tipo": "ABC",
+      "capacidad": "5 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    },
+    {
+      "item_id": "d4f10fb1f68d",
+      "sucursal_num": "141",
+      "tipo": "ABC",
+      "capacidad": "5 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    },
+    {
+      "item_id": "c84b059e6d80",
+      "sucursal_num": "165",
+      "tipo": "ABC",
+      "capacidad": "5 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    },
+    {
+      "item_id": "e18611dd3e11",
+      "sucursal_num": "165",
+      "tipo": "ABC",
+      "capacidad": "5 KG",
+      "reason": "registro excedente con origen/actividad incompatible; no se elimina"
+    }
+  ]
+}
