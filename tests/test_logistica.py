@@ -15,7 +15,7 @@ os.environ.pop("DATABASE_URL", None)
 os.environ["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = "false"
 
 import app as tecman  # noqa: E402
-from logistica import LogisticsError, LogisticsService, LogisticsStore  # noqa: E402
+from logistica import LogisticsError, LogisticsService, LogisticsStore, logistics_entra_role  # noqa: E402
 
 
 class LogisticsServiceTests(unittest.TestCase):
@@ -167,6 +167,7 @@ class LogisticsRouteTests(unittest.TestCase):
             LOGISTICA_INSUMOS_SUCURSALES_ENABLED=False,
             LOGISTICA_PORTAL_TEST_MODE=True,
             LOGISTICA_SMTP_MOCK=False,
+            LOGISTICA_LOCAL_LOGIN_ENABLED=False,
         )
         self.client = tecman.app.test_client()
         path = tecman.logistica_service.store.json_path
@@ -180,6 +181,10 @@ class LogisticsRouteTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def session(self, **values):
+        if values.get("logistica_role") == "dabra":
+            values["logistica_user"] = tecman.PREPARADOR_DABRA_EMAIL
+            values.setdefault("logistica_name", tecman.PREPARADOR_DABRA_NAME)
+            values["auth_provider"] = "entra"
         with self.client.session_transaction() as sess:
             sess.clear(); sess.update(values); sess["_csrf_token"] = "csrf-test"
 
@@ -203,17 +208,74 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertIn("Logística".encode("utf-8"), page.data)
         self.assertIn(b'href="/logistica/login"', page.data)
 
-    def test_login_local_de_prueba(self):
+    def test_login_local_no_habilita_dabra_y_permanece_oculto_por_defecto(self):
+        page = self.client.get("/logistica/login")
+        self.assertNotIn(b'name="password"', page.data)
         with self.client.session_transaction() as sess:
             sess["_csrf_token"] = "csrf-test"
         response = self.post("/logistica/login", {"usuario": "dabra", "password": "test-dabra"})
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 403)
+        tecman.app.config["LOGISTICA_LOCAL_LOGIN_ENABLED"] = True
+        response = self.post("/logistica/login", {"usuario": "dabra", "password": "test-dabra"})
+        self.assertEqual(response.status_code, 200)
         with self.client.session_transaction() as sess:
-            self.assertEqual(sess["logistica_role"], "dabra")
-        with self.client.session_transaction() as sess:
-            sess.clear(); sess["_csrf_token"] = "csrf-test"
+            self.assertNotIn("logistica_role", sess)
         response = self.post("/logistica/login", {"usuario": "garin", "password": "test-garin"})
         self.assertTrue(response.headers["Location"].endswith("/logistica/garin"))
+
+    def test_dabra_exige_sesion_entra_del_preparador_exacto(self):
+        with self.client.session_transaction() as sess:
+            sess.clear(); sess.update(logistica_role="dabra", logistica_user="esoria@grupodexter.com.ar", auth_provider="entra")
+        self.assertEqual(self.client.get("/logistica").status_code, 403)
+        with self.client.session_transaction() as sess:
+            sess.clear(); sess.update(logistica_role="dabra", logistica_user="soria_demo", auth_provider="local_logistica")
+        self.assertEqual(self.client.get("/logistica/stock").status_code, 403)
+        self.session(logistica_role="dabra")
+        self.assertEqual(self.client.get("/logistica").status_code, 200)
+        self.assertEqual(self.client.get("/logistica/stock").status_code, 200)
+        self.assertEqual(self.client.get("/logistica/garin").status_code, 403)
+
+    def test_allowlist_dabra_legacy_no_revive_soria_y_grupos_existentes_siguen(self):
+        with patch.dict(os.environ, {
+            "LOGISTICA_ENTRA_DABRA_EMAILS": "esoria@grupodexter.com.ar,otro@grupodexter.com.ar",
+            "LOGISTICA_ENTRA_DABRA_GROUP_ID": "grupo-dabra-viejo",
+            "LOGISTICA_ENTRA_GARIN_GROUP_ID": "grupo-garin",
+        }, clear=False):
+            self.assertEqual(logistics_entra_role({"email": tecman.PREPARADOR_DABRA_EMAIL}), "dabra")
+            self.assertIsNone(logistics_entra_role({"email": "esoria@grupodexter.com.ar", "claims": {"groups": ["grupo-dabra-viejo"]}}))
+            self.assertIsNone(logistics_entra_role({"email": "otro@grupodexter.com.ar", "claims": {"groups": ["grupo-dabra-viejo"]}}))
+            self.assertEqual(logistics_entra_role({"email": "garin@grupodexter.com.ar", "claims": {"groups": ["grupo-garin"]}}), "garin")
+
+    def test_callback_entra_crea_sesion_dabra_solo_para_hdiosque(self):
+        identity = {
+            "object_id": "entra-hdiosque",
+            "tenant_id": "tenant-test",
+            "email": tecman.PREPARADOR_DABRA_EMAIL,
+            "name": "Héctor Diosque",
+            "claims": {},
+        }
+        msal_app = Mock()
+        msal_app.acquire_token_by_authorization_code.return_value = {
+            "id_token": "token-test",
+            "access_token": "access-test",
+        }
+        with self.client.session_transaction() as sess:
+            sess["entra_state"] = "state-test"
+            sess["entra_nonce"] = "nonce-test"
+            sess["entra_requested_portal"] = "logistica"
+        with patch.object(tecman, "_entra_is_configured", return_value=True), \
+             patch.object(tecman, "_create_msal_app", return_value=msal_app), \
+             patch.object(tecman, "_validate_entra_id_token", return_value=identity), \
+             patch.object(tecman, "_entra_group_ids", return_value=set()), \
+             patch.object(tecman, "_audit_event"):
+            response = self.client.get("/auth/entra/callback?state=state-test&code=code-test")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/logistica"))
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess["auth_provider"], "entra")
+            self.assertEqual(sess["logistica_user"], tecman.PREPARADOR_DABRA_EMAIL)
+            self.assertEqual(sess["logistica_name"], tecman.PREPARADOR_DABRA_NAME)
+            self.assertEqual(sess["logistica_role"], "dabra")
 
     def test_feature_flag_sucursal_apagada_bloquea_get_y_post(self):
         self.session(suc_user="suc011", suc_nombre="Sucursal 011")

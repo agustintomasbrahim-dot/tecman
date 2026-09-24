@@ -25,6 +25,9 @@ from openpyxl import Workbook, load_workbook
 
 
 ROLES = {"dabra", "garin", "compras"}
+PREPARADOR_DABRA_EMAIL = "hdiosque@grupodexter.com.ar"
+REVOKED_LOGISTICS_EMAILS = {"esoria@grupodexter.com.ar"}
+REVOKED_LOGISTICS_USERNAMES = {"esoria", "soria_demo"}
 WAVE_STATES = ("preparado", "retirado", "en_distribucion", "entregado")
 _STOCK_HEADERS = ("item", "cantidad")
 _MAX_STOCK_ROWS = 5000
@@ -468,8 +471,11 @@ def logistics_entra_role(identity: dict) -> str | None:
         if value:
             candidates.add(str(value).strip().lower())
     groups = {str(x).strip().lower() for x in (claims.get("groups") or []) if x}
+    if candidates & REVOKED_LOGISTICS_EMAILS or {value.split("@", 1)[0] for value in candidates} & REVOKED_LOGISTICS_USERNAMES:
+        return None
+    if PREPARADOR_DABRA_EMAIL in candidates:
+        return "dabra"
     for role, env_name, group_env in (
-        ("dabra", "LOGISTICA_ENTRA_DABRA_EMAILS", "LOGISTICA_ENTRA_DABRA_GROUP_ID"),
         ("garin", "LOGISTICA_ENTRA_GARIN_EMAILS", "LOGISTICA_ENTRA_GARIN_GROUP_ID"),
         ("compras", "LOGISTICA_ENTRA_COMPRAS_EMAILS", "LOGISTICA_ENTRA_COMPRAS_GROUP_ID"),
     ):
@@ -490,7 +496,14 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
         def decorator(fn):
             @wraps(fn)
             def wrapped(*args, **kwargs):
-                if session.get("logistica_role") not in roles:
+                role = session.get("logistica_role")
+                principal = str(session.get("logistica_user") or "").strip().lower()
+                valid_dabra = role != "dabra" or (session.get("auth_provider") == "entra" and principal == PREPARADOR_DABRA_EMAIL)
+                valid_local = session.get("auth_provider") != "local_logistica" or (app.config.get("LOGISTICA_LOCAL_LOGIN_ENABLED", False) and role != "dabra")
+                if not valid_dabra or not valid_local:
+                    session.clear()
+                    return render_template("error.html", mensaje="Acceso restringido al portal de Logística."), 403
+                if role not in roles:
                     return render_template("error.html", mensaje="Acceso restringido al portal de Logística."), 403
                 return fn(*args, **kwargs)
             return wrapped
@@ -510,18 +523,22 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
     def login():
         if request.method == "POST":
             csrf_or_400()
+            if not app.config.get("LOGISTICA_LOCAL_LOGIN_ENABLED", False):
+                return render_template("error.html", mensaje="El acceso local de Logística está deshabilitado."), 403
             users = app.config.get("LOGISTICA_LOCAL_USERS") or {}
             username = request.form.get("usuario", "").strip().lower()
             supplied = request.form.get("password", "")
             entry = users.get(username) or {}
             expected = str(entry.get("password") or "")
-            if expected and hmac.compare_digest(supplied, expected) and entry.get("role") in ROLES:
+            if (expected and hmac.compare_digest(supplied, expected)
+                    and entry.get("role") in ROLES and entry.get("role") != "dabra"):
                 session.clear(); session.permanent = True
                 session.update(logistica_user=username, logistica_name=entry.get("name") or username,
                                logistica_role=entry["role"], auth_provider="local_logistica")
                 return redirect(url_for("logistica_garin" if entry["role"] == "garin" else "logistica_panel"))
             flash("Usuario o contraseña incorrectos")
-        return render_template("logistica_login.html", entra_enabled=entra_enabled())
+        return render_template("logistica_login.html", entra_enabled=entra_enabled(),
+                               local_login_enabled=app.config.get("LOGISTICA_LOCAL_LOGIN_ENABLED", False))
 
     @app.route("/logistica/logout", methods=["POST"], endpoint="logistica_logout")
     def logout():

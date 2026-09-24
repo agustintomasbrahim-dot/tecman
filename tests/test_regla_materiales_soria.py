@@ -43,7 +43,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             "tipo": "materiales",
             "descripcion": "Reposición operativa",
             "estado": "Nuevo",
-            "asignado": "Soria",
+            "asignado": tecman.RESPONSABLE_MATERIALES,
             "prioridad": 2,
             "observaciones": "",
             "creado": "2026-09-18T10:00:00",
@@ -103,7 +103,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         }
         self.assertEqual(
             tecman.auto_assign("Luminarias", "Sucursal 142", "Problema Eléctrico"),
-            "Soria",
+            tecman.RESPONSABLE_MATERIALES,
         )
         self.assertFalse(tecman._ticket_es_pedido_materiales(luminaria))
         self.assertNotIn("tipo", luminaria)
@@ -119,7 +119,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 200)
         saved = tecman.load_tickets()[0]
-        self.assertEqual(saved["asignado"], "Soria")
+        self.assertEqual(saved["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertEqual(saved["categoria"], "Problema Eléctrico")
         self.assertEqual(saved["subcategoria"], "Luminarias")
         self.assertNotIn("tipo", saved)
@@ -151,7 +151,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             with self.subTest(sucursal=sucursal):
                 self.assertEqual(
                     tecman.auto_assign("Solicitud de materiales", sucursal, "Materiales"),
-                    "Soria",
+                    tecman.RESPONSABLE_MATERIALES,
                 )
                 self.assertEqual(
                     tecman.auto_assign("Tablero", sucursal, "Problema Eléctrico"),
@@ -167,7 +167,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 saved = tecman.load_tickets()
                 self.assertEqual(len(saved), 1)
-                self.assertEqual(saved[0]["asignado"], "Soria")
+                self.assertEqual(saved[0]["asignado"], tecman.RESPONSABLE_MATERIALES)
                 self.assertNotIn("asignado_proveedor", saved[0])
 
     def test_nuevo_pedido_operativo_de_sucursal_cerrada_se_normaliza_a_soria(self):
@@ -178,7 +178,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         )
         tecman.save_tickets([ticket])
         saved = json.loads(tecman.TICKETS_FILE.read_text())[0]
-        self.assertEqual(saved["asignado"], "Soria")
+        self.assertEqual(saved["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", saved)
         self.assertEqual(saved["proveedor_origen"], "Proveedor cerrado")
 
@@ -193,7 +193,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         tecman.TICKETS_FILE.write_text(json.dumps(payload), encoding="utf-8")
 
         loaded = tecman.load_tickets()[0]
-        self.assertEqual(loaded["asignado"], "Soria")
+        self.assertEqual(loaded["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", loaded)
         self.assertEqual(loaded["proveedor_origen"], "CEYH")
         self.assertEqual(loaded["notas"][0], historial[0])
@@ -219,7 +219,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
 
         db_list.assert_called_once_with(fake_model)
         db_replace.assert_called_once_with(fake_model, [loaded])
-        self.assertEqual(loaded["asignado"], "Soria")
+        self.assertEqual(loaded["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", loaded)
         self.assertEqual(loaded["proveedor_origen"], "JRF")
 
@@ -237,7 +237,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             tecman.save_tickets(payload)
 
         persisted = db_replace.call_args.args[1][0]
-        self.assertEqual(persisted["asignado"], "Soria")
+        self.assertEqual(persisted["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", persisted)
         self.assertEqual(persisted["proveedor_origen"], "Proveedor externo")
         self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], persisted)
@@ -272,7 +272,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
                 item for item in json.loads((data_dir / "tickets.json").read_text())
                 if item.get("id") == 900
             )
-            self.assertEqual(migrated["asignado"], "Soria")
+            self.assertEqual(migrated["asignado"], tecman.RESPONSABLE_MATERIALES)
             self.assertNotIn("asignado_proveedor", migrated)
             self.assertNotIn("proveedor_nombre", migrated)
             self.assertEqual(migrated["proveedor_origen"], "Proveedor de arranque")
@@ -299,7 +299,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
 
         atomic_write.assert_called_once()
         self.assertEqual(loaded_again, migrated)
-        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertEqual(migrated["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", migrated)
         self.assertNotIn("proveedor_nombre", migrated)
         self.assertEqual(migrated["proveedor_origen"], "Julio Fuga (JRF)")
@@ -347,7 +347,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
 
         db_replace.assert_called_once()
         migrated = backing[0]
-        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertEqual(migrated["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", migrated)
         self.assertNotIn("proveedor_nombre", migrated)
         self.assertEqual(migrated["proveedor_origen"], "CEYH")
@@ -426,7 +426,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
 
         migrated = tecman.load_tickets()[0]
         self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], migrated)
-        self.assertEqual(migrated["asignado"], "Soria")
+        self.assertEqual(migrated["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", migrated)
         self.assertEqual(migrated["proveedor_nombre"], "Transporte Logístico")
         self.assertEqual(migrated["proveedor_origen"], "Proveedor externo")
@@ -446,7 +446,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         )
         tecman.save_tickets(tickets)
 
-        self.assertEqual(pedido["asignado"], "Soria")
+        self.assertEqual(pedido["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", pedido)
         self.assertEqual(pedido["proveedor_origen"], "CEYH")
         self.assertEqual(pedido["origen_ticket_id"], 20)
@@ -493,7 +493,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/admin/pedido/33"))
         saved = tecman.load_tickets()[0]
-        self.assertEqual(saved["asignado"], "Soria")
+        self.assertEqual(saved["asignado"], tecman.RESPONSABLE_MATERIALES)
         self.assertNotIn("asignado_proveedor", saved)
 
     def test_ticket_no_material_no_se_altera(self):
@@ -511,6 +511,12 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         before = copy.deepcopy(ticket)
         tecman.save_tickets([ticket])
         self.assertEqual(json.loads(tecman.TICKETS_FILE.read_text())[0], before)
+
+    def test_asignacion_historica_soria_no_se_renombra(self):
+        ticket = self._material_ticket(asignado="Soria")
+        before = copy.deepcopy(ticket)
+        tecman._normalizar_responsable_materiales([ticket], auditar=True)
+        self.assertEqual(ticket, before)
 
     def test_finalizados_no_se_reescriben(self):
         for estado in ("Resuelto", "Cerrado", "Rechazado"):

@@ -11,8 +11,6 @@ services:
         generateValue: true
       - key: ADMIN_PASSWORD
         sync: false
-      - key: SORIA_DEMO_PASSWORD
-        sync: false
       - key: COMPRAS_PASSWORD
         sync: false
       - key: CENTRAL_PASSWORD
@@ -57,6 +55,8 @@ services:
         sync: false
       - key: ENTRA_REDIRECT_URI
         sync: false
+      - key: LOGISTICA_LOCAL_LOGIN_ENABLED
+        value: "false"
       - key: SESSION_LIFETIME_MINUTES
         value: "480"
       - key: GOOGLE_TOKEN_JSON

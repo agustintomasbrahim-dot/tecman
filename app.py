@@ -327,8 +327,13 @@ ESTADO_FILTROS_ADMIN = [
     "Finalizados",
 ]
 ESTADOS_NO_OPERATIVOS = {"Rechazado", "Resuelto", "Cerrado"}
-RESPONSABLE_MATERIALES = "Soria"
-MIGRACION_MATERIALES_SORIA_VERSION = "materiales_soria_2026_09_18_v1"
+RESPONSABLE_MATERIALES = "Preparador Dabra Central"
+RESPONSABLE_MATERIALES_LEGACY = "Soria"
+MIGRACION_MATERIALES_SORIA_VERSION = "materiales_preparador_dabra_central_2026_09_24_v2"
+PREPARADOR_DABRA_EMAIL = "hdiosque@grupodexter.com.ar"
+PREPARADOR_DABRA_USERNAME = "hdiosque"
+PREPARADOR_DABRA_ROLE = "logistica_dabra"
+PREPARADOR_DABRA_NAME = "Preparador Dabra Central"
 
 import pathlib as _pathlib
 _SUCURSALES_INFRA_FILE = _pathlib.Path(__file__).parent / "data" / "sucursales_infra.json"
@@ -342,7 +347,6 @@ except Exception:
     pass
 
 _ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
-_SORIA_DEMO_PWD = os.environ.get("SORIA_DEMO_PASSWORD", "SoriaDemo0904!")
 _COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
 _CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
 _SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
@@ -474,12 +478,11 @@ SUCURSAL_EMAILS = {k: v for k, v in SUCURSAL_EMAILS.items() if str(k).zfill(3) n
 ADMINS = {
     "agustin": {"password": _ADMIN_PWD, "nombre": "Agustín Brahim", "rol": "admin"},
     "carolina": {"password": _ADMIN_PWD, "nombre": "Carolina", "rol": "admin", "email": "ccrapanzano@grupodexter.com.ar"},
-    "esoria": {"password": _ADMIN_PWD, "nombre": "Soria", "rol": "tecnico", "email": "esoria@grupodexter.com.ar"},
-    "soria_demo": {"password": _SORIA_DEMO_PWD, "nombre": "Soria Demo", "rol": "tecnico"},
     "patricia": {"password": _ADMIN_PWD, "nombre": "Patricia", "rol": "syh"},
     "rita": {"password": _ADMIN_PWD, "nombre": "Rita", "rol": "admin", "email": "rrobles@grupodexter.com.ar"},
 }
-LEGACY_DISABLED_USERNAMES = {"jonathan"}
+LEGACY_DISABLED_USERNAMES = {"jonathan", "esoria", "soria_demo"}
+LEGACY_DISABLED_EMAILS = {"esoria@grupodexter.com.ar"}
 
 # Portal de Compras (Laura). Portal separado del de admin.
 COMPRAS_USERS = {
@@ -668,9 +671,13 @@ def _set_admin_session(user, method):
     username = info.get("username") or (info.get("email") or "").split("@")[0] or info.get("id")
     session.clear()
     session.permanent = True
+    account_role = info.get("role") or "admin"
     session["user"] = username
     session["nombre"] = info.get("name") or username
-    session["rol"] = info.get("role") or "admin"
+    # El rol persistido es explícito; la UI operativa reutiliza los permisos
+    # históricamente acotados del perfil técnico (pedidos, stock y movimientos).
+    session["rol"] = "tecnico" if account_role == PREPARADOR_DABRA_ROLE else account_role
+    session["auth_account_role"] = account_role
     session["auth_user_id"] = info.get("id")
     session["auth_provider"] = method
     session["auth_session_version"] = info.get("session_version", 1)
@@ -1104,10 +1111,41 @@ def _seed_auth_users():
         changed = False
         for username in LEGACY_DISABLED_USERNAMES:
             legacy = _find_db_user(identifier=username)
-            if legacy and legacy.status == "active":
+            if legacy:
+                if legacy.status != "disabled":
+                    legacy.status = "disabled"
+                    legacy.session_version = (legacy.session_version or 1) + 1
+                    changed = True
+                if LocalCredentialDB.query.get(legacy.id):
+                    LocalCredentialDB.query.filter_by(user_id=legacy.id).delete()
+                    changed = True
+        for email in LEGACY_DISABLED_EMAILS:
+            legacy = _find_db_user(email=email)
+            if legacy and legacy.status != "disabled":
                 legacy.status = "disabled"
                 legacy.session_version = (legacy.session_version or 1) + 1
                 changed = True
+        preparador = _find_db_user(email=PREPARADOR_DABRA_EMAIL) or _find_db_user(identifier=PREPARADOR_DABRA_USERNAME)
+        if preparador:
+            desired = {"email": PREPARADOR_DABRA_EMAIL, "username": PREPARADOR_DABRA_USERNAME,
+                       "first_name": "Preparador Dabra", "last_name": "Central", "role": PREPARADOR_DABRA_ROLE,
+                       "status": "active", "must_change_password": False}
+            for key, value in desired.items():
+                if getattr(preparador, key) != value:
+                    setattr(preparador, key, value); changed = True
+            if LocalCredentialDB.query.get(preparador.id):
+                LocalCredentialDB.query.filter_by(user_id=preparador.id).delete(); changed = True
+            identity = AuthIdentityDB.query.filter_by(user_id=preparador.id, provider="entra").first()
+            if not identity:
+                db.session.add(AuthIdentityDB(user_id=preparador.id, provider="entra",
+                    provider_subject=PREPARADOR_DABRA_EMAIL, tenant_id=ENTRA_TENANT_ID)); changed = True
+        else:
+            preparador = UserDB(username=PREPARADOR_DABRA_USERNAME, email=PREPARADOR_DABRA_EMAIL,
+                first_name="Preparador Dabra", last_name="Central", role=PREPARADOR_DABRA_ROLE,
+                status="active", must_change_password=False)
+            db.session.add(preparador); db.session.flush()
+            db.session.add(AuthIdentityDB(user_id=preparador.id, provider="entra",
+                provider_subject=PREPARADOR_DABRA_EMAIL, tenant_id=ENTRA_TENANT_ID)); changed = True
         for username, info in ADMINS.items():
             existing = _find_db_user(identifier=username)
             email = (info.get("email") or "").strip().lower()
@@ -1191,10 +1229,38 @@ def _seed_auth_users():
     changed = False
     for username in LEGACY_DISABLED_USERNAMES:
         legacy = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
-        if legacy and legacy.get("status") == "active":
+        if legacy:
+            if legacy.get("status") != "disabled":
+                legacy["status"] = "disabled"
+                legacy["session_version"] = int(legacy.get("session_version", 1)) + 1
+                changed = True
+            if legacy.pop("local_credentials", None) is not None: changed = True
+    for email in LEGACY_DISABLED_EMAILS:
+        legacy = next((u for u in users if (u.get("email") or "").lower() == email), None)
+        if legacy and legacy.get("status") != "disabled":
             legacy["status"] = "disabled"
             legacy["session_version"] = int(legacy.get("session_version", 1)) + 1
             changed = True
+    preparador = next((u for u in users if (u.get("email") or "").lower() == PREPARADOR_DABRA_EMAIL
+                       or (u.get("username") or "").lower() == PREPARADOR_DABRA_USERNAME), None)
+    if preparador is None:
+        preparador = {"id": uuid.uuid4().hex, "username": PREPARADOR_DABRA_USERNAME,
+            "email": PREPARADOR_DABRA_EMAIL, "first_name": "Preparador Dabra", "last_name": "Central",
+            "role": PREPARADOR_DABRA_ROLE, "status": "active", "must_change_password": False,
+            "session_version": 1, "auth_identities": [], "created_at": _now_utc().isoformat()}
+        users.append(preparador); changed = True
+    desired = {"username": PREPARADOR_DABRA_USERNAME, "email": PREPARADOR_DABRA_EMAIL,
+               "first_name": "Preparador Dabra", "last_name": "Central", "role": PREPARADOR_DABRA_ROLE,
+               "status": "active", "must_change_password": False}
+    for key, value in desired.items():
+        if preparador.get(key) != value: preparador[key] = value; changed = True
+    if preparador.pop("local_credentials", None) is not None:
+        preparador["session_version"] = int(preparador.get("session_version", 1)) + 1; changed = True
+    identities = preparador.setdefault("auth_identities", [])
+    if not any(i.get("provider") == "entra" for i in identities):
+        identities.append({"id": uuid.uuid4().hex, "provider": "entra",
+            "provider_subject": PREPARADOR_DABRA_EMAIL, "tenant_id": ENTRA_TENANT_ID,
+            "created_at": _now_utc().isoformat(), "last_login_at": None}); changed = True
     for username, info in ADMINS.items():
         email = (info.get("email") or "").strip().lower()
         existing = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
@@ -4813,20 +4879,20 @@ def _crear_ticket_materiales_desde_ceyh(tickets, ticket_origen, prov_nombre, mat
     tickets.append(nuevo_ticket)
 
     ticket_origen["requiere_materiales"] = True
-    ticket_origen["estado_materiales"] = "Solicitado a Soria"
-    ticket_origen["ultima_novedad_operativa"] = "CEYH solicitó materiales a Soria"
+    ticket_origen["estado_materiales"] = f"Solicitado a {RESPONSABLE_MATERIALES}"
+    ticket_origen["ultima_novedad_operativa"] = f"CEYH solicitó materiales a {RESPONSABLE_MATERIALES}"
     ticket_origen.setdefault("solicitudes_materiales", []).append({
         "ticket_id": nuevo_ticket["id"],
         "codigo_ticket": codigo_materiales,
         "fecha": ahora,
         "materiales": materiales,
         "detalle": detalle,
-        "estado": "Enviado a Soria",
+        "estado": f"Enviado a {RESPONSABLE_MATERIALES}",
     })
     ticket_origen.setdefault("notas", []).append({
         "autor": prov_nombre,
         "fecha": ahora,
-        "texto": f"Solicitó materiales a Soria. Pedido generado #{codigo_materiales}: {materiales[:180]}",
+        "texto": f"Solicitó materiales a {RESPONSABLE_MATERIALES}. Pedido generado #{codigo_materiales}: {materiales[:180]}",
     })
     return nuevo_ticket
 
@@ -4863,12 +4929,18 @@ def _proveedor_nombre_es_logistico(ticket):
 
 
 def _normalizar_responsable_materiales(tickets, auditar=False, ahora=None):
-    """Mantiene pedidos operativos de materiales en Soria y devuelve la misma lista."""
+    """Asigna pedidos nuevos al preparador estable sin renombrar asignaciones históricas."""
     ahora = ahora or datetime.datetime.now().isoformat()
     for ticket in tickets:
         if not _ticket_es_pedido_materiales(ticket):
             continue
         if ticket.get("estado") in ESTADOS_NO_OPERATIVOS:
+            continue
+        if (
+            ticket.get("asignado") == RESPONSABLE_MATERIALES_LEGACY
+            and not ticket.get("asignado_proveedor")
+            and not ticket.get("proveedor_nombre")
+        ):
             continue
         proveedor_nombre_asignado = (
             ticket.get("proveedor_nombre")
@@ -4906,7 +4978,7 @@ def _normalizar_responsable_materiales(tickets, auditar=False, ahora=None):
                     "autor": "Sistema",
                     "fecha": ahora,
                     "texto": (
-                        "Migración automática: pedido operativo de materiales reasignado a Soria. "
+                        f"Migración automática: pedido operativo de materiales reasignado a {RESPONSABLE_MATERIALES}. "
                         f"Responsable/proveedor anterior: {detalle_anterior}."
                     ),
                 })
@@ -5046,9 +5118,9 @@ def _ensure_test_material_ticket(spec):
         "solicitante": "Ticket Prueba",
         "prioridad": 3,
         "estado": "Nuevo",
-        "asignado": "Soria",
+        "asignado": RESPONSABLE_MATERIALES,
         "fotos": [],
-        "observaciones": "Ticket de prueba solicitado por Agustin para validar el flujo Soria -> Rita -> Compras -> envio.",
+        "observaciones": f"Ticket de prueba solicitado por Agustin para validar el flujo {RESPONSABLE_MATERIALES} -> Rita -> Compras -> envio.",
         "creado": now_iso,
         "actualizado": now_iso,
         "categoria_mat": "Luminaria",
@@ -5462,6 +5534,8 @@ def _admin_portal_role_from_auth_user(auth_user):
         and _auth_user_allows_provider(auth_user, "entra")
     ):
         role = _auth_user_role(auth_user)
+        if role == PREPARADOR_DABRA_ROLE:
+            return "tecnico"
         if role in ("admin", "tecnico"):
             return role
     return None
@@ -6605,10 +6679,6 @@ def entra_callback():
         # Incluye memberships resueltos por Graph cuando el token usa group overage.
         identity.setdefault("claims", {})["groups"] = list(_entra_group_ids(identity))
         logistica_role = logistica_identity_role(identity)
-        # Los superadministradores pueden previsualizar el piloto como Dabra
-        # sin habilitar usuarios de Logística ni rutas de sucursales.
-        if not logistica_role and full_portal_access:
-            logistica_role = "dabra"
         if logistica_role:
             entra_role = "logistica"
             identity["entra_role"] = "logistica"
@@ -6625,7 +6695,7 @@ def entra_callback():
         elif not entra_role and auth_role == "admin":
             entra_role = "admin"
             identity["entra_role"] = "admin"
-        elif not entra_role and requested_portal == "admin" and auth_role == "tecnico":
+        elif not entra_role and requested_portal == "admin" and auth_role in ("tecnico", PREPARADOR_DABRA_ROLE):
             entra_role = "tecnico"
             identity["entra_role"] = "tecnico"
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
@@ -6683,7 +6753,7 @@ def entra_callback():
         ), 403
 
     if entra_role == "logistica":
-        set_logistica_entra_session(identity, identity["logistica_role"])
+        set_logistica_entra_session(identity, identity["logistica_role"], auth_user)
         _audit_event("login_success", user=auth_user, provider="entra", details={"role": identity["logistica_role"], "source": "logistica_allowlist"})
         return redirect(url_for("logistica_garin" if identity["logistica_role"] == "garin" else "logistica_panel"))
 
@@ -8080,7 +8150,7 @@ def admin_ticket(ticket_id):
                 ticket["asignado"] = RESPONSABLE_MATERIALES
                 ticket.pop("asignado_proveedor", None)
                 save_tickets(tickets)
-                flash("Los pedidos de materiales deben permanecer asignados a Soria.")
+                flash(f"Los pedidos de materiales deben permanecer asignados a {RESPONSABLE_MATERIALES}.")
                 return redirect(url_for("admin_pedido", ticket_id=ticket_id))
             proveedor = request.form.get("proveedor_presupuesto", "").strip()
             if proveedor == "__otro__":
@@ -8908,11 +8978,11 @@ def prov_ticket(ticket_id):
             agregar_notif_admin(
                 "CEYH solicitó materiales",
                 f"CEYH pidió materiales para el ticket #{nuevo_ticket['origen_ticket_id']}. "
-                f"Se generó el pedido #{ticket_codigo_visible(nuevo_ticket)} para Soria.",
+                f"Se generó el pedido #{ticket_codigo_visible(nuevo_ticket)} para {RESPONSABLE_MATERIALES}.",
                 tipo="materiales",
                 link=url_for("admin_pedido", ticket_id=nuevo_ticket["id"]),
             )
-            flash(f"Pedido de materiales #{nuevo_ticket['id']} enviado a Soria")
+            flash(f"Pedido de materiales #{nuevo_ticket['id']} enviado a {RESPONSABLE_MATERIALES}")
         elif accion == "foto_antes":
             f = request.files.get("foto")
             if f and f.filename:
@@ -11611,7 +11681,7 @@ def admin_pedido(ticket_id):
                 if ticket.get("guia_carga_tipo") and ticket.get("guia_carga_cantidad"):
                     nota_texto += f" | Carga: {ticket['guia_carga_cantidad']} {ticket['guia_carga_tipo']}"
             ticket["notas"].append({
-                "autor": session.get("nombre", "Soria"),
+                "autor": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": nota_texto,
             })
@@ -11626,7 +11696,7 @@ def admin_pedido(ticket_id):
             ticket["estado"] = "Pendiente"
             ticket["detalle_compras"] = detalle  # internal only
             ticket["notas"].append({
-                "autor": session.get("nombre", "Soria"),
+                "autor": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": "Pedido realizado a compras",
             })
@@ -11665,11 +11735,11 @@ def admin_pedido(ticket_id):
                 "item": item,
                 "cantidad": cantidad,
                 "detalle": detalle_extra,
-                "agregado_por": session.get("nombre", "Soria"),
+                "agregado_por": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
             })
             ticket["notas"].append({
-                "autor": session.get("nombre", "Soria"),
+                "autor": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Agregó material complementario desde stock: {item} x{cantidad}" + (f" ({detalle_extra})" if detalle_extra else ""),
             })
@@ -11692,7 +11762,7 @@ def admin_pedido(ticket_id):
                 "cantidad": cantidad,
                 "requisicion": "",
                 "detalle": detalle,
-                "pedido_por": session.get("nombre", "Soria"),
+                "pedido_por": session.get("nombre", RESPONSABLE_MATERIALES),
                 "estado": "Pendiente requisición",
                 "fecha": datetime.datetime.now().isoformat(),
             })
@@ -11702,7 +11772,7 @@ def admin_pedido(ticket_id):
             ticket["materiales_pendientes_rita"] = True
             ticket["detalle_compras"] = detalle
             ticket["notas"].append({
-                "autor": session.get("nombre", "Soria"),
+                "autor": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Derivó a Rita para requisición: {item} x{cantidad}" + (f" ({detalle})" if detalle else ""),
             })
@@ -11855,7 +11925,7 @@ def admin_pedido(ticket_id):
                     sin_trazabilidad_fifo=sin_trazabilidad or None,
                 )
             ticket["notas"].append({
-                "autor": session.get("nombre", "Soria"),
+                "autor": session.get("nombre", RESPONSABLE_MATERIALES),
                 "fecha": datetime.datetime.now().isoformat(),
                 "texto": f"Material enviado a sucursal ({metodo}){descuento_txt}{imputacion_txt}",
             })
@@ -11944,7 +12014,7 @@ def admin_pedido_guia(ticket_id):
         partes_dir.append(info["provincia"])
     sucursal_direccion = ", ".join(partes_dir)
 
-    # Quien retira/envia segun la opcion elegida por Soria.
+    # Quien retira/envía según la opción elegida por el preparador.
     metodo_envio = ticket.get("metodo_envio")
     if metodo_envio == "Recoge CEYH":
         retira = "RETIRA CEYH EN DEPÓSITO CENTRAL"
@@ -12324,7 +12394,7 @@ def _salida_parcial_destinos(ticket):
 
 def _bloquear_comprobantes_a_tecnico():
     if session.get("rol") == "tecnico":
-        return render_template("error.html", mensaje="Acceso restringido. Soria solo ve Pedidos, Stock y Movimientos."), 403
+        return render_template("error.html", mensaje=f"Acceso restringido. {RESPONSABLE_MATERIALES} solo ve Pedidos, Stock y Movimientos."), 403
     return None
 
 
@@ -12651,7 +12721,7 @@ def admin_comprobantes_imprimir(cid):
             and comp.get("no_descuenta_stock") is True
         )
         if not es_salida_parcial:
-            return render_template("error.html", mensaje="Acceso restringido. Soria solo puede imprimir remitos de salidas parciales."), 403
+            return render_template("error.html", mensaje=f"Acceso restringido. {RESPONSABLE_MATERIALES} solo puede imprimir remitos de salidas parciales."), 403
     try:
         fecha_fmt = datetime.datetime.strptime(comp.get("fecha", ""), "%Y-%m-%d").strftime("%d/%m/%Y")
     except (ValueError, TypeError):
@@ -13532,13 +13602,17 @@ def admin_crear_demo_fuga():
 from logistica import (LogisticsService, LogisticsStore, logistics_entra_role as logistica_identity_role,
                        register_logistics)
 
-def set_logistica_entra_session(identity, role):
+def set_logistica_entra_session(identity, role, auth_user=None):
     session.clear()
     session.permanent = True
     email = (identity.get("email") or "").strip().lower()
     session.update(logistica_user=email or identity.get("object_id"),
-                   logistica_name=identity.get("name") or email or "Logistica",
+                   logistica_name=(PREPARADOR_DABRA_NAME if role == "dabra" else identity.get("name") or email or "Logistica"),
                    logistica_role=role, auth_provider="entra", entra_role="logistica")
+    if auth_user:
+        auth_info = _user_to_session(auth_user, "entra")
+        session["auth_user_id"] = auth_info.get("id")
+        session["auth_session_version"] = auth_info.get("session_version", 1)
 
 
 def _logistica_local_users():
@@ -13556,6 +13630,9 @@ def _logistica_local_users():
     return configured
 
 app.config["LOGISTICA_LOCAL_USERS"] = _logistica_local_users()
+app.config["LOGISTICA_LOCAL_LOGIN_ENABLED"] = os.environ.get(
+    "LOGISTICA_LOCAL_LOGIN_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "si", "on")
 # Sólo crea pedidos simulados en el almacenamiento logístico aislado.
 app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
     "LOGISTICA_PORTAL_TEST_MODE", "true"
