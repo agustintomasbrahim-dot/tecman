@@ -4224,6 +4224,130 @@ def _ticket_tiene_presupuesto(ticket):
     )
 
 
+def _es_ticket_con_presupuesto_recibido(ticket):
+    """Detecta sólo cotizaciones persistidas por los flujos existentes.
+
+    Tanto el alta de categoría ``Presupuestos`` como la carga desde el portal
+    proveedor guardan una entrada en ``presupuestos`` con contenido de
+    cotización (detalle, monto o archivo) y trazabilidad (fecha, proveedor o
+    autor). No se infiere por palabras de la descripción ni por la mera
+    categoría, para no cambiar la UX de tickets que todavía esperan cotización.
+    """
+    presupuestos = ticket.get("presupuestos")
+    if not isinstance(presupuestos, list):
+        return False
+    for presupuesto in presupuestos:
+        if not isinstance(presupuesto, dict):
+            continue
+        tiene_cotizacion = any(presupuesto.get(campo) for campo in ("detalle", "monto", "archivo"))
+        tiene_trazabilidad = any(presupuesto.get(campo) for campo in ("fecha", "proveedor", "autor"))
+        if tiene_cotizacion and tiene_trazabilidad:
+            return True
+    return False
+
+
+def _presupuesto_recibido_para_vista(ticket):
+    presupuestos = [
+        item for item in (ticket.get("presupuestos") or [])
+        if isinstance(item, dict)
+        and any(item.get(campo) for campo in ("detalle", "monto", "archivo"))
+        and any(item.get(campo) for campo in ("fecha", "proveedor", "autor"))
+    ]
+    ultimo = presupuestos[-1] if presupuestos else {}
+    estado = ticket.get("estado_presupuesto") or "Pendiente"
+    if estado == "Aprobado":
+        estado_humano = "Aprobado"
+        proxima_accion = "Preparar la requisición" if ticket.get("requiere_requisicion") else "Coordinar la ejecución"
+    elif estado == "Rechazado":
+        estado_humano = "Devuelto / rechazado"
+        proxima_accion = "Esperar una nueva cotización"
+    elif ticket.get("estado_respuesta") == "Aclaración solicitada":
+        estado_humano = "Aclaración solicitada"
+        proxima_accion = "Esperar la respuesta del proveedor"
+    else:
+        estado_humano = "Pendiente de decisión"
+        proxima_accion = "Revisar el presupuesto y decidir"
+    return {
+        "ultimo": ultimo,
+        "estado_humano": estado_humano,
+        "proxima_accion": proxima_accion,
+    }
+
+
+def _aplicar_accion_presupuesto_recibido(ticket, accion, detalle, actor):
+    if not _es_ticket_con_presupuesto_recibido(ticket):
+        raise ValueError("El ticket no tiene un presupuesto recibido.")
+    if len(detalle) > 1000:
+        raise ValueError("El detalle no puede superar los 1000 caracteres.")
+    if accion in {"rechazar", "aclarar", "comunicar"} and not detalle:
+        raise ValueError("Esta acción requiere un detalle.")
+    if accion in {"rechazar", "comunicar"} and not _comentario_publico_sin_importes(detalle):
+        raise ValueError("El mensaje a la sucursal no puede incluir importes, números ni términos económicos.")
+
+    ahora = datetime.datetime.now().isoformat()
+    aviso_rita = None
+    if accion == "aprobar":
+        estado_anterior = ticket.get("estado_presupuesto")
+        requeria_requisicion = bool(ticket.get("requiere_requisicion"))
+        ticket["estado_presupuesto"] = "Aprobado"
+        ticket["presupuesto_etapa"] = "aprobado"
+        ticket["estado"] = "Aprobado"
+        ticket["requiere_requisicion"] = True
+        ticket["asignado_rita"] = True
+        texto_auditoria = "Decisión de presupuesto: aprobado"
+        texto_sucursal = "Estado del presupuesto: aprobado."
+        if estado_anterior != "Aprobado" or not requeria_requisicion:
+            aviso_rita = _notificar_requisicion_rita(
+                ticket,
+                f"presupuesto_aprobado:{ahora}",
+                "Presupuesto aprobado; preparar requisición",
+            )
+    elif accion == "rechazar":
+        ticket["estado_presupuesto"] = "Rechazado"
+        ticket["presupuesto_etapa"] = "rechazado"
+        ticket["estado"] = "Rechazado"
+        ticket["requiere_requisicion"] = False
+        ticket["respuesta_sucursal_presupuesto"] = detalle
+        ticket["presupuesto_comentario_publico"] = detalle
+        texto_auditoria = f"Presupuesto devuelto / rechazado: {detalle}"
+        texto_sucursal = detalle
+    elif accion == "aclarar":
+        ticket["estado_presupuesto"] = "Pendiente"
+        ticket["estado"] = "Pendiente"
+        ticket["estado_respuesta"] = "Aclaración solicitada"
+        ticket.setdefault("notificaciones_prov", []).append({
+            "fecha": ahora,
+            "texto": f"Administración pidió una aclaración sobre el presupuesto: {detalle}",
+            "leida": False,
+        })
+        texto_auditoria = f"Aclaración solicitada al proveedor: {detalle}"
+        texto_sucursal = None
+    elif accion == "comunicar":
+        ticket["estado_respuesta"] = "Respuesta comunicada"
+        ticket["respuesta_sucursal_presupuesto"] = detalle
+        ticket["presupuesto_comentario_publico"] = detalle
+        texto_auditoria = f"Respuesta comunicada a sucursal: {detalle}"
+        texto_sucursal = detalle
+    else:
+        raise ValueError("Acción de presupuesto inválida.")
+
+    ticket.setdefault("notas", []).append({
+        "autor": actor,
+        "fecha": ahora,
+        "texto": texto_auditoria,
+        "visibilidad": "interna",
+    })
+    if texto_sucursal:
+        ticket.setdefault("notificaciones", []).append({
+            "fecha": ahora,
+            "texto": texto_sucursal,
+            "leida": False,
+            "visibilidad": "sucursal",
+        })
+    ticket["actualizado"] = ahora
+    return aviso_rita
+
+
 def _comentario_publico_sin_importes(texto):
     """Admite sólo comentarios operativos inequívocamente no económicos."""
     value = " ".join(str(texto or "").split())
@@ -8029,6 +8153,36 @@ def admin_ticket(ticket_id):
             _agregar_notificacion_ticket_unica(ticket, f"{evento}:{remito_id}:{ahora}", texto, ahora)
             save_tickets(tickets)
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
+        if accion == "presupuesto_recibido_accion":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+            if not _es_ticket_con_presupuesto_recibido(ticket):
+                return render_template("error.html", mensaje="El ticket no tiene un presupuesto recibido."), 409
+            decision = request.form.get("decision", "").strip()
+            detalle = request.form.get("detalle_decision", "").strip()
+            try:
+                aviso_rita = _aplicar_accion_presupuesto_recibido(
+                    ticket,
+                    decision,
+                    detalle,
+                    session.get("nombre", "Admin"),
+                )
+            except ValueError as exc:
+                return render_template("error.html", mensaje=str(exc)), 400
+            save_tickets(tickets)
+            if aviso_rita in ("error", "disabled"):
+                flash("La decisión se guardó, pero no se pudo enviar el email a Rita. Revisá la configuración de correo.")
+            else:
+                mensajes = {
+                    "aprobar": "Presupuesto aprobado",
+                    "rechazar": "Presupuesto devuelto a la sucursal",
+                    "aclarar": "Aclaración enviada al proveedor",
+                    "comunicar": "Respuesta comunicada a la sucursal",
+                }
+                flash(mensajes[decision])
+            return redirect(url_for("admin_ticket", ticket_id=ticket_id))
+
         # Accion rapida: responder a la sucursal con una de las 3 opciones
         if accion == "responder_suc":
             motivo = request.form.get("motivo", "").strip()
@@ -8346,6 +8500,7 @@ def admin_ticket(ticket_id):
         return redirect(url_for("admin_ticket", ticket_id=ticket_id))
 
     _suc_num_at = ticket.get("sucursal", "").replace("Sucursal ", "").strip()
+    es_presupuesto_recibido = _es_ticket_con_presupuesto_recibido(ticket)
     return render_template(
         "admin_ticket.html",
         ticket=ticket,
@@ -8354,6 +8509,8 @@ def admin_ticket(ticket_id):
         puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",
         es_ceyh=es_ticket_ceyh(ticket),
         es_presupuesto=(ticket.get("categoria") == "Presupuestos"),
+        es_presupuesto_recibido=es_presupuesto_recibido,
+        presupuesto_recibido=_presupuesto_recibido_para_vista(ticket) if es_presupuesto_recibido else None,
         tiene_abono_suc=bool(get_proveedor_abono_sucursal(_suc_num_at)),
         proveedores_catalogo=_proveedores_catalogo_ticket(_suc_num_at),
         es_fumigacion=_ticket_es_fumigacion(ticket),

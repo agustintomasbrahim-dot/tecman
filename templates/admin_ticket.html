@@ -94,10 +94,74 @@
     }
     .radio-card:hover { border-color:#60a5fa; box-shadow:0 6px 18px rgba(37,99,235,.08); transform: translateY(-1px); }
     .ticket-page .card { border-radius: 16px; box-shadow: 0 8px 26px rgba(15, 23, 42, 0.05); border: 1px solid #e5e7eb; }
+    .quote-decision { border:2px solid #7c3aed; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 12px 34px rgba(76,29,149,.10); }
+    .quote-decision__head { padding:20px 22px; background:linear-gradient(135deg,#f5f3ff,#faf5ff); }
+    .quote-decision__grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-top:16px; }
+    .quote-decision__item { padding:12px; border:1px solid #ddd6fe; border-radius:12px; background:#fff; overflow-wrap:anywhere; }
+    .quote-decision__label { display:block; color:#6d28d9; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; margin-bottom:5px; }
+    .quote-decision__actions { padding:18px 22px; border-top:1px solid #ede9fe; }
+    .quote-action-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .quote-action { min-height:48px; border:0; border-radius:10px; padding:11px 14px; color:#fff; font-weight:750; cursor:pointer; }
+    .quote-action:focus-visible, .quote-decision a:focus-visible, .advanced-ticket summary:focus-visible { outline:3px solid #2563eb; outline-offset:3px; }
+    .advanced-ticket { border:1px solid #cbd5e1; border-radius:14px; background:#f8fafc; }
+    .advanced-ticket > summary { cursor:pointer; padding:14px 16px; font-weight:700; color:#334155; }
+    .advanced-ticket__body { padding:0 12px 12px; display:grid; gap:16px; }
+    @media (max-width:640px) {
+        .quote-action-grid { grid-template-columns:1fr; }
+        .quote-decision__head, .quote-decision__actions { padding:16px; }
+        .quote-action { width:100%; }
+    }
 </style>
 
 <div class="ticket-page">
 <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← {% if session.nombre == 'Rita' %}Requisiciones{% else %}Tickets{% endif %}</a>
+{% if es_presupuesto_recibido %}
+<section class="quote-decision" aria-labelledby="quote-decision-title">
+    <div class="quote-decision__head">
+        <div class="ticket-section-title" style="margin-bottom:5px;color:#6d28d9;">Presupuesto recibido</div>
+        <h2 id="quote-decision-title" style="margin:0;color:#1e1b4b;">Decisión del ticket #{{ ticket.id }}</h2>
+        <div class="quote-decision__grid">
+            {% if ticket.sucursal %}<div class="quote-decision__item"><span class="quote-decision__label">Sucursal</span>{{ ticket.sucursal }}</div>{% endif %}
+            {% if ticket.descripcion %}<div class="quote-decision__item"><span class="quote-decision__label">Solicitud</span>{{ ticket.descripcion }}</div>{% endif %}
+            {% set proveedor_recibido = presupuesto_recibido.ultimo.proveedor or ticket.proveedor_presupuesto or ticket.proveedor_nombre or ticket.asignado_proveedor %}
+            {% if proveedor_recibido %}<div class="quote-decision__item"><span class="quote-decision__label">Proveedor</span>{{ proveedor_recibido }}</div>{% endif %}
+            {% set responsable_recibido = ticket.responsable or ticket.asignado %}
+            {% if responsable_recibido and responsable_recibido != proveedor_recibido %}<div class="quote-decision__item"><span class="quote-decision__label">Responsable</span>{{ responsable_recibido }}</div>{% endif %}
+            {% if presupuesto_recibido.ultimo.monto %}<div class="quote-decision__item"><span class="quote-decision__label">Monto{% if presupuesto_recibido.ultimo.moneda %} / moneda{% endif %}</span>{% if presupuesto_recibido.ultimo.moneda %}{{ presupuesto_recibido.ultimo.moneda }} {% endif %}{{ presupuesto_recibido.ultimo.monto }}</div>{% endif %}
+            {% if presupuesto_recibido.ultimo.fecha %}<div class="quote-decision__item"><span class="quote-decision__label">Fecha recibida</span>{{ presupuesto_recibido.ultimo.fecha[:16].replace('T',' ') }}</div>{% endif %}
+            {% if presupuesto_recibido.ultimo.archivo %}
+            <div class="quote-decision__item"><span class="quote-decision__label">Archivo</span><a target="_blank" rel="noopener" href="{% if presupuesto_recibido.ultimo.archivo_seguro %}{{ url_for('ticket_documento_archivo', ticket_id=ticket.id, tipo='presupuestos', filename=presupuesto_recibido.ultimo.archivo) }}{% else %}/static/uploads/{{ presupuesto_recibido.ultimo.archivo }}{% endif %}">{{ presupuesto_recibido.ultimo.archivo_nombre or 'Abrir presupuesto' }}</a></div>
+            {% endif %}
+            <div class="quote-decision__item"><span class="quote-decision__label">Estado de decisión</span><strong>{{ presupuesto_recibido.estado_humano }}</strong></div>
+        </div>
+        <div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:#ede9fe;color:#4c1d95;"><strong>Próxima acción:</strong> {{ presupuesto_recibido.proxima_accion }}</div>
+    </div>
+    {% if session.nombre != 'Rita' %}
+    <form method="POST" class="quote-decision__actions" aria-label="Acciones del presupuesto recibido">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="accion" value="presupuesto_recibido_accion">
+        <div class="form-group" style="margin:0 0 12px;">
+            <label for="detalle-decision">Detalle para devolver, aclarar o comunicar</label>
+            <textarea id="detalle-decision" name="detalle_decision" maxlength="1000" rows="3" placeholder="Obligatorio salvo al aprobar. No incluyas importes en mensajes a la sucursal."></textarea>
+        </div>
+        <div class="quote-action-grid">
+            <button class="quote-action" style="background:#15803d;" type="submit" name="decision" value="aprobar">Aprobar</button>
+            <button class="quote-action" style="background:#b91c1c;" type="submit" name="decision" value="rechazar">Rechazar / devolver</button>
+            <button class="quote-action" style="background:#b45309;" type="submit" name="decision" value="aclarar">Pedir aclaración</button>
+            <button class="quote-action" style="background:#2563eb;" type="submit" name="decision" value="comunicar">Comunicar respuesta</button>
+        </div>
+    </form>
+    {% endif %}
+</section>
+
+<section class="card" aria-labelledby="quote-history-title">
+    <h3 id="quote-history-title" class="ticket-section-title" style="margin-bottom:14px;">Historial</h3>
+    {% if ticket.notas %}
+    <div class="note-list">{% for nota in ticket.notas|reverse %}<div class="note-card"><div class="note-head"><span class="note-author">{{ nota.autor }}</span><span class="note-date">{{ nota.fecha[:16].replace('T',' ') }}</span></div><p class="note-text">{{ nota.texto }}</p></div>{% endfor %}</div>
+    {% else %}<p style="margin:0;color:#64748b;">Sin movimientos registrados.</p>{% endif %}
+</section>
+<details class="advanced-ticket"><summary>Detalles avanzados</summary><div class="advanced-ticket__body">
+{% endif %}
 {% if session.nombre == 'Rita' %}
 <div class="card" style="border-left:4px solid #0f766e; background:#f0fdfa;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
@@ -649,5 +713,6 @@
     <p style="color:#475569;font-size:14px;margin:0;">Acá solo tiene que revisar la información y <strong>armar la requisición</strong>.</p>
 </div>
 {% endif %}
+{% if es_presupuesto_recibido %}</div></details>{% endif %}
 {% endblock %}
 </div>
