@@ -1,0 +1,284 @@
+{
+  "schema": "tecman.diprogom-plan/v1",
+  "version": "diprogom-import-v1",
+  "mode": "dry-run",
+  "input_sha256": "dca6f2b2ab25ef7e7eb186067d9ef91c1fc0a462a52dfe31babc39b1d213f769",
+  "xls_sha256": "72c446190dd5c9b7b1451b86e2efabcbf837dc6763391fe5c6dbac82a3000e92",
+  "safety": {
+    "network": false,
+    "production": false,
+    "in_place": false,
+    "excluded_branch_mutations": 0,
+    "pending_morzat_mutations": 0
+  },
+  "source_summary": {
+    "rows": 483,
+    "unique_extinguisher_ids": 483,
+    "numbered_rows": 469,
+    "numbered_branches": 30,
+    "confirmed_rows": 433,
+    "confirmed_branches": 28,
+    "conflict_rows": 36,
+    "conflict_branches": {
+      "051": 13,
+      "156": 23
+    },
+    "pending_rows": 14,
+    "pending_label": "PARQUE INDUSTRIAL MORZAT",
+    "fallback_214_rows": 9,
+    "count_validation": "ok"
+  },
+  "confirmed_branch_numbers": [
+    "036",
+    "043",
+    "053",
+    "077",
+    "167",
+    "171",
+    "176",
+    "177",
+    "183",
+    "184",
+    "185",
+    "187",
+    "188",
+    "190",
+    "194",
+    "198",
+    "200",
+    "202",
+    "204",
+    "208",
+    "209",
+    "213",
+    "214",
+    "216",
+    "219",
+    "221",
+    "222",
+    "232"
+  ],
+  "excluded_provider_conflicts": {
+    "051": {
+      "rows": 13,
+      "status": "conflicto_proveedor"
+    },
+    "156": {
+      "rows": 23,
+      "status": "conflicto_proveedor"
+    }
+  },
+  "pending": {
+    "label": "PARQUE INDUSTRIAL MORZAT",
+    "address": "MORZAT S/N",
+    "rows": 14,
+    "status": "pendiente_sin_numero_no_inferir_garin"
+  },
+  "match_summary": {
+    "alta": 105,
+    "nro_extintor": 239,
+    "sucursal_tipo_capacidad": 62
+  },
+  "summary": {
+    "adds": 105,
+    "updates": 301,
+    "safe_deletes": 0,
+    "conflicts": 27,
+    "operations": 406,
+    "input_total": 1254,
+    "final_total": 1359,
+    "automatic_scope_branches": 28,
+    "automatic_scope_equipment": 433
+  },
+  "conflicts": [
+    {
+      "conflict_id": "010886804a6f511af335afb5e5bd1784e6390152b10b6e329421c3b2afff7ccc",
+      "source_row": 56,
+      "item_id": "f46a63221dad",
+      "sucursal_num": "208",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "27634e79c749a898b7dbbfa1bdcdb56ca13d607e378d11f0564a46e91e93591a",
+      "source_row": 135,
+      "item_id": "598025df1772",
+      "sucursal_num": "190",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "a33266160019431857d95463b4a7203fa92c178a97c3e46bd2bde20d57b4bfe5",
+      "source_row": 138,
+      "item_id": "311942ec9a2d",
+      "sucursal_num": "185",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "1bd0d5bb2d793324b1647c31ae18d9cdcd137289976f83feeb3f42a1605d3cce",
+      "source_row": 154,
+      "item_id": "881fddfe60c0",
+      "sucursal_num": "187",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "1e5f0bea2e5b85e428dc770949739520463213698c3247667225f2af2a7285da",
+      "source_row": 188,
+      "item_id": "8d9302d46a26",
+      "sucursal_num": "043",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "a1ccff08a397da860e74b4c55c2692d1508b04976420254749f94453810b44ae",
+      "source_row": 195,
+      "item_id": "a2607f042ce5",
+      "sucursal_num": "219",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "4ee4181bdbc5034c87ec7048538a4cd78843b9fcdd722a9dd2368196c169de3b",
+      "source_row": 243,
+      "item_id": "acbbac9e43e5",
+      "sucursal_num": "221",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "779cbadeb6cdd34176d0281790d6915635ac50e9ec5266f26d56fb2715c3a313",
+      "source_row": 244,
+      "item_id": "ee5e0326fa25",
+      "sucursal_num": "221",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "05a7b6df1f73afeba3af8d61fed01e3cac99ccc31b5b7757f2bc48a4b13430ac",
+      "source_row": 260,
+      "item_id": "a2bb92c2c1ca",
+      "sucursal_num": "213",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "ad5eb3bb8d36278a96ba49ca3d7bf4d8ec66b7c2df5032216f51f6e47407606a",
+      "source_row": 262,
+      "item_id": "9b220ee23665",
+      "sucursal_num": "213",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "0f2b728d2eb937806d0d53d2278883034835cf835d2a7df446962c3a1e74bd71",
+      "source_row": 293,
+      "item_id": "e34ff2ea4748",
+      "sucursal_num": "204",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "924bb297bc872cbf9d8394c382d7431b074aa2715444734dffd5825fce323e7d",
+      "source_row": 370,
+      "item_id": "423ec038b00d",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "38aacdac3f5bbf4b7fdde1946073fc19f98db8c7466916896ebb58083fa9c1a0",
+      "source_row": 371,
+      "item_id": "3f4d1f2ee686",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "b04a479b194a1604c86b132d8187b1bc0e4b67882421e79a18654d2a4f47b071",
+      "source_row": 372,
+      "item_id": "4d3ad05bf16e",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "a9c50e3f31f733ab29d5adda06315bdcffcda598aa86e35b3368516146077452",
+      "source_row": 374,
+      "item_id": "8f7c3ec9ad95",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "8fab9d1fbfb982462a6ab1a5025cd1d76d9a7468a86246739a4f149b1d58adf2",
+      "source_row": 375,
+      "item_id": "00654874edb9",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "138d1287eb8cc3b88529131eb095c0a57377a7c3d89fc8c678c4c28afcd797ad",
+      "source_row": 376,
+      "item_id": "94f806131fd8",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "2a086c34e8c4c9a222d50cf09f0b6fbf9766f5026ebf5d73093c9468dbb12314",
+      "source_row": 377,
+      "item_id": "53d15cb1dfdb",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "a303c4487c4988d067ec1c0c2369d62f4cd38afd39dc3cead8fd80b3b1e42dc9",
+      "source_row": 378,
+      "item_id": "45a578a81f0d",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "ba97f1946b7e952f995f9e4de2e4acc399f1f89d00dbb705283c70376e277cac",
+      "source_row": 380,
+      "item_id": "59761c77eb20",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "19a45a05671ccdc881309adc149c75fde3b5e404c8ea4eaa2fa614d6e8c9f9e2",
+      "source_row": 385,
+      "item_id": "cdd60c61cc95",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "357f3a8c4ef6379868aa8401f285b0debf487868c65f39f576ca76698e3f8824",
+      "source_row": 386,
+      "item_id": "a27bfc3d2fea",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "6638e0fd9c9fe61095a3d6e14f07f7b036055b04035027bfab3f574f95ff2a20",
+      "source_row": 387,
+      "item_id": "dfc812a7746d",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "fe25b7f693818b58b214cc64eff818872cd859b9b26b646a8e0771105328fe69",
+      "source_row": 388,
+      "item_id": "cddd8e3c865b",
+      "sucursal_num": "167",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "ac33be0cb4885980e4c2545fc73ca2213b9e86ac371e75386591270a5057272c",
+      "source_row": 404,
+      "item_id": "b2625fe221df",
+      "sucursal_num": "036",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "5ad92c19d0d00775a0c5cc358a5eed974ae7c32f83af0943e26a8e406eb892fc",
+      "source_row": 455,
+      "item_id": "16da10cbfc04",
+      "sucursal_num": "053",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    },
+    {
+      "conflict_id": "d4dcf352fb5c1e5aa40942eaacd3c7c2e7be910f85fab2539d9632b3fad1e92c",
+      "source_row": 478,
+      "item_id": "ecf81cf7d11e",
+      "sucursal_num": "053",
+      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
+    }
+  ]
+}
