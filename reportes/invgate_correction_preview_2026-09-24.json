@@ -1,0 +1,117 @@
+{
+  "schema": "tecman.invgate-preview/v4",
+  "generated_from": "temporary_copy_of_backup",
+  "original_backup": "/Users/agustin/Library/CloudStorage/Dropbox/backups-dabra/prod-data/tecman-data-20260924-063000.zip",
+  "original_backup_sha256_before": "700f78e3e6ca3641a69f81235c64e5c12f66cc8d1898c8c0d24e7842321c70f0",
+  "original_backup_sha256_after": "700f78e3e6ca3641a69f81235c64e5c12f66cc8d1898c8c0d24e7842321c70f0",
+  "original_backup_unchanged": true,
+  "temporary_input_tickets_sha256": "0841e2581d1c2f0c24996fe173ee283914cd6f2c233751c1324259599515fc7d",
+  "excel_sha256": "9554815efc250e0b206a3180b7f1002977b3242f7f1db311bdea837067d7a94a",
+  "plan_summary": {
+    "safe_matches": 96,
+    "spurious_catalog": 56,
+    "duplicate_groups": 3,
+    "real_excel_rows": 1327,
+    "ambiguous_excluded": 3,
+    "without_candidate_excluded": 1228,
+    "historical_closed_not_imported": "excluded",
+    "audit_state": "initial",
+    "operations": 152,
+    "safe_operations": 93,
+    "duplicate_canonical_corrections": 3,
+    "duplicate_removals": 3,
+    "total_removals": 59,
+    "spurious_operations": 56,
+    "already_correct": {},
+    "audit_count_mismatches": {}
+  },
+  "duplicate_resolution": [
+    {
+      "invgate_ticket_id": "118730",
+      "sucursal": "083",
+      "ticket_ids": [
+        100004,
+        100009
+      ],
+      "canonical_ticket_id": 100004,
+      "removed_ticket_ids": [
+        100009
+      ],
+      "criterion": "lowest_numeric_tecman_id"
+    },
+    {
+      "invgate_ticket_id": "122280",
+      "sucursal": "216",
+      "ticket_ids": [
+        100005,
+        100010
+      ],
+      "canonical_ticket_id": 100005,
+      "removed_ticket_ids": [
+        100010
+      ],
+      "criterion": "lowest_numeric_tecman_id"
+    },
+    {
+      "invgate_ticket_id": "94976",
+      "sucursal": "217",
+      "ticket_ids": [
+        100014,
+        100017
+      ],
+      "canonical_ticket_id": 100014,
+      "removed_ticket_ids": [
+        100017
+      ],
+      "criterion": "lowest_numeric_tecman_id"
+    }
+  ],
+  "apply_preview": {
+    "journal_entries": 152,
+    "safe_corrections": 93,
+    "spurious_removed": 56,
+    "duplicates_removed": 3,
+    "total_removed": 59,
+    "input_ticket_count": 406,
+    "resulting_ticket_count": 347,
+    "unique_ticket_ids": 347,
+    "corrected_copy_sha256": "3453de7a25dc88eaad321d319b65d6b2eeae2b2709d8f4ae03c9f4b0450bdafb",
+    "canonical_ticket_ids_corrected": [
+      100004,
+      100005,
+      100014
+    ],
+    "duplicate_ticket_ids_removed": [
+      100009,
+      100010,
+      100017
+    ]
+  },
+  "idempotence": {
+    "second_plan_operations": 0,
+    "strict_audit_state": "fully_applied",
+    "strict_audit_count_mismatches": {},
+    "already_correct": {
+      "safe": 93
+    }
+  },
+  "rollback": {
+    "journal_entries_restored": 152,
+    "removed_records_restored": 59,
+    "safe_corrections_reverted": 93,
+    "exact_position_and_semantic_equality_with_temporary_input": true,
+    "rolled_back_sha256": "2ed550f9b7c86b44bcbda2604904b5caccea4a15ab91201c63942a813a5f6c8a"
+  },
+  "safety": {
+    "production_endpoints_used": false,
+    "production_written": false,
+    "backup_original_written": false,
+    "apply_and_rollback_outputs_distinct": true
+  },
+  "limitations": [
+    "Snapshot del backup: 2026-09-24 06:30 ART.",
+    "No se consultó PostgreSQL ni producción en vivo.",
+    "Los duplicados se resolvieron sólo en la copia: se conservó y corrigió el ID Tecman numérico menor y se eliminó el posterior.",
+    "Las 3 ambiguas y 1.228 sin candidato quedan fuera de operaciones automáticas."
+  ]
+}
