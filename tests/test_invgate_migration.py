@@ -51,6 +51,33 @@ def input_tickets() -> list[dict]:
     ]
 
 
+def externally_resolved_ticket(**overrides) -> dict:
+    ticket = {
+        "id": 100240,
+        "sucursal": "Sucursal 036",
+        "sucursal_num": "036",
+        "categoria": "CEYH",
+        "subcategoria": "Mantenimiento general",
+        "descripcion": (
+            "Hace un tiempo hurtaron las baldosas de la vereda. "
+            "Solicitamos el arreglo de la misma."
+        ),
+        "estado": "Nuevo",
+        "actualizado": "2026-09-22T13:23:10.837403",
+        "origen": "CEYH",
+        "invgate_ticket_id": "124900",
+        "invgate_hoja": "CEYH Hoja 1",
+        "invgate_fila_excel": 311,
+        "notas": [{
+            "autor": "Sucursal 036",
+            "fecha": "2026-09-22T13:23:10.837403",
+            "texto": "Respuesta de sucursal: la ciudad arregló las baldosas de la vereda.",
+        }],
+    }
+    ticket.update(overrides)
+    return ticket
+
+
 class InvGateMigrationTests(unittest.TestCase):
     def test_prepare_cli_has_no_direct_apply_path(self):
         result = subprocess.run(
@@ -132,6 +159,76 @@ class InvGateMigrationTests(unittest.TestCase):
             self.assertEqual(rolled["rolled_back"], 2)
             self.assertEqual(rolled["restored_removed"], 1)
             self.assertEqual(json.loads(restored.read_text(encoding="utf-8")), before)
+
+    def test_close_resolved_external_100240_is_exact_idempotent_and_reversible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            workbook, original = base / "fixture.xlsx", base / "tickets.json"
+            plan_path, corrected = base / "plan.json", base / "corrected.json"
+            journal, restored = base / "journal.jsonl", base / "restored.json"
+            write_workbook(workbook)
+            before = [externally_resolved_ticket()]
+            write_json(original, before)
+
+            plan = reconcile.make_plan(original, workbook, sha(original), strict_counts=False)
+            self.assertEqual(plan["summary"]["close_resolved_external_operations"], 1)
+            self.assertEqual(plan["summary"]["operations"], 1)
+            op = plan["operations"][0]
+            self.assertEqual(op["kind"], "close_resolved_external")
+            self.assertEqual(op["ticket_id"], 100240)
+            self.assertEqual(op["before"], before[0])
+            self.assertEqual(op["after"]["estado"], "Resuelto")
+            self.assertEqual(
+                op["after"]["resuelto_por_sucursal_motivo"],
+                reconcile.EXTERNAL_RESOLUTION_REASON,
+            )
+
+            write_json(plan_path, plan)
+            result = reconcile.apply_plan(original, corrected, sha(original), plan_path, journal)
+            self.assertEqual((result["applied"], result["removed"]), (1, 0))
+            after = json.loads(corrected.read_text(encoding="utf-8"))
+            self.assertEqual(after[0]["estado"], "Resuelto")
+            self.assertTrue(after[0]["resuelto_por_sucursal"])
+            self.assertEqual(after[0]["resuelto_por_sucursal_actor"], "Sucursal 036")
+            self.assertEqual(after[0]["resuelto_por_sucursal_fecha"], "2026-09-24T00:00:00")
+            self.assertEqual(after[0]["actualizado"], "2026-09-24T00:00:00")
+            self.assertEqual(after[0]["notas"][0], before[0]["notas"][0])
+            self.assertEqual(after[0]["notas"][-1]["tipo"], "resuelto_por_sucursal")
+            rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(rows[0]["before"], before[0])
+            self.assertEqual(rows[0]["after"], after[0])
+
+            second = reconcile.make_plan(corrected, workbook, sha(corrected), strict_counts=False)
+            self.assertEqual(second["summary"]["close_resolved_external_operations"], 0)
+            self.assertEqual(second["summary"]["operations"], 0)
+
+            rolled = reconcile.rollback(corrected, restored, sha(corrected), journal)
+            self.assertEqual((rolled["rolled_back"], rolled["restored_removed"]), (1, 0))
+            self.assertEqual(json.loads(restored.read_text(encoding="utf-8")), before)
+
+    def test_close_resolved_external_rejects_final_or_identity_mismatch(self):
+        cases = [
+            externally_resolved_ticket(estado="Resuelto"),
+            externally_resolved_ticket(estado="Cerrado"),
+            externally_resolved_ticket(sucursal="Sucursal 037", sucursal_num="037"),
+            externally_resolved_ticket(descripcion="La ciudad reparó la vereda."),
+            externally_resolved_ticket(descripcion="La ciudad repuso las baldosas."),
+            externally_resolved_ticket(id=100239),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            workbook = base / "fixture.xlsx"
+            write_workbook(workbook)
+            for index, ticket in enumerate(cases):
+                with self.subTest(index=index, ticket=ticket):
+                    original = base / f"tickets-{index}.json"
+                    write_json(original, [ticket])
+                    plan = reconcile.make_plan(original, workbook, sha(original), strict_counts=False)
+                    self.assertEqual(plan["summary"]["close_resolved_external_operations"], 0)
+                    self.assertFalse(any(
+                        op["kind"] == "close_resolved_external"
+                        for op in plan["operations"]
+                    ))
 
     def test_duplicate_group_keeps_lowest_id_and_removes_later_ticket(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -192,6 +192,22 @@
 </div>
 {% endif %}
 
+{% if puede_finalizar_sucursal %}
+<div class="card" style="border-left:4px solid #059669;">
+    <h3 style="margin-bottom:8px;color:#065f46;">¿El problema ya está resuelto?</h3>
+    <p style="color:#64748b;font-size:13px;margin-bottom:12px;">Finalizá el ticket sólo si la situación ya fue solucionada. El motivo y tu usuario quedarán registrados para Equipo Central.</p>
+    <form method="POST" action="{{ url_for('finalizar_ticket_desde_sucursal', ticket_id=ticket.id) }}" onsubmit="return confirm('¿Confirmás que el problema ya está resuelto y querés finalizar este ticket?');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="motivo-finalizacion">Motivo de la finalización <span style="color:#dc2626;">*</span></label>
+            <textarea id="motivo-finalizacion" name="motivo" maxlength="{{ resolucion_max_length }}" required placeholder="Ej.: La reparación ya fue realizada por la ciudad."></textarea>
+            <div style="color:#94a3b8;font-size:11px;margin-top:5px;">Contanos brevemente cómo se resolvió. Máximo {{ resolucion_max_length }} caracteres.</div>
+        </div>
+        <button type="submit" class="btn" style="width:100%;background:#059669;color:white;">Finalizar ticket</button>
+    </form>
+</div>
+{% endif %}
+
 <!-- Historial -->
 {% if ticket.notas is defined and ticket.notas %}
 <div class="card">

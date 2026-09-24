@@ -29,7 +29,14 @@ from prepare_invgate_tickets_from_excel import (
     norm_sucursal,
 )
 
-VERSION = "invgate-correction-v3"
+VERSION = "invgate-correction-v4"
+EXTERNAL_RESOLUTION_TICKET_ID = "100240"
+EXTERNAL_RESOLUTION_BRANCH = "036"
+EXTERNAL_RESOLUTION_REASON = (
+    "La sucursal informó que la vereda ya fue reparada por la ciudad; "
+    "sin intervención de Mantenimiento."
+)
+EXTERNAL_RESOLUTION_DATE = "2026-09-24T00:00:00"
 AUDIT_EXPECTED = {
     "safe_matches": 96,
     "spurious_catalog": 56,
@@ -184,6 +191,36 @@ def corrected_ticket(before: dict[str, Any], source: dict[str, Any], duplicate_i
     return after
 
 
+def external_resolution_matches(ticket: dict[str, Any]) -> bool:
+    """Identidad estricta del caso 100240 informado resuelto por sucursal 036."""
+    description = clean(ticket.get("descripcion")).casefold()
+    return (
+        str(ticket.get("id")) == EXTERNAL_RESOLUTION_TICKET_ID
+        and numeric_branch(ticket) == EXTERNAL_RESOLUTION_BRANCH
+        and "baldosas" in description
+        and "vereda" in description
+    )
+
+
+def close_resolved_external_ticket(before: dict[str, Any]) -> dict[str, Any]:
+    after = copy.deepcopy(before)
+    actor = "Sucursal 036"
+    after["estado"] = "Resuelto"
+    after["resuelto_por_sucursal"] = True
+    after["resuelto_por_sucursal_actor"] = actor
+    after["resuelto_por_sucursal_fecha"] = EXTERNAL_RESOLUTION_DATE
+    after["resuelto_por_sucursal_motivo"] = EXTERNAL_RESOLUTION_REASON
+    after["actualizado"] = EXTERNAL_RESOLUTION_DATE
+    after["notas"] = append_unique_note(after.get("notas"), {
+        "autor": actor,
+        "fecha": EXTERNAL_RESOLUTION_DATE,
+        "tipo": "resuelto_por_sucursal",
+        "texto": f"Ticket finalizado por la sucursal. Motivo: {EXTERNAL_RESOLUTION_REASON}",
+        "visibilidad": "sucursal",
+    })
+    return after
+
+
 def operation(kind: str, before: dict[str, Any], after: dict[str, Any] | None, original_index: int) -> dict[str, Any]:
     identity = {
         "version": VERSION,
@@ -305,6 +342,23 @@ def make_plan(input_path: Path, excel_path: Path, expected_sha: str, strict_coun
             "remove_spurious_catalog", before, None, input_indexes[str(before.get("id"))]
         ))
 
+    external_ticket = next(
+        (ticket for ticket in tickets if str(ticket.get("id")) == EXTERNAL_RESOLUTION_TICKET_ID),
+        None,
+    )
+    if (
+        external_ticket is not None
+        and external_resolution_matches(external_ticket)
+        and external_ticket.get("estado") not in {"Rechazado", "Resuelto", "Cerrado"}
+    ):
+        after = close_resolved_external_ticket(external_ticket)
+        operations.append(operation(
+            "close_resolved_external",
+            external_ticket,
+            after,
+            input_indexes[EXTERNAL_RESOLUTION_TICKET_ID],
+        ))
+
     observed = {
         "safe_matches": len(candidates),
         "spurious_catalog": len(spurious),
@@ -338,6 +392,9 @@ def make_plan(input_path: Path, excel_path: Path, expected_sha: str, strict_coun
             "duplicate_removals": sum(op["kind"] == "remove_duplicate_ticket" for op in operations),
             "total_removals": sum(op["kind"] in {"remove_spurious_catalog", "remove_duplicate_ticket"} for op in operations),
             "spurious_operations": sum(op["kind"] == "remove_spurious_catalog" for op in operations),
+            "close_resolved_external_operations": sum(
+                op["kind"] == "close_resolved_external" for op in operations
+            ),
             "already_correct": dict(already_correct),
             "audit_count_mismatches": mismatches,
         },
@@ -397,12 +454,12 @@ def apply_plan(input_path: Path, output_path: Path, expected_sha: str, plan_path
         if op.get("kind") in {"remove_spurious_catalog", "remove_duplicate_ticket"}:
             if op.get("after") is not None:
                 raise ValueError(f"eliminación con after no nulo para ticket {key}")
-        elif op.get("kind") != "correct_safe_match":
+        elif op.get("kind") not in {"correct_safe_match", "close_resolved_external"}:
             raise ValueError(f"tipo de operación no permitido: {op.get('kind')}")
 
     result = copy.deepcopy(tickets)
     for op in operations:
-        if op.get("kind") == "correct_safe_match":
+        if op.get("kind") in {"correct_safe_match", "close_resolved_external"}:
             result[indexes[str(op.get("ticket_id"))]] = copy.deepcopy(op["after"])
     removed_ids = {
         str(op.get("ticket_id")) for op in operations
@@ -451,7 +508,10 @@ def rollback(input_path: Path, output_path: Path, expected_sha: str, journal_pat
 
     result = copy.deepcopy(tickets)
     indexes = {str(ticket.get("id")): i for i, ticket in enumerate(result)}
-    safe_rows = [row for row in rows if row.get("kind") == "correct_safe_match"]
+    safe_rows = [
+        row for row in rows
+        if row.get("kind") in {"correct_safe_match", "close_resolved_external"}
+    ]
     remove_rows = [
         row for row in rows
         if row.get("kind") in {"remove_spurious_catalog", "remove_duplicate_ticket"}

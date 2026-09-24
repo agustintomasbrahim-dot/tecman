@@ -58,6 +58,7 @@ TICKET_ATTACHMENT_EXTENSIONS = MEDIA_EXTENSIONS | {".pdf"}
 MEDIA_ACCEPT = "image/*,video/mp4,video/quicktime,video/webm"
 TICKET_ATTACHMENT_ACCEPT = f"{MEDIA_ACCEPT},.pdf"
 TICKET_REPLY_MAX_LENGTH = 2000
+TICKET_BRANCH_RESOLUTION_MAX_LENGTH = 2000
 
 
 def is_video_file(filename):
@@ -3582,6 +3583,11 @@ def _sucursal_session_can_reply_to_ticket(ticket):
     return _sucursal_session_can_access_item(ticket)
 
 
+def _sucursal_session_can_finalize_ticket(ticket):
+    """Todo ticket abierto y dentro del alcance de sucursal puede finalizarse."""
+    return _sucursal_session_can_reply_to_ticket(ticket) and not _is_ticket_finalizado(ticket)
+
+
 def _session_sucursal_label(default="Portal Sucursales"):
     return session.get("suc_nombre") or default
 
@@ -6446,7 +6452,9 @@ def estado_ticket(ticket_id):
         prioridades=PRIORIDADES,
         tiene_abono=tiene_abono,
         puede_responder_sucursal=_sucursal_session_can_reply_to_ticket(ticket),
+        puede_finalizar_sucursal=_sucursal_session_can_finalize_ticket(ticket),
         respuesta_max_length=TICKET_REPLY_MAX_LENGTH,
+        resolucion_max_length=TICKET_BRANCH_RESOLUTION_MAX_LENGTH,
     )
 
 
@@ -6490,6 +6498,68 @@ def responder_ticket_desde_sucursal(ticket_id):
         link=url_for("admin_ticket", ticket_id=ticket_id),
     )
     flash("Respuesta enviada a administración")
+    return redirect(url_for("estado_ticket", ticket_id=ticket_id))
+
+
+@app.route("/estado/<int:ticket_id>/finalizar", methods=["POST"])
+@suc_login_required
+def finalizar_ticket_desde_sucursal(ticket_id):
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+
+    tickets = load_tickets()
+    ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+    if not ticket:
+        return "Ticket no encontrado", 404
+    if not _sucursal_session_can_reply_to_ticket(ticket):
+        return render_template("error.html", mensaje="No tenés permiso para finalizar este ticket."), 403
+
+    motivo = request.form.get("motivo", "").strip()
+    if not motivo:
+        return render_template("error.html", mensaje="Indicá por qué el ticket ya está resuelto."), 400
+    if len(motivo) > TICKET_BRANCH_RESOLUTION_MAX_LENGTH:
+        return render_template(
+            "error.html",
+            mensaje=f"El motivo no puede superar los {TICKET_BRANCH_RESOLUTION_MAX_LENGTH} caracteres.",
+        ), 400
+
+    if _is_ticket_finalizado(ticket):
+        return render_template("error.html", mensaje="El ticket ya está finalizado."), 409
+
+    ahora = datetime.datetime.now().isoformat()
+    autor = _session_sucursal_label("Portal Sucursales")
+    ticket["estado"] = "Resuelto"
+    ticket["resuelto_por_sucursal"] = True
+    ticket["resuelto_por_sucursal_actor"] = autor
+    ticket["resuelto_por_sucursal_fecha"] = ahora
+    ticket["resuelto_por_sucursal_motivo"] = motivo
+    ticket["actualizado"] = ahora
+    ticket.setdefault("notas", []).append({
+        "autor": autor,
+        "fecha": ahora,
+        "tipo": "resuelto_por_sucursal",
+        "texto": f"Ticket finalizado por la sucursal. Motivo: {motivo}",
+        "visibilidad": "sucursal",
+    })
+    save_tickets(tickets)
+
+    aviso_ok = True
+    try:
+        agregar_notif_admin(
+            titulo=f"Sucursal finalizó el ticket #{ticket_id}",
+            detalle=f"{ticket.get('sucursal', autor)} informó que el ticket está resuelto. Motivo: {motivo}",
+            tipo="resuelto_por_sucursal",
+            autor=autor,
+            link=url_for("admin_ticket", ticket_id=ticket_id),
+        )
+    except Exception:
+        aviso_ok = False
+        app.logger.exception("No se pudo crear el aviso interno del ticket %s", ticket_id)
+
+    if aviso_ok:
+        flash("Ticket finalizado. Equipo Central recibió el aviso.")
+    else:
+        flash("Ticket finalizado. No se pudo crear el aviso interno; Equipo Central deberá revisarlo.")
     return redirect(url_for("estado_ticket", ticket_id=ticket_id))
 
 

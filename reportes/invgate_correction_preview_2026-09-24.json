@@ -1,5 +1,5 @@
 {
-  "schema": "tecman.invgate-preview/v4",
+  "schema": "tecman.invgate-preview/v5",
   "generated_from": "temporary_copy_of_backup",
   "original_backup": "/Users/agustin/Library/CloudStorage/Dropbox/backups-dabra/prod-data/tecman-data-20260924-063000.zip",
   "original_backup_sha256_before": "700f78e3e6ca3641a69f81235c64e5c12f66cc8d1898c8c0d24e7842321c70f0",
@@ -16,12 +16,13 @@
     "without_candidate_excluded": 1228,
     "historical_closed_not_imported": "excluded",
     "audit_state": "initial",
-    "operations": 152,
+    "operations": 153,
     "safe_operations": 93,
     "duplicate_canonical_corrections": 3,
     "duplicate_removals": 3,
     "total_removals": 59,
     "spurious_operations": 56,
+    "close_resolved_external_operations": 1,
     "already_correct": {},
     "audit_count_mismatches": {}
   },
@@ -66,16 +67,27 @@
       "criterion": "lowest_numeric_tecman_id"
     }
   ],
+  "external_resolution": [
+    {
+      "operation": "close_resolved_external",
+      "tecman_ticket_id": 100240,
+      "sucursal": "036",
+      "estado_before": "Nuevo",
+      "estado_after": "Resuelto",
+      "motivo": "La sucursal informó que la vereda ya fue reparada por la ciudad; sin intervención de Mantenimiento."
+    }
+  ],
   "apply_preview": {
-    "journal_entries": 152,
+    "journal_entries": 153,
     "safe_corrections": 93,
+    "external_resolutions": 1,
     "spurious_removed": 56,
     "duplicates_removed": 3,
     "total_removed": 59,
     "input_ticket_count": 406,
     "resulting_ticket_count": 347,
     "unique_ticket_ids": 347,
-    "corrected_copy_sha256": "3453de7a25dc88eaad321d319b65d6b2eeae2b2709d8f4ae03c9f4b0450bdafb",
+    "corrected_copy_sha256": "01bea451fbfa24da0a47ff0c081d3d0813a0349642f6baabfc1b1de8440d0266",
     "canonical_ticket_ids_corrected": [
       100004,
       100005,
@@ -89,6 +101,7 @@
   },
   "idempotence": {
     "second_plan_operations": 0,
+    "second_close_resolved_external_operations": 0,
     "strict_audit_state": "fully_applied",
     "strict_audit_count_mismatches": {},
     "already_correct": {
@@ -96,11 +109,12 @@
     }
   },
   "rollback": {
-    "journal_entries_restored": 152,
+    "journal_entries_restored": 153,
     "removed_records_restored": 59,
     "safe_corrections_reverted": 93,
+    "external_resolutions_reverted": 1,
     "exact_position_and_semantic_equality_with_temporary_input": true,
-    "rolled_back_sha256": "2ed550f9b7c86b44bcbda2604904b5caccea4a15ab91201c63942a813a5f6c8a"
+    "rolled_back_sha256": "a9262593257f4bbe36e9f592e0dfaaba74eb25e2b1a7acc48d6ccbe34edde57a"
   },
   "safety": {
     "production_endpoints_used": false,
@@ -111,6 +125,7 @@
   "limitations": [
     "Snapshot del backup: 2026-09-24 06:30 ART.",
     "No se consultó PostgreSQL ni producción en vivo.",
+    "El cierre externo sólo aplica al ticket TECMAN 100240 si mantiene sucursal 036, descripción con baldosas/vereda y estado no final.",
     "Los duplicados se resolvieron sólo en la copia: se conservó y corrigió el ID Tecman numérico menor y se eliminó el posterior.",
     "Las 3 ambiguas y 1.228 sin candidato quedan fuera de operaciones automáticas."
   ]

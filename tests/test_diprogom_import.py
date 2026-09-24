@@ -14,6 +14,7 @@ try:
 except ImportError:
     fake_xlrd = types.ModuleType("xlrd")
     fake_xlrd.XLRDError = ValueError
+    fake_xlrd.open_workbook = None
     sys.modules["xlrd"] = fake_xlrd
 
 spec = importlib.util.spec_from_file_location("import_diprogom", ROOT / "scripts" / "import_diprogom.py")
