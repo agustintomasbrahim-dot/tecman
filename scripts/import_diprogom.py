@@ -7,6 +7,7 @@ its SHA-256. Apply and rollback write distinct paths and never use the network.
 from __future__ import annotations
 
 import argparse
+import base64
 import copy
 import datetime as dt
 import hashlib
@@ -21,7 +22,7 @@ from typing import Any
 
 import xlrd
 
-VERSION = "diprogom-import-v1"
+VERSION = "diprogom-import-v2"
 XLRD_VERSION = "2.0.1"
 PROVIDER = "Diprogom"
 PROVIDER_ORIGIN = "diprogom_xls"
@@ -29,9 +30,13 @@ EXPECTED_XLS_SHA256 = "72c446190dd5c9b7b1451b86e2efabcbf837dc6763391fe5c6dbac82a
 EXPECTED_ROWS = 483
 EXPECTED_NUMBERED_ROWS = 469
 EXPECTED_NUMBERED_BRANCHES = 30
-EXPECTED_CONFIRMED_ROWS = 433
-EXPECTED_CONFIRMED_BRANCHES = 28
+EXPECTED_ACTIVE_ROWS = 358
+EXPECTED_ACTIVE_BRANCHES = 25
 CONFLICT_BRANCHES = {"051": 13, "156": 23}
+GREEN_FILL_INDEX = 49
+GREEN_FILL_RGB = (51, 204, 204)
+INACTIVE_GREEN_BRANCHES = {"167": 19, "183": 29, "213": 27}
+EXPECTED_INACTIVE_GREEN_ROWS = 75
 PENDING_LABEL = "PARQUE INDUSTRIAL MORZAT"
 PENDING_ADDRESS = "MORZAT S/N"
 EXPECTED_PENDING_ROWS = 14
@@ -73,6 +78,23 @@ def atomic_json(path: Path, value: Any) -> None:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def atomic_bytes(path: Path, value: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(value)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -145,7 +167,33 @@ def branch_from_values(name: Any, address: Any) -> tuple[str | None, str]:
     return None, "sin_numero"
 
 
-def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any]:
+def green_fill_marker(workbook: Any, sheet: Any, row_index: int) -> bool:
+    """Return whether the whole source row carries Diprogom's green marker.
+
+    The BIFF palette index alone is workbook-specific, so both the explicit
+    index and its RGB value are required. A partial green row is rejected
+    rather than silently changing the scope of a branch.
+    """
+    if workbook.colour_map.get(GREEN_FILL_INDEX) != GREEN_FILL_RGB:
+        raise ValueError(
+            f"paleta XLS inesperada para fill {GREEN_FILL_INDEX}: "
+            f"{workbook.colour_map.get(GREEN_FILL_INDEX)!r}"
+        )
+    marked: list[bool] = []
+    for column_index in range(sheet.ncols):
+        cell = sheet.cell(row_index, column_index)
+        background = workbook.xf_list[cell.xf_index].background
+        marked.append(
+            background.fill_pattern != 0
+            and background.pattern_colour_index == GREEN_FILL_INDEX
+            and workbook.colour_map.get(background.pattern_colour_index) == GREEN_FILL_RGB
+        )
+    if any(marked) and not all(marked):
+        raise ValueError(f"fila {row_index + 1}: marcador verde parcial")
+    return all(marked)
+
+
+def parse_sheet(sheet: Any, source_path: Path, source_sha: str, workbook: Any) -> dict[str, Any]:
     if sheet.nrows < 3 or sheet.ncols != len(HEADERS):
         raise ValueError(f"dimensiones inesperadas: {sheet.nrows}x{sheet.ncols}")
     if tuple(sheet.row_values(0)) != (TITLE,) + ("",) * 9:
@@ -159,6 +207,7 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
     rows: list[dict[str, Any]] = []
     identifiers: set[str] = set()
     fallback_rows = 0
+    green_marker_rows: list[dict[str, Any]] = []
     for row_index in range(3, sheet.nrows):
         values = sheet.row_values(row_index)
         row_number = row_index + 1
@@ -178,7 +227,8 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
         address = clean_text(values[2])
         if pending and (name != PENDING_LABEL or address != PENDING_ADDRESS):
             raise ValueError(f"fila {row_number}: sucursal no identificable fuera de Morzat")
-        rows.append({
+        green_marker = green_fill_marker(workbook, sheet, row_index)
+        parsed_row = {
             "row": row_number,
             "sucursal_num": branch,
             "branch_source": branch_source,
@@ -187,14 +237,31 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
             "fecha_vencimiento_proveedor": monthly_date(values[3]),
             "tipo": normalize_type(values[8]),
             "capacidad": normalize_capacity(values[9]),
-        })
+            "green_marker": green_marker,
+        }
+        rows.append(parsed_row)
+        if green_marker:
+            green_marker_rows.append(parsed_row)
 
     numbered = [row for row in rows if row["sucursal_num"]]
     pending = [row for row in rows if row["pending"]]
     branch_counts = Counter(row["sucursal_num"] for row in numbered)
     conflict_counts = {branch: branch_counts.get(branch, 0) for branch in sorted(CONFLICT_BRANCHES)}
-    confirmed = [row for row in numbered if row["sucursal_num"] not in CONFLICT_BRANCHES]
-    confirmed_branches = sorted({row["sucursal_num"] for row in confirmed})
+    marker_branches = {row["sucursal_num"] for row in green_marker_rows}
+    if None in marker_branches:
+        raise ValueError("marcador verde en fila sin sucursal")
+    for row in numbered:
+        row["inactive_green"] = row["sucursal_num"] in marker_branches
+    inactive_green = [row for row in numbered if row["inactive_green"]]
+    inactive_green_counts = Counter(row["sucursal_num"] for row in inactive_green)
+    marker_counts = Counter(row["sucursal_num"] for row in green_marker_rows)
+    first_rows = {branch: min(row["row"] for row in numbered if row["sucursal_num"] == branch) for branch in marker_branches}
+    marker_first_rows = all(row["row"] == first_rows[row["sucursal_num"]] for row in green_marker_rows)
+    active = [
+        row for row in numbered
+        if row["sucursal_num"] not in CONFLICT_BRANCHES and not row["inactive_green"]
+    ]
+    active_branches = sorted({row["sucursal_num"] for row in active})
     validations = {
         "rows": len(rows) == EXPECTED_ROWS,
         "unique_extinguisher_ids": len(identifiers) == EXPECTED_ROWS,
@@ -203,8 +270,14 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
         "conflict_counts": conflict_counts == CONFLICT_BRANCHES,
         "pending_rows": len(pending) == EXPECTED_PENDING_ROWS,
         "fallback_214_rows": fallback_rows == 9 and branch_counts.get("214") == 9,
-        "confirmed_rows": len(confirmed) == EXPECTED_CONFIRMED_ROWS,
-        "confirmed_branches": len(confirmed_branches) == EXPECTED_CONFIRMED_BRANCHES,
+        "green_palette": workbook.colour_map.get(GREEN_FILL_INDEX) == GREEN_FILL_RGB,
+        "green_marker_branches": marker_branches == set(INACTIVE_GREEN_BRANCHES),
+        "green_marker_once_per_branch": marker_counts == {branch: 1 for branch in INACTIVE_GREEN_BRANCHES},
+        "green_marker_first_row": marker_first_rows,
+        "inactive_green_counts": dict(inactive_green_counts) == INACTIVE_GREEN_BRANCHES,
+        "inactive_green_rows": len(inactive_green) == EXPECTED_INACTIVE_GREEN_ROWS,
+        "active_rows": len(active) == EXPECTED_ACTIVE_ROWS,
+        "active_branches": len(active_branches) == EXPECTED_ACTIVE_BRANCHES,
     }
     if not all(validations.values()):
         raise ValueError(f"conteos Diprogom inesperados: {validations!r}")
@@ -218,8 +291,13 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
             "unique_extinguisher_ids": len(identifiers),
             "numbered_rows": len(numbered),
             "numbered_branches": len(branch_counts),
-            "confirmed_rows": len(confirmed),
-            "confirmed_branches": len(confirmed_branches),
+            "active_rows": len(active),
+            "active_branches": len(active_branches),
+            "inactive_green_rows": len(inactive_green),
+            "inactive_green_branches": dict(sorted(inactive_green_counts.items())),
+            "green_fill_index": GREEN_FILL_INDEX,
+            "green_fill_rgb": list(GREEN_FILL_RGB),
+            "green_marker_rows": [row["row"] for row in green_marker_rows],
             "conflict_rows": sum(conflict_counts.values()),
             "conflict_branches": conflict_counts,
             "pending_rows": len(pending),
@@ -227,7 +305,8 @@ def parse_sheet(sheet: Any, source_path: Path, source_sha: str) -> dict[str, Any
             "fallback_214_rows": fallback_rows,
             "count_validation": "ok",
         },
-        "confirmed_branch_numbers": confirmed_branches,
+        "active_branch_numbers": active_branches,
+        "inactive_green_branch_numbers": sorted(marker_branches),
     }
 
 
@@ -237,11 +316,11 @@ def parse_xls(path: Path, *, expected_source_sha: str = EXPECTED_XLS_SHA256) -> 
     actual_sha = sha256_file(path)
     if actual_sha != expected_source_sha.lower():
         raise ValueError(f"SHA XLS inesperado: esperado {expected_source_sha.lower()}, actual {actual_sha}")
-    workbook = xlrd.open_workbook(str(path), on_demand=True)
+    workbook = xlrd.open_workbook(str(path), on_demand=True, formatting_info=True)
     try:
         if workbook.sheet_names() != [SHEET_NAME]:
             raise ValueError(f"hojas inesperadas: {workbook.sheet_names()!r}")
-        return parse_sheet(workbook.sheet_by_name(SHEET_NAME), path, actual_sha)
+        return parse_sheet(workbook.sheet_by_name(SHEET_NAME), path, actual_sha, workbook)
     finally:
         workbook.release_resources()
 
@@ -355,7 +434,11 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
     for pool in by_key.values():
         pool.sort(key=lambda pair: str(pair[1].get("id")))
 
-    confirmed_rows = [row for row in source["rows"] if row["sucursal_num"] and row["sucursal_num"] not in CONFLICT_BRANCHES]
+    active_rows = [
+        row for row in source["rows"]
+        if row["sucursal_num"] and row["sucursal_num"] not in CONFLICT_BRANCHES and not row["inactive_green"]
+    ]
+    inactive_green_rows = [row for row in source["rows"] if row.get("inactive_green")]
     excluded_conflicts = [row for row in source["rows"] if row["sucursal_num"] in CONFLICT_BRANCHES]
     operations: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
@@ -364,7 +447,7 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
     unmatched_rows: list[dict[str, Any]] = []
     match_counts = Counter()
 
-    for row in confirmed_rows:
+    for row in active_rows:
         identifier = row["nro_extintor"]
         matches = canonical_ids.get(identifier, [])
         match_kind = "nro_extintor"
@@ -416,10 +499,10 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
             operations.append(operation("add", None, before, after))
             match_counts["alta"] += 1
 
-    confirmed_branches = set(source["confirmed_branch_numbers"])
+    active_branches = set(source["active_branch_numbers"])
     for index, item in enumerate(items):
         key = item_key(item)
-        if index in matched_indexes or index in reserved_indexes or not key or key[0] not in confirmed_branches:
+        if index in matched_indexes or index in reserved_indexes or not key or key[0] not in active_branches:
             continue
         if item.get("proveedor_nombre") != PROVIDER or item.get("proveedor_origen") != PROVIDER_ORIGIN:
             continue
@@ -433,9 +516,14 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
         "schema": "tecman.diprogom-plan/v1", "version": VERSION, "mode": "dry-run",
         "input": str(input_path), "input_sha256": input_sha,
         "xls": str(xls_path), "xls_sha256": source["xls_sha256"],
-        "safety": {"network": False, "production": False, "in_place": False, "excluded_branch_mutations": 0, "pending_morzat_mutations": 0},
+        "safety": {"network": False, "production": False, "in_place": False, "excluded_branch_mutations": 0, "inactive_green_mutations": 0, "pending_morzat_mutations": 0},
         "source_summary": source["summary"],
-        "confirmed_branch_numbers": source["confirmed_branch_numbers"],
+        "active_branch_numbers": source["active_branch_numbers"],
+        "inactive_green": {
+            "branch_counts": dict(sorted(Counter(row["sucursal_num"] for row in inactive_green_rows).items())),
+            "rows": len(inactive_green_rows),
+            "status": "historico_inactivo_no_asignar_diprogom",
+        },
         "excluded_provider_conflicts": {branch: {"rows": count, "status": "conflicto_proveedor"} for branch, count in sorted(CONFLICT_BRANCHES.items())},
         "pending": {"label": PENDING_LABEL, "address": PENDING_ADDRESS, "rows": EXPECTED_PENDING_ROWS, "status": "pendiente_sin_numero_no_inferir_garin"},
         "match_summary": dict(sorted(match_counts.items())),
@@ -443,9 +531,9 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
             "adds": kinds["add"], "updates": kinds["update"], "safe_deletes": kinds["delete_safe"],
             "conflicts": len(conflicts), "operations": len(operations), "input_total": len(items),
             "final_total": len(items) + kinds["add"] - kinds["delete_safe"],
-            "automatic_scope_branches": len(source["confirmed_branch_numbers"]), "automatic_scope_equipment": len(confirmed_rows),
+            "automatic_scope_branches": len(source["active_branch_numbers"]), "automatic_scope_equipment": len(active_rows),
         },
-        "conflicts": conflicts, "excluded_source_rows": len(excluded_conflicts) + EXPECTED_PENDING_ROWS,
+        "conflicts": conflicts, "excluded_source_rows": len(excluded_conflicts) + len(inactive_green_rows) + EXPECTED_PENDING_ROWS,
         "operations": operations,
     }
 
@@ -490,20 +578,36 @@ def apply_plan(input_path: Path, expected_sha: str, plan_path: Path, output: Pat
     result = copy.deepcopy(inventory)
     result["matafuegos"] = items
     guards = {"before": object_hash(inventory), "after": object_hash(result), "before_count": len(inventory["matafuegos"]), "after_count": len(items)}
-    journal_rows = [dict(copy.deepcopy(row), journal_guards=guards) for row in plan["operations"]]
+    journal_rows = copy.deepcopy(plan["operations"])
+    journal_document = {
+        "schema": "tecman.diprogom-journal/v2",
+        "guards": guards,
+        "before_file_sha256": actual,
+        "before_file_base64": base64.b64encode(input_path.read_bytes()).decode("ascii"),
+        "operations": journal_rows,
+    }
     atomic_json(output, result)
-    atomic_json(journal, journal_rows)
+    atomic_json(journal, journal_document)
     return {"applied": len(journal_rows), "output_sha256": sha256_file(output), "journal": str(journal)}
 
 
 def rollback(input_path: Path, expected_sha: str, journal: Path, output: Path) -> dict[str, Any]:
     ensure_distinct(input=input_path, journal=journal, output=output)
     inventory, _ = load_inventory(input_path, expected_sha)
-    rows = json.loads(journal.read_text(encoding="utf-8"))
+    journal_document = json.loads(journal.read_text(encoding="utf-8"))
+    if isinstance(journal_document, dict) and journal_document.get("schema") == "tecman.diprogom-journal/v2":
+        rows = journal_document.get("operations", [])
+        guards = journal_document.get("guards")
+        original_bytes = base64.b64decode(journal_document.get("before_file_base64", ""), validate=True)
+        if hashlib.sha256(original_bytes).hexdigest() != journal_document.get("before_file_sha256"):
+            raise ValueError("respaldo original del journal divergente")
+    else:
+        rows = journal_document
+        guards = rows[0].get("journal_guards") if rows else None
+        original_bytes = None
     if not rows:
         raise ValueError("journal vacío")
-    guards = rows[0].get("journal_guards")
-    if any(row.get("journal_guards") != guards for row in rows) or object_hash(inventory) != guards.get("after"):
+    if not isinstance(guards, dict) or object_hash(inventory) != guards.get("after"):
         raise ValueError("precondición after global falló")
     items = copy.deepcopy(inventory["matafuegos"])
     for row in reversed([entry for entry in rows if entry["kind"] == "add"]):
@@ -524,12 +628,20 @@ def rollback(input_path: Path, expected_sha: str, journal: Path, output: Path) -
     result["matafuegos"] = items
     if object_hash(result) != guards.get("before"):
         raise ValueError("rollback no reconstruyó exactamente el input")
-    atomic_json(output, result)
-    return {"rolled_back": len(rows), "output_sha256": sha256_file(output)}
+    if original_bytes is not None:
+        if json.loads(original_bytes.decode("utf-8")) != result:
+            raise ValueError("respaldo original no coincide con rollback reconstruido")
+        atomic_bytes(output, original_bytes)
+    else:
+        atomic_json(output, result)
+    output_sha = sha256_file(output)
+    if original_bytes is not None and output_sha != journal_document["before_file_sha256"]:
+        raise ValueError("rollback no restauró los bytes exactos")
+    return {"rolled_back": len(rows), "output_sha256": output_sha}
 
 
 def sanitized_report(plan: dict[str, Any]) -> dict[str, Any]:
-    keys = ("schema", "version", "mode", "input_sha256", "xls_sha256", "safety", "source_summary", "confirmed_branch_numbers", "excluded_provider_conflicts", "pending", "match_summary", "summary", "conflicts")
+    keys = ("schema", "version", "mode", "input_sha256", "xls_sha256", "safety", "source_summary", "active_branch_numbers", "inactive_green", "excluded_provider_conflicts", "pending", "match_summary", "summary", "conflicts")
     return {key: copy.deepcopy(plan[key]) for key in keys}
 
 
