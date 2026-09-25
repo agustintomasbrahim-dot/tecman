@@ -1,6 +1,6 @@
 {
   "schema": "tecman.diprogom-plan/v1",
-  "version": "diprogom-import-v2",
+  "version": "diprogom-import-v3",
   "mode": "dry-run",
   "input_sha256": "dca6f2b2ab25ef7e7eb186067d9ef91c1fc0a462a52dfe31babc39b1d213f769",
   "xls_sha256": "72c446190dd5c9b7b1451b86e2efabcbf837dc6763391fe5c6dbac82a3000e92",
@@ -11,6 +11,17 @@
     "excluded_branch_mutations": 0,
     "inactive_green_mutations": 0,
     "pending_morzat_mutations": 0
+  },
+  "authority": {
+    "match": "nro_extintor_unico",
+    "fields": [
+      "sucursal",
+      "sucursal_num",
+      "tipo",
+      "capacidad"
+    ],
+    "preserve_other_fields": true,
+    "deletions_allowed": false
   },
   "source_summary": {
     "rows": 483,
@@ -100,104 +111,19 @@
   },
   "match_summary": {
     "alta": 87,
-    "nro_extintor": 221,
+    "nro_extintor": 233,
     "sucursal_tipo_capacidad": 38
   },
   "summary": {
     "adds": 87,
-    "updates": 259,
+    "updates": 271,
     "safe_deletes": 0,
-    "conflicts": 12,
-    "operations": 346,
+    "conflicts": 0,
+    "operations": 358,
     "input_total": 1254,
     "final_total": 1341,
     "automatic_scope_branches": 25,
     "automatic_scope_equipment": 358
   },
-  "conflicts": [
-    {
-      "conflict_id": "776a19c93abed6299868326991f297eb8e6ed85c15664fa032e8aae82086cc3d",
-      "source_row": 56,
-      "item_id": "f46a63221dad",
-      "sucursal_num": "208",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "90471bdd40d42953c4ec0ad8295a781638c8d7138b191f37168ce911b69eb478",
-      "source_row": 135,
-      "item_id": "598025df1772",
-      "sucursal_num": "190",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "4b2dcba0d687224cf1db1eee4b8b976d22fecb5b00cdbf222797af78e73c3740",
-      "source_row": 138,
-      "item_id": "311942ec9a2d",
-      "sucursal_num": "185",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "4a2351ed26cb5cf5a6f2b48cf96c46af5605b3ac41ff41c397251f33505bd2b6",
-      "source_row": 154,
-      "item_id": "881fddfe60c0",
-      "sucursal_num": "187",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "1925f8c4aba4fe3d2782ab727ac87c6840619beb5394772b91a5658b02b180d0",
-      "source_row": 188,
-      "item_id": "8d9302d46a26",
-      "sucursal_num": "043",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "2cae745723ca4f4de0831a0ca2957546c40549615ed3da24d74ff38efc230dd2",
-      "source_row": 195,
-      "item_id": "a2607f042ce5",
-      "sucursal_num": "219",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "b01df8fda7c6188ed15a87fcedd62f3f703605d0d937f9aed0da40e359f6fa4e",
-      "source_row": 243,
-      "item_id": "acbbac9e43e5",
-      "sucursal_num": "221",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "6586b5038ff0cb7cb211b5d4b1c9552eeaa1cc830f43d1f6befc38321367c7ab",
-      "source_row": 244,
-      "item_id": "ee5e0326fa25",
-      "sucursal_num": "221",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "f29eed96c1614cd285e2d188730cca4e3f26feeb9fe10454e2f45b17d75334b7",
-      "source_row": 293,
-      "item_id": "e34ff2ea4748",
-      "sucursal_num": "204",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "39abf957aed06aa705bd9add5d213ea6cdf5aaafdf018bfb2636e8ddd1d13d3f",
-      "source_row": 404,
-      "item_id": "b2625fe221df",
-      "sucursal_num": "036",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "55b319d7c9ce050608862fa2c6c1f72b427f806446ea08c2dc533781ffd881fb",
-      "source_row": 455,
-      "item_id": "16da10cbfc04",
-      "sucursal_num": "053",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    },
-    {
-      "conflict_id": "b152d7a3d1cabf95614276fe55c1e287de4a7328bd08e0bc40095884c791999c",
-      "source_row": 478,
-      "item_id": "ecf81cf7d11e",
-      "sucursal_num": "053",
-      "reason": "nro_extintor único pero sucursal/tipo/capacidad incompatible; no se muta"
-    }
-  ]
+  "conflicts": []
 }

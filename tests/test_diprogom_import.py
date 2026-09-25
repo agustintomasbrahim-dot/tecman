@@ -149,13 +149,13 @@ class DiprogomImportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 dip.monthly_date(invalid)
 
-    def test_primary_secondary_add_conflict_safe_delete_idempotence_and_rollback(self):
+    def test_primary_secondary_add_authoritative_update_idempotence_and_rollback(self):
         rows = [row(4, "A"), row(5, "MISSING"), row(6, "NEW"), row(7, "BAD")]
         parsed = source(rows)
         before = {"matafuegos": [
             {"id": "manual", "sucursal_num": "001", "sucursal": "Sucursal 001", "tipo": "ABC", "capacidad": "5 KG", "nro_extintor": "A", "fecha_vencimiento": "2025-01-01", "fecha_vencimiento_manual": "2030-04-01", "historial_mantenimientos": [{"accion": "manual"}]},
             {"id": "secondary", "sucursal_num": "001", "sucursal": "Sucursal 001", "tipo": "ABC", "capacidad": "5 KG", "nro_extintor": "OLD", "fecha_vencimiento": "2025-01-01"},
-            {"id": "bad", "sucursal_num": "002", "sucursal": "Sucursal 002", "tipo": "ABC", "capacidad": "5 KG", "nro_extintor": "BAD", "fecha_vencimiento": "2025-01-01"},
+            {"id": "bad", "sucursal_num": "002", "sucursal": "Sucursal 002", "tipo": "CO2", "capacidad": "10 KG", "nro_extintor": "BAD", "fecha_vencimiento": "2025-01-01", "estado_manual": "observado", "historial": [{"accion": "control"}], "archivos": [{"nombre": "remito.pdf"}], "observaciones": "no reemplazar"},
             {"id": "extra", "sucursal_num": "001", "sucursal": "Sucursal 001", "tipo": "ABC", "capacidad": "10 KG", "nro_extintor": "EXTRA", "proveedor_nombre": "Diprogom", "proveedor_origen": "diprogom_xls"},
         ]}
         with tempfile.TemporaryDirectory() as directory:
@@ -167,10 +167,18 @@ class DiprogomImportTests(unittest.TestCase):
             xls.write_bytes(b"fixture")
             with mock.patch.object(dip, "parse_xls", return_value=parsed):
                 plan = dip.make_plan(original, xls, sha(original))
-            self.assertEqual(plan["summary"], {"adds": 1, "updates": 2, "safe_deletes": 1, "conflicts": 1, "operations": 4, "input_total": 4, "final_total": 4, "automatic_scope_branches": 1, "automatic_scope_equipment": 4})
-            self.assertEqual(plan["match_summary"], {"alta": 1, "nro_extintor": 1, "sucursal_tipo_capacidad": 1})
+                deterministic_plan = dip.make_plan(original, xls, sha(original))
+            self.assertEqual(plan, deterministic_plan)
+            self.assertEqual(plan["summary"], {"adds": 1, "updates": 3, "safe_deletes": 0, "conflicts": 0, "operations": 4, "input_total": 4, "final_total": 5, "automatic_scope_branches": 1, "automatic_scope_equipment": 4})
+            self.assertEqual(plan["match_summary"], {"alta": 1, "nro_extintor": 2, "sucursal_tipo_capacidad": 1})
+            self.assertEqual(plan["authority"], {"match": "nro_extintor_unico", "fields": ["sucursal", "sucursal_num", "tipo", "capacidad"], "preserve_other_fields": True, "deletions_allowed": False})
+            self.assertTrue(all(op["kind"] in {"add", "update"} for op in plan["operations"]))
+            self.assertTrue(all("before" in op and "after" in op for op in plan["operations"]))
             write_json(plan_path, plan)
             dip.apply_plan(original, sha(original), plan_path, output, journal)
+            journal_document = json.loads(journal.read_text(encoding="utf-8"))
+            self.assertEqual(len(journal_document["operations"]), plan["summary"]["operations"])
+            self.assertTrue(all("before" in op and "after" in op for op in journal_document["operations"]))
             after = json.loads(output.read_text(encoding="utf-8"))
             manual = next(item for item in after["matafuegos"] if item["id"] == "manual")
             self.assertEqual(manual["fecha_vencimiento_manual"], "2030-04-01")
@@ -180,10 +188,17 @@ class DiprogomImportTests(unittest.TestCase):
             secondary = next(item for item in after["matafuegos"] if item["id"] == "secondary")
             self.assertEqual(secondary["nro_extintor"], "OLD")
             self.assertEqual(secondary["proveedor_nro_extintor"], "MISSING")
+            corrected = next(item for item in after["matafuegos"] if item["id"] == "bad")
+            self.assertEqual({key: corrected[key] for key in ("sucursal", "sucursal_num", "tipo", "capacidad")}, {"sucursal": "Sucursal 001", "sucursal_num": "001", "tipo": "ABC", "capacidad": "5 KG"})
+            self.assertEqual(corrected["estado_manual"], "observado")
+            self.assertEqual(corrected["historial"], [{"accion": "control"}])
+            self.assertEqual(corrected["archivos"], [{"nombre": "remito.pdf"}])
+            self.assertEqual(corrected["observaciones"], "no reemplazar")
+            self.assertIn("extra", {item["id"] for item in after["matafuegos"]})
             with mock.patch.object(dip, "parse_xls", return_value=parsed):
                 repeated = dip.make_plan(output, xls, sha(output))
             self.assertEqual(repeated["summary"]["operations"], 0)
-            self.assertEqual(repeated["summary"]["conflicts"], 1)
+            self.assertEqual(repeated["summary"]["conflicts"], 0)
             dip.rollback(output, sha(output), journal, restored)
             self.assertEqual(json.loads(restored.read_text(encoding="utf-8")), before)
             self.assertEqual(sha(restored), sha(original))
@@ -199,6 +214,23 @@ class DiprogomImportTests(unittest.TestCase):
                 dip.apply_plan(original, sha(original), plan_path, original, journal)
         self.assertTrue(dip.has_activity({"historial": [{"x": 1}]}))
         self.assertFalse(dip.supplier_owned_inactive({"proveedor_nombre": "Diprogom", "proveedor_origen": "diprogom_xls", "estado_manual": "observado"}))
+
+    def test_apply_rejects_deletions_and_plans_from_older_versions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            original, plan_path = base / "matafuegos.json", base / "plan.json"
+            output, journal = base / "out.json", base / "journal.json"
+            item = {"id": "keep", "sucursal_num": "001", "sucursal": "Sucursal 001", "tipo": "ABC", "capacidad": "5 KG"}
+            write_json(original, {"matafuegos": [item]})
+            deletion = dip.operation("delete_safe", 0, item, None)
+            plan = {"schema": "tecman.diprogom-plan/v1", "version": dip.VERSION, "input_sha256": sha(original), "operations": [deletion]}
+            write_json(plan_path, plan)
+            with self.assertRaisesRegex(ValueError, "operación no permitida"):
+                dip.apply_plan(original, sha(original), plan_path, output, journal)
+            plan["version"] = "diprogom-import-v2"
+            write_json(plan_path, plan)
+            with self.assertRaisesRegex(ValueError, "plan no corresponde"):
+                dip.apply_plan(original, sha(original), plan_path, output, journal)
 
     def test_green_branches_never_mutate_even_when_inventory_is_diprogom_owned(self):
         inactive = row(4, "GREEN", branch="183")

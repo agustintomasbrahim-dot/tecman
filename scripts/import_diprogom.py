@@ -22,7 +22,7 @@ from typing import Any
 
 import xlrd
 
-VERSION = "diprogom-import-v2"
+VERSION = "diprogom-import-v3"
 XLRD_VERSION = "2.0.1"
 PROVIDER = "Diprogom"
 PROVIDER_ORIGIN = "diprogom_xls"
@@ -380,6 +380,10 @@ def deterministic_id(source_sha: str, row: dict[str, Any], existing: set[str]) -
 def desired_after(before: dict[str, Any], row: dict[str, Any], source_sha: str) -> dict[str, Any]:
     after = copy.deepcopy(before)
     after.update({
+        "sucursal": f"Sucursal {row['sucursal_num']}",
+        "sucursal_num": row["sucursal_num"],
+        "tipo": row["tipo"],
+        "capacidad": row["capacidad"],
         "proveedor_nombre": PROVIDER,
         "proveedor_origen": PROVIDER_ORIGIN,
         "proveedor_fuente_sha256": source_sha,
@@ -461,9 +465,6 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
         if len(matches) == 1:
             index, before = matches[0]
             reserved_indexes.add(index)
-            if item_key(before) != row_key(row):
-                conflicts.append(conflict(row, before, f"{match_kind} único pero sucursal/tipo/capacidad incompatible; no se muta"))
-                continue
             matched_indexes.add(index)
             match_counts[match_kind] += 1
             after = desired_after(before, row, source["xls_sha256"])
@@ -499,24 +500,18 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
             operations.append(operation("add", None, before, after))
             match_counts["alta"] += 1
 
-    active_branches = set(source["active_branch_numbers"])
-    for index, item in enumerate(items):
-        key = item_key(item)
-        if index in matched_indexes or index in reserved_indexes or not key or key[0] not in active_branches:
-            continue
-        if item.get("proveedor_nombre") != PROVIDER or item.get("proveedor_origen") != PROVIDER_ORIGIN:
-            continue
-        if supplier_owned_inactive(item):
-            operations.append(operation("delete_safe", index, item, None))
-        else:
-            conflicts.append(conflict(None, item, "registro Diprogom excedente con actividad; no se elimina"))
-
     kinds = Counter(item["kind"] for item in operations)
     return {
         "schema": "tecman.diprogom-plan/v1", "version": VERSION, "mode": "dry-run",
         "input": str(input_path), "input_sha256": input_sha,
         "xls": str(xls_path), "xls_sha256": source["xls_sha256"],
         "safety": {"network": False, "production": False, "in_place": False, "excluded_branch_mutations": 0, "inactive_green_mutations": 0, "pending_morzat_mutations": 0},
+        "authority": {
+            "match": "nro_extintor_unico",
+            "fields": ["sucursal", "sucursal_num", "tipo", "capacidad"],
+            "preserve_other_fields": True,
+            "deletions_allowed": False,
+        },
         "source_summary": source["summary"],
         "active_branch_numbers": source["active_branch_numbers"],
         "inactive_green": {
@@ -528,9 +523,9 @@ def make_plan(input_path: Path, xls_path: Path, expected_sha: str) -> dict[str, 
         "pending": {"label": PENDING_LABEL, "address": PENDING_ADDRESS, "rows": EXPECTED_PENDING_ROWS, "status": "pendiente_sin_numero_no_inferir_garin"},
         "match_summary": dict(sorted(match_counts.items())),
         "summary": {
-            "adds": kinds["add"], "updates": kinds["update"], "safe_deletes": kinds["delete_safe"],
+            "adds": kinds["add"], "updates": kinds["update"], "safe_deletes": 0,
             "conflicts": len(conflicts), "operations": len(operations), "input_total": len(items),
-            "final_total": len(items) + kinds["add"] - kinds["delete_safe"],
+            "final_total": len(items) + kinds["add"],
             "automatic_scope_branches": len(source["active_branch_numbers"]), "automatic_scope_equipment": len(active_rows),
         },
         "conflicts": conflicts, "excluded_source_rows": len(excluded_conflicts) + len(inactive_green_rows) + EXPECTED_PENDING_ROWS,
@@ -551,11 +546,10 @@ def apply_plan(input_path: Path, expected_sha: str, plan_path: Path, output: Pat
     ensure_distinct(input=input_path, plan=plan_path, output=output, journal=journal)
     inventory, actual = load_inventory(input_path, expected_sha)
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    if plan.get("input_sha256") != actual or plan.get("schema") != "tecman.diprogom-plan/v1":
+    if plan.get("input_sha256") != actual or plan.get("schema") != "tecman.diprogom-plan/v1" or plan.get("version") != VERSION:
         raise ValueError("plan no corresponde al input o esquema esperado")
     items = copy.deepcopy(inventory["matafuegos"])
     indexes = {str(item.get("id")): index for index, item in enumerate(items)}
-    deletes: set[str] = set()
     for row in plan.get("operations", []):
         kind, item_id = row.get("kind"), str(row.get("item_id"))
         if kind == "add":
@@ -563,18 +557,14 @@ def apply_plan(input_path: Path, expected_sha: str, plan_path: Path, output: Pat
                 raise ValueError(f"alta inválida o existente: {item_id}")
             indexes[item_id] = len(items)
             items.append(copy.deepcopy(row["after"]))
-        elif kind in {"update", "delete_safe"}:
+        elif kind == "update":
             if item_id not in indexes or object_hash(items[indexes[item_id]]) != row.get("before_sha256"):
                 raise ValueError(f"before divergente: {item_id}")
-            if kind == "update":
-                if object_hash(row.get("after")) != row.get("after_sha256"):
-                    raise ValueError(f"after divergente: {item_id}")
-                items[indexes[item_id]] = copy.deepcopy(row["after"])
-            else:
-                deletes.add(item_id)
+            if object_hash(row.get("after")) != row.get("after_sha256"):
+                raise ValueError(f"after divergente: {item_id}")
+            items[indexes[item_id]] = copy.deepcopy(row["after"])
         else:
             raise ValueError(f"operación no permitida: {kind}")
-    items = [item for item in items if str(item.get("id")) not in deletes]
     result = copy.deepcopy(inventory)
     result["matafuegos"] = items
     guards = {"before": object_hash(inventory), "after": object_hash(result), "before_count": len(inventory["matafuegos"]), "after_count": len(items)}
@@ -641,7 +631,7 @@ def rollback(input_path: Path, expected_sha: str, journal: Path, output: Path) -
 
 
 def sanitized_report(plan: dict[str, Any]) -> dict[str, Any]:
-    keys = ("schema", "version", "mode", "input_sha256", "xls_sha256", "safety", "source_summary", "active_branch_numbers", "inactive_green", "excluded_provider_conflicts", "pending", "match_summary", "summary", "conflicts")
+    keys = ("schema", "version", "mode", "input_sha256", "xls_sha256", "safety", "authority", "source_summary", "active_branch_numbers", "inactive_green", "excluded_provider_conflicts", "pending", "match_summary", "summary", "conflicts")
     return {key: copy.deepcopy(plan[key]) for key in keys}
 
 
