@@ -129,6 +129,7 @@ class FinalizarTicketSucursalTest(unittest.TestCase):
         self.assertEqual(saved["resuelto_por_sucursal_actor"], "Sucursal 036")
         self.assertEqual(saved["resuelto_por_sucursal_motivo"], motivo)
         self.assertIn("T", saved["resuelto_por_sucursal_fecha"])
+        self.assertEqual(saved["fecha_cierre"], saved["resuelto_por_sucursal_fecha"])
         self.assertEqual(saved["actualizado"], saved["resuelto_por_sucursal_fecha"])
         self.assertEqual(saved["fotos"], ["evidencia.jpg"])
         self.assertEqual(saved["adjuntos"], [{"archivo": "informe.pdf"}])
@@ -255,6 +256,7 @@ class FinalizarTicketSucursalTest(unittest.TestCase):
         persisted = next(item for item in replaced[ticket_model] if item["id"] == 100240)
         self.assertEqual(persisted["estado"], "Resuelto")
         self.assertEqual(persisted["resuelto_por_sucursal_motivo"], "Resuelto y persistido en DB")
+        self.assertEqual(persisted["fecha_cierre"], persisted["resuelto_por_sucursal_fecha"])
         self.assertEqual(replaced[notification_model][0]["tipo"], "resuelto_por_sucursal")
         atomic_write.assert_called()
 

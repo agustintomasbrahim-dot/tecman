@@ -2727,7 +2727,12 @@ def sync_alertas_syh():
 def notify_alertas_telegram_if_needed():
     """Dispara notificación Telegram UNA VEZ POR DÍA. Llamar solo desde /api/resumen (Aquiles), no desde vistas admin."""
     hoy = datetime.date.today().isoformat()
-    ultima = _db_cfg_get("telegram_notif_fecha", "")
+    dispatch = None
+    if USE_DB:
+        ultima = _db_cfg_get("telegram_notif_fecha", "")
+    else:
+        dispatch = load_alertas_syh_dispatch()
+        ultima = dispatch.get("telegram_notif_fecha", "")
     if ultima == hoy:
         return
     alertas = load_alertas_syh().get("alertas", [])
@@ -2739,7 +2744,11 @@ def notify_alertas_telegram_if_needed():
         f"Sucursales: {suc_lista}\n\n"
         f"Entrá al panel admin → S&H → para revisar y enviar los mails."
     )
-    _db_cfg_set("telegram_notif_fecha", hoy)
+    if USE_DB:
+        _db_cfg_set("telegram_notif_fecha", hoy)
+    else:
+        dispatch["telegram_notif_fecha"] = hoy
+        save_alertas_syh_dispatch(dispatch)
 
 def load_alertas_syh_dispatch():
     if USE_DB:
@@ -6533,6 +6542,7 @@ def finalizar_ticket_desde_sucursal(ticket_id):
     ticket["resuelto_por_sucursal_actor"] = autor
     ticket["resuelto_por_sucursal_fecha"] = ahora
     ticket["resuelto_por_sucursal_motivo"] = motivo
+    ticket["fecha_cierre"] = ahora
     ticket["actualizado"] = ahora
     ticket.setdefault("notas", []).append({
         "autor": autor,
@@ -10722,13 +10732,16 @@ def syh_login():
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SYH_USERS and SYH_USERS[user]["password"] == pwd:
+            session.clear()
             session["syh_user"] = user
             session["syh_nombre"] = SYH_USERS[user]["nombre"]
             return redirect(url_for("syh_panel"))
         # También permite administradores; otros roles deben usar su portal específico.
         if user in ADMINS and ADMINS[user]["rol"] in ("admin", "syh") and ADMINS[user]["password"] == pwd:
+            session.clear()
             session["user"] = user
             session["nombre"] = ADMINS[user]["nombre"]
+            session["rol"] = ADMINS[user]["rol"]
             session["syh_user"] = user
             session["syh_nombre"] = ADMINS[user]["nombre"]
             return redirect(url_for("syh_panel"))
@@ -13630,9 +13643,9 @@ def api_resumen():
     en_progreso = [t for t in tickets if t.get("estado") == "En progreso"]
     resueltos_hoy = [t for t in tickets if t.get("estado") == "Resuelto" and (t.get("fecha_cierre") or "")[:10] == hoy]
     urgentes = [t for t in tickets if t.get("prioridad") in (1, "1") and not _is_ticket_finalizado(t)]
-    nuevos_hoy = [t for t in nuevos if (t.get("fecha") or "")[:10] >= ayer]
+    nuevos_hoy = [t for t in nuevos if (t.get("creado") or t.get("fecha") or "")[:10] >= ayer]
     def mini(t):
-        return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("fecha") or "")[:10]}
+        return {"id": t.get("id"), "sucursal": t.get("sucursal"), "categoria": t.get("categoria"), "subcategoria": t.get("subcategoria"), "prioridad": t.get("prioridad"), "fecha": (t.get("creado") or t.get("fecha") or "")[:10]}
     alertas = load_alertas_syh().get("alertas", [])
     alertas_mat = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) != "habilitacion" and a.get("estado") in ("Vencidos", "Próximo a vencer", "Proximo a vencer")]
     alertas_hab = [a for a in alertas if (a.get("tipo_alerta") or a.get("tipo")) == "habilitacion" and a.get("estado") in ("Vencida", "Próxima a vencer", "Proxima a vencer")]
