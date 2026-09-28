@@ -18,9 +18,10 @@ class FumigacionesLegacyCompatibilityTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         root = Path(self.temp.name)
-        self.original = (tecman.TICKETS_FILE, tecman.FUMIGACIONES_FILE, tecman.USE_DB)
+        self.original = (tecman.TICKETS_FILE, tecman.FUMIGACIONES_FILE, tecman.PROVEEDOR_USERS_FILE, tecman.USE_DB)
         tecman.TICKETS_FILE = root / "tickets.json"
         tecman.FUMIGACIONES_FILE = root / "fumigaciones.json"
+        tecman.PROVEEDOR_USERS_FILE = root / "proveedor_users.json"
         tecman.USE_DB = False
         tecman.app.config.update(TESTING=True, SECRET_KEY="fumigacion-legacy-test")
         self.ticket = {
@@ -42,10 +43,11 @@ class FumigacionesLegacyCompatibilityTest(unittest.TestCase):
             "notas": [],
         }
         tecman.save_tickets([self.ticket])
+        tecman.PROVEEDOR_USERS_FILE.write_text('{"users":{"frattini":{"nombre":"Cesar Ricardo Fratini","tipo_cuenta":"fumigacion","proveedores":["Cesar Ricardo Fratini"],"status":"active","session_version":1,"password_hash":"test-only"}}}', encoding="utf-8")
         self.client = tecman.app.test_client()
 
     def tearDown(self):
-        tecman.TICKETS_FILE, tecman.FUMIGACIONES_FILE, tecman.USE_DB = self.original
+        tecman.TICKETS_FILE, tecman.FUMIGACIONES_FILE, tecman.PROVEEDOR_USERS_FILE, tecman.USE_DB = self.original
         self.temp.cleanup()
 
     def provider(self):

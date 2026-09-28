@@ -18,7 +18,7 @@ if DATABASE_URL.startswith("postgres://"):
     os.environ["DATABASE_URL"] = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 from app import app, USE_DB
-from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, HabilitacionDB, ComprobanteDB,
+from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, FumigacionDB, HabilitacionDB, ComprobanteDB,
                     StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
                     VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
                     CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
@@ -71,6 +71,10 @@ with app.app_context():
     # Visitas de proveedores de matafuegos
     data = load_json(DATA / "matafuegos_visitas.json", {"visitas": []})
     migrate_list(MatafuegoVisitaDB, data.get("visitas", []), "matafuegos_visitas")
+
+    # Visitas simples de fumigación por sucursal
+    data = load_json(DATA / "fumigaciones.json", [])
+    migrate_list(FumigacionDB, data if isinstance(data, list) else data.get("visitas", []), "fumigaciones")
 
     # Grupos electrógenos
     data = load_json(DATA / "grupos_electrogenos.json", {"grupos_electrogenos": []})

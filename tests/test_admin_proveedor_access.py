@@ -261,12 +261,18 @@ class AdminProveedorAccessTest(unittest.TestCase):
         self.assertIn("diprogom", stored)
         self.assertIn("legacy_custom", stored)
 
-    def test_cuentas_matafuegos_previstas_requieren_reset_y_habilitacion_local(self):
+    def test_cuentas_previstas_requieren_reset_y_habilitacion_local(self):
         users = tecman.load_proveedor_users()
-        for username, provider in (("diprogom", "Diprogom"), ("fuego_cero", "Fuego Cero")):
+        planned = (
+            ("diprogom", "Diprogom", "matafuegos"),
+            ("fuego_cero", "Fuego Cero", "matafuegos"),
+            ("frattini", "Cesar Ricardo Fratini", "fumigacion"),
+            ("ingam", "INGAM Control de Plagas SRL", "fumigacion"),
+        )
+        for username, provider, account_type in planned:
             account = users[username]
             self.assertEqual(account["nombre"], provider)
-            self.assertEqual(account["tipo_cuenta"], "matafuegos")
+            self.assertEqual(account["tipo_cuenta"], account_type)
             self.assertEqual(account["status"], "disabled")
             self.assertNotIn("password", account)
             self.assertNotIn("password_hash", account)

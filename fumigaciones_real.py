@@ -1,4 +1,4 @@
-"""Portal real de fumigaciones por cartera de sucursales, sin tickets."""
+"""Portal simple de fumigaciones por cartera de sucursales, sin tickets."""
 from __future__ import annotations
 
 import datetime as dt
@@ -11,7 +11,6 @@ from pathlib import Path
 from flask import Blueprint, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 
 fumigaciones_bp = Blueprint("fumigaciones_real", __name__)
-STATES = ("Programada", "Realizada", "Validada", "Devuelta")
 DOCUMENT_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
 
 
@@ -57,16 +56,6 @@ def admin_required(view):
     return decorated
 
 
-def branch_required(view):
-    @wraps(view)
-    def decorated(*args, **kwargs):
-        if not session.get("suc_user") or not _session_valid():
-            session.clear()
-            return redirect(url_for("suc_login"))
-        return view(*args, **kwargs)
-    return decorated
-
-
 def _csrf_required():
     expected = str(session.get("_csrf_token") or "")
     submitted = str(request.form.get("_csrf_token") or "")
@@ -87,6 +76,14 @@ def _provider_names():
     return set(current_app.config["FUMIGACIONES_PROVIDER_NAMES"]())
 
 
+def _simple_provider_names():
+    return set(current_app.config.get("FUMIGACIONES_SIMPLE_PROVIDER_NAMES", ()))
+
+
+def _is_simple_provider(names=None):
+    return bool((set(names) if names is not None else _provider_names()) & _simple_provider_names())
+
+
 def _portfolio(names=None):
     return current_app.config["FUMIGACIONES_PORTFOLIO"](names if names is not None else _provider_names())
 
@@ -95,12 +92,10 @@ def _branch_info(num):
     return current_app.config["FUMIGACIONES_BRANCH_INFO"](num)
 
 
-def _clean(value, label, *, required=False, max_length=1200):
+def _clean(value, label, *, max_length=500):
     text = " ".join(str(value or "").strip().split())
-    if required and not text:
-        raise ValidationError(f"{label} es obligatorio.")
     if len(text) > max_length or any(ord(char) < 32 for char in text):
-        raise ValidationError(f"{label} es inválido o demasiado largo.")
+        raise ValidationError(f"{label} es inválida o demasiado larga.")
     if text.startswith(("=", "+", "@")):
         raise ValidationError(f"{label} no puede comenzar con un indicador de fórmula.")
     return text
@@ -114,8 +109,7 @@ def _date(value, label):
 
 
 def _normalize_num(value):
-    callback = current_app.config["FUMIGACIONES_NORMALIZE_BRANCH"]
-    return callback(value)
+    return current_app.config["FUMIGACIONES_NORMALIZE_BRANCH"](value)
 
 
 def _portfolio_entry(num):
@@ -138,17 +132,17 @@ def _authorized_record(record_id, *, admin=False, branch=False):
     return records, record, None
 
 
-def _prepare_upload(storage, label, *, required=False):
+def _prepare_upload(storage, label="remito firmado", *, required=True):
     if not storage or not storage.filename:
         if required:
-            raise ValidationError(f"{label} es obligatorio.")
+            raise ValidationError(f"El {label} es obligatorio.")
         return None
     original = Path(storage.filename).name
     if original != storage.filename or original in (".", ".."):
-        raise ValidationError(f"El nombre de {label} es inválido.")
+        raise ValidationError(f"El nombre del {label} es inválido.")
     ext = Path(original).suffix.lower()
     if ext not in DOCUMENT_EXTENSIONS:
-        raise ValidationError(f"El formato de {label} no está permitido.")
+        raise ValidationError(f"El formato del {label} no está permitido.")
     limit = int(current_app.config.get("FUMIGACIONES_MAX_FILE_BYTES", 10 * 1024 * 1024))
     content = storage.stream.read(limit + 1)
     signatures = {
@@ -159,30 +153,32 @@ def _prepare_upload(storage, label, *, required=False):
         ".webp": len(content) >= 12 and content.startswith(b"RIFF") and content[8:12] == b"WEBP",
     }
     if not content or len(content) > limit or not signatures.get(ext):
-        raise ValidationError(f"{label} está vacío, excede el límite o no coincide con su extensión.")
-    return {"nombre_original": _clean(original, label, required=True, max_length=180), "archivo": f"{uuid.uuid4().hex}{ext}", "tamano": len(content), "contenido": content}
+        raise ValidationError(f"El {label} está vacío, excede el límite o no coincide con su extensión.")
+    return {
+        "nombre_original": _clean(original, "Nombre del remito", max_length=180),
+        "archivo": f"{uuid.uuid4().hex}{ext}",
+        "tamano": len(content),
+        "contenido": content,
+    }
 
 
 def _record_dir(record_id):
     return Path(current_app.config["FUMIGACIONES_UPLOADS_DIR"]) / str(record_id)
 
 
-def _persist(record_id, uploads):
+def _persist(record_id, upload):
     directory = _record_dir(record_id)
     directory.mkdir(parents=True, exist_ok=True)
-    created = []
+    destination = directory / upload["archivo"]
+    temp = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
     try:
-        for upload in uploads:
-            destination = directory / upload["archivo"]
-            temp = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-            temp.write_bytes(upload["contenido"])
-            os.replace(temp, destination)
-            created.append(destination)
+        temp.write_bytes(upload["contenido"])
+        os.replace(temp, destination)
     except Exception:
-        for path in created:
-            path.unlink(missing_ok=True)
+        temp.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
         raise
-    return created
+    return destination
 
 
 def _metadata(upload):
@@ -207,7 +203,7 @@ def panel():
     query = _clean(request.args.get("q"), "Búsqueda", max_length=80).casefold()
     if query:
         cards = [card for card in cards if query in " ".join((card["sucursal_num"], card.get("sucursal", ""), str(card.get("info", {}).get("direccion", "")))).casefold()]
-    return render_template("fumigaciones_real_panel.html", sucursales=cards, q=query, is_admin=False)
+    return render_template("fumigaciones_real_panel.html", sucursales=cards, q=query)
 
 
 @fumigaciones_bp.get("/proveedor/fumigaciones/sucursal/<sucursal_num>")
@@ -217,7 +213,10 @@ def detail(sucursal_num):
     if not entry:
         return render_template("error.html", mensaje="No tenés acceso a esta sucursal."), 403
     card = _branch_card(entry, _load())
-    return render_template("fumigaciones_real_detalle.html", sucursal=card, visitas=card["visitas"], is_admin=False, hoy=dt.date.today().isoformat())
+    return render_template(
+        "fumigaciones_real_detalle.html", sucursal=card, visitas=card["visitas"],
+        is_admin=False, simple_portal=_is_simple_provider(), hoy=dt.date.today().isoformat(),
+    )
 
 
 @fumigaciones_bp.post("/proveedor/fumigaciones/sucursal/<sucursal_num>/programar")
@@ -233,62 +232,125 @@ def schedule(sucursal_num):
         date = _date(request.form.get("fecha_programada"), "Fecha programada")
         if date < dt.date.today().isoformat():
             raise ValidationError("La fecha programada no puede estar en el pasado.")
-        note = _clean(request.form.get("observacion"), "Observación", max_length=500)
+        note = _clean(request.form.get("observacion"), "Observación")
     except ValidationError as exc:
         return render_template("error.html", mensaje=str(exc)), 400
     records = _load()
     duplicate = next((record for record in records if record.get("proveedor") == entry["proveedor"] and record.get("sucursal_num") == entry["sucursal_num"] and record.get("fecha_programada") == date), None)
     if duplicate:
-        flash("La visita ya estaba programada; no se duplicó la notificación.")
+        flash("La visita ya estaba programada; no se duplicó.")
         return redirect(url_for("fumigaciones_real.detail", sucursal_num=entry["sucursal_num"]))
     record_id = f"FUM-{uuid.uuid4().hex[:12].upper()}"
     now = _now()
     text = f"Fumigación programada para {date} por {entry['proveedor']}."
     record = {
-        "id": record_id, "schema_version": 1, "sucursal_num": entry["sucursal_num"],
-        "sucursal": entry["sucursal"], "proveedor": entry["proveedor"], "estado": "Programada",
-        "fecha_programada": date, "observacion_programacion": note, "creado": now, "actualizado": now,
-        "relevamiento": {}, "documentos": {},
-        "notificaciones_sucursal": [{"clave": f"fumigacion_programada:{entry['proveedor']}:{entry['sucursal_num']}:{date}", "fecha": now, "texto": text, "leida": False}],
+        "id": record_id,
+        "schema_version": 1,
+        "sucursal_num": entry["sucursal_num"],
+        "sucursal": entry["sucursal"],
+        "proveedor": entry["proveedor"],
+        "estado": "Programada",
+        "fecha_programada": date,
+        "observacion_programacion": note,
+        "creado": now,
+        "actualizado": now,
+        "documentos": {},
+        "notificaciones_sucursal": [{
+            "clave": f"fumigacion_programada:{entry['proveedor']}:{entry['sucursal_num']}:{date}",
+            "fecha": now,
+            "texto": text,
+            "leida": False,
+        }],
         "historial": [_history(session.get("prov_nombre", "Proveedor"), "Visita programada", text)],
     }
     records.append(record)
     _save(records)
-    flash("Visita programada y sucursal notificada.")
+    notifier = current_app.config.get("FUMIGACIONES_NOTIFY_SCHEDULE")
+    if notifier and _is_simple_provider({entry["proveedor"]}):
+        notifier(record)
+    flash("Visita programada. La sucursal y Administración ya pueden verla.")
     return redirect(url_for("fumigaciones_real.detail", sucursal_num=entry["sucursal_num"]))
 
 
-@fumigaciones_bp.post("/proveedor/fumigaciones/visita/<record_id>/relevamiento")
+@fumigaciones_bp.post("/proveedor/fumigaciones/visita/<record_id>/cerrar")
 @provider_required
-def complete(record_id):
+def close_visit(record_id):
     invalid = _csrf_required()
     if invalid:
         return invalid
     records, record, error = _authorized_record(record_id)
     if error:
         return error
+    if not _is_simple_provider({record.get("proveedor")}):
+        return render_template("error.html", mensaje="Esta cuenta usa el circuito de relevamiento existente."), 403
+    if record.get("estado") != "Programada":
+        return render_template("error.html", mensaje="La visita ya está cerrada."), 409
+    created = None
+    try:
+        remito = _prepare_upload(request.files.get("remito"))
+        created = _persist(record_id, remito)
+        now = _now()
+        record["documentos"] = {"remito_firmado": _metadata(remito)}
+        record.update(estado="Cerrada", fecha_cierre=now, actualizado=now)
+        record.setdefault("historial", []).append(
+            _history(session.get("prov_nombre", "Proveedor"), "Visita cerrada", "Remito firmado cargado")
+        )
+        _save(records)
+    except ValidationError as exc:
+        if created:
+            created.unlink(missing_ok=True)
+        return render_template("error.html", mensaje=str(exc)), 400
+    except Exception:
+        if created:
+            created.unlink(missing_ok=True)
+        raise
+    flash("Visita cerrada. El remito firmado se cargó correctamente.")
+    return redirect(url_for("fumigaciones_real.detail", sucursal_num=record["sucursal_num"]))
+
+
+@fumigaciones_bp.post("/proveedor/fumigaciones/visita/<record_id>/relevamiento")
+@provider_required
+def complete_legacy(record_id):
+    """Conserva sin cambios el circuito previo para los demás fumigadores."""
+    invalid = _csrf_required()
+    if invalid:
+        return invalid
+    records, record, error = _authorized_record(record_id)
+    if error:
+        return error
+    if _is_simple_provider({record.get("proveedor")}):
+        return render_template("error.html", mensaje="Cargá únicamente el remito firmado para cerrar la visita."), 403
     if record.get("estado") not in ("Programada", "Devuelta"):
         return render_template("error.html", mensaje="La visita no admite un nuevo relevamiento."), 409
     created = []
     try:
-        work = _clean(request.form.get("trabajo_realizado"), "Trabajo realizado", required=True)
-        pests = _clean(request.form.get("plagas_detectadas"), "Plagas detectadas")
-        products = _clean(request.form.get("productos_aplicados"), "Productos aplicados", required=True)
-        observations = _clean(request.form.get("observaciones"), "Observaciones")
+        work = _clean(request.form.get("trabajo_realizado"), "Trabajo realizado", max_length=1200)
+        products = _clean(request.form.get("productos_aplicados"), "Productos aplicados", max_length=1200)
+        if not work or not products:
+            raise ValidationError("Trabajo realizado y productos aplicados son obligatorios.")
         visit_date = _date(request.form.get("fecha_realizada"), "Fecha realizada")
-        remito = _prepare_upload(request.files.get("remito"), "Remito", required=True)
-        certificate = _prepare_upload(request.files.get("certificado"), "Certificado")
-        evidence = _prepare_upload(request.files.get("evidencia"), "Evidencia")
-        uploads = [item for item in (remito, certificate, evidence) if item]
-        created = _persist(record_id, uploads)
-        record["relevamiento"] = {"fecha_realizada": visit_date, "trabajo_realizado": work, "plagas_detectadas": pests, "productos_aplicados": products, "observaciones": observations}
+        pests = _clean(request.form.get("plagas_detectadas"), "Plagas detectadas", max_length=1200)
+        observations = _clean(request.form.get("observaciones"), "Observaciones", max_length=1200)
+        remito = _prepare_upload(request.files.get("remito"), "remito")
+        certificate = _prepare_upload(request.files.get("certificado"), "certificado", required=False)
+        evidence = _prepare_upload(request.files.get("evidencia"), "evidencia", required=False)
+        for upload in (remito, certificate, evidence):
+            if upload:
+                created.append(_persist(record_id, upload))
+        record["relevamiento"] = {
+            "fecha_realizada": visit_date, "trabajo_realizado": work,
+            "plagas_detectadas": pests, "productos_aplicados": products,
+            "observaciones": observations,
+        }
         record["documentos"] = {"remito": _metadata(remito)}
         if certificate:
             record["documentos"]["certificado"] = _metadata(certificate)
         if evidence:
             record["documentos"]["evidencia"] = _metadata(evidence)
         record.update(estado="Realizada", actualizado=_now(), observacion_devolucion="")
-        record.setdefault("historial", []).append(_history(session.get("prov_nombre", "Proveedor"), "Relevamiento registrado", work))
+        record.setdefault("historial", []).append(
+            _history(session.get("prov_nombre", "Proveedor"), "Relevamiento registrado", work)
+        )
         _save(records)
     except ValidationError as exc:
         for path in created:
@@ -313,7 +375,8 @@ def serve_file(record_id, filename):
     _, record, error = _authorized_record(record_id, admin=admin, branch=branch)
     if error:
         return error
-    if Path(filename).name != filename or not any(doc.get("archivo") == filename for doc in record.get("documentos", {}).values()):
+    documents = record.get("documentos", {})
+    if Path(filename).name != filename or not any(doc.get("archivo") == filename for doc in documents.values()):
         return render_template("error.html", mensaje="Archivo no encontrado."), 404
     return send_from_directory(str(_record_dir(record_id)), filename)
 
@@ -333,7 +396,12 @@ def admin_detail(record_id):
     if error:
         return error
     entry = {"sucursal_num": record["sucursal_num"], "sucursal": record.get("sucursal", f"Sucursal {record['sucursal_num']}"), "proveedor": record["proveedor"]}
-    return render_template("fumigaciones_real_detalle.html", sucursal=_branch_card(entry, _load()), visitas=[record], is_admin=True, hoy=dt.date.today().isoformat())
+    return render_template(
+        "fumigaciones_real_detalle.html", sucursal=_branch_card(entry, _load()),
+        visitas=[record], is_admin=True,
+        simple_portal=_is_simple_provider({record.get("proveedor")}),
+        hoy=dt.date.today().isoformat(),
+    )
 
 
 def _admin_transition(record_id, validate):
@@ -343,6 +411,8 @@ def _admin_transition(record_id, validate):
     records, record, error = _authorized_record(record_id, admin=True)
     if error:
         return error
+    if _is_simple_provider({record.get("proveedor")}):
+        return render_template("error.html", mensaje="La visita simple se cierra con el remito firmado y no requiere validación."), 409
     if record.get("estado") != "Realizada":
         return render_template("error.html", mensaje="Sólo una visita realizada puede revisarse."), 409
     if validate:
@@ -352,7 +422,9 @@ def _admin_transition(record_id, validate):
         action, detail = "Visita validada", "Documentación aprobada"
     else:
         try:
-            detail = _clean(request.form.get("observacion"), "Observación", required=True, max_length=1000)
+            detail = _clean(request.form.get("observacion"), "Observación", max_length=1000)
+            if not detail:
+                raise ValidationError("La observación es obligatoria.")
         except ValidationError as exc:
             return render_template("error.html", mensaje=str(exc)), 400
         record.update(estado="Devuelta", observacion_devolucion=detail, actualizado=_now())

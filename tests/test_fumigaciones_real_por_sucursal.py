@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +16,9 @@ os.environ.pop("DATABASE_URL", None)
 import app as tecman  # noqa: E402
 from models import FumigacionDB  # noqa: E402
 
-PDF = b"%PDF-1.4\nfumigacion real\n%%EOF\n"
+PDF = b"%PDF-1.4\nremito firmado\n%%EOF\n"
+FRATINI = ["014", "020", "035", "036", "049", "053", "054", "102", "111", "121", "125", "141", "147", "148", "156", "157", "165", "170", "176", "177", "183", "184", "185", "186", "192", "196", "198", "200", "202", "208", "213", "214", "219", "221", "228", "237", "238"]
+INGAM = ["011", "051", "058", "065", "077", "080", "082", "083", "142", "146", "158", "171", "188", "194", "195", "209", "211", "216", "222"]
 
 
 class FumigacionesRealPorSucursalTest(unittest.TestCase):
@@ -26,98 +29,70 @@ class FumigacionesRealPorSucursalTest(unittest.TestCase):
         self.uploads = self.root / "uploads"
         self.data.mkdir()
         self.uploads.mkdir()
-        self.original_globals = (
-            tecman.FUMIGACIONES_FILE,
-            tecman.TICKETS_FILE,
-            tecman.USE_DB,
-        )
+        self.original_globals = (tecman.FUMIGACIONES_FILE, tecman.TICKETS_FILE, tecman.USE_DB)
         self.config_keys = (
-            "FUMIGACIONES_LOAD",
-            "FUMIGACIONES_SAVE",
-            "FUMIGACIONES_PROVIDER_NAMES",
-            "FUMIGACIONES_PORTFOLIO",
-            "FUMIGACIONES_BRANCH_INFO",
-            "FUMIGACIONES_NORMALIZE_BRANCH",
-            "FUMIGACIONES_BRANCH_SCOPE",
-            "FUMIGACIONES_REFRESH_SESSION",
-            "FUMIGACIONES_UPLOADS_DIR",
-            "FUMIGACIONES_MAX_FILE_BYTES",
+            "TECMAN_SESSION_AUTH_VALIDATOR", "FUMIGACIONES_LOAD", "FUMIGACIONES_SAVE",
+            "FUMIGACIONES_PROVIDER_NAMES", "FUMIGACIONES_PORTFOLIO", "FUMIGACIONES_BRANCH_INFO",
+            "FUMIGACIONES_NORMALIZE_BRANCH", "FUMIGACIONES_BRANCH_SCOPE",
+            "FUMIGACIONES_REFRESH_SESSION", "FUMIGACIONES_NOTIFY_SCHEDULE",
+            "FUMIGACIONES_UPLOADS_DIR", "FUMIGACIONES_MAX_FILE_BYTES",
         )
         self.original_config = {key: tecman.app.config.get(key) for key in self.config_keys}
         tecman.FUMIGACIONES_FILE = self.data / "fumigaciones.json"
         tecman.TICKETS_FILE = self.data / "tickets.json"
         tecman.USE_DB = False
         tecman.save_tickets([])
-
-        def portfolio(names):
-            names = set(names or [])
-            entries = []
-            if "Cesar Ricardo Fratini" in names:
-                entries.extend({
-                    "proveedor": "Cesar Ricardo Fratini",
-                    "sucursal_num": f"{number:03d}",
-                    "sucursal": f"Sucursal {number:03d}",
-                } for number in range(1, 197))
-            if "Gerardo Goog" in names:
-                entries.append({
-                    "proveedor": "Gerardo Goog",
-                    "sucursal_num": "220",
-                    "sucursal": "Sucursal 220",
-                })
-            return entries
-
+        self.admin_notices = []
         tecman.app.config.update(
             TESTING=True,
             SECRET_KEY="fumigaciones-real-test",
+            TECMAN_SESSION_AUTH_VALIDATOR=lambda: True,
             FUMIGACIONES_LOAD=tecman.load_fumigaciones,
             FUMIGACIONES_SAVE=tecman.save_fumigaciones,
-            FUMIGACIONES_PROVIDER_NAMES=tecman._proveedor_nombres_usuario,
-            FUMIGACIONES_PORTFOLIO=portfolio,
+            FUMIGACIONES_PROVIDER_NAMES=lambda: [self._session_provider_name()],
+            FUMIGACIONES_PORTFOLIO=tecman._fumigaciones_portfolio,
             FUMIGACIONES_BRANCH_INFO=lambda num: {
-                "tienda": f"Local {num}",
-                "direccion": f"Calle {num}",
-                "ciudad": "Ciudad de prueba",
-                "provincia": "Provincia de prueba",
-                "marca": "DX",
+                "tienda": f"Local {num}", "direccion": f"Calle {num}",
+                "ciudad": "Ciudad de prueba", "provincia": "Provincia de prueba", "marca": "DX",
             },
             FUMIGACIONES_NORMALIZE_BRANCH=tecman._sucursal_num_from_value,
             FUMIGACIONES_BRANCH_SCOPE=tecman._fumigacion_scope_sucursal,
-            FUMIGACIONES_REFRESH_SESSION=tecman._refresh_proveedor_session_tipo,
+            FUMIGACIONES_REFRESH_SESSION=lambda: "fumigacion",
+            FUMIGACIONES_NOTIFY_SCHEDULE=lambda visit: self.admin_notices.append(copy.deepcopy(visit)),
             FUMIGACIONES_UPLOADS_DIR=str(self.uploads / "fumigaciones"),
             FUMIGACIONES_MAX_FILE_BYTES=1024 * 1024,
         )
         self.client = tecman.app.test_client()
+        self.visit_date = (date.today() + timedelta(days=5)).isoformat()
 
     def tearDown(self):
         tecman.FUMIGACIONES_FILE, tecman.TICKETS_FILE, tecman.USE_DB = self.original_globals
         tecman.app.config.update(self.original_config)
         self.temp.cleanup()
 
+    def _session_provider_name(self):
+        from flask import session
+        return session.get("prov_nombre", "")
+
     def provider(self, user="frattini", name="Cesar Ricardo Fratini"):
         with self.client.session_transaction() as sess:
             sess.clear()
-            sess.update(
-                prov_user=user,
-                prov_nombre=name,
-                prov_tipo_cuenta="fumigacion",
-                prov_session_version=1,
-                _csrf_token="csrf",
-            )
+            sess.update(prov_user=user, prov_nombre=name, prov_tipo_cuenta="fumigacion", prov_session_version=1, _csrf_token="csrf")
 
-    def branch(self, number="001"):
+    def branch(self, number="014"):
         with self.client.session_transaction() as sess:
             sess.clear()
-            sess.update(suc_user=f"suc-{number}", suc_nombre=f"Sucursal {number}", _csrf_token="csrf")
+            sess.update(suc_user=f"suc{number}", suc_nombre=f"Sucursal {number}", _csrf_token="csrf")
 
     def admin(self):
         with self.client.session_transaction() as sess:
             sess.clear()
             sess.update(user="admin", nombre="Administración", rol="admin", _csrf_token="csrf")
 
-    def schedule(self, number="001", date="2026-10-05"):
+    def schedule(self, number="014", visit_date=None):
         return self.client.post(
             f"/proveedor/fumigaciones/sucursal/{number}/programar",
-            data={"_csrf_token": "csrf", "fecha_programada": date, "observacion": "Coordinar apertura"},
+            data={"_csrf_token": "csrf", "fecha_programada": visit_date or self.visit_date},
         )
 
     def record(self):
@@ -125,35 +100,46 @@ class FumigacionesRealPorSucursalTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         return records[0]
 
-    def complete(self, record_id):
+    def close(self, record_id, content=PDF, filename="remito-firmado.pdf", csrf="csrf"):
         return self.client.post(
-            f"/proveedor/fumigaciones/visita/{record_id}/relevamiento",
-            data={
-                "_csrf_token": "csrf",
-                "fecha_realizada": "2026-10-05",
-                "trabajo_realizado": "Aplicación preventiva en salón y depósito",
-                "plagas_detectadas": "Sin actividad",
-                "productos_aplicados": "Gel y aspersión autorizada",
-                "observaciones": "Trabajo conforme",
-                "remito": (io.BytesIO(PDF), "remito.pdf"),
-                "certificado": (io.BytesIO(PDF), "certificado.pdf"),
-            },
+            f"/proveedor/fumigaciones/visita/{record_id}/cerrar",
+            data={"_csrf_token": csrf, "remito": (io.BytesIO(content), filename)},
             content_type="multipart/form-data",
         )
 
-    def test_cartera_de_196_sucursales_sin_tickets_y_detalle(self):
-        self.provider()
-        panel = self.client.get("/proveedor/fumigaciones")
-        self.assertEqual(panel.status_code, 200)
-        html = panel.get_data(as_text=True)
-        self.assertIn("196 sucursal(es)", html)
-        self.assertEqual(html.count("/proveedor/fumigaciones/sucursal/"), 196)
-        self.assertNotIn("Ticket #", html)
-        detail = self.client.get("/proveedor/fumigaciones/sucursal/196")
-        self.assertEqual(detail.status_code, 200)
-        self.assertIn("Local 196", detail.get_data(as_text=True))
+    def test_carteras_canonicas_salen_del_catalogo_con_cantidades_e_interseccion_exactas(self):
+        fratini = [row["sucursal_num"] for row in tecman._fumigaciones_portfolio({"Cesar Ricardo Fratini"})]
+        ingam = [row["sucursal_num"] for row in tecman._fumigaciones_portfolio({"INGAM Control de Plagas SRL"})]
+        self.assertEqual(fratini, FRATINI)
+        self.assertEqual(ingam, INGAM)
+        self.assertEqual((len(fratini), len(ingam)), (37, 19))
+        self.assertFalse(set(fratini) & set(ingam))
+        self.assertEqual(tecman.FUMIGACIONES_SIMPLE_PORTFOLIOS["Cesar Ricardo Fratini"], set(FRATINI))
+        self.assertEqual(tecman.FUMIGACIONES_SIMPLE_PORTFOLIOS["INGAM Control de Plagas SRL"], set(INGAM))
 
-    def test_programacion_y_aviso_a_sucursal_son_idempotentes(self):
+    def test_paneles_muestran_solo_la_cartera_propia_y_sin_formularios_largos(self):
+        self.provider()
+        page = self.client.get("/proveedor/fumigaciones")
+        body = page.get_data(as_text=True)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("37 sucursal(es)", body)
+        self.assertEqual(body.count("/proveedor/fumigaciones/sucursal/"), 37)
+        self.assertIn("SUCURSAL 014", body)
+        self.assertNotIn("SUCURSAL 011", body)
+        self.schedule()
+        detail = self.client.get("/proveedor/fumigaciones/sucursal/014").get_data(as_text=True)
+        self.assertIn("Cargar remito y cerrar visita", detail)
+        for forbidden in ("Trabajo realizado", "Productos aplicados", "Plagas detectadas", "Certificado opcional"):
+            self.assertNotIn(forbidden, detail)
+
+        self.provider("ingam", "INGAM Control de Plagas SRL")
+        body = self.client.get("/proveedor/fumigaciones").get_data(as_text=True)
+        self.assertIn("19 sucursal(es)", body)
+        self.assertIn("SUCURSAL 011", body)
+        self.assertNotIn("SUCURSAL 014", body)
+        self.assertEqual(self.client.get("/proveedor/fumigaciones/sucursal/014").status_code, 403)
+
+    def test_programacion_es_idempotente_y_visible_para_admin_y_sucursal(self):
         self.provider()
         self.assertEqual(self.schedule().status_code, 302)
         self.assertEqual(self.schedule().status_code, 302)
@@ -161,108 +147,121 @@ class FumigacionesRealPorSucursalTest(unittest.TestCase):
         self.assertEqual(record["estado"], "Programada")
         self.assertEqual(len(record["notificaciones_sucursal"]), 1)
         self.assertEqual(len(record["historial"]), 1)
-        self.branch("001")
+        self.assertEqual(len(self.admin_notices), 1)
+
+        self.branch("014")
         page = self.client.get("/suc/fumigaciones")
         self.assertEqual(page.status_code, 200)
-        body = page.get_data(as_text=True)
-        self.assertIn("Fumigación programada para 2026-10-05", body)
-        self.assertIn("Cesar Ricardo Fratini", body)
+        self.assertIn(f"Fumigación programada para {self.visit_date}", page.get_data(as_text=True))
+        self.admin()
+        admin_page = self.client.get("/admin/proveedores/fumigaciones")
+        self.assertEqual(admin_page.status_code, 200)
+        self.assertIn(record["id"], admin_page.get_data(as_text=True))
 
-    def test_relevamiento_remito_historial_validacion_y_archivos_protegidos(self):
+    def test_remito_firmado_cierra_directamente_y_descarga_es_protegida(self):
         self.provider()
         self.schedule()
         record_id = self.record()["id"]
-        response = self.complete(record_id)
+        response = self.close(record_id)
         self.assertEqual(response.status_code, 302)
         record = self.record()
-        self.assertEqual(record["estado"], "Realizada")
-        self.assertEqual(record["relevamiento"]["trabajo_realizado"], "Aplicación preventiva en salón y depósito")
-        self.assertEqual([event["accion"] for event in record["historial"]], ["Visita programada", "Relevamiento registrado"])
-        remito = record["documentos"]["remito"]
+        self.assertEqual(record["estado"], "Cerrada")
+        self.assertIn("fecha_cierre", record)
+        self.assertNotIn("relevamiento", record)
+        self.assertEqual([event["accion"] for event in record["historial"]], ["Visita programada", "Visita cerrada"])
+        remito = record["documentos"]["remito_firmado"]
         self.assertRegex(remito["archivo"], r"^[a-f0-9]{32}\.pdf$")
-        self.assertTrue((self.uploads / "fumigaciones" / record_id / remito["archivo"]).is_file())
+        path = self.uploads / "fumigaciones" / record_id / remito["archivo"]
+        self.assertTrue(path.is_file())
         served = self.client.get(f"/proveedor/fumigaciones/visita/{record_id}/archivo/{remito['archivo']}")
         self.assertEqual(served.status_code, 200)
         served.close()
         self.assertEqual(self.client.get(f"/proveedor/fumigaciones/visita/{record_id}/archivo/no-referenciado.pdf").status_code, 404)
         self.assertEqual(self.client.get(f"/static/uploads/fumigaciones/{record_id}/{remito['archivo']}").status_code, 404)
+        self.assertEqual(self.close(record_id).status_code, 409)
 
-        self.admin()
-        self.assertEqual(self.client.post(
-            f"/admin/proveedores/fumigaciones/visita/{record_id}/validar",
-            data={"_csrf_token": "csrf"},
-        ).status_code, 302)
-        record = self.record()
-        self.assertEqual(record["estado"], "Validada")
-        self.assertEqual(record["historial"][-1]["accion"], "Visita validada")
-
-    def test_aislamiento_entre_proveedores_sucursales_y_acceso_cruzado(self):
+    def test_ids_y_archivos_cruzados_quedan_bloqueados_sin_mutar(self):
         self.provider()
         self.schedule()
         record_id = self.record()["id"]
-        self.complete(record_id)
-        filename = self.record()["documentos"]["remito"]["archivo"]
-
-        self.provider("gerardo_goog", "Gerardo Goog")
-        self.assertEqual(self.client.get("/proveedor/fumigaciones/sucursal/001").status_code, 403)
-        self.assertEqual(self.client.get(f"/proveedor/fumigaciones/visita/{record_id}/archivo/{filename}").status_code, 403)
+        self.close(record_id)
+        filename = self.record()["documentos"]["remito_firmado"]["archivo"]
         before = copy.deepcopy(tecman.load_fumigaciones())
-        self.assertEqual(self.schedule("001", "2026-10-06").status_code, 403)
+
+        self.provider("ingam", "INGAM Control de Plagas SRL")
+        self.assertEqual(self.client.get(f"/proveedor/fumigaciones/visita/{record_id}/archivo/{filename}").status_code, 403)
+        self.assertEqual(self.client.post(f"/proveedor/fumigaciones/visita/{record_id}/cerrar", data={"_csrf_token": "csrf"}).status_code, 403)
+        self.assertEqual(self.schedule("014").status_code, 403)
         self.assertEqual(tecman.load_fumigaciones(), before)
 
-        self.branch("002")
+        self.branch("011")
         self.assertEqual(self.client.get(f"/suc/fumigaciones/visita/{record_id}/archivo/{filename}").status_code, 403)
-        self.branch("001")
+        self.branch("014")
         owned = self.client.get(f"/suc/fumigaciones/visita/{record_id}/archivo/{filename}")
         self.assertEqual(owned.status_code, 200)
         owned.close()
 
-    def test_rutas_sin_sesion_csrf_y_upload_invalido_no_mutan(self):
+    def test_sin_sesion_csrf_firma_extension_y_tamano_invalidos_no_mutan(self):
         self.assertEqual(self.client.get("/proveedor/fumigaciones").status_code, 302)
-        self.assertEqual(self.client.get("/proveedor/fumigaciones/sucursal/001").status_code, 302)
-        self.assertEqual(self.client.post("/proveedor/fumigaciones/sucursal/001/programar").status_code, 302)
-        self.assertEqual(self.client.get("/admin/proveedores/fumigaciones").status_code, 302)
-
+        self.assertEqual(self.client.post("/proveedor/fumigaciones/sucursal/014/programar").status_code, 302)
         self.provider()
-        self.assertEqual(self.schedule().status_code, 302)
+        self.schedule()
         record_id = self.record()["id"]
         before = copy.deepcopy(tecman.load_fumigaciones())
-        no_csrf = self.client.post(
-            f"/proveedor/fumigaciones/visita/{record_id}/relevamiento",
-            data={"trabajo_realizado": "No guardar"},
+        cases = (
+            (PDF, "remito.pdf", "incorrecto"),
+            (b"archivo falso", "remito.pdf", "csrf"),
+            (PDF, "remito.exe", "csrf"),
+            (b"%PDF-" + b"x" * (1024 * 1024), "grande.pdf", "csrf"),
         )
-        self.assertEqual(no_csrf.status_code, 400)
-        self.assertEqual(tecman.load_fumigaciones(), before)
-        invalid = self.client.post(
+        for content, filename, csrf in cases:
+            with self.subTest(filename=filename, csrf=csrf, size=len(content)):
+                self.assertEqual(self.close(record_id, content, filename, csrf).status_code, 400)
+                self.assertEqual(tecman.load_fumigaciones(), before)
+        self.assertFalse((self.uploads / "fumigaciones" / record_id).exists())
+
+    def test_programar_y_cerrar_no_crean_tickets(self):
+        original_tickets = tecman.TICKETS_FILE.read_bytes()
+        self.provider()
+        self.schedule()
+        self.close(self.record()["id"])
+        self.assertEqual(tecman.TICKETS_FILE.read_bytes(), original_tickets)
+
+    def test_otro_fumigador_conserva_su_relevamiento_y_validacion_existentes(self):
+        self.provider("gerardo_goog", "Gerardo Goog")
+        self.assertEqual(self.schedule("052").status_code, 302)
+        record_id = self.record()["id"]
+        detail = self.client.get("/proveedor/fumigaciones/sucursal/052").get_data(as_text=True)
+        self.assertIn("Trabajo realizado", detail)
+        self.assertIn("Certificado opcional", detail)
+        self.assertNotIn("Cargar remito y cerrar visita", detail)
+        self.assertEqual(self.close(record_id).status_code, 403)
+        completed = self.client.post(
             f"/proveedor/fumigaciones/visita/{record_id}/relevamiento",
             data={
-                "_csrf_token": "csrf",
-                "fecha_realizada": "2026-10-05",
-                "trabajo_realizado": "Trabajo",
-                "productos_aplicados": "Producto",
-                "remito": (io.BytesIO(b"archivo falso"), "remito.pdf"),
+                "_csrf_token": "csrf", "fecha_realizada": self.visit_date,
+                "trabajo_realizado": "Aplicación preventiva",
+                "productos_aplicados": "Producto autorizado",
+                "remito": (io.BytesIO(PDF), "remito.pdf"),
             },
             content_type="multipart/form-data",
         )
-        self.assertEqual(invalid.status_code, 400)
-        self.assertEqual(tecman.load_fumigaciones(), before)
-        self.assertFalse((self.uploads / "fumigaciones" / record_id).exists())
+        self.assertEqual(completed.status_code, 302)
+        self.assertEqual(self.record()["estado"], "Realizada")
+        self.admin()
+        validated = self.client.post(
+            f"/admin/proveedores/fumigaciones/visita/{record_id}/validar",
+            data={"_csrf_token": "csrf"},
+        )
+        self.assertEqual(validated.status_code, 302)
+        self.assertEqual(self.record()["estado"], "Validada")
 
     def test_fallback_json_y_adaptador_postgresql(self):
-        payload = [{
-            "id": "FUM-DB",
-            "sucursal_num": "001",
-            "proveedor": "Cesar Ricardo Fratini",
-            "estado": "Programada",
-            "fecha_programada": "2026-10-05",
-        }]
+        payload = [{"id": "FUM-DB", "sucursal_num": "014", "proveedor": "Cesar Ricardo Fratini", "estado": "Programada", "fecha_programada": self.visit_date}]
         tecman.save_fumigaciones(payload)
         self.assertEqual(json.loads(tecman.FUMIGACIONES_FILE.read_text(encoding="utf-8")), payload)
         self.assertEqual(tecman.load_fumigaciones(), payload)
-
         model = FumigacionDB.from_dict(payload[0])
-        self.assertEqual(model.id, "FUM-DB")
-        self.assertEqual(model.sucursal_num, "001")
         self.assertEqual(model.to_dict(), payload[0])
 
         tecman.USE_DB = True

@@ -3849,7 +3849,6 @@ DEFAULT_PROVEEDOR_USERS = {
     "gustavo": {"password": _PROVEEDOR_PWD, "nombre": "Gustavo Avellaneda", "tipo_cuenta": "abono_fijo", "proveedores": ["Gustavo Avellaneda"]},
     "fuga": {"password": _PROVEEDOR_PWD, "nombre": "Julio Fuga (JRF)", "tipo_cuenta": "proveedor", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
     "ismael": {"password": _PROVEEDOR_PWD, "nombre": "Ismael Allende (JRF)", "tipo_cuenta": "proveedor", "proveedores": ["Julio Fuga (JRF)", "Ismael Allende (JRF)"]},
-    "frattini": {"password": _PROVEEDOR_PWD, "nombre": "Cesar Ricardo Fratini", "tipo_cuenta": "fumigacion", "proveedores": ["Cesar Ricardo Fratini"]},
     "geronimo": {"password": _PROVEEDOR_PWD, "nombre": "L&G (Geronimo)", "tipo_cuenta": "proveedor", "proveedores": ["L&G (Geronimo)"]},
     "microglobal": {"password": _PROVEEDOR_PWD, "nombre": "Martin Microglobal", "tipo_cuenta": "proveedor", "proveedores": ["Martin Microglobal"]},
     "gerardo_goog": {"password": _PROVEEDOR_PWD, "nombre": "Gerardo Goog", "tipo_cuenta": "fumigacion", "proveedores": ["Gerardo Goog"]},
@@ -3872,7 +3871,6 @@ DEFAULT_PROVEEDOR_USERS = {
     "flr": {"password": _PROVEEDOR_PWD, "nombre": "FLR Control de Plagas (Isaurralde)", "tipo_cuenta": "fumigacion", "proveedores": ["FLR Control de Plagas (Isaurralde)"]},
     "exter": {"password": _PROVEEDOR_PWD, "nombre": "EXTER - Caviglia y Tellarini S.A.", "tipo_cuenta": "fumigacion", "proveedores": ["EXTER - Caviglia y Tellarini S.A."]},
     "mipsa": {"password": _PROVEEDOR_PWD, "nombre": "MIPSA SRL", "tipo_cuenta": "fumigacion", "proveedores": ["MIPSA SRL"]},
-    "ingam": {"password": _PROVEEDOR_PWD, "nombre": "INGAM Control de Plagas SRL", "tipo_cuenta": "fumigacion", "proveedores": ["INGAM Control de Plagas SRL"]},
 }
 
 # Cuentas previstas sin secreto ni contraseña compartida. Son locales, quedan
@@ -3881,6 +3879,8 @@ DEFAULT_PROVEEDOR_USERS = {
 PLANNED_PROVEEDOR_USERS = {
     "diprogom": {"nombre": "Diprogom", "tipo_cuenta": "matafuegos", "proveedores": ["Diprogom"]},
     "fuego_cero": {"nombre": "Fuego Cero", "tipo_cuenta": "matafuegos", "proveedores": ["Fuego Cero"]},
+    "frattini": {"nombre": "Cesar Ricardo Fratini", "tipo_cuenta": "fumigacion", "proveedores": ["Cesar Ricardo Fratini"]},
+    "ingam": {"nombre": "INGAM Control de Plagas SRL", "tipo_cuenta": "fumigacion", "proveedores": ["INGAM Control de Plagas SRL"]},
 }
 
 
@@ -4160,7 +4160,7 @@ PROVEEDORES = [
     {"nombre": "Layerenza Cortinas", "zona": "Cordoba", "tipo": "Cortinas", "tel": "351-545-1732", "fijo": False, "estado_operativo": "Contacto", "canal_comunicacion": "Telefono", "sucursales": ["076","078","123","124","203","233"]},
     # --- Proveedores de fumigacion por sucursal ---
     {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["014","020","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","192","196","198","200","202","208","213","214","219","221","228","237","238"], "mostrar_sucursal": False},
-    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["080","082","188","216","065","194","051","171","195","209","222","011","058","077","083","142","211","146","158"], "mostrar_sucursal": False},
+    {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["011","051","058","065","077","080","082","083","142","146","158","171","188","194","195","209","211","216","222"], "mostrar_sucursal": False},
     {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["076","078","123","124","203","233"], "mostrar_sucursal": False},
     {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": list(MATAFUEGOS_PROVIDER_BRANCHES["Diprogom"]), "sucursales_inactivas_verdes": {"167": 19, "183": 29, "213": 27}, "sucursales_conflicto": {"051": 13, "156": 23}, "sucursales_pendientes": {"MORZAT": 14}, "observacion": "Cartera autoritativa Diprogom 2026-09-24: 25 sucursales activas. Cuenta local prevista; Administración debe generar una temporal y habilitarla."},
     {"nombre": "Fuego Cero", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": list(MATAFUEGOS_PROVIDER_BRANCHES["Fuego Cero"]), "observacion": "Cartera autoritativa Fuego Cero 2026-09-28: 35 sucursales confirmadas, incluida 147. Cuenta local prevista; Administración debe generar una temporal y habilitarla."},
@@ -8868,9 +8868,50 @@ def _fumigaciones_portfolio(nombres):
     return sorted(entries, key=lambda item: (item["sucursal_num"], item["proveedor"]))
 
 
+FUMIGACIONES_SIMPLE_EXPECTED_COUNTS = {
+    "Cesar Ricardo Fratini": 37,
+    "INGAM Control de Plagas SRL": 19,
+}
+
+
+def _validate_fumigaciones_simple_portfolios():
+    """Falla cerrado si las dos carteras canónicas dejan de ser válidas."""
+    portfolios = {
+        provider: {
+            entry["sucursal_num"]
+            for entry in _fumigaciones_portfolio({provider})
+        }
+        for provider in FUMIGACIONES_SIMPLE_EXPECTED_COUNTS
+    }
+    for provider, expected in FUMIGACIONES_SIMPLE_EXPECTED_COUNTS.items():
+        if len(portfolios[provider]) != expected:
+            raise RuntimeError(
+                f"La cartera de fumigaciones de {provider} debe tener {expected} sucursales"
+            )
+    overlap = set.intersection(*(set(values) for values in portfolios.values()))
+    if overlap:
+        raise RuntimeError(
+            f"Las carteras simples de fumigaciones se superponen: {sorted(overlap)}"
+        )
+    return portfolios
+
+
+FUMIGACIONES_SIMPLE_PORTFOLIOS = _validate_fumigaciones_simple_portfolios()
+
+
 def _fumigaciones_branch_info(num):
     from sucursales_data import SUCURSALES_INFO
     return copy.deepcopy(SUCURSALES_INFO.get(str(num).zfill(3), {}))
+
+
+def _notificar_programacion_fumigacion(visita):
+    agregar_notif_admin(
+        "Visita de fumigación programada",
+        f"{visita.get('proveedor')} programó la sucursal {visita.get('sucursal_num')} para el {visita.get('fecha_programada')}.",
+        tipo="fumigaciones",
+        autor=visita.get("proveedor", ""),
+        link=url_for("fumigaciones_real.admin_detail", record_id=visita.get("id")),
+    )
 
 
 app.config.update(
@@ -8893,6 +8934,8 @@ app.config.update(
     FUMIGACIONES_NORMALIZE_BRANCH=_sucursal_num_from_value,
     FUMIGACIONES_BRANCH_SCOPE=_fumigacion_scope_sucursal,
     FUMIGACIONES_REFRESH_SESSION=_refresh_proveedor_session_tipo,
+    FUMIGACIONES_SIMPLE_PROVIDER_NAMES=tuple(FUMIGACIONES_SIMPLE_EXPECTED_COUNTS),
+    FUMIGACIONES_NOTIFY_SCHEDULE=_notificar_programacion_fumigacion,
     FUMIGACIONES_UPLOADS_DIR=str(FUMIGACIONES_UPLOADS_DIR),
     FUMIGACIONES_MAX_FILE_BYTES=10 * 1024 * 1024,
 )
