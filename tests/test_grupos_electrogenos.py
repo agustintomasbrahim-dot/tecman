@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -250,13 +251,46 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(tecman.load_grupos_electrogenos()["grupos_electrogenos"], [])
 
-    def test_inventory_2026_09_is_idempotent_and_preserves_existing_values(self):
-        with tecman.app.test_request_context("/"):
-            existing = tecman._generador_from_values({
-                "sucursal": "Sucursal 077",
-                "marca": "Marca confirmada por sucursal",
-            }, "Admin", "test")
-        tecman.save_grupos_electrogenos({"grupos_electrogenos": [existing]})
+    def test_inventory_2026_09_is_authoritative_idempotent_and_preserves_operational_data(self):
+        previous_rows = []
+        for current_values in tecman.GRUPOS_ELECTROGENOS_INVENTARIO_2026_09:
+            old_values = dict(current_values)
+            suc_num = old_values["sucursal"].split()[-1]
+            if suc_num == "077":
+                old_values["marca"] = "Marca confirmada por sucursal"
+            elif suc_num == "128":
+                old_values["observaciones"] = "Pertenece al shopping."
+            elif suc_num == "166":
+                old_values.pop("marca")
+                old_values.pop("modelo")
+            elif suc_num == "176":
+                old_values.pop("modelo")
+                old_values["observaciones"] = "Tipo y modelo pendientes de confirmar."
+            elif suc_num == "186":
+                old_values.pop("marca")
+                old_values.pop("proveedor")
+            elif suc_num == "224":
+                old_values.pop("marca")
+                old_values.pop("modelo")
+            with tecman.app.test_request_context("/"):
+                item = tecman._generador_from_values(old_values, "Sistema", "inventario anterior")
+            item.update({
+                "id": f"ge-20260923-{suc_num}",
+                "fuente_importacion": "inventario_grupos_2026-09-23",
+            })
+            previous_rows.append(item)
+
+        existing = next(item for item in previous_rows if item["sucursal_num"] == "077")
+        existing.update({
+            "estado_validacion": "con_diferencias",
+            "diferencias": "Dato operativo a preservar",
+            "notificacion_sucursal_pendiente": False,
+            "novedades": [{"id": "nov-preservada", "tipo": "encendido_prueba"}],
+            "campo_operativo": {"responsable": "Sucursal"},
+        })
+        original_id = existing["id"]
+        original_history = list(existing["historial"])
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": previous_rows})
 
         with tecman.app.app_context():
             first = tecman._ensure_grupos_electrogenos_inventario_2026_09()
@@ -267,11 +301,43 @@ class GruposElectrogenosTest(unittest.TestCase):
         items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
         self.assertEqual(len(items), 21)
         by_branch = {item["sucursal_num"]: item for item in items}
-        self.assertEqual(by_branch["077"]["marca"], "Marca confirmada por sucursal")
+        self.assertEqual(set(by_branch), {
+            "077", "083", "128", "166", "173", "176", "177", "186", "193", "195", "196",
+            "208", "211", "214", "217", "222", "224", "237", "239", "240", "241",
+        })
+        self.assertTrue(all(item["id"] == f"ge-20260923-{item['sucursal_num']}" for item in items))
+        self.assertEqual(by_branch["077"]["id"], original_id)
+        self.assertEqual(by_branch["077"]["marca"], "Vanguard")
         self.assertEqual(by_branch["077"]["modelo"], "35 HP")
+        self.assertEqual(by_branch["077"]["estado_validacion"], "con_diferencias")
+        self.assertEqual(by_branch["077"]["diferencias"], "Dato operativo a preservar")
+        self.assertFalse(by_branch["077"]["notificacion_sucursal_pendiente"])
+        self.assertEqual(by_branch["077"]["novedades"], [{"id": "nov-preservada", "tipo": "encendido_prueba"}])
+        self.assertEqual(by_branch["077"]["campo_operativo"], {"responsable": "Sucursal"})
+        self.assertEqual(by_branch["077"]["historial"][:len(original_history)], original_history)
+        audit = json.loads(by_branch["077"]["historial"][-1]["detalle"])
+        self.assertEqual(audit["before"]["marca"], "Marca confirmada por sucursal")
+        self.assertEqual(audit["after"]["marca"], "Vanguard")
+        self.assertEqual(audit["revision"], "2026-09-28")
+        self.assertEqual(audit["sha256"], tecman.GRUPOS_ELECTROGENOS_INVENTARIO_SHA256)
+
+        self.assertEqual((by_branch["166"]["marca"], by_branch["166"]["modelo"]), ("ARVEK", "16000NT"))
+        self.assertEqual((by_branch["176"]["modelo"], by_branch["176"]["ubicacion"]), ("4105ZD", "Móvil"))
+        self.assertEqual((by_branch["177"]["marca"], by_branch["177"]["modelo"]), ("Kipor", "KDE30SS3"))
+        self.assertEqual((by_branch["186"]["ubicacion"], by_branch["186"]["proveedor"], by_branch["186"]["marca"]), ("Fijo", "Fenk", "termoelectra"))
         self.assertEqual(by_branch["195"]["numero_serie"], "10231124")
+        self.assertTrue(all(by_branch[num]["marca"] == "ATILA GENERACIÓN" for num in ("195", "208", "211")))
+        self.assertEqual((by_branch["224"]["marca"], by_branch["224"]["modelo"]), ("Vanguard", "35HP"))
+        self.assertIn("debe cambiarse", by_branch["083"]["estado_equipo"])
+        self.assertIn("cotizando", by_branch["083"]["observaciones"])
+        self.assertIn("No tiene grupo propio", by_branch["128"]["observaciones"])
+        self.assertIn("shopping", by_branch["237"]["observaciones"])
+        self.assertEqual((by_branch["240"]["modelo"], by_branch["240"]["numero_serie"]), ("404D-22", "190363620"))
         self.assertEqual(by_branch["241"]["estado_equipo"], "Compartido con Sucursal 239")
-        self.assertTrue(all(item.get("notificacion_sucursal_pendiente") for item in items))
+        self.assertIn("No tiene grupo propio", by_branch["241"]["observaciones"])
+        self.assertTrue(all(item["fuente_importacion"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE for item in items))
+        self.assertTrue(all(item["fuente_revision"] == "2026-09-28" for item in items))
+        self.assertTrue(all(item["fuente_sha256"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_SHA256 for item in items))
 
     def test_novedades_validas_persisten_foto_auditoria_y_campos_por_tipo(self):
         equipo = self._equipo()

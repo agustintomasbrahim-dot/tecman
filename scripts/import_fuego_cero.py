@@ -20,9 +20,20 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-VERSION = "fuego-cero-import-v1"
+VERSION = "fuego-cero-import-v2"
 PROVIDER = "Fuego Cero"
-PENDING_BRANCH = "147"
+BUSINESS_CONFIRMATIONS = {
+    "147": {
+        "status": "confirmed",
+        "confirmed_by": "Agustín",
+        "confirmed_on": "2026-09-28",
+        "branch_name": "DEXTER JUMBO PILAR",
+        "source_scope": {"ABC 5 KG": 5, "HCFC 5 KG": 1},
+        "localized_equivalences": {
+            "HCFC-123 5 KG": "HCFC 5 KG",
+        },
+    },
+}
 EXPECTED_NUMBERED_BRANCHES = 35
 EXPECTED_TOTAL_EQUIPMENT = 509
 HEADERS = (
@@ -149,21 +160,32 @@ def parse_xlsx(path: Path) -> dict[str, Any]:
     if "don torcuato" not in names or "garin" not in names:
         raise ValueError("no se identificaron ambas filas sin LOCAL: Don Torcuato y Garín")
     numbered_total = sum(v["equipment_count"] for v in branches.values())
-    pending_total = branches.get(PENDING_BRANCH, {}).get("equipment_count", 0)
-    confirmed = sorted(set(branches) - {PENDING_BRANCH})
+    confirmed = sorted(branches)
     return {
         "schema": "tecman.fuego-cero-source/v1", "xlsx": str(path), "xlsx_sha256": sha256_file(path),
         "branches": branches, "unnumbered": unnumbered,
         "summary": {
             "numbered_branches_observed": len(branches), "numbered_branches_expected": EXPECTED_NUMBERED_BRANCHES,
-            "confirmed_branches": len(confirmed), "pending_branches": 1 if PENDING_BRANCH in branches else 0,
-            "pending_branch": PENDING_BRANCH, "numbered_equipment": numbered_total,
-            "pending_equipment": pending_total, "confirmed_equipment": numbered_total - pending_total,
+            "confirmed_branches": len(confirmed), "pending_branches": 0,
+            "pending_branch": None, "numbered_equipment": numbered_total,
+            "pending_equipment": 0, "confirmed_equipment": numbered_total,
             "unnumbered_equipment": sum(x["equipment"] for x in unnumbered), "total_equipment": total,
             "total_equipment_expected": EXPECTED_TOTAL_EQUIPMENT,
             "count_validation": "ok" if len(branches) == EXPECTED_NUMBERED_BRANCHES and total == EXPECTED_TOTAL_EQUIPMENT else "mismatch",
         },
     }
+
+
+def validate_business_confirmations(source: dict[str, Any]) -> None:
+    for branch_num, confirmation in BUSINESS_CONFIRMATIONS.items():
+        branch = source["branches"].get(branch_num)
+        if not branch:
+            raise ValueError(f"confirmación de negocio ausente en fuente: {branch_num}")
+        if branch["local_nombre"].strip().upper() != confirmation["branch_name"]:
+            raise ValueError(f"nombre confirmado no coincide para LOCAL {branch_num}")
+        actual_scope = Counter(f"{x['tipo']} {x['capacidad']}" for x in branch["equipment"])
+        if actual_scope != Counter(confirmation["source_scope"]):
+            raise ValueError(f"alcance confirmado no coincide para LOCAL {branch_num}")
 
 
 def load_inventory(path: Path, expected_sha: str) -> tuple[dict[str, Any], str]:
@@ -185,6 +207,14 @@ def item_key(item: dict[str, Any]) -> tuple[str, str, str] | None:
     aliases = {"5": "5 KG", "10": "10 KG", "3.5": "3.5 KG", "2.5": "2.5 KG", "5KG": "5 KG", "10KG": "10 KG", "3.5KG": "3.5 KG", "2.5KG": "2.5 KG"}
     cap = aliases.get(cap, cap)
     return (branch, kind, cap)
+
+
+def reconciliation_key(item: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Apply only explicitly audited, branch-scoped equivalences."""
+    key = item_key(item)
+    if key == ("147", "HCFC-123", "5 KG"):
+        return ("147", "HCFC", "5 KG")
+    return key
 
 
 def has_activity(item: dict[str, Any]) -> bool:
@@ -225,14 +255,15 @@ def op(kind: str, index: int | None, before: Any, after: Any) -> dict[str, Any]:
 def make_plan(input_path: Path, xlsx_path: Path, expected_sha: str) -> dict[str, Any]:
     inventory, input_sha = load_inventory(input_path, expected_sha)
     source = parse_xlsx(xlsx_path)
+    validate_business_confirmations(source)
     items = inventory["matafuegos"]
     by_key: dict[tuple[str, str, str], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
     for index, item in enumerate(items):
-        key = item_key(item)
+        key = reconciliation_key(item)
         if key: by_key[key].append((index, item))
     operations, conflicts = [], []
     existing_ids = {str(x.get("id")) for x in items}
-    confirmed = sorted(set(source["branches"]) - {PENDING_BRANCH})
+    confirmed = sorted(source["branches"])
     for branch_num in confirmed:
         branch = source["branches"][branch_num]
         needs = Counter((x["tipo"], x["capacidad"]) for x in branch["equipment"])
@@ -257,16 +288,21 @@ def make_plan(input_path: Path, xlsx_path: Path, expected_sha: str) -> dict[str,
     kinds = Counter(x["kind"] for x in operations)
     final_total = len(items) + kinds["add"] - kinds["delete_safe"]
     source_summary = source["summary"]
+    branch_147_mutations = sum(
+        1 for operation in operations
+        if (operation.get("before") or operation.get("after") or {}).get("sucursal_num") == "147"
+    )
     return {
         "schema": "tecman.fuego-cero-plan/v1", "version": VERSION, "mode": "dry-run",
         "input": str(input_path), "input_sha256": input_sha, "xlsx": str(xlsx_path), "xlsx_sha256": source["xlsx_sha256"],
-        "safety": {"network": False, "production": False, "in_place": False, "pending_147_mutations": 0},
+        "safety": {"network": False, "production": False, "in_place": False, "confirmed_147_mutations": branch_147_mutations},
+        "business_confirmations": copy.deepcopy(BUSINESS_CONFIRMATIONS),
         "source_summary": source_summary,
-        "confirmed_branch_numbers": confirmed, "pending": {"147": "pendiente_confirmacion"},
+        "confirmed_branch_numbers": confirmed, "pending": {},
         "unnumbered": source["unnumbered"],
         "summary": {"adds": kinds["add"], "updates": kinds["update"], "safe_deletes": kinds["delete_safe"],
             "conflicts": len(conflicts), "operations": len(operations), "input_total": len(items), "final_total": final_total,
-            "confirmed_branches": len(confirmed), "pending_branches": 1},
+            "confirmed_branches": len(confirmed), "pending_branches": 0},
         "conflicts": conflicts, "operations": operations,
     }
 
@@ -335,7 +371,7 @@ def rollback(input_path: Path, expected_sha: str, journal: Path, output: Path) -
 
 
 def sanitized_report(plan: dict[str, Any]) -> dict[str, Any]:
-    return {k: copy.deepcopy(plan[k]) for k in ("schema", "version", "mode", "input_sha256", "xlsx_sha256", "safety", "source_summary", "confirmed_branch_numbers", "pending", "unnumbered", "summary", "conflicts")}
+    return {k: copy.deepcopy(plan[k]) for k in ("schema", "version", "mode", "input_sha256", "xlsx_sha256", "safety", "business_confirmations", "source_summary", "confirmed_branch_numbers", "pending", "unnumbered", "summary", "conflicts")}
 
 
 def main() -> None:

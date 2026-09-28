@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from openpyxl import Workbook
 
@@ -42,7 +43,9 @@ class FuegoCeroImportTests(unittest.TestCase):
             write_xlsx(path, rows)
             parsed = fuego.parse_xlsx(path)
         self.assertEqual(parsed["summary"]["numbered_branches_observed"], 35)
-        self.assertEqual(parsed["summary"]["confirmed_branches"], 34)
+        self.assertEqual(parsed["summary"]["confirmed_branches"], 35)
+        self.assertEqual(parsed["summary"]["pending_branches"], 0)
+        self.assertEqual(parsed["summary"]["confirmed_equipment"], 415)
         self.assertEqual(parsed["summary"]["total_equipment"], 509)
         self.assertEqual(parsed["summary"]["unnumbered_equipment"], 94)
         self.assertEqual(parsed["summary"]["count_validation"], "ok")
@@ -57,11 +60,27 @@ class FuegoCeroImportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "encabezados"):
                 fuego.parse_xlsx(path)
 
-    def test_pending_147_excluded_manual_preserved_conflict_idempotence_and_rollback(self):
+    def test_business_confirmation_requires_exact_147_name_and_scope(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = Path(d); original = base / "matafuegos.json"; write_json(original, {"matafuegos": []})
+            missing_equipment = base / "missing.xlsx"
+            write_xlsx(missing_equipment, [source_row(147, counts=(4, 0, 0, 0, 0, 1), name="JUMBO PILAR"),
+                                           source_row(None, counts=(0, 0, 0, 0, 0, 0), name="DON TORCUATO"),
+                                           source_row(None, counts=(0, 0, 0, 0, 0, 0), name="GARIN")])
+            with self.assertRaisesRegex(ValueError, "alcance confirmado"):
+                fuego.make_plan(original, missing_equipment, sha(original))
+            wrong_name = base / "wrong-name.xlsx"
+            write_xlsx(wrong_name, [source_row(147, counts=(5, 0, 0, 0, 0, 1), name="OTRO LOCAL"),
+                                    source_row(None, counts=(0, 0, 0, 0, 0, 0), name="DON TORCUATO"),
+                                    source_row(None, counts=(0, 0, 0, 0, 0, 0), name="GARIN")])
+            with self.assertRaisesRegex(ValueError, "nombre confirmado"):
+                fuego.make_plan(original, wrong_name, sha(original))
+
+    def test_confirmed_147_local_hcfc_equivalence_conflicts_idempotence_and_rollback(self):
         with tempfile.TemporaryDirectory() as d:
             base = Path(d); xlsx = base / "fuego.xlsx"; original = base / "matafuegos.json"
             plan_path = base / "plan.json"; output = base / "out.json"; journal = base / "journal.json"; restored = base / "restored.json"
-            rows = [source_row(11, counts=(2, 0, 0, 0, 0, 0)), source_row(147, counts=(3, 0, 0, 0, 0, 0)),
+            rows = [source_row(11, counts=(2, 0, 0, 0, 0, 0)), source_row(147, counts=(5, 0, 0, 0, 0, 1), name="JUMBO PILAR"),
                     source_row(None, counts=(0, 0, 0, 1, 0, 0), name="DON TORCUATO"),
                     source_row(None, counts=(0, 0, 0, 0, 0, 1), name="GARIN")]
             write_xlsx(xlsx, rows)
@@ -72,14 +91,18 @@ class FuegoCeroImportTests(unittest.TestCase):
                  "fecha_vencimiento": "2025-01-01", "estado_manual": "rechazado"},
                 {"id": "third", "sucursal_num": "011", "sucursal": "Sucursal 011", "tipo": "ABC", "capacidad": "5 KG", "cantidad": 1,
                  "fecha_vencimiento": "2025-01-01", "historial": [{"x": 1}]},
-                {"id": "p147", "sucursal_num": "147", "sucursal": "Sucursal 147", "tipo": "ABC", "capacidad": "5 KG", "cantidad": 1},
+                *[{"id": f"abc-{n}", "sucursal_num": "147", "sucursal": "Sucursal 147", "tipo": "ABC", "capacidad": "5", "cantidad": 1} for n in range(7)],
+                {"id": "hcfc-147", "sucursal_num": "147", "sucursal": "Sucursal 147", "tipo": "HCFC-123", "capacidad": "5", "cantidad": 1},
             ]}
             write_json(original, before)
             plan = fuego.make_plan(original, xlsx, sha(original))
             write_json(plan_path, plan)
-            self.assertEqual(plan["pending"], {"147": "pendiente_confirmacion"})
-            self.assertFalse(any((op.get("before") or op.get("after") or {}).get("sucursal_num") == "147" for op in plan["operations"]))
-            self.assertEqual(plan["summary"]["conflicts"], 1)
+            self.assertEqual(plan["pending"], {})
+            self.assertEqual(plan["business_confirmations"]["147"]["source_scope"], {"ABC 5 KG": 5, "HCFC 5 KG": 1})
+            self.assertEqual(plan["safety"]["confirmed_147_mutations"], 6)
+            self.assertEqual(plan["summary"]["safe_deletes"], 0)
+            self.assertEqual(plan["summary"]["conflicts"], 3)
+            self.assertEqual({x["item_id"] for x in plan["conflicts"] if x["sucursal_num"] == "147"}, {"abc-5", "abc-6"})
             fuego.apply_plan(original, sha(original), plan_path, output, journal)
             after = json.loads(output.read_text())
             manual = next(x for x in after["matafuegos"] if x["id"] == "manual")
@@ -87,11 +110,29 @@ class FuegoCeroImportTests(unittest.TestCase):
             self.assertEqual(manual["fecha_vencimiento"], "2025-01-01")
             self.assertEqual(manual["fecha_vencimiento_proveedor"], "2027-03-01")
             self.assertEqual(manual["historial_mantenimientos"], [{"accion": "mantenimiento"}])
+            hcfc = next(x for x in after["matafuegos"] if x["id"] == "hcfc-147")
+            self.assertEqual(hcfc["tipo"], "HCFC-123")
+            self.assertEqual(hcfc["proveedor_nombre"], "Fuego Cero")
             repeated = fuego.make_plan(output, xlsx, sha(output))
             self.assertEqual(repeated["summary"]["operations"], 0)
-            self.assertEqual(repeated["summary"]["conflicts"], 1)
+            self.assertEqual(repeated["summary"]["conflicts"], 3)
             fuego.rollback(output, sha(output), journal, restored)
             self.assertEqual(json.loads(restored.read_text()), before)
+
+    def test_hcfc_123_equivalence_is_not_global(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = Path(d); xlsx = base / "fuego.xlsx"; original = base / "matafuegos.json"
+            write_xlsx(xlsx, [source_row(146, counts=(0, 0, 0, 0, 0, 1)),
+                              source_row(None, counts=(0, 0, 0, 0, 0, 0), name="DON TORCUATO"),
+                              source_row(None, counts=(0, 0, 0, 0, 0, 0), name="GARIN")])
+            write_json(original, {"matafuegos": [
+                {"id": "hcfc-146", "sucursal_num": "146", "sucursal": "Sucursal 146", "tipo": "HCFC-123", "capacidad": "5", "cantidad": 1},
+            ]})
+            with patch.object(fuego, "BUSINESS_CONFIRMATIONS", {}):
+                plan = fuego.make_plan(original, xlsx, sha(original))
+            self.assertEqual(plan["summary"]["adds"], 1)
+            self.assertEqual(plan["summary"]["conflicts"], 0)
+            self.assertFalse(any(op["item_id"] == "hcfc-146" for op in plan["operations"]))
 
     def test_sha_is_mandatory_in_place_is_refused_and_add_id_is_deterministic(self):
         with tempfile.TemporaryDirectory() as d:
@@ -101,8 +142,9 @@ class FuegoCeroImportTests(unittest.TestCase):
             write_json(original, {"matafuegos": []})
             with self.assertRaisesRegex(ValueError, "precondición SHA"):
                 fuego.make_plan(original, xlsx, "0" * 64)
-            first = fuego.make_plan(original, xlsx, sha(original))
-            second = fuego.make_plan(original, xlsx, sha(original))
+            with patch.object(fuego, "BUSINESS_CONFIRMATIONS", {}):
+                first = fuego.make_plan(original, xlsx, sha(original))
+                second = fuego.make_plan(original, xlsx, sha(original))
             self.assertEqual(first["summary"]["adds"], 1)
             self.assertEqual(first["operations"][0]["item_id"], second["operations"][0]["item_id"])
             plan_path = base / "plan.json"; journal = base / "journal.json"; write_json(plan_path, first)
@@ -119,7 +161,10 @@ class FuegoCeroImportTests(unittest.TestCase):
                 {"id": "a", "sucursal_num": "011", "sucursal": "Sucursal 011", "tipo": "ABC", "capacidad": "5 KG", "proveedor_nombre": "Fuego Cero", "proveedor_origen": "fuego_cero_xlsx"},
                 {"id": "b", "sucursal_num": "011", "sucursal": "Sucursal 011", "tipo": "ABC", "capacidad": "5 KG", "proveedor_nombre": "Fuego Cero", "proveedor_origen": "fuego_cero_xlsx"},
             ]}
-            write_json(original, before); plan = fuego.make_plan(original, xlsx, sha(original)); write_json(plan_path, plan)
+            write_json(original, before)
+            with patch.object(fuego, "BUSINESS_CONFIRMATIONS", {}):
+                plan = fuego.make_plan(original, xlsx, sha(original))
+            write_json(plan_path, plan)
             self.assertEqual(plan["summary"]["safe_deletes"], 1)
             fuego.apply_plan(original, sha(original), plan_path, output, journal)
             fuego.rollback(output, sha(output), journal, restored)

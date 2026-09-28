@@ -2317,12 +2317,12 @@ GENERADOR_IMPORT_HEADERS = (
 GRUPOS_ELECTROGENOS_INVENTARIO_2026_09 = (
     {"sucursal": "Sucursal 077", "marca": "Vanguard", "modelo": "35 HP", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 083", "ubicacion": "Fijo", "estado_equipo": "No funciona; debe cambiarse", "observaciones": "Se está cotizando la compra de un grupo nuevo."},
-    {"sucursal": "Sucursal 128", "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping", "observaciones": "Pertenece al shopping."},
-    {"sucursal": "Sucursal 166", "ubicacion": "Móvil"},
+    {"sucursal": "Sucursal 128", "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping", "observaciones": "No tiene grupo propio; pertenece al shopping."},
+    {"sucursal": "Sucursal 166", "marca": "ARVEK", "modelo": "16000NT", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 173", "marca": "Vanguard", "modelo": "56 HP", "ubicacion": "Móvil"},
-    {"sucursal": "Sucursal 176", "observaciones": "Tipo y modelo pendientes de confirmar."},
+    {"sucursal": "Sucursal 176", "modelo": "4105ZD", "ubicacion": "Móvil", "observaciones": ""},
     {"sucursal": "Sucursal 177", "marca": "Kipor", "modelo": "KDE30SS3", "ubicacion": "Fijo"},
-    {"sucursal": "Sucursal 186", "ubicacion": "Fijo"},
+    {"sucursal": "Sucursal 186", "marca": "termoelectra", "ubicacion": "Fijo", "proveedor": "Fenk"},
     {"sucursal": "Sucursal 193", "marca": "Briggs & Stratton", "modelo": "Vanguard 35 HP", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 195", "marca": "ATILA GENERACIÓN", "modelo": "ATG-77IWM", "numero_serie": "10231124", "ubicacion": "Fijo"},
     {"sucursal": "Sucursal 196", "marca": "Briggs & Stratton", "modelo": "Vanguard 35 HP", "ubicacion": "Móvil"},
@@ -2331,13 +2331,15 @@ GRUPOS_ELECTROGENOS_INVENTARIO_2026_09 = (
     {"sucursal": "Sucursal 214", "marca": "ARVEK", "modelo": "16000NT", "ubicacion": "Fijo"},
     {"sucursal": "Sucursal 217", "marca": "Briggs & Stratton", "modelo": "Vanguard 35 HP", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 222", "marca": "Cumbre", "ubicacion": "Fijo"},
-    {"sucursal": "Sucursal 224", "ubicacion": "Móvil"},
+    {"sucursal": "Sucursal 224", "marca": "Vanguard", "modelo": "35HP", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 237", "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping", "observaciones": "Corresponde al shopping."},
     {"sucursal": "Sucursal 239", "marca": "Vanguard", "modelo": "27 HP", "ubicacion": "Móvil"},
     {"sucursal": "Sucursal 240", "modelo": "404D-22", "numero_serie": "190363620", "ubicacion": "Fijo", "observaciones": "Número informado como serie de motor."},
     {"sucursal": "Sucursal 241", "ubicacion": "Móvil compartido", "estado_equipo": "Compartido con Sucursal 239", "observaciones": "No tiene grupo propio; comparte el equipo móvil con la Sucursal 239."},
 )
-GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE = "inventario_grupos_2026-09-23"
+GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE = "captura_inventario_grupos_2026-09-28"
+GRUPOS_ELECTROGENOS_INVENTARIO_REVISION = "2026-09-28"
+GRUPOS_ELECTROGENOS_INVENTARIO_SHA256 = "d11c399b7881eb551938523f673dfaf531842e9c1dcbacaa74fca1234d437753"
 GENERADOR_NOVEDAD_TIPOS = {
     "encendido_prueba": "Encendido / prueba",
     "mantenimiento_proveedor": "Mantenimiento del proveedor",
@@ -2498,39 +2500,61 @@ def _generador_from_values(values, actor, origen):
 
 
 def _ensure_grupos_electrogenos_inventario_2026_09():
-    """Importa una sola vez el inventario operativo informado por sucursal."""
+    """Concilia la revisión autoritativa sin reemplazar datos operativos."""
     data = load_grupos_electrogenos()
     items = data.setdefault("grupos_electrogenos", [])
     changed = 0
     for values in GRUPOS_ELECTROGENOS_INVENTARIO_2026_09:
         suc_num = _sucursal_num_from_value(values["sucursal"])
-        if any(
-            item.get("fuente_importacion") == GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE
-            and _sucursal_num_from_value(item.get("sucursal_num") or item.get("sucursal")) == suc_num
-            for item in items
-        ):
-            continue
         matches = [
             item for item in items
             if _sucursal_num_from_value(item.get("sucursal_num") or item.get("sucursal")) == suc_num
         ]
-        if len(matches) == 1:
-            item = matches[0]
-            for campo in GENERADOR_CAMPOS:
-                valor = str(values.get(campo, "") or "").strip()
-                if valor and not str(item.get(campo, "") or "").strip():
-                    item[campo] = valor
-            item["fuente_importacion"] = GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE
-            item["updated_at"] = datetime.datetime.now().isoformat()
-            item["notificacion_sucursal_pendiente"] = True
-            _generador_historial(item, "inventario_importado", "Inventario informado el 23/09/2026", actor="Sistema")
-        else:
-            item = _generador_from_values(values, "Sistema", "inventario informado el 23/09/2026")
-            item["id"] = f"ge-20260923-{suc_num}"
-            item["fuente_importacion"] = GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE
+        imported_matches = [
+            item for item in matches
+            if str(item.get("fuente_importacion", "")).startswith(("inventario_grupos_", "captura_inventario_grupos_"))
+            or item.get("id") in {f"ge-20260923-{suc_num}", f"ge-20260928-{suc_num}"}
+        ]
+        candidates = imported_matches or matches
+        item = sorted(candidates, key=lambda candidate: str(candidate.get("id", "")))[0] if candidates else None
+        created = item is None
+        if created:
+            item = _generador_from_values(values, "Sistema", "captura autoritativa del 28/09/2026")
+            item["id"] = f"ge-20260928-{suc_num}"
             item["notificacion_sucursal_pendiente"] = True
             items.append(item)
-        changed += 1
+
+        authoritative = {
+            campo: str(values.get(campo, "") or "").strip()
+            for campo in GENERADOR_CAMPOS
+            if campo in values
+        }
+        authoritative.update({
+            "fuente_importacion": GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE,
+            "fuente_revision": GRUPOS_ELECTROGENOS_INVENTARIO_REVISION,
+            "fuente_sha256": GRUPOS_ELECTROGENOS_INVENTARIO_SHA256,
+        })
+        before = {}
+        for campo, valor in authoritative.items():
+            if item.get(campo, "") != valor:
+                before[campo] = item.get(campo)
+                item[campo] = valor
+
+        if created or before:
+            item["updated_at"] = datetime.datetime.now().isoformat()
+            audit = {
+                "revision": GRUPOS_ELECTROGENOS_INVENTARIO_REVISION,
+                "sha256": GRUPOS_ELECTROGENOS_INVENTARIO_SHA256,
+                "before": {} if created else before,
+                "after": authoritative if created else {campo: item.get(campo) for campo in before},
+            }
+            _generador_historial(
+                item,
+                "inventario_autoritativo_importado" if created else "inventario_autoritativo_actualizado",
+                json.dumps(audit, ensure_ascii=False, sort_keys=True),
+                actor="Sistema",
+            )
+            changed += 1
     if changed:
         save_grupos_electrogenos(data)
     return changed
@@ -5140,9 +5164,6 @@ def _seed_data_dir():
             shutil.copy2(src, dest)
 
 _seed_data_dir()
-
-with app.app_context():
-    _ensure_grupos_electrogenos_inventario_2026_09()
 
 
 def _ticket_es_pedido_materiales(ticket):
