@@ -3802,6 +3802,46 @@ SUCS_SANJUAN = {"159","172"}
 _PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
 _MATAFUEGOS_DEMO_PWD = os.environ.get("MATAFUEGOS_DEMO_PASSWORD") or _PROVEEDOR_PWD
 
+# Carteras de matafuegos: los reportes versionados son la fuente autoritativa.
+# Además del campo y la cantidad, fijamos el hash y el conjunto exacto para que
+# una edición accidental falle al arrancar y en pruebas en vez de ampliar scope.
+_MATAFUEGOS_AUTHORITY = {
+    "Diprogom": {
+        "path": Path(__file__).parent / "reportes" / "diprogom_import_preview_2026-09-24.json",
+        "sha256": "dd3d6d71c5dfe7f91cf5da6eaeaaf34f0b51bc3a57466e0a7b98b52577b14a60",
+        "field": "active_branch_numbers",
+        "expected": ("036", "043", "053", "077", "171", "176", "177", "184", "185", "187", "188", "190", "194", "198", "200", "202", "204", "208", "209", "214", "216", "219", "221", "222", "232"),
+    },
+    "Fuego Cero": {
+        "path": Path(__file__).parent / "reportes" / "fuego_cero_import_preview_2026-09-28.json",
+        "sha256": "4daf596186b7e622aca6a86d6996a16ecaed027099d1b6a37707ed92ff47119a",
+        "field": "confirmed_branch_numbers",
+        "expected": ("011", "014", "020", "023", "035", "049", "051", "052", "054", "058", "065", "080", "082", "083", "102", "111", "121", "125", "141", "142", "147", "148", "156", "157", "165", "170", "186", "192", "195", "196", "211", "228", "234", "237", "238"),
+    },
+}
+
+
+def _load_matafuegos_provider_branches():
+    branches = {}
+    for provider, authority in _MATAFUEGOS_AUTHORITY.items():
+        raw = authority["path"].read_bytes()
+        if hashlib.sha256(raw).hexdigest() != authority["sha256"]:
+            raise RuntimeError(f"El reporte autoritativo de {provider} cambió")
+        payload = json.loads(raw)
+        values = tuple(str(value).zfill(3) for value in payload.get(authority["field"], []))
+        if values != authority["expected"]:
+            raise RuntimeError(f"La cartera autoritativa de {provider} cambió")
+        branches[provider] = values
+    if len(branches["Diprogom"]) != 25 or len(branches["Fuego Cero"]) != 35:
+        raise RuntimeError("Cantidad inválida en las carteras de matafuegos")
+    overlap = set(branches["Diprogom"]) & set(branches["Fuego Cero"])
+    if overlap:
+        raise RuntimeError(f"Las carteras de matafuegos se superponen: {sorted(overlap)}")
+    return branches
+
+
+MATAFUEGOS_PROVIDER_BRANCHES = _load_matafuegos_provider_branches()
+
 # Proveedor login
 DEFAULT_PROVEEDOR_USERS = {
     "matafuegos_demo": {"password": _MATAFUEGOS_DEMO_PWD, "nombre": "Demo Matafuegos", "tipo_cuenta": "matafuegos_demo", "proveedores": []},
@@ -3812,7 +3852,6 @@ DEFAULT_PROVEEDOR_USERS = {
     "frattini": {"password": _PROVEEDOR_PWD, "nombre": "Cesar Ricardo Fratini", "tipo_cuenta": "fumigacion", "proveedores": ["Cesar Ricardo Fratini"]},
     "geronimo": {"password": _PROVEEDOR_PWD, "nombre": "L&G (Geronimo)", "tipo_cuenta": "proveedor", "proveedores": ["L&G (Geronimo)"]},
     "microglobal": {"password": _PROVEEDOR_PWD, "nombre": "Martin Microglobal", "tipo_cuenta": "proveedor", "proveedores": ["Martin Microglobal"]},
-    "diprogom": {"password": _PROVEEDOR_PWD, "nombre": "Diprogom", "tipo_cuenta": "matafuegos", "proveedores": ["Diprogom"]},
     "gerardo_goog": {"password": _PROVEEDOR_PWD, "nombre": "Gerardo Goog", "tipo_cuenta": "fumigacion", "proveedores": ["Gerardo Goog"]},
     "david_medina": {"password": _PROVEEDOR_PWD, "nombre": "David Esteban Medina", "tipo_cuenta": "fumigacion", "proveedores": ["David Esteban Medina"]},
     "vasquez": {"password": _PROVEEDOR_PWD, "nombre": "Vasquez Marisel Vicenta", "tipo_cuenta": "fumigacion", "proveedores": ["Vasquez Marisel Vicenta"]},
@@ -3836,6 +3875,14 @@ DEFAULT_PROVEEDOR_USERS = {
     "ingam": {"password": _PROVEEDOR_PWD, "nombre": "INGAM Control de Plagas SRL", "tipo_cuenta": "fumigacion", "proveedores": ["INGAM Control de Plagas SRL"]},
 }
 
+# Cuentas previstas sin secreto ni contraseña compartida. Son locales, quedan
+# deshabilitadas y sólo se activan desde Administración después de generar una
+# contraseña temporal mediante el flujo central de reset.
+PLANNED_PROVEEDOR_USERS = {
+    "diprogom": {"nombre": "Diprogom", "tipo_cuenta": "matafuegos", "proveedores": ["Diprogom"]},
+    "fuego_cero": {"nombre": "Fuego Cero", "tipo_cuenta": "matafuegos", "proveedores": ["Fuego Cero"]},
+}
+
 
 def load_proveedor_users():
     users = copy.deepcopy(DEFAULT_PROVEEDOR_USERS)
@@ -3851,8 +3898,17 @@ def load_proveedor_users():
                     users[normalized] = account
         except Exception as exc:
             print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
-    # Las cuentas incluidas con la aplicación son fijas: el archivo operativo
-    # sólo puede agregar cuentas personalizadas, nunca sobrescribir defaults.
+    for username, info in PLANNED_PROVEEDOR_USERS.items():
+        users.setdefault(username, {
+            **copy.deepcopy(info),
+            "status": "disabled",
+            "session_version": 1,
+            "created_at": "",
+            "provisioning": "admin_reset_required",
+        })
+    # Las cuentas legacy incluidas con la aplicación son fijas: el archivo
+    # operativo sólo puede agregar cuentas personalizadas, nunca sobrescribirlas.
+    # Las previstas sí se persisten cuando Administración las activa o resetea.
     return users
 
 
@@ -3987,6 +4043,7 @@ def _proveedor_access_rows():
             "status": info.get("status", "active"),
             "created_at": info.get("created_at", ""),
             "is_default": username in DEFAULT_PROVEEDOR_USERS,
+            "needs_activation": not bool(info.get("password_hash")),
         })
     return sorted(rows, key=lambda row: (row["is_default"], row["proveedor"].casefold(), row["username"]))
 
@@ -4105,8 +4162,8 @@ PROVEEDORES = [
     {"nombre": "Cesar Ricardo Fratini", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["014","020","035","036","049","053","054","102","111","121","125","141","147","148","156","157","165","170","176","177","183","184","185","186","192","196","198","200","202","208","213","214","219","221","228","237","238"], "mostrar_sucursal": False},
     {"nombre": "INGAM Control de Plagas SRL", "zona": "Nacional", "tipo": "Fumigaciones", "tel": "-", "contacto": "Fernando", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["080","082","188","216","065","194","051","171","195","209","222","011","058","077","083","142","211","146","158"], "mostrar_sucursal": False},
     {"nombre": "David Esteban Medina", "zona": "Cordoba", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["076","078","123","124","203","233"], "mostrar_sucursal": False},
-    {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": ["036","043","053","077","171","176","177","184","185","187","188","190","194","198","200","202","204","208","209","214","216","219","221","222","232"], "sucursales_inactivas_verdes": {"167": 19, "183": 29, "213": 27}, "sucursales_conflicto": {"051": 13, "156": 23}, "sucursales_pendientes": {"MORZAT": 14}, "observacion": "Cartera Diprogom 2026-09-24: 25 sucursales y 358 equipos activos. Las sucursales 167, 183 y 213 (75 equipos) quedan sólo como históricas/inactivas por marcador verde del XLS y no se asignan a Diprogom. Sucursales 051 y 156 excluidas por conflicto de proveedor. Parque Industrial Morzat pendiente sin número; no inferir Garín. Conserva la cuenta existente y no activa credenciales nuevas."},
-    {"nombre": "Fuego Cero", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Cartera confirmada sin portal", "portal_futuro": True, "canal_comunicacion": "Pendiente", "workflow": "matafuegos_remito_vencimiento", "sucursales": ["011","014","020","023","035","049","051","052","054","058","065","080","082","083","102","111","121","125","141","142","148","156","157","165","170","186","192","195","196","211","228","234","237","238"], "sucursales_pendientes": {"147": "pendiente_confirmacion"}, "observacion": "Cartera derivada de Fuego Cero 2026-09-24: 34 sucursales numeradas confirmadas; 147 pendiente. Don Torcuato y Garín no se asignan porque la fuente no informa LOCAL. No habilita credenciales ni portal."},
+    {"nombre": "Diprogom", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": list(MATAFUEGOS_PROVIDER_BRANCHES["Diprogom"]), "sucursales_inactivas_verdes": {"167": 19, "183": 29, "213": 27}, "sucursales_conflicto": {"051": 13, "156": 23}, "sucursales_pendientes": {"MORZAT": 14}, "observacion": "Cartera autoritativa Diprogom 2026-09-24: 25 sucursales activas. Cuenta local prevista; Administración debe generar una temporal y habilitarla."},
+    {"nombre": "Fuego Cero", "zona": "AMBA", "tipo": "Matafuegos", "tel": "-", "fijo": False, "estado_operativo": "Matafuegos con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "matafuegos_remito_vencimiento", "sucursales": list(MATAFUEGOS_PROVIDER_BRANCHES["Fuego Cero"]), "observacion": "Cartera autoritativa Fuego Cero 2026-09-28: 35 sucursales confirmadas, incluida 147. Cuenta local prevista; Administración debe generar una temporal y habilitarla."},
     {"nombre": "Vasquez Marisel Vicenta", "zona": "NOA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["126","139","193"], "mostrar_sucursal": False},
     {"nombre": "Contreras Mauricio Sergio", "zona": "Cuyo", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["159","172"], "mostrar_sucursal": False},
     {"nombre": "Manggini Pablo y Ulises", "zona": "AMBA", "tipo": "Fumigaciones", "tel": "-", "fijo": False, "estado_operativo": "Fumigacion con portal", "requiere_portal": True, "canal_comunicacion": "Portal proveedores", "workflow": "fumigacion_remito", "sucursales": ["043","204"], "mostrar_sucursal": False},
@@ -7750,11 +7807,20 @@ def admin_usuarios_proveedor_accion(username):
         return redirect(url_for("admin_usuarios", _anchor="proveedores"))
 
     if action == "disable":
+        if account.get("status", "active") == "disabled":
+            flash("El acceso de proveedor ya estaba deshabilitado")
+            return redirect(url_for("admin_usuarios", _anchor="proveedores"))
         account["status"] = "disabled"
         account["session_version"] = int(account.get("session_version", 1)) + 1
         event_type = "provider_user_disabled"
         message = "Acceso de proveedor deshabilitado y sesiones revocadas"
     elif action == "enable":
+        if not account.get("password_hash"):
+            flash("Primero generá una contraseña temporal; luego habilitá el acceso")
+            return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+        if account.get("status") == "active":
+            flash("El acceso de proveedor ya estaba habilitado")
+            return redirect(url_for("admin_usuarios", _anchor="proveedores"))
         account["status"] = "active"
         account["session_version"] = int(account.get("session_version", 1)) + 1
         event_type = "provider_user_enabled"

@@ -37,6 +37,23 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({"marker": name, "formula": "=NO-TOCAR"}), encoding="utf-8")
         self.real_hashes = self._hashes(self.real_files.values())
+        self.original_paths = (
+            tecman.TICKETS_FILE,
+            tecman.MATAFUEGOS_FILE,
+            tecman.NOTIF_ADMIN_FILE,
+            tecman.PROVEEDOR_USERS_FILE,
+        )
+        self.provider_users_file = self.root / "data" / "proveedor_users.json"
+        self.provider_users_file.write_text(json.dumps({"users": {
+            "diprogom": {
+                "password_hash": tecman._hash_password("Diprogom-Test-2026"),
+                "nombre": "Diprogom",
+                "tipo_cuenta": "matafuegos",
+                "proveedores": ["Diprogom"],
+                "status": "active",
+                "session_version": 1,
+            }
+        }}), encoding="utf-8")
 
         tecman.app.config.update(
             TESTING=True,
@@ -48,9 +65,16 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         tecman.TICKETS_FILE = self.real_files["tickets"]
         tecman.MATAFUEGOS_FILE = self.real_files["matafuegos"]
         tecman.NOTIF_ADMIN_FILE = self.real_files["notificaciones"]
+        tecman.PROVEEDOR_USERS_FILE = self.provider_users_file
         self.client = tecman.app.test_client()
 
     def tearDown(self):
+        (
+            tecman.TICKETS_FILE,
+            tecman.MATAFUEGOS_FILE,
+            tecman.NOTIF_ADMIN_FILE,
+            tecman.PROVEEDOR_USERS_FILE,
+        ) = self.original_paths
         self.temp.cleanup()
 
     @staticmethod
@@ -87,6 +111,7 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
             sess["prov_user"] = "diprogom"
             sess["prov_nombre"] = "Diprogom"
             sess["prov_tipo_cuenta"] = "matafuegos"
+            sess["prov_session_version"] = 1
             sess["_csrf_token"] = "csrf-test"
 
     @staticmethod
@@ -117,8 +142,10 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         self.assertEqual(account["tipo_cuenta"], "matafuegos_demo")
         self.assertEqual(account["proveedores"], [])
         self.assertEqual(account["password"], os.environ.get("MATAFUEGOS_DEMO_PASSWORD") or tecman._PROVEEDOR_PWD)
-        self.assertEqual(tecman.DEFAULT_PROVEEDOR_USERS["diprogom"]["nombre"], "Diprogom")
-        self.assertEqual(tecman.DEFAULT_PROVEEDOR_USERS["diprogom"]["tipo_cuenta"], "matafuegos")
+        planned = tecman.PLANNED_PROVEEDOR_USERS["diprogom"]
+        self.assertEqual(planned["nombre"], "Diprogom")
+        self.assertEqual(planned["tipo_cuenta"], "matafuegos")
+        self.assertNotIn("password", planned)
 
         custom_users = self.root / "data" / "proveedor_users.json"
         custom_users.write_text(json.dumps({"users": {"matafuegos_demo": {"password": account["password"], "nombre": "Real", "tipo_cuenta": "proveedor", "proveedores": ["Diprogom"]}}}), encoding="utf-8")

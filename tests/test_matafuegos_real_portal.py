@@ -101,6 +101,27 @@ class MatafuegosRealPorSucursalesTest(unittest.TestCase):
     def schedule(self, branch="101"):
         return self.client.post(f"/proveedor/matafuegos/sucursal/{branch}/programar", data={"_csrf_token": "csrf", "fecha_programada": self.tomorrow})
 
+    def test_reportes_definen_dos_carteras_canonicas_exactas_y_disjuntas(self):
+        reports = {
+            "Diprogom": ("diprogom_import_preview_2026-09-24.json", "active_branch_numbers", 25),
+            "Fuego Cero": ("fuego_cero_import_preview_2026-09-28.json", "confirmed_branch_numbers", 35),
+        }
+        loaded = {}
+        for provider, (filename, field, count) in reports.items():
+            payload = json.loads((Path(tecman.__file__).parent / "reportes" / filename).read_text(encoding="utf-8"))
+            loaded[provider] = tuple(payload[field])
+            self.assertEqual(loaded[provider], tecman.MATAFUEGOS_PROVIDER_BRANCHES[provider])
+            self.assertEqual(len(loaded[provider]), count)
+        self.assertIn("147", loaded["Fuego Cero"])
+        self.assertFalse(set(loaded["Diprogom"]) & set(loaded["Fuego Cero"]))
+        catalog = {
+            provider["nombre"]: tuple(provider["sucursales"])
+            for provider in self.original["PROVEEDORES"]
+            if tecman._proveedor_tipo_cuenta(provider) == "matafuegos"
+        }
+        self.assertEqual(set(catalog), {"Diprogom", "Fuego Cero"})
+        self.assertEqual(catalog, loaded)
+
     def test_cartera_lista_sucursales_inventario_y_rechaza_acceso_cruzado(self):
         tickets_before = tecman.TICKETS_FILE.read_bytes()
         self.provider()
@@ -114,6 +135,13 @@ class MatafuegosRealPorSucursalesTest(unittest.TestCase):
         self.assertIn("SER-101-A", detail.get_data(as_text=True)); self.assertNotIn("SER-202", detail.get_data(as_text=True))
         self.assertEqual(self.client.get("/proveedor/matafuegos/sucursal/202").status_code, 403)
         self.assertEqual(self.client.post("/proveedor/matafuegos/sucursal/202/programar", data={"_csrf_token": "csrf", "fecha_programada": self.tomorrow}).status_code, 403)
+        self.schedule("101")
+        manipulated_item = self.client.post(
+            "/proveedor/matafuegos/sucursal/101/equipo/eq-202",
+            data=self.result("SER-MANIPULADA"),
+        )
+        self.assertEqual(manipulated_item.status_code, 404)
+        self.assertNotIn("eq-202", self.visits()[0].get("resultados", {}))
         self.assertEqual(tickets_before, tecman.TICKETS_FILE.read_bytes())
 
     def test_rutas_sin_sesion_y_csrf_no_mutan(self):

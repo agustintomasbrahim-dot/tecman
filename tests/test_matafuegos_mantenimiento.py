@@ -100,12 +100,13 @@ class MatafuegosMantenimientoTest(unittest.TestCase):
         self.assertEqual(enriched["fecha_control_calc"], "2028-04-01")
         self.assertEqual(enriched["fuente_control"], "fecha_vencimiento_manual")
 
-    def test_catalogo_fuego_cero_no_activa_portal_y_separa_147(self):
+    def test_catalogo_fuego_cero_activa_portal_con_147_confirmada(self):
         proveedor = next(p for p in tecman.PROVEEDORES if p.get("nombre") == "Fuego Cero")
-        self.assertEqual(len(proveedor["sucursales"]), 34)
-        self.assertNotIn("147", proveedor["sucursales"])
-        self.assertEqual(proveedor["sucursales_pendientes"], {"147": "pendiente_confirmacion"})
-        self.assertNotIn("requiere_portal", proveedor)
+        self.assertEqual(tuple(proveedor["sucursales"]), tecman.MATAFUEGOS_PROVIDER_BRANCHES["Fuego Cero"])
+        self.assertEqual(len(proveedor["sucursales"]), 35)
+        self.assertIn("147", proveedor["sucursales"])
+        self.assertTrue(proveedor["requiere_portal"])
+        self.assertEqual(proveedor["canal_comunicacion"], "Portal proveedores")
         self.assertNotIn("036", proveedor["sucursales"])
 
     def test_fecha_historica_puede_corregirse_y_conserva_auditoria(self):

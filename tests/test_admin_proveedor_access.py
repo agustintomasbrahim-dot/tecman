@@ -226,9 +226,12 @@ class AdminProveedorAccessTest(unittest.TestCase):
         )
         self.assertIn("sólo lectura", protected.get_data(as_text=True))
         self.assertNotIn("matafuegos_demo", self._custom_users())
-        self.assertEqual(tecman.load_proveedor_users()["diprogom"], tecman.DEFAULT_PROVEEDOR_USERS["diprogom"])
+        diprogom = tecman.load_proveedor_users()["diprogom"]
+        self.assertEqual(diprogom["status"], "disabled")
+        self.assertNotIn("password", diprogom)
+        self.assertNotIn("password_hash", diprogom)
 
-    def test_archivo_operativo_no_puede_sobrescribir_cuentas_default(self):
+    def test_archivo_operativo_preserva_cuentas_previstas_y_no_sobrescribe_defaults(self):
         tecman.PROVEEDOR_USERS_FILE.write_text(
             json.dumps({
                 "users": {
@@ -249,13 +252,104 @@ class AdminProveedorAccessTest(unittest.TestCase):
             encoding="utf-8",
         )
         users = tecman.load_proveedor_users()
-        self.assertEqual(users["diprogom"], tecman.DEFAULT_PROVEEDOR_USERS["diprogom"])
+        self.assertEqual(users["diprogom"]["nombre"], "Proveedor ajeno")
+        self.assertEqual(users["diprogom"]["tipo_cuenta"], "proveedor")
         self.assertEqual(users["legacy_custom"]["status"], "active")
         self.assertEqual(users["legacy_custom"]["session_version"], 1)
         tecman.save_proveedor_users(users)
         stored = self._custom_users()
-        self.assertNotIn("diprogom", stored)
+        self.assertIn("diprogom", stored)
         self.assertIn("legacy_custom", stored)
+
+    def test_cuentas_matafuegos_previstas_requieren_reset_y_habilitacion_local(self):
+        users = tecman.load_proveedor_users()
+        for username, provider in (("diprogom", "Diprogom"), ("fuego_cero", "Fuego Cero")):
+            account = users[username]
+            self.assertEqual(account["nombre"], provider)
+            self.assertEqual(account["tipo_cuenta"], "matafuegos")
+            self.assertEqual(account["status"], "disabled")
+            self.assertNotIn("password", account)
+            self.assertNotIn("password_hash", account)
+            self.assertEqual(self._provider_login(username, "prov2026").status_code, 200)
+
+        self._admin_session()
+        blocked_enable = self.client.post(
+            "/admin/usuarios/proveedores/fuego_cero/accion",
+            data={"_csrf_token": "csrf-test", "action": "enable"},
+            follow_redirects=True,
+        )
+        self.assertIn("Primero generá una contraseña temporal", blocked_enable.get_data(as_text=True))
+        self.assertEqual(tecman.load_proveedor_users()["fuego_cero"]["status"], "disabled")
+
+        reset = self.client.post(
+            "/admin/usuarios/proveedores/fuego_cero/accion",
+            data={"_csrf_token": "csrf-test", "action": "reset_password"},
+            follow_redirects=True,
+        )
+        match = re.search(r"Contraseña temporal para fuego_cero \(mostrar una sola vez\): ([^.<]+)", reset.get_data(as_text=True))
+        self.assertIsNotNone(match)
+        temporary = match.group(1).strip()
+        stored = self._custom_users()["fuego_cero"]
+        self.assertEqual(stored["status"], "disabled")
+        self.assertNotIn("password", stored)
+        self.assertTrue(tecman._verify_password(temporary, stored["password_hash"]))
+        self.assertNotIn(temporary, tecman.PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
+
+        self._admin_session()
+        self.client.post(
+            "/admin/usuarios/proveedores/fuego_cero/accion",
+            data={"_csrf_token": "csrf-test", "action": "enable"},
+        )
+        login = self._provider_login("fuego_cero", temporary)
+        self.assertEqual(login.status_code, 302)
+        self.assertTrue(login.headers["Location"].endswith("/proveedor/matafuegos"))
+        with self.client.session_transaction() as sess:
+            self.assertNotEqual(sess.get("auth_provider"), "entra")
+            self.assertNotIn("user", sess)
+
+    def test_accesos_reales_no_cruzan_cartera_inventario_ruta_generica_ni_ids(self):
+        old_inventory = tecman.MATAFUEGOS_FILE
+        old_visits = tecman.MATAFUEGOS_VISITAS_FILE
+        try:
+            tecman.MATAFUEGOS_FILE = self.data / "matafuegos.json"
+            tecman.MATAFUEGOS_VISITAS_FILE = self.data / "matafuegos_visitas.json"
+            tecman.save_matafuegos({"matafuegos": [
+                {"id": "dip-036", "sucursal_num": "036", "sucursal": "Sucursal 036", "nro_extintor": "DIP-036", "cantidad": 1},
+                {"id": "fue-011", "sucursal_num": "011", "sucursal": "Sucursal 011", "nro_extintor": "FUE-011", "cantidad": 1},
+                {"id": "fue-147", "sucursal_num": "147", "sucursal": "Sucursal 147", "nro_extintor": "FUE-147", "cantidad": 1},
+            ]})
+            tecman.save_matafuegos_visitas({"visitas": []})
+            passwords = {"diprogom": "Diprogom-Segura-2026", "fuego_cero": "Fuego-Cero-Segura-2026"}
+            users = {}
+            for username, provider in (("diprogom", "Diprogom"), ("fuego_cero", "Fuego Cero")):
+                users[username] = {
+                    "password_hash": tecman._hash_password(passwords[username]),
+                    "nombre": provider,
+                    "tipo_cuenta": "matafuegos",
+                    "proveedores": [provider],
+                    "status": "active",
+                    "session_version": 3,
+                }
+            tecman.PROVEEDOR_USERS_FILE.write_text(json.dumps({"users": users}), encoding="utf-8")
+
+            self.assertEqual(self._provider_login("diprogom", passwords["diprogom"]).status_code, 302)
+            dip_panel = self.client.get("/proveedor/matafuegos").get_data(as_text=True)
+            self.assertIn("SUCURSAL 036", dip_panel)
+            self.assertNotIn("SUCURSAL 011", dip_panel)
+            self.assertNotIn("SUCURSAL 147", dip_panel)
+            self.assertEqual(self.client.get("/proveedor/matafuegos/sucursal/011").status_code, 403)
+            self.assertEqual(self.client.post("/proveedor/matafuegos/sucursal/036/equipo/fue-011").status_code, 400)
+            self.assertTrue(self.client.get("/proveedor/ticket/999999").headers["Location"].endswith("/proveedor/matafuegos"))
+
+            self.assertEqual(self._provider_login("fuego_cero", passwords["fuego_cero"]).status_code, 302)
+            fuego_panel = self.client.get("/proveedor/matafuegos").get_data(as_text=True)
+            self.assertIn("SUCURSAL 011", fuego_panel)
+            self.assertIn("SUCURSAL 147", fuego_panel)
+            self.assertNotIn("SUCURSAL 036", fuego_panel)
+            self.assertEqual(self.client.get("/proveedor/matafuegos/sucursal/036").status_code, 403)
+        finally:
+            tecman.MATAFUEGOS_FILE = old_inventory
+            tecman.MATAFUEGOS_VISITAS_FILE = old_visits
 
     def test_endpoint_anterior_usa_helper_y_exige_csrf(self):
         self._admin_session()

@@ -81,7 +81,8 @@
 <section id="proveedores" class="card" style="scroll-margin-top:16px;border-top:4px solid #7c3aed;">
     <div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#7c3aed;">PORTAL DE PROVEEDORES</div>
     <h2 style="margin:4px 0;">Proveedores externos (usuario y contraseña)</h2>
-    <p style="color:#6b7280;font-size:13px;">Estos accesos ingresan únicamente por <b>/proveedor/login</b> y quedan limitados al proveedor elegido. La contraseña actual nunca puede consultarse.</p>
+    <p style="color:#6b7280;font-size:13px;">Estos accesos ingresan únicamente por <b>/proveedor/login</b>, nunca por Microsoft ni con credenciales internas, y quedan limitados al proveedor elegido. La contraseña actual nunca puede consultarse.</p>
+    <p style="color:#6b7280;font-size:12px;">Para una cuenta prevista sin clave: primero usá <b>Restablecer temporal</b>, copiá la contraseña mostrada una sola vez y después elegí <b>Habilitar</b>.</p>
 
     <form method="POST" action="{{ url_for('admin_usuarios_proveedor_crear') }}" style="margin-top:16px;padding:16px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -101,8 +102,8 @@
                 {% for acceso in proveedor_accesos %}
                 <tr>
                     <td>{{ acceso.proveedor }}</td><td><code>{{ acceso.username }}</code></td><td>{{ acceso.tipo_cuenta }}</td>
-                    <td><span class="badge" style="background:{% if acceso.status == 'active' %}#d1fae5{% else %}#fee2e2{% endif %};color:{% if acceso.status == 'active' %}#065f46{% else %}#991b1b{% endif %};">{{ acceso.status }}</span></td>
-                    <td>{{ acceso.created_at or 'Cuenta predeterminada' }}</td>
+                    <td><span class="badge" style="background:{% if acceso.status == 'active' %}#d1fae5{% else %}#fee2e2{% endif %};color:{% if acceso.status == 'active' %}#065f46{% else %}#991b1b{% endif %};">{{ acceso.status }}</span>{% if acceso.needs_activation %}<div style="font-size:11px;color:#92400e;margin-top:4px;">Sin contraseña · requiere reset</div>{% endif %}</td>
+                    <td>{{ acceso.created_at or ('Cuenta prevista' if acceso.needs_activation else 'Cuenta predeterminada') }}</td>
                     <td>
                         {% if acceso.tipo_cuenta == 'matafuegos' %}<a class="btn btn-sm" href="{{ url_for('matafuegos_real.admin_panel') }}" style="background:#6d28d9;color:white;margin-bottom:5px;">Ver trabajos</a>{% endif %}
                         {% if acceso.is_default %}<span style="font-size:12px;color:#6b7280;">Sólo lectura</span>

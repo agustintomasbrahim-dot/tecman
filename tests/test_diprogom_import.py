@@ -262,13 +262,16 @@ class DiprogomImportTests(unittest.TestCase):
             dip.parse_xls(Path("source.xls"))
         opened.assert_called_once_with("source.xls", on_demand=True, formatting_info=True)
 
-    def test_catalog_has_active_inactive_conflicts_and_pending_without_new_credentials(self):
+    def test_catalog_has_authoritative_scope_and_safe_planned_credentials(self):
         app = (ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn('"diprogom": {"password": _PROVEEDOR_PWD, "nombre": "Diprogom", "tipo_cuenta": "matafuegos", "proveedores": ["Diprogom"]}', app)
-        marker = next(line for line in app.splitlines() if '{"nombre": "Diprogom"' in line)
+        report = json.loads((ROOT / "reportes" / "diprogom_import_preview_2026-09-24.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(report["active_branch_numbers"]), 25)
+        self.assertIn('"diprogom": {"nombre": "Diprogom", "tipo_cuenta": "matafuegos", "proveedores": ["Diprogom"]}', app)
+        self.assertNotIn('"diprogom": {"password": _PROVEEDOR_PWD', app)
+        marker = next(line for line in app.splitlines() if '{"nombre": "Diprogom"' in line and '"sucursales":' in line)
+        self.assertIn('list(MATAFUEGOS_PROVIDER_BRANCHES["Diprogom"])', marker)
         self.assertIn('"sucursales_conflicto": {"051": 13, "156": 23}', marker)
         self.assertIn('"sucursales_pendientes": {"MORZAT": 14}', marker)
-        self.assertEqual(marker.split('"sucursales": [', 1)[1].split(']', 1)[0].count('"') // 2, 25)
         self.assertIn('"sucursales_inactivas_verdes": {"167": 19, "183": 29, "213": 27}', marker)
 
 
