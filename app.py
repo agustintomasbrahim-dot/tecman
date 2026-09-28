@@ -2198,6 +2198,28 @@ def save_matafuegos(data):
     _atomic_write(MATAFUEGOS_FILE, data)
 
 
+def _canonical_json_sha256(value):
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _load_matafuegos_admin_import_payload():
+    if request.is_json:
+        body = request.get_json(silent=True) or {}
+        payload = body.get("data", body)
+        expected_current_sha = body.get("expected_current_sha256", "")
+        expected_new_sha = body.get("expected_new_sha256", "")
+    else:
+        payload_text = request.form.get("data", "")
+        uploaded = request.files.get("data_file")
+        if uploaded and uploaded.filename:
+            payload_text = uploaded.read().decode("utf-8")
+        payload = json.loads(payload_text) if payload_text else None
+        expected_current_sha = request.form.get("expected_current_sha256", "")
+        expected_new_sha = request.form.get("expected_new_sha256", "")
+    return payload, expected_current_sha, expected_new_sha
+
+
 def load_matafuegos_visitas():
     if USE_DB:
         return {"visitas": _db_list(MatafuegoVisitaDB)}
@@ -11198,6 +11220,60 @@ def admin_syh_matafuegos():
         filtro_sucursal_num=filtro_sucursal_num,
         resumen_sucursal=_resumen_matafuegos_sucursal(items) if filtro_sucursal else None,
     )
+
+
+@app.route("/admin/syh/matafuegos/export.json")
+@admin_required
+def admin_syh_matafuegos_export_json():
+    data = load_matafuegos()
+    return jsonify({
+        "schema": "tecman.matafuegos-export/v1",
+        "sha256": _canonical_json_sha256(data),
+        "count": len(data.get("matafuegos", [])),
+        "data": data,
+    })
+
+
+@app.route("/admin/syh/matafuegos/import.json", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_import_json():
+    if not _validate_csrf():
+        return jsonify({"error": "CSRF inválido"}), 400
+    try:
+        incoming, expected_current_sha, expected_new_sha = _load_matafuegos_admin_import_payload()
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return jsonify({"error": "JSON inválido"}), 400
+    if not isinstance(incoming, dict) or not isinstance(incoming.get("matafuegos"), list):
+        return jsonify({"error": "El payload debe ser un objeto con array matafuegos"}), 400
+    if not all(isinstance(item, dict) for item in incoming["matafuegos"]):
+        return jsonify({"error": "Todos los matafuegos deben ser objetos"}), 400
+    ids = [str(item.get("id", "")) for item in incoming["matafuegos"]]
+    if not all(ids) or len(ids) != len(set(ids)):
+        return jsonify({"error": "IDs de matafuegos vacíos o duplicados"}), 400
+
+    current = load_matafuegos()
+    current_sha = _canonical_json_sha256(current)
+    if not expected_current_sha or not secrets.compare_digest(expected_current_sha, current_sha):
+        return jsonify({"error": "Inventario actual divergente", "current_sha256": current_sha}), 409
+    incoming_sha = _canonical_json_sha256(incoming)
+    if expected_new_sha and not secrets.compare_digest(expected_new_sha, incoming_sha):
+        return jsonify({"error": "Hash de payload no coincide", "payload_sha256": incoming_sha}), 400
+
+    backups_dir = DATA_DIR / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backups_dir / f"matafuegos_backup_pre_admin_import_{ts}.json"
+    _atomic_write(backup_path, current)
+    save_matafuegos(incoming)
+    sync_alertas_syh()
+    return jsonify({
+        "ok": True,
+        "backup": str(backup_path),
+        "before_sha256": current_sha,
+        "after_sha256": incoming_sha,
+        "before_count": len(current.get("matafuegos", [])),
+        "after_count": len(incoming.get("matafuegos", [])),
+    })
 
 
 @app.route("/admin/syh/matafuegos/<mid>/eliminar", methods=["POST"])
