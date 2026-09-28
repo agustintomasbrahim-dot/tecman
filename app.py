@@ -15,6 +15,9 @@ import copy
 import time
 import secrets
 import hashlib
+import importlib
+import re
+import tempfile
 import unicodedata
 import requests
 import bcrypt
@@ -2218,6 +2221,68 @@ def _load_matafuegos_admin_import_payload():
         expected_current_sha = request.form.get("expected_current_sha256", "")
         expected_new_sha = request.form.get("expected_new_sha256", "")
     return payload, expected_current_sha, expected_new_sha
+
+
+DIPROGOM_XLS_MAX_BYTES = 2 * 1024 * 1024
+DIPROGOM_XLS_NAME_RE = re.compile(r"^(?:input-)?Planilla_Diprogom(?:---[A-Za-z0-9-]+)?\.xls$", re.IGNORECASE)
+DIPROGOM_ARTIFACT_RE = re.compile(r"^diprogom_(backup|journal)_[0-9]{8}T[0-9]{12}Z_[a-f0-9]{8}\.json$")
+
+
+def _diprogom_reconciler():
+    return importlib.import_module("scripts.import_diprogom")
+
+
+def _diprogom_upload_to(upload, destination):
+    filename = Path(str(upload.filename or "")).name
+    if not DIPROGOM_XLS_NAME_RE.fullmatch(filename):
+        raise ValueError("invalid_filename")
+    payload = upload.stream.read(DIPROGOM_XLS_MAX_BYTES + 1)
+    if not payload or len(payload) > DIPROGOM_XLS_MAX_BYTES:
+        raise ValueError("invalid_size")
+    diprogom = _diprogom_reconciler()
+    if hashlib.sha256(payload).hexdigest() != diprogom.EXPECTED_XLS_SHA256:
+        raise ValueError("invalid_xls_sha256")
+    diprogom.atomic_bytes(destination, payload)
+
+
+def _diprogom_plan_from_upload(upload, work_dir, expected_inventory_sha):
+    diprogom = _diprogom_reconciler()
+    xls_path = work_dir / "Planilla_Diprogom.xls"
+    _diprogom_upload_to(upload, xls_path)
+    plan = diprogom.make_plan(MATAFUEGOS_FILE, xls_path, expected_inventory_sha)
+    summary = plan.get("summary", {})
+    if (
+        plan.get("version") != diprogom.VERSION
+        or plan.get("schema") != "tecman.diprogom-plan/v1"
+        or summary.get("safe_deletes") != 0
+        or summary.get("conflicts") != 0
+        or any(row.get("kind") not in ("add", "update") for row in plan.get("operations", []))
+    ):
+        raise ValueError("unsafe_plan")
+    return diprogom, plan
+
+
+def _diprogom_plan_hash(diprogom, plan):
+    confirmed = copy.deepcopy(plan)
+    confirmed["input"] = "MATAFUEGOS_FILE"
+    confirmed["xls"] = "Planilla_Diprogom.xls"
+    return diprogom.object_hash(confirmed)
+
+
+def _diprogom_safe_hash(value):
+    text = str(value or "").lower()
+    return text if re.fullmatch(r"[a-f0-9]{64}", text) else ""
+
+
+def _diprogom_error(code, status=400):
+    return jsonify({"ok": False, "error": code}), status
+
+
+def _diprogom_public_error(exc):
+    code = str(exc)
+    if code in {"invalid_filename", "invalid_size", "invalid_xls_sha256", "unsafe_plan"}:
+        return code
+    return "invalid_diprogom_input"
 
 
 def load_matafuegos_visitas():
@@ -11274,6 +11339,104 @@ def admin_syh_matafuegos_import_json():
         "before_count": len(current.get("matafuegos", [])),
         "after_count": len(incoming.get("matafuegos", [])),
     })
+
+
+@app.route("/admin/syh/matafuegos/diprogom/preview", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_diprogom_preview():
+    if not _validate_csrf():
+        return _diprogom_error("invalid_csrf")
+    if USE_DB:
+        return _diprogom_error("unsupported_inventory_backend", 409)
+    upload = request.files.get("xls")
+    if not upload:
+        return _diprogom_error("missing_xls")
+    if not MATAFUEGOS_FILE.is_file():
+        return _diprogom_error("inventory_unavailable", 409)
+    inventory_sha = hashlib.sha256(MATAFUEGOS_FILE.read_bytes()).hexdigest()
+    try:
+        with tempfile.TemporaryDirectory(prefix="tecman-diprogom-preview-") as directory:
+            diprogom, plan = _diprogom_plan_from_upload(upload, Path(directory), inventory_sha)
+    except ValueError as exc:
+        return _diprogom_error(_diprogom_public_error(exc))
+    return jsonify({
+        "ok": True,
+        "schema": "tecman.diprogom-admin-preview/v1",
+        "inventory_sha256": inventory_sha,
+        "plan_sha256": _diprogom_plan_hash(diprogom, plan),
+        "report": diprogom.sanitized_report(plan),
+    })
+
+
+@app.route("/admin/syh/matafuegos/diprogom/apply", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_diprogom_apply():
+    if not _validate_csrf():
+        return _diprogom_error("invalid_csrf")
+    if USE_DB:
+        return _diprogom_error("unsupported_inventory_backend", 409)
+    upload = request.files.get("xls")
+    expected_inventory_sha = _diprogom_safe_hash(request.form.get("inventory_sha256"))
+    expected_plan_sha = _diprogom_safe_hash(request.form.get("plan_sha256"))
+    if not upload or not expected_inventory_sha or not expected_plan_sha:
+        return _diprogom_error("missing_confirmation")
+    if not MATAFUEGOS_FILE.is_file():
+        return _diprogom_error("inventory_unavailable", 409)
+    current_sha = hashlib.sha256(MATAFUEGOS_FILE.read_bytes()).hexdigest()
+    if not secrets.compare_digest(current_sha, expected_inventory_sha):
+        return _diprogom_error("inventory_changed", 409)
+
+    backups_dir = DATA_DIR / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    artifact_suffix = f"{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}_{secrets.token_hex(4)}"
+    backup_id = f"diprogom_backup_{artifact_suffix}.json"
+    journal_id = f"diprogom_journal_{artifact_suffix}.json"
+    backup_path = backups_dir / backup_id
+    journal_path = backups_dir / journal_id
+    try:
+        with tempfile.TemporaryDirectory(prefix="tecman-diprogom-apply-") as directory:
+            work_dir = Path(directory)
+            diprogom, plan = _diprogom_plan_from_upload(upload, work_dir, current_sha)
+            actual_plan_sha = _diprogom_plan_hash(diprogom, plan)
+            if not secrets.compare_digest(actual_plan_sha, expected_plan_sha):
+                return _diprogom_error("plan_changed", 409)
+            plan_path = work_dir / "plan.json"
+            output_path = work_dir / "matafuegos.applied.json"
+            diprogom.atomic_json(plan_path, plan)
+            diprogom.atomic_bytes(backup_path, MATAFUEGOS_FILE.read_bytes())
+            result = diprogom.apply_plan(
+                MATAFUEGOS_FILE, current_sha, plan_path, output_path, journal_path
+            )
+            diprogom.atomic_bytes(MATAFUEGOS_FILE, output_path.read_bytes())
+    except ValueError as exc:
+        return _diprogom_error(_diprogom_public_error(exc), 409)
+    sync_alertas_syh()
+    return jsonify({
+        "ok": True,
+        "schema": "tecman.diprogom-admin-apply/v1",
+        "applied": result["applied"],
+        "before_sha256": current_sha,
+        "after_sha256": result["output_sha256"],
+        "plan_sha256": actual_plan_sha,
+        "backup_id": backup_id,
+        "journal_id": journal_id,
+        "rollback": {"backup_id": backup_id, "journal_id": journal_id},
+    })
+
+
+@app.route("/admin/syh/matafuegos/diprogom/artifact", methods=["POST"])
+@admin_required
+def admin_syh_matafuegos_diprogom_artifact():
+    if not _validate_csrf():
+        return _diprogom_error("invalid_csrf")
+    artifact_id = Path(request.form.get("artifact_id", "")).name
+    if not DIPROGOM_ARTIFACT_RE.fullmatch(artifact_id):
+        return _diprogom_error("invalid_artifact")
+    backups_dir = (DATA_DIR / "backups").resolve()
+    artifact_path = (backups_dir / artifact_id).resolve()
+    if artifact_path.parent != backups_dir or not artifact_path.is_file():
+        return _diprogom_error("artifact_not_found", 404)
+    return send_file(artifact_path, as_attachment=True, download_name=artifact_id, mimetype="application/json")
 
 
 @app.route("/admin/syh/matafuegos/<mid>/eliminar", methods=["POST"])
