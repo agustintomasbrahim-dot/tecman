@@ -1,35 +1,4 @@
 {% extends "base.html" %}
-{% block title %}Tickets de compras no productivas{% endblock %}
-{% block nav %}
-<div class="nav">
-  <a href="{{ url_for('logistica_panel') }}">Portal Logística</a>
-  <a href="{{ url_for('logistica_tickets') }}">Tickets de sucursales</a>
-  <form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto">
-    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-sm btn-outline" style="margin:5px">Salir</button>
-  </form>
-</div>
-{% endblock %}
-{% block content %}
-<h2>Tickets de compras no productivas</h2>
-<p style="color:#64748b;">Solicitudes reales creadas desde el portal de Sucursal.</p>
-<div class="card" style="overflow-x:auto;">
-  <table>
-    <thead><tr><th>Ticket</th><th>Sucursal</th><th>Rubro</th><th>Detalle</th><th>Estado</th><th>Creado</th></tr></thead>
-    <tbody>
-    {% for ticket in tickets %}
-      <tr>
-        <td><a href="{{ url_for('logistica_ticket', ticket_id=ticket.id) }}"><strong>#{{ ticket.id }}</strong></a></td>
-        <td>{{ ticket.sucursal }}</td>
-        <td>{{ ticket.subcategoria }}</td>
-        <td>{{ ticket.descripcion|truncate(90) }}</td>
-        <td><span class="badge">{{ ticket.estado }}</span></td>
-        <td>{{ (ticket.creado or '')[:16].replace('T',' ') }}</td>
-      </tr>
-    {% else %}
-      <tr><td colspan="6">No hay tickets de compras no productivas.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endblock %}
+{% block title %}Pedidos de insumos no productivos{% endblock %}
+{% block nav %}<div class="nav"><a href="{{ url_for('logistica_panel') }}">Portal Logística</a><a href="{{ url_for('logistica_tickets') }}">Pedidos no productivos</a><form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline">Salir</button></form></div>{% endblock %}
+{% block content %}<h2>Pedidos de insumos no productivos</h2><p style="color:#64748b">Tickets reales de sucursal, con stock canónico consultado en vivo.</p><div class="card" style="overflow-x:auto"><table><thead><tr><th>Ticket</th><th>Sucursal</th><th>Detalle</th><th>Stock</th><th>Estado</th><th>Creado</th></tr></thead><tbody>{% for ticket in tickets %}<tr><td><a href="{{ url_for('logistica_ticket',ticket_id=ticket.id) }}"><strong>#{{ ticket.id }}</strong></a></td><td>{{ ticket.sucursal }}</td><td>{% if ticket.compra_np_requiere_detalle %}<span style="color:#b45309">Requiere completar detalle</span>{% else %}{% for line in ticket.compra_np_lineas %}{{ line.sku }} × {{ line.cantidad }}<br>{% endfor %}{% endif %}</td><td>{% if not ticket.compra_np_requiere_detalle %}{% for line in ticket.compra_np_lineas %}{{ line.stock_actual }} disponible{% if line.faltante %} · <strong style="color:#b91c1c">faltan {{ line.faltante }}</strong>{% endif %}<br>{% endfor %}{% else %}-{% endif %}</td><td><span class="badge">{{ ticket.compra_np_estado or ticket.estado }}</span></td><td>{{ (ticket.creado or '')[:16].replace('T',' ') }}</td></tr>{% else %}<tr><td colspan="6">No hay pedidos.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

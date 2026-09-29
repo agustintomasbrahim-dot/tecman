@@ -30,6 +30,13 @@
         {% endif %}
     </div>
 
+    {% if ticket.categoria == 'Compras no productivas' %}
+    <div style="margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
+        <div style="font-weight:700;color:#1e3a8a;">Estado del pedido: {{ ticket.compra_np_estado or 'Requiere completar detalle' }}</div>
+        {% for line in ticket.compra_np_lineas or [] %}<div style="font-size:13px;color:#334155;margin-top:4px;">{{ line.sku }} × {{ line.cantidad }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
     {% if ticket.categoria == 'Compras no productivas' and ticket.respuesta_logistica %}
     <div style="margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
         <div style="font-weight:700;color:#1e3a8a;">Respuesta de Logística</div>

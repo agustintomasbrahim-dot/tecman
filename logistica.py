@@ -28,6 +28,7 @@ ROLES = {"dabra", "garin", "compras"}
 TICKET_CATEGORY = "Compras no productivas"
 TICKET_TYPE = "compra_no_productiva"
 TICKET_FINAL_STATES = frozenset({"Rechazado", "Resuelto", "Cerrado"})
+PURCHASE_FINAL_STATES = frozenset({"Pedido preparado", "Derivado a Compras"})
 TICKET_RESPONSE_MAX_LENGTH = 2000
 PREPARADOR_DABRA_EMAIL = "hdiosque@grupodexter.com.ar"
 REVOKED_LOGISTICS_EMAILS = {"esoria@grupodexter.com.ar"}
@@ -66,6 +67,68 @@ def is_non_productive_purchase_ticket(ticket: dict) -> bool:
         and ticket.get("categoria") == TICKET_CATEGORY
         and ticket.get("tipo") == TICKET_TYPE
     )
+
+
+def non_productive_catalog() -> dict[str, str]:
+    """Claves canónicas permitidas y etiquetas para el selector de sucursal."""
+    from categories_data import MATERIAL_CATEGORIAS, INSUMOS_COMPRAS_CATEGORIAS
+
+    result = {}
+    for category in MATERIAL_CATEGORIAS:
+        name = category.get("nombre")
+        if name not in INSUMOS_COMPRAS_CATEGORIAS:
+            continue
+        for item in category.get("items") or []:
+            key = f"{name} > {item}"
+            result[key] = f"{name.removeprefix('Insumos ').strip()} · {item}"
+    return result
+
+
+def validate_purchase_lines(raw_skus, raw_quantities) -> list[dict]:
+    """Validación cerrada; no ignora filas incompletas ni acepta duplicados."""
+    skus = list(raw_skus or [])
+    quantities = list(raw_quantities or [])
+    if not skus or len(skus) != len(quantities):
+        raise LogisticsError("Agregá al menos un insumo con su cantidad")
+    allowed = non_productive_catalog()
+    lines, seen = [], set()
+    for sku_raw, quantity_raw in zip(skus, quantities):
+        sku = str(sku_raw or "").strip()
+        if sku not in allowed:
+            raise LogisticsError("El SKU no pertenece al catálogo de insumos no productivos")
+        if sku in seen:
+            raise LogisticsError("No se permite repetir un SKU")
+        try:
+            quantity = int(str(quantity_raw or "").strip())
+        except (TypeError, ValueError):
+            raise LogisticsError("Todas las cantidades deben ser números enteros positivos")
+        if quantity <= 0 or quantity > 10000:
+            raise LogisticsError("Todas las cantidades deben estar entre 1 y 10000")
+        seen.add(sku)
+        lines.append({"sku": sku, "cantidad": quantity})
+    return lines
+
+
+def purchase_shortages(ticket: dict, stock: dict) -> list[dict]:
+    result = []
+    for line in ticket.get("compra_np_lineas") or []:
+        sku, quantity = line.get("sku"), int(line.get("cantidad", 0) or 0)
+        available = int((stock.get("central", {}).get(sku) or {}).get("cantidad", 0) or 0)
+        missing = max(0, quantity - available)
+        if missing:
+            result.append({"sku": sku, "cantidad": missing})
+    return result
+
+
+def project_purchase_ticket(ticket: dict, stock: dict) -> dict:
+    """Proyección GET pura del stock vivo; nunca persiste ni simula renglones legacy."""
+    projected = deepcopy(ticket)
+    projected["compra_np_requiere_detalle"] = not bool(projected.get("compra_np_lineas"))
+    for line in projected.get("compra_np_lineas") or []:
+        available = int((stock.get("central", {}).get(line["sku"]) or {}).get("cantidad", 0) or 0)
+        line["stock_actual"] = available
+        line["faltante"] = max(0, int(line["cantidad"]) - available)
+    return projected
 
 
 def _ticket_by_id(tickets: list[dict], ticket_id: int) -> dict | None:
@@ -592,7 +655,9 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
                        ticket_loader: Callable[[], list] | None = None,
                        ticket_mutator: Callable[[Callable[[list], dict]], dict] | None = None,
                        session_validator: Callable[[], bool] | None = None,
-                       compras_email_sender: Callable[[dict, dict], None] | None = None):
+                       compras_email_sender: Callable[[dict, dict], None] | None = None,
+                       stock_loader: Callable[[], dict] | None = None,
+                       purchase_operator: Callable[[int, str, str], dict] | None = None):
     def actor():
         return session.get("logistica_name") or session.get("logistica_user") or session.get("suc_nombre") or "Sistema"
 
@@ -671,67 +736,61 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
             lambda tickets: mutate_purchase_ticket(tickets, ticket_id, action, actor(), response)
         )
 
+    def projected_tickets():
+        stock = stock_loader() if stock_loader else {"central": {}}
+        return [project_purchase_ticket(ticket, stock) for ticket in purchase_tickets()]
+
     @app.route("/logistica/tickets", endpoint="logistica_tickets")
     @role_required("dabra")
     def tickets_inbox():
-        tickets = sorted(
-            purchase_tickets(),
-            key=lambda ticket: str(ticket.get("creado") or ""),
-            reverse=True,
-        )
+        tickets = sorted(projected_tickets(), key=lambda ticket: str(ticket.get("creado") or ""), reverse=True)
         return render_template("logistica_tickets.html", tickets=tickets)
 
     @app.route("/logistica/tickets/<int:ticket_id>", endpoint="logistica_ticket")
     @role_required("dabra")
     def ticket_detail(ticket_id):
-        ticket = _ticket_by_id(purchase_tickets(), ticket_id)
+        ticket = _ticket_by_id(projected_tickets(), ticket_id)
         if ticket is None:
             abort(404)
-        return render_template(
-            "logistica_ticket.html",
-            ticket=ticket,
-            final_states=TICKET_FINAL_STATES,
-            response_max_length=TICKET_RESPONSE_MAX_LENGTH,
-        )
+        return render_template("logistica_ticket.html", ticket=ticket,
+                               final_states=TICKET_FINAL_STATES | PURCHASE_FINAL_STATES)
 
-    @app.route("/logistica/tickets/<int:ticket_id>/en-proceso", methods=["POST"],
-               endpoint="logistica_ticket_start")
-    @role_required("dabra")
-    def ticket_start(ticket_id):
+    def purchase_action(ticket_id, action):
         csrf_or_400()
+        if not purchase_operator:
+            abort(503)
         try:
-            mutate_real_ticket(ticket_id, "start")
+            purchase_operator(ticket_id, action, actor())
         except LookupError:
             abort(404)
         except LogisticsError as exc:
             return render_template("error.html", mensaje=str(exc)), 409
         return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
 
-    @app.route("/logistica/tickets/<int:ticket_id>/responder", methods=["POST"],
-               endpoint="logistica_ticket_respond")
+    @app.route("/logistica/tickets/<int:ticket_id>/cuento-con-stock", methods=["POST"], endpoint="logistica_ticket_stock")
     @role_required("dabra")
-    def ticket_respond(ticket_id):
-        csrf_or_400()
-        try:
-            mutate_real_ticket(ticket_id, "respond", request.form.get("respuesta", ""))
-        except LookupError:
-            abort(404)
-        except LogisticsError as exc:
-            return render_template("error.html", mensaje=str(exc)), 409
-        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
+    def ticket_stock(ticket_id):
+        return purchase_action(ticket_id, "cuento-stock")
 
-    @app.route("/logistica/tickets/<int:ticket_id>/resolver", methods=["POST"],
-               endpoint="logistica_ticket_resolve")
+    @app.route("/logistica/tickets/<int:ticket_id>/preparar", methods=["POST"], endpoint="logistica_ticket_prepare")
     @role_required("dabra")
-    def ticket_resolve(ticket_id):
-        csrf_or_400()
-        try:
-            mutate_real_ticket(ticket_id, "resolve", request.form.get("respuesta", ""))
-        except LookupError:
-            abort(404)
-        except LogisticsError as exc:
-            return render_template("error.html", mensaje=str(exc)), 409
-        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
+    def ticket_prepare(ticket_id):
+        return purchase_action(ticket_id, "preparar")
+
+    @app.route("/logistica/tickets/<int:ticket_id>/pedido-preparado", methods=["POST"], endpoint="logistica_ticket_prepared")
+    @role_required("dabra")
+    def ticket_prepared(ticket_id):
+        return purchase_action(ticket_id, "preparado")
+
+    @app.route("/logistica/tickets/<int:ticket_id>/derivar-compras", methods=["POST"], endpoint="logistica_ticket_purchase")
+    @role_required("dabra")
+    def ticket_purchase(ticket_id):
+        return purchase_action(ticket_id, "derivar")
+
+    @app.route("/logistica/tickets/<int:ticket_id>/reintentar-email", methods=["POST"], endpoint="logistica_ticket_purchase_email_retry")
+    @role_required("dabra")
+    def ticket_purchase_email_retry(ticket_id):
+        return purchase_action(ticket_id, "reintentar-email")
 
     @app.route("/logistica/pedidos/<order_id>", methods=["GET", "POST"], endpoint="logistica_order")
     @role_required("dabra")

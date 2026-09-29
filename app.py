@@ -307,7 +307,7 @@ CATEGORIAS = {
     "Pintura": ["Interior", "Exterior", "Durlock reparación", "Otra pintura"],
     "Reparaciones": ["General", "Persianas", "Candados", "Ascensor", "Otra reparación"],
     "Materiales": ["Solicitud de materiales"],
-    "Compras no productivas": ["Insumos", "Herramientas", "Librería", "Otro pedido"],
+    "Compras no productivas": ["Insumos"],
     "Presupuestos": ["Cortinas", "Filtraciones", "Aire acondicionado", "Electricidad", "Pintura", "Plomería", "Carpintería", "Vidriería", "Matafuegos", "Habilitaciones", "Otro presupuesto"],
     "Seguridad e Higiene": ["Consulta de habilitación", "Permiso", "Documentación faltante", "Otra asistencia S&H"],
     "Otro": ["Otro"],
@@ -6455,6 +6455,26 @@ def suc_proveedores():
 @suc_login_required
 def nuevo_ticket():
     if request.method == "POST":
+        # Validar íntegramente el pedido estructurado antes de guardar adjuntos.
+        categoria_previa = request.form.get("categoria", "").strip()
+        compra_np_lineas = None
+        if categoria_previa == "Compras no productivas":
+            from logistica import LogisticsError, validate_purchase_lines
+            subcategoria_previa = request.form.get("subcategoria", "").strip()
+            if subcategoria_previa not in CATEGORIAS.get("Compras no productivas", []):
+                flash("En compras no productivas, el rubro no es válido")
+                return redirect(url_for("nuevo_ticket"))
+            if not request.form.get("zona_afectada", "").strip():
+                flash("En compras no productivas, la zona o sector del local es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
+            try:
+                compra_np_lineas = validate_purchase_lines(
+                    request.form.getlist("compra_np_sku[]"),
+                    request.form.getlist("compra_np_cantidad[]"),
+                )
+            except LogisticsError as exc:
+                flash(str(exc))
+                return redirect(url_for("nuevo_ticket"))
         tickets = load_tickets()
         tid = next_ticket_id(tickets)
         sucursal_ticket = request.form.get("sucursal", "").strip() if _sucursal_session_is_general() else session.get("suc_nombre", "").strip()
@@ -6555,25 +6575,14 @@ def nuevo_ticket():
             ticket["zona_afectada"] = zona_afectada
             ticket["tipo"] = "materiales"
         elif categoria == "Compras no productivas":
-            cantidad_compra = request.form.get("compra_np_cantidad", "").strip()
-            fecha_necesaria = request.form.get("compra_np_fecha_necesaria", "").strip()
-            if not subcategoria:
-                flash("En compras no productivas, el rubro es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
-            if not cantidad_compra:
-                flash("En compras no productivas, la cantidad o referencia es obligatoria")
-                return redirect(url_for("nuevo_ticket"))
-            if not zona_afectada:
-                flash("En compras no productivas, la zona o sector del local es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
             ticket["tipo"] = "compra_no_productiva"
-            ticket["compra_np_cantidad"] = cantidad_compra
-            ticket["compra_np_fecha_necesaria"] = fecha_necesaria
+            ticket["compra_np_lineas"] = compra_np_lineas
+            ticket["compra_np_fecha_necesaria"] = request.form.get("compra_np_fecha_necesaria", "").strip()
             ticket["compra_np_estado"] = "Nuevo"
             ticket["zona_afectada"] = zona_afectada
             ticket.setdefault("notificaciones", []).append({
                 "fecha": datetime.datetime.now().isoformat(),
-                "texto": "Solicitud enviada a Compras no productivas.",
+                "texto": "Pedido de insumos no productivos registrado y enviado a Logística.",
                 "leida": False,
             })
         elif categoria == "Presupuestos":
@@ -6597,6 +6606,7 @@ def nuevo_ticket():
         return render_template("ticket_creado.html", ticket=ticket)
 
     from categories_data import MATERIAL_CATEGORIAS
+    from logistica import non_productive_catalog
     sucursal = request.args.get("sucursal", "")
     return render_template(
         "nuevo_ticket.html",
@@ -6605,6 +6615,7 @@ def nuevo_ticket():
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
         material_categorias=MATERIAL_CATEGORIAS,
+        compra_np_catalogo=non_productive_catalog(),
         oficina_sectores=_oficina_sectores(session.get("oficina_sede")),
     )
 
@@ -14283,7 +14294,8 @@ def _logistica_send_compras_email(requisition, order):
         f"{int(line.get('quantity', 0) or 0)}</li>"
         for line in requisition.get("lines", [])
     )
-    number = html.escape(str(requisition.get("number") or ""))
+    visible_reference = requisition.get("number") or f"Solicitud pendiente #{(order or {}).get('id', '')}"
+    number = html.escape(str(visible_reference))
     branch = html.escape(str((order or {}).get("sucursal") or requisition.get("sucursal") or ""))
     body = (
         "<h2>Requisición automática de insumos</h2>"
@@ -14291,12 +14303,224 @@ def _logistica_send_compras_email(requisition, order):
         f"<ul>{lines}</ul>"
         "<p>Estado: pendiente de Compras. Generada automáticamente por Tecman.</p>"
     )
-    _smtp_send(recipients, f"{requisition.get('number')} · Requisición de insumos · {branch}", body)
+    _smtp_send(recipients, f"{visible_reference} · Requisición de insumos · {branch}", body)
 
 
 _logistica_model = LogisticsStateDB if USE_DB else None
 logistica_service = LogisticsService(LogisticsStore(DATA_DIR / "logistica_insumos.json", USE_DB, db if USE_DB else None, _logistica_model))
 _LOGISTICA_TICKET_LOCK = threading.RLock()
+
+
+def _logistica_purchase_apply(ticket, stock, movimientos, action, actor):
+    """Aplica una transición sobre ticket+stock+movimientos ya bloqueados."""
+    from logistica import (LogisticsError, PURCHASE_FINAL_STATES,
+                           is_non_productive_purchase_ticket, purchase_shortages)
+
+    if not is_non_productive_purchase_ticket(ticket):
+        raise LookupError("Ticket inexistente o fuera del circuito")
+    lines = ticket.get("compra_np_lineas") or []
+    if not lines:
+        raise LogisticsError("El ticket histórico requiere completar detalle")
+    current = ticket.get("compra_np_estado") or "Nuevo"
+    if current in PURCHASE_FINAL_STATES:
+        expected = {"preparado": "Pedido preparado", "derivar": "Derivado a Compras"}.get(action)
+        if expected == current:
+            return {"changed": False, "ticket": copy.deepcopy(ticket)}
+        raise LogisticsError("El pedido ya está en un estado final")
+
+    shortages = purchase_shortages(ticket, stock)
+    now = datetime.datetime.now().isoformat()
+    detail = ""
+    if action == "cuento-stock":
+        if current == "Stock confirmado":
+            return {"changed": False, "ticket": copy.deepcopy(ticket)}
+        if current != "Nuevo":
+            raise LogisticsError("El pedido no admite confirmar stock en este estado")
+        if shortages:
+            raise LogisticsError("No alcanza el stock; derivá los faltantes exactos a Compras")
+        new_state, note_type, text = "Stock confirmado", "compra_np_stock_confirmado", "Logística confirmó que cuenta con stock. No se descontó inventario."
+    elif action == "preparar":
+        if current == "Preparando":
+            return {"changed": False, "ticket": copy.deepcopy(ticket)}
+        if current != "Stock confirmado":
+            raise LogisticsError("Primero confirmá que contás con stock")
+        new_state, note_type, text = "Preparando", "compra_np_preparando", "Logística comenzó a preparar el pedido."
+    elif action == "preparado":
+        if current != "Preparando":
+            raise LogisticsError("El pedido debe estar en preparación")
+        if shortages:
+            detail = "; ".join(f"{x['sku']}: {x['cantidad']}" for x in shortages)
+            raise LogisticsError(f"El stock cambió. Faltantes actuales: {detail}")
+        for line in lines:
+            sku, quantity = line["sku"], int(line["cantidad"])
+            available = get_central_qty(stock, sku)
+            set_central_qty(stock, sku, available - quantity)
+            movement_id = f"compra-np:{ticket['id']}:{sku}"
+            if not any(m.get("id") == movement_id for m in movimientos.setdefault("movimientos", [])):
+                movimientos["movimientos"].append({
+                    "id": movement_id, "item": sku, "tipo": "egreso", "cantidad": quantity,
+                    "fecha": now, "sucursal": ticket.get("sucursal", ""), "ticket_id": ticket.get("id"),
+                    "nota": f"Pedido no productivo #{ticket.get('id')} preparado por {actor}", "area": "logistica",
+                })
+        ticket["estado"] = "Resuelto"
+        ticket["fecha_cierre"] = now
+        ticket["compra_np_stock_descontado_at"] = now
+        new_state, note_type, text = "Pedido preparado", "compra_np_pedido_preparado", "Pedido preparado. El stock canónico fue descontado una única vez."
+    elif action == "derivar":
+        if current not in {"Nuevo", "Stock confirmado", "Preparando"}:
+            raise LogisticsError("El pedido no admite derivación en este estado")
+        if not shortages:
+            raise LogisticsError("No hay faltantes para derivar a Compras")
+        detail = "; ".join(f"{x['sku']}: {x['cantidad']}" for x in shortages)
+        signature = json.dumps(shortages, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        requisition = ticket.get("compra_np_requisicion")
+        if requisition and requisition.get("firma_faltantes") == signature:
+            return {"changed": False, "ticket": copy.deepcopy(ticket)}
+        ticket["compra_np_requisicion"] = {
+            "id": f"solicitud-compra-np-{ticket['id']}", "numero": None,
+            "estado": "pendiente_numero_compras", "lineas": copy.deepcopy(shortages),
+            "firma_faltantes": signature, "creada": now, "creada_por": actor,
+            "email_estado": "pendiente", "email_intentos": 0,
+        }
+        ticket["estado"] = "Pendiente"
+        new_state, note_type = "Derivado a Compras", "compra_np_derivado_compras"
+        text = f"Faltantes exactos derivados a Compras: {detail}. Solicitud pendiente de número de requisición."
+    else:
+        raise LogisticsError("Acción inválida")
+
+    ticket["compra_np_estado"] = new_state
+    ticket["actualizado"] = now
+    ticket.setdefault("notas", []).append({"autor": actor, "fecha": now, "tipo": note_type,
+        "texto": text, "visibilidad": "sucursal"})
+    ticket.setdefault("notificaciones", []).append({"fecha": now, "texto": text, "leida": False})
+    return {"changed": True, "ticket": copy.deepcopy(ticket), "shortages": shortages}
+
+
+def _restore_json_bytes(path, content):
+    path = Path(path)
+    if content is None:
+        if path.exists():
+            path.unlink()
+        return
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.rollback")
+    tmp.write_bytes(content)
+    os.replace(tmp, path)
+
+
+def _logistica_purchase_transaction(ticket_id, action, actor):
+    """Transacción lógica común: relectura, validación y descuento bajo exclusión."""
+    with _LOGISTICA_TICKET_LOCK:
+        if USE_DB:
+            try:
+                ticket_row = TicketDB.query.filter_by(id=str(ticket_id)).with_for_update().first()
+                stock_row = ConfigDB.query.filter_by(key="stock").with_for_update().first()
+                ticket = copy.deepcopy(ticket_row.payload) if ticket_row else None
+                if not ticket:
+                    raise LookupError("Ticket inexistente")
+                stock = copy.deepcopy(stock_row.value) if stock_row else {"central": {}, "sucursales": {}}
+                movimientos = {"movimientos": _db_list(StockMovimientoDB)}
+                result = _logistica_purchase_apply(ticket, stock, movimientos, action, actor)
+                if result["changed"]:
+                    ticket_row.payload = ticket
+                    ticket_row.estado = ticket.get("estado", "")
+                    if stock_row is None:
+                        stock_row = ConfigDB(key="stock", value=stock); db.session.add(stock_row)
+                    else:
+                        stock_row.value = stock
+                    if action == "preparado":
+                        known = {str(row.id) for row in StockMovimientoDB.query.filter(StockMovimientoDB.id.like(f"compra-np:{ticket_id}:%")).all()}
+                        for movement in movimientos["movimientos"]:
+                            if movement["id"].startswith(f"compra-np:{ticket_id}:") and movement["id"] not in known:
+                                db.session.add(StockMovimientoDB.from_dict(movement))
+                    db.session.commit()
+                return result
+            except Exception:
+                db.session.rollback()
+                raise
+
+        paths = (TICKETS_FILE, STOCK_FILE, STOCK_MOV_FILE)
+        originals = [path.read_bytes() if path.exists() else None for path in paths]
+        tickets, stock, movimientos = _load_tickets_raw(), load_stock(), load_movimientos()
+        ticket = next((t for t in tickets if str(t.get("id")) == str(ticket_id)), None)
+        if ticket is None:
+            raise LookupError("Ticket inexistente")
+        result = _logistica_purchase_apply(ticket, stock, movimientos, action, actor)
+        if not result["changed"]:
+            return result
+        try:
+            _atomic_write(TICKETS_FILE, tickets)
+            _atomic_write(STOCK_FILE, stock)
+            _atomic_write(STOCK_MOV_FILE, movimientos)
+        except Exception:
+            for path, content in zip(paths, originals):
+                _restore_json_bytes(path, content)
+            raise
+        return result
+
+
+def _logistica_update_requisition_email(ticket_id, expected, new_status, error=""):
+    """Actualiza sólo el envío reclamado; no altera la derivación ya confirmada."""
+    with _LOGISTICA_TICKET_LOCK:
+        if USE_DB:
+            try:
+                row = TicketDB.query.filter_by(id=str(ticket_id)).with_for_update().first()
+                ticket = copy.deepcopy(row.payload) if row else None
+                req = (ticket or {}).get("compra_np_requisicion")
+                if not req or req.get("email_estado") != expected:
+                    return False
+                req["email_estado"] = new_status
+                req["email_ultimo_error"] = str(error or "")[:300]
+                if new_status == "enviando":
+                    req["email_intentos"] = int(req.get("email_intentos", 0) or 0) + 1
+                elif new_status == "enviado":
+                    req["email_enviado_at"] = datetime.datetime.now().isoformat()
+                row.payload = ticket; db.session.commit(); return True
+            except Exception:
+                db.session.rollback(); raise
+        tickets = _load_tickets_raw()
+        ticket = next((t for t in tickets if str(t.get("id")) == str(ticket_id)), None)
+        req = (ticket or {}).get("compra_np_requisicion")
+        if not req or req.get("email_estado") != expected:
+            return False
+        req["email_estado"] = new_status
+        req["email_ultimo_error"] = str(error or "")[:300]
+        if new_status == "enviando":
+            req["email_intentos"] = int(req.get("email_intentos", 0) or 0) + 1
+        elif new_status == "enviado":
+            req["email_enviado_at"] = datetime.datetime.now().isoformat()
+        _atomic_write(TICKETS_FILE, tickets)
+        return True
+
+
+def _logistica_purchase_operation(ticket_id, action, actor):
+    if action == "reintentar-email":
+        tickets = _load_tickets_raw() if not USE_DB else _db_list(TicketDB)
+        ticket = next((t for t in tickets if str(t.get("id")) == str(ticket_id)), None)
+        req = (ticket or {}).get("compra_np_requisicion")
+        if not req:
+            raise LookupError("Solicitud inexistente")
+        if req.get("email_estado") != "fallido":
+            return {"changed": False, "ticket": ticket}
+        result = {"changed": False, "ticket": ticket}
+    else:
+        result = _logistica_purchase_transaction(ticket_id, action, actor)
+    if action not in {"derivar", "reintentar-email"}:
+        return result
+    ticket = result.get("ticket") or {}
+    req = ticket.get("compra_np_requisicion") or {}
+    expected = "fallido" if action == "reintentar-email" else "pendiente"
+    if not _logistica_update_requisition_email(ticket_id, expected, "enviando"):
+        return result
+    req = copy.deepcopy(req)
+    req["number"] = req.get("numero")
+    req["lines"] = [{"item": x["sku"], "quantity": x["cantidad"]} for x in req.get("lineas", [])]
+    try:
+        _logistica_send_compras_email(req, ticket)
+    except Exception as exc:
+        _logistica_update_requisition_email(ticket_id, "enviando", "fallido", str(exc))
+    else:
+        _logistica_update_requisition_email(ticket_id, "enviando", "enviado")
+    return result
 
 
 def _logistica_mutate_ticket(mutator):
@@ -14316,7 +14540,9 @@ register_logistics(app, logistica_service, _validate_csrf, _entra_is_configured,
                    _logistica_branch_authorized, ticket_loader=_load_tickets_raw,
                    ticket_mutator=_logistica_mutate_ticket,
                    session_validator=_session_auth_is_valid,
-                   compras_email_sender=_logistica_send_compras_email)
+                   compras_email_sender=_logistica_send_compras_email,
+                   stock_loader=load_stock,
+                   purchase_operator=_logistica_purchase_operation)
 
 
 @app.errorhandler(500)
