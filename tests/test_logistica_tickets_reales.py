@@ -162,6 +162,51 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         self.assertEqual(saved["compra_np_requisicion"]["email_intentos"], 2)
         self.assertEqual(saved["compra_np_requisicion"]["email_estado"], "enviado")
 
+    def test_backend_db_simulado_bloquea_filas_y_confirma_en_una_transaccion(self):
+        ticket = self.create_ticket((1,)); ticket_row = type("TicketRow", (), {})()
+        ticket_row.payload = copy.deepcopy(ticket); ticket_row.estado = ticket["estado"]
+        stock_row = type("StockRow", (), {})(); stock_row.value = {"central": {self.skus[0]: {"cantidad": 1, "precio_unitario": 0}}, "sucursales": {}}
+        locks, added = [], []
+        class Query:
+            def __init__(self, row=None): self.row = row
+            def filter_by(self, **kwargs): return self
+            def with_for_update(self): locks.append(True); return self
+            def first(self): return self.row
+            def filter(self, *args): return self
+            def all(self): return []
+        class Field:
+            def like(self, pattern): return pattern
+        class TicketModel: query = Query(ticket_row)
+        class ConfigModel:
+            query = Query(stock_row)
+            def __init__(self, key, value): self.key, self.value = key, value
+        class MovementModel:
+            id = Field(); query = Query()
+            @classmethod
+            def from_dict(cls, data): return copy.deepcopy(data)
+        class Session:
+            def __init__(self): self.commits = self.rollbacks = 0
+            def add(self, value): added.append(value)
+            def commit(self): self.commits += 1
+            def rollback(self): self.rollbacks += 1
+        fake_db = type("DB", (), {"session": Session()})()
+        def fake_list(model): return [copy.deepcopy(x) for x in added if isinstance(x, dict)]
+        patches = (patch.object(tecman, "USE_DB", True), patch.object(tecman, "TicketDB", TicketModel, create=True),
+                   patch.object(tecman, "ConfigDB", ConfigModel, create=True), patch.object(tecman, "StockMovimientoDB", MovementModel, create=True),
+                   patch.object(tecman, "db", fake_db, create=True), patch.object(tecman, "_db_list", side_effect=fake_list))
+        for item in patches: item.start()
+        try:
+            tecman._logistica_purchase_transaction(ticket["id"], "cuento-stock", "Dabra")
+            tecman._logistica_purchase_transaction(ticket["id"], "preparar", "Dabra")
+            tecman._logistica_purchase_transaction(ticket["id"], "preparado", "Dabra")
+        finally:
+            for item in reversed(patches): item.stop()
+        self.assertGreaterEqual(len(locks), 6)
+        self.assertEqual(stock_row.value["central"], {})
+        self.assertEqual(len(added), 1)
+        self.assertEqual(fake_db.session.commits, 3)
+        self.assertEqual(fake_db.session.rollbacks, 0)
+
     def test_validacion_cerrada_y_upload_invalido_no_mutan(self):
         with self.assertRaises(LogisticsError): validate_purchase_lines([self.skus[0], self.skus[0]], [1, 2])
         with self.assertRaises(LogisticsError): validate_purchase_lines(["inventado"], [1])
