@@ -73,15 +73,40 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
 
     def test_e2e_multirenglon_descuenta_solo_al_confirmar_preparado(self):
         ticket = self.create_ticket()
+        self.assertEqual(ticket["compra_np_estado"], "Recibido")
+        self.assertEqual(ticket["notas"][0]["tipo"], "compra_np_recepcion_automatica")
+        branch_page = self.client.get(f"/estado/{ticket['id']}")
+        self.assertIn(b"Recibido", branch_page.data)
+        for forbidden in (b"Responder a administraci", b"Finalizar ticket"):
+            self.assertNotIn(forbidden, branch_page.data)
+        before_ticket = copy.deepcopy(tecman._load_tickets_raw()[0])
+        self.assertEqual(self.post(f"/estado/{ticket['id']}/responder", {"respuesta": "comentario"}).status_code, 409)
+        self.assertEqual(self.post(f"/estado/{ticket['id']}/finalizar", {"motivo": "cerrar"}).status_code, 409)
+        self.assertEqual(tecman._load_tickets_raw()[0], before_ticket)
         self.set_stock({self.skus[0]: 4, self.skus[1]: 3})
         before_stock = copy.deepcopy(tecman.load_stock())
         before_movements = copy.deepcopy(tecman.load_movimientos())
         self.logistics_session()
-        self.assertIn(b"Abrochadora", self.client.get("/logistica/tickets").data)
-        for suffix in ("cuento-con-stock", "preparar"):
-            self.assertEqual(self.post(f"/logistica/tickets/{ticket['id']}/{suffix}").status_code, 302)
-            self.assertEqual(tecman.load_stock(), before_stock)
-            self.assertEqual(tecman.load_movimientos(), before_movements)
+        inbox = self.client.get("/logistica/tickets")
+        self.assertIn(b"Abrochadora", inbox.data)
+        self.assertEqual(inbox.data.count(b"Tengo stock"), 1)
+        self.assertNotIn(b"Derivar a Compras", inbox.data)
+        self.assertNotIn(b"Pedido preparado", inbox.data)
+        for forbidden in (b"Cuento con stock", b"Preparar pedido", b"Tomar ticket", b"Responder", b"En proceso", b"Cerrar", b"Resolver", b"reserva"):
+            self.assertNotIn(forbidden, inbox.data)
+        response = self.post(f"/logistica/tickets/{ticket['id']}/tengo-stock")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/logistica/tickets")
+        preparing = tecman._load_tickets_raw()[0]
+        self.assertEqual(preparing["compra_np_estado"], "En preparación")
+        self.assertEqual(tecman.load_stock(), before_stock)
+        self.assertEqual(tecman.load_movimientos(), before_movements)
+        inbox = self.client.get("/logistica/tickets")
+        self.assertIn(b"Pedido preparado", inbox.data)
+        self.assertNotIn(b"Tengo stock", inbox.data)
+        detail = self.client.get(f"/logistica/tickets/{ticket['id']}")
+        self.assertIn(b"Historial", detail.data)
+        self.assertNotIn(b"/pedido-preparado", detail.data)
         self.assertEqual(self.post(f"/logistica/tickets/{ticket['id']}/pedido-preparado").status_code, 302)
         stock = tecman.load_stock(); movements = tecman.load_movimientos()["movimientos"]
         self.assertEqual((tecman.get_central_qty(stock, self.skus[0]), tecman.get_central_qty(stock, self.skus[1])), (2, 2))
@@ -97,6 +122,10 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
     def test_faltantes_exactos_derivacion_email_e_idempotencia(self):
         ticket = self.create_ticket((5, 2)); self.set_stock({self.skus[0]: 3, self.skus[1]: 0})
         self.logistics_session()
+        inbox = self.client.get("/logistica/tickets")
+        self.assertEqual(inbox.data.count(b"Derivar a Compras"), 1)
+        self.assertNotIn(b"Tengo stock", inbox.data)
+        self.assertNotIn(b"Pedido preparado", inbox.data)
         self.assertEqual(self.post(f"/logistica/tickets/{ticket['id']}/derivar-compras").status_code, 302)
         saved = tecman._load_tickets_raw()[0]; req = saved["compra_np_requisicion"]
         self.assertEqual(req["lineas"], [{"sku": self.skus[0], "cantidad": 2}, {"sku": self.skus[1], "cantidad": 2}])
@@ -108,19 +137,19 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
 
     def test_stock_cambia_antes_de_preparado_bloquea_sin_mutar_y_habilita_compras(self):
         ticket = self.create_ticket((2,)); self.set_stock({self.skus[0]: 2}); self.logistics_session()
-        self.post(f"/logistica/tickets/{ticket['id']}/cuento-con-stock"); self.post(f"/logistica/tickets/{ticket['id']}/preparar")
+        self.post(f"/logistica/tickets/{ticket['id']}/tengo-stock")
         self.set_stock({self.skus[0]: 1})
         before = (Path(tecman.TICKETS_FILE).read_bytes(), Path(tecman.STOCK_FILE).read_bytes(), Path(tecman.STOCK_MOV_FILE).read_bytes())
         response = self.post(f"/logistica/tickets/{ticket['id']}/pedido-preparado")
         self.assertEqual(response.status_code, 409)
         self.assertEqual((Path(tecman.TICKETS_FILE).read_bytes(), Path(tecman.STOCK_FILE).read_bytes(), Path(tecman.STOCK_MOV_FILE).read_bytes()), before)
-        detail = self.client.get(f"/logistica/tickets/{ticket['id']}")
-        self.assertIn(b"Derivar a Compras", detail.data)
+        inbox = self.client.get("/logistica/tickets")
+        self.assertIn(b"Derivar a Compras", inbox.data)
+        self.assertNotIn(b"Pedido preparado", inbox.data)
 
     def test_concurrencia_no_duplica_descuento_ni_deja_stock_negativo(self):
         ticket = self.create_ticket((2,)); self.set_stock({self.skus[0]: 2})
-        tecman._logistica_purchase_operation(ticket["id"], "cuento-stock", "Dabra")
-        tecman._logistica_purchase_operation(ticket["id"], "preparar", "Dabra")
+        tecman._logistica_purchase_operation(ticket["id"], "tengo-stock", "Dabra")
         results = []
         def run():
             try: results.append(tecman._logistica_purchase_operation(ticket["id"], "preparado", "Dabra"))
@@ -132,8 +161,7 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
 
     def test_rollback_logico_si_falla_persistencia(self):
         ticket = self.create_ticket((1,)); self.set_stock({self.skus[0]: 1})
-        tecman._logistica_purchase_operation(ticket["id"], "cuento-stock", "Dabra")
-        tecman._logistica_purchase_operation(ticket["id"], "preparar", "Dabra")
+        tecman._logistica_purchase_operation(ticket["id"], "tengo-stock", "Dabra")
         before = tuple(path.read_bytes() for path in (tecman.TICKETS_FILE, tecman.STOCK_FILE, tecman.STOCK_MOV_FILE))
         original = tecman._atomic_write
         calls = {"n": 0}
@@ -196,14 +224,54 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
                    patch.object(tecman, "db", fake_db, create=True), patch.object(tecman, "_db_list", side_effect=fake_list))
         for item in patches: item.start()
         try:
-            tecman._logistica_purchase_transaction(ticket["id"], "cuento-stock", "Dabra")
-            tecman._logistica_purchase_transaction(ticket["id"], "preparar", "Dabra")
+            tecman._logistica_purchase_transaction(ticket["id"], "tengo-stock", "Dabra")
             tecman._logistica_purchase_transaction(ticket["id"], "preparado", "Dabra")
         finally:
             for item in reversed(patches): item.stop()
-        self.assertGreaterEqual(len(locks), 6)
+        self.assertGreaterEqual(len(locks), 4)
         self.assertEqual(stock_row.value["central"], {})
         self.assertEqual(len(added), 1)
+        self.assertEqual(fake_db.session.commits, 2)
+        self.assertEqual(fake_db.session.rollbacks, 0)
+
+    def test_backend_db_deriva_y_reclama_email_una_sola_vez(self):
+        ticket = self.create_ticket((2,)); ticket_row = type("TicketRow", (), {})()
+        ticket_row.payload = copy.deepcopy(ticket); ticket_row.estado = ticket["estado"]
+        stock_row = type("StockRow", (), {})(); stock_row.value = {"central": {}, "sucursales": {}}
+        locks = []
+        class Query:
+            def __init__(self, row=None): self.row = row
+            def filter_by(self, **kwargs): return self
+            def with_for_update(self): locks.append(True); return self
+            def first(self): return self.row
+            def all(self): return []
+        class TicketModel: query = Query(ticket_row)
+        class ConfigModel: query = Query(stock_row)
+        class MovementModel: query = Query()
+        class Session:
+            def __init__(self): self.commits = self.rollbacks = 0
+            def add(self, value): pass
+            def commit(self): self.commits += 1
+            def rollback(self): self.rollbacks += 1
+        fake_db = type("DB", (), {"session": Session()})()
+        patches = (patch.object(tecman, "USE_DB", True), patch.object(tecman, "TicketDB", TicketModel, create=True),
+                   patch.object(tecman, "ConfigDB", ConfigModel, create=True), patch.object(tecman, "StockMovimientoDB", MovementModel, create=True),
+                   patch.object(tecman, "db", fake_db, create=True), patch.object(tecman, "_db_list", return_value=[]),
+                   patch.object(tecman, "_logistica_send_compras_email"))
+        started = [item.start() for item in patches]
+        sender = started[-1]
+        try:
+            tecman._logistica_purchase_operation(ticket["id"], "derivar", "Dabra")
+            snapshot = copy.deepcopy(ticket_row.payload)
+            tecman._logistica_purchase_operation(ticket["id"], "derivar", "Dabra")
+        finally:
+            for item in reversed(patches): item.stop()
+        req = ticket_row.payload["compra_np_requisicion"]
+        self.assertEqual(req["email_estado"], "enviado")
+        self.assertEqual(req["email_intentos"], 1)
+        self.assertEqual(ticket_row.payload, snapshot)
+        self.assertEqual(sender.call_count, 1)
+        self.assertGreaterEqual(len(locks), 4)
         self.assertEqual(fake_db.session.commits, 3)
         self.assertEqual(fake_db.session.rollbacks, 0)
 
@@ -217,17 +285,30 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302); self.assertEqual(tecman._load_tickets_raw(), [])
         self.assertEqual(list(tecman.UPLOADS_DIR.iterdir()), before)
 
-    def test_get_puro_historico_y_permisos_csrf(self):
+    def test_get_puro_historicos_compatibilidad_y_permisos_csrf(self):
         historical = {"id": 7, "sucursal": "Sucursal 011", "categoria": "Compras no productivas",
             "tipo": "compra_no_productiva", "subcategoria": "Librería", "descripcion": "legacy",
             "estado": "Nuevo", "creado": "2026-01-01T00:00:00", "actualizado": "2026-01-01T00:00:00"}
-        tecman.save_tickets([historical]); before = Path(tecman.TICKETS_FILE).read_bytes()
+        compatible = dict(historical, id=8, compra_np_estado="Stock confirmado",
+                          compra_np_lineas=[{"sku": self.skus[0], "cantidad": 1}])
+        tecman.save_tickets([historical, compatible]); self.set_stock({self.skus[0]: 1})
+        before = Path(tecman.TICKETS_FILE).read_bytes()
         self.logistics_session(); page = self.client.get("/logistica/tickets")
-        self.assertIn(b"Requiere completar detalle", page.data); self.assertEqual(Path(tecman.TICKETS_FILE).read_bytes(), before)
-        self.assertEqual(self.client.post("/logistica/tickets/7/cuento-con-stock").status_code, 400)
+        self.assertIn(b"Requiere completar detalle", page.data)
+        self.assertIn("En preparación".encode(), page.data)
+        self.assertIn(b"Pedido preparado", page.data)
+        self.assertNotIn(b"Stock confirmado", page.data)
+        self.assertEqual(Path(tecman.TICKETS_FILE).read_bytes(), before)
+        self.assertEqual(self.client.post("/logistica/tickets/7/tengo-stock").status_code, 400)
+        self.assertEqual(self.post("/logistica/tickets/8/preparar").status_code, 404)
+        self.assertEqual(self.post("/logistica/tickets/8/cuento-con-stock").status_code, 404)
+        self.assertEqual(self.post("/logistica/tickets/8/pedido-preparado").status_code, 302)
+        self.assertEqual(tecman._load_tickets_raw()[1]["compra_np_estado"], "Pedido preparado")
         self.logistics_session(logistica_role="garin", logistica_user="garin@grupodexter.com.ar")
         self.assertEqual(self.client.get("/logistica/tickets").status_code, 403)
+        self.assertEqual(self.post("/logistica/tickets/8/pedido-preparado").status_code, 403)
         projected = project_purchase_ticket(historical, {"central": {}})
+        self.assertEqual(projected["compra_np_estado"], "Recibido")
         self.assertTrue(projected["compra_np_requiere_detalle"]); self.assertNotIn("compra_np_lineas", historical)
 
 

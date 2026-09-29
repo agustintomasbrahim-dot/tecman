@@ -6575,14 +6575,23 @@ def nuevo_ticket():
             ticket["zona_afectada"] = zona_afectada
             ticket["tipo"] = "materiales"
         elif categoria == "Compras no productivas":
+            recibido_at = datetime.datetime.now().isoformat()
             ticket["tipo"] = "compra_no_productiva"
             ticket["compra_np_lineas"] = compra_np_lineas
             ticket["compra_np_fecha_necesaria"] = request.form.get("compra_np_fecha_necesaria", "").strip()
-            ticket["compra_np_estado"] = "Nuevo"
+            ticket["compra_np_estado"] = "Recibido"
+            ticket["compra_np_recibido_at"] = recibido_at
             ticket["zona_afectada"] = zona_afectada
+            ticket.setdefault("notas", []).append({
+                "autor": "Sistema",
+                "fecha": recibido_at,
+                "tipo": "compra_np_recepcion_automatica",
+                "texto": "Pedido recibido automáticamente por Logística.",
+                "visibilidad": "sucursal",
+            })
             ticket.setdefault("notificaciones", []).append({
-                "fecha": datetime.datetime.now().isoformat(),
-                "texto": "Pedido de insumos no productivos registrado y enviado a Logística.",
+                "fecha": recibido_at,
+                "texto": "Pedido recibido automáticamente por Logística.",
                 "leida": False,
             })
         elif categoria == "Presupuestos":
@@ -6654,6 +6663,8 @@ def responder_ticket_desde_sucursal(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
+        return render_template("error.html", mensaje="Este pedido no admite respuestas operativas manuales."), 409
     if not _sucursal_session_can_reply_to_ticket(ticket):
         return render_template("error.html", mensaje="No tenés permiso para responder este ticket."), 403
 
@@ -6697,6 +6708,8 @@ def finalizar_ticket_desde_sucursal(ticket_id):
     ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
+        return render_template("error.html", mensaje="Este pedido se completa sólo desde el circuito de Logística."), 409
     if not _sucursal_session_can_reply_to_ticket(ticket):
         return render_template("error.html", mensaje="No tenés permiso para finalizar este ticket."), 403
 
@@ -14321,7 +14334,12 @@ def _logistica_purchase_apply(ticket, stock, movimientos, action, actor):
     lines = ticket.get("compra_np_lineas") or []
     if not lines:
         raise LogisticsError("El ticket histórico requiere completar detalle")
-    current = ticket.get("compra_np_estado") or "Nuevo"
+    raw_current = ticket.get("compra_np_estado") or "Nuevo"
+    # Compatibilidad no persistente con datos locales de las dos revisiones
+    # anteriores. Ambos estados equivalen al único estado actual intermedio.
+    current = "En preparación" if raw_current in {"Stock confirmado", "Preparando"} else raw_current
+    if current == "Nuevo":
+        current = "Recibido"
     if current in PURCHASE_FINAL_STATES:
         expected = {"preparado": "Pedido preparado", "derivar": "Derivado a Compras"}.get(action)
         if expected == current:
@@ -14331,22 +14349,16 @@ def _logistica_purchase_apply(ticket, stock, movimientos, action, actor):
     shortages = purchase_shortages(ticket, stock)
     now = datetime.datetime.now().isoformat()
     detail = ""
-    if action == "cuento-stock":
-        if current == "Stock confirmado":
+    if action == "tengo-stock":
+        if current == "En preparación":
             return {"changed": False, "ticket": copy.deepcopy(ticket)}
-        if current != "Nuevo":
+        if current != "Recibido":
             raise LogisticsError("El pedido no admite confirmar stock en este estado")
         if shortages:
             raise LogisticsError("No alcanza el stock; derivá los faltantes exactos a Compras")
-        new_state, note_type, text = "Stock confirmado", "compra_np_stock_confirmado", "Logística confirmó que cuenta con stock. No se descontó inventario."
-    elif action == "preparar":
-        if current == "Preparando":
-            return {"changed": False, "ticket": copy.deepcopy(ticket)}
-        if current != "Stock confirmado":
-            raise LogisticsError("Primero confirmá que contás con stock")
-        new_state, note_type, text = "Preparando", "compra_np_preparando", "Logística comenzó a preparar el pedido."
+        new_state, note_type, text = "En preparación", "compra_np_en_preparacion", "Logística confirmó que tiene stock y comenzó a preparar el pedido. No se descontó inventario."
     elif action == "preparado":
-        if current != "Preparando":
+        if current != "En preparación":
             raise LogisticsError("El pedido debe estar en preparación")
         if shortages:
             detail = "; ".join(f"{x['sku']}: {x['cantidad']}" for x in shortages)
@@ -14367,7 +14379,7 @@ def _logistica_purchase_apply(ticket, stock, movimientos, action, actor):
         ticket["compra_np_stock_descontado_at"] = now
         new_state, note_type, text = "Pedido preparado", "compra_np_pedido_preparado", "Pedido preparado. El stock canónico fue descontado una única vez."
     elif action == "derivar":
-        if current not in {"Nuevo", "Stock confirmado", "Preparando"}:
+        if current not in {"Recibido", "En preparación"}:
             raise LogisticsError("El pedido no admite derivación en este estado")
         if not shortages:
             raise LogisticsError("No hay faltantes para derivar a Compras")

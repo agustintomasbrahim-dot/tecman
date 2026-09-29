@@ -1,4 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Pedidos de insumos no productivos{% endblock %}
-{% block nav %}<div class="nav"><a href="{{ url_for('logistica_panel') }}">Portal Logística</a><a href="{{ url_for('logistica_tickets') }}">Pedidos no productivos</a><form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline">Salir</button></form></div>{% endblock %}
-{% block content %}<h2>Pedidos de insumos no productivos</h2><p style="color:#64748b">Tickets reales de sucursal, con stock canónico consultado en vivo.</p><div class="card" style="overflow-x:auto"><table><thead><tr><th>Ticket</th><th>Sucursal</th><th>Detalle</th><th>Stock</th><th>Estado</th><th>Creado</th></tr></thead><tbody>{% for ticket in tickets %}<tr><td><a href="{{ url_for('logistica_ticket',ticket_id=ticket.id) }}"><strong>#{{ ticket.id }}</strong></a></td><td>{{ ticket.sucursal }}</td><td>{% if ticket.compra_np_requiere_detalle %}<span style="color:#b45309">Requiere completar detalle</span>{% else %}{% for line in ticket.compra_np_lineas %}{{ line.sku }} × {{ line.cantidad }}<br>{% endfor %}{% endif %}</td><td>{% if not ticket.compra_np_requiere_detalle %}{% for line in ticket.compra_np_lineas %}{{ line.stock_actual }} disponible{% if line.faltante %} · <strong style="color:#b91c1c">faltan {{ line.faltante }}</strong>{% endif %}<br>{% endfor %}{% else %}-{% endif %}</td><td><span class="badge">{{ ticket.compra_np_estado or ticket.estado }}</span></td><td>{{ (ticket.creado or '')[:16].replace('T',' ') }}</td></tr>{% else %}<tr><td colspan="6">No hay pedidos.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+{% block nav %}
+<div class="nav">
+  <a href="{{ url_for('logistica_panel') }}">Portal Logística</a>
+  <a href="{{ url_for('logistica_tickets') }}">Pedidos no productivos</a>
+  <form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-outline">Salir</button>
+  </form>
+</div>
+{% endblock %}
+{% block content %}
+<h2>Pedidos de insumos no productivos</h2>
+<p style="color:#64748b">Cada pedido muestra el stock canónico en vivo y su única acción siguiente.</p>
+<div class="card" style="overflow-x:auto">
+  <table>
+    <thead><tr><th>Ticket</th><th>Sucursal</th><th>Pedido</th><th>Stock en vivo</th><th>Estado</th><th>Acción siguiente</th></tr></thead>
+    <tbody>
+    {% for ticket in tickets %}
+      {% set tiene_faltantes = ticket.compra_np_lineas|selectattr('faltante')|list|length > 0 %}
+      <tr>
+        <td><a href="{{ url_for('logistica_ticket',ticket_id=ticket.id) }}"><strong>#{{ ticket.id }}</strong></a></td>
+        <td>{{ ticket.sucursal }}</td>
+        <td>
+          {% if ticket.compra_np_requiere_detalle %}<span style="color:#b45309">Requiere completar detalle</span>
+          {% else %}{% for line in ticket.compra_np_lineas %}<div>{{ line.sku }} × {{ line.cantidad }}</div>{% endfor %}{% endif %}
+        </td>
+        <td>
+          {% if ticket.compra_np_requiere_detalle %}—
+          {% else %}{% for line in ticket.compra_np_lineas %}<div>{{ line.stock_actual }} disponible{% if line.faltante %} · <strong style="color:#b91c1c">faltan {{ line.faltante }}</strong>{% else %} · sin faltante{% endif %}</div>{% endfor %}{% endif %}
+        </td>
+        <td><span class="badge">{{ ticket.compra_np_estado }}</span></td>
+        <td>
+          {% if not ticket.compra_np_requiere_detalle and ticket.compra_np_estado not in ['Pedido preparado', 'Derivado a Compras'] %}
+            {% if tiene_faltantes %}
+            <form method="post" action="{{ url_for('logistica_ticket_purchase',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn" style="background:#b45309;color:white">Derivar a Compras</button></form>
+            {% elif ticket.compra_np_estado == 'Recibido' %}
+            <form method="post" action="{{ url_for('logistica_ticket_stock',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Tengo stock</button></form>
+            {% elif ticket.compra_np_estado == 'En preparación' %}
+            <form method="post" action="{{ url_for('logistica_ticket_prepared',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn" style="background:#059669;color:white">Pedido preparado</button></form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No hay pedidos.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@
 {% block nav %}<div class="nav"><a href="{{ url_for('logistica_panel') }}">Portal Logística</a><a href="{{ url_for('logistica_tickets') }}">← Bandeja</a><form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline">Salir</button></form></div>{% endblock %}
 {% block content %}
 <div class="card">
-  <div style="display:flex;justify-content:space-between;gap:12px"><h2>Ticket #{{ ticket.id }}</h2><span class="badge">{{ ticket.compra_np_estado or ticket.estado }}</span></div>
+  <div style="display:flex;justify-content:space-between;gap:12px"><h2>Ticket #{{ ticket.id }}</h2><span class="badge">{{ ticket.compra_np_estado }}</span></div>
   <p><strong>{{ ticket.sucursal }}</strong> · {{ ticket.subcategoria }} · sector {{ ticket.zona_afectada or '-' }}</p>
   <div style="white-space:pre-line">{{ ticket.descripcion }}</div>
 </div>
@@ -11,17 +11,9 @@
 {% if ticket.compra_np_requiere_detalle %}
   <div class="info-box">Requiere completar detalle. Este ticket histórico sigue visible, pero no se simuló stock ni se creó otro pedido.</div>
 {% else %}
-<table><thead><tr><th>SKU</th><th>Pedido</th><th>Stock actual</th><th>Faltante</th></tr></thead><tbody>{% for line in ticket.compra_np_lineas %}<tr><td>{{ line.sku }}</td><td>{{ line.cantidad }}</td><td>{{ line.stock_actual }}</td><td>{% if line.faltante %}<strong style="color:#b91c1c">{{ line.faltante }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody></table>
-{% set tiene_faltantes = ticket.compra_np_lineas|selectattr('faltante')|list|length > 0 %}
-{% if ticket.compra_np_estado not in final_states %}
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-{% if (ticket.compra_np_estado or 'Nuevo') == 'Nuevo' and not tiene_faltantes %}<form method="post" action="{{ url_for('logistica_ticket_stock',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Cuento con stock</button></form>{% endif %}
-{% if ticket.compra_np_estado == 'Stock confirmado' %}<form method="post" action="{{ url_for('logistica_ticket_prepare',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Preparar pedido</button></form>{% endif %}
-{% if ticket.compra_np_estado == 'Preparando' and not tiene_faltantes %}<form method="post" action="{{ url_for('logistica_ticket_prepared',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn" style="background:#059669;color:white">Pedido preparado</button></form>{% endif %}
-{% if tiene_faltantes %}<form method="post" action="{{ url_for('logistica_ticket_purchase',ticket_id=ticket.id) }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn" style="background:#b45309;color:white">Derivar a Compras</button></form>{% endif %}
-</div>{% endif %}
+  <table><thead><tr><th>SKU</th><th>Pedido</th><th>Stock actual</th><th>Faltante</th></tr></thead><tbody>{% for line in ticket.compra_np_lineas %}<tr><td>{{ line.sku }}</td><td>{{ line.cantidad }}</td><td>{{ line.stock_actual }}</td><td>{% if line.faltante %}<strong style="color:#b91c1c">{{ line.faltante }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% if ticket.compra_np_requisicion %}<div class="info-box" style="margin-top:16px"><strong>Solicitud a Compras</strong>: pendiente de número de requisición · email {{ ticket.compra_np_requisicion.email_estado }}</div>{% endif %}
 {% endif %}
-{% if ticket.compra_np_requisicion %}<div class="info-box" style="margin-top:16px"><strong>Solicitud a Compras</strong>: pendiente de número de requisición · email {{ ticket.compra_np_requisicion.email_estado }}{% if ticket.compra_np_requisicion.email_estado == 'fallido' %}<form method="post" action="{{ url_for('logistica_ticket_purchase_email_retry',ticket_id=ticket.id) }}" style="margin-top:8px"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline">Reintentar email</button></form>{% endif %}</div>{% endif %}
 </div>
 {% if ticket.notas %}<div class="card"><h3>Historial</h3>{% for nota in ticket.notas|reverse %}<div style="padding:8px 0;border-bottom:1px solid #f1f5f9"><strong>{{ nota.autor }}</strong> <span style="color:#94a3b8">{{ (nota.fecha or '')[:16].replace('T',' ') }}</span><div>{{ nota.texto }}</div></div>{% endfor %}</div>{% endif %}
 {% endblock %}

@@ -14,9 +14,11 @@
 <a href="{{ url_for('suc_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Mis tickets</a>
 {% endif %}
 <div class="card">
+    {% set estado_compra = ticket.compra_np_estado or 'Recibido' %}
+    {% set estado_visible = ('En preparación' if estado_compra in ['Stock confirmado', 'Preparando'] else estado_compra) if ticket.tipo == 'compra_no_productiva' else ticket.estado %}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2>Ticket #{{ ticket.id }}</h2>
-        <span class="badge badge-{{ ticket.estado.lower().replace(' ', '') }}">{{ ticket.estado }}</span>
+        <span class="badge badge-{{ estado_visible.lower().replace(' ', '') }}">{{ estado_visible }}</span>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
         <div><span style="color: #6b7280;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
@@ -32,7 +34,7 @@
 
     {% if ticket.categoria == 'Compras no productivas' %}
     <div style="margin-top:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
-        <div style="font-weight:700;color:#1e3a8a;">Estado del pedido: {{ ticket.compra_np_estado or 'Requiere completar detalle' }}</div>
+        <div style="font-weight:700;color:#1e3a8a;">Estado del pedido: {{ 'En preparación' if estado_compra in ['Stock confirmado', 'Preparando'] else estado_compra }}</div>
         {% for line in ticket.compra_np_lineas or [] %}<div style="font-size:13px;color:#334155;margin-top:4px;">{{ line.sku }} × {{ line.cantidad }}</div>{% endfor %}
     </div>
     {% endif %}
@@ -191,7 +193,7 @@
 </div>
 {% endif %}
 
-{% if puede_responder_sucursal %}
+{% if puede_responder_sucursal and ticket.tipo != 'compra_no_productiva' %}
 <div class="card" style="border-left: 4px solid #2563eb;">
     <h3 style="margin-bottom: 8px; color: #1e3a8a;">Responder a administración</h3>
     <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">Tu respuesta quedará registrada en el historial de este ticket.</p>
@@ -207,7 +209,7 @@
 </div>
 {% endif %}
 
-{% if puede_finalizar_sucursal %}
+{% if puede_finalizar_sucursal and ticket.tipo != 'compra_no_productiva' %}
 <div class="card" style="border-left:4px solid #059669;">
     <h3 style="margin-bottom:8px;color:#065f46;">¿El problema ya está resuelto?</h3>
     <p style="color:#64748b;font-size:13px;margin-bottom:12px;">Finalizá el ticket sólo si la situación ya fue solucionada. El motivo y tu usuario quedarán registrados para Equipo Central.</p>

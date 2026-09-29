@@ -121,8 +121,17 @@ def purchase_shortages(ticket: dict, stock: dict) -> list[dict]:
 
 
 def project_purchase_ticket(ticket: dict, stock: dict) -> dict:
-    """Proyección GET pura del stock vivo; nunca persiste ni simula renglones legacy."""
+    """Proyección GET pura del stock vivo; nunca persiste ni simula renglones legacy.
+
+    Los estados transitorios creados por la versión anterior se muestran como
+    ``En preparación``. Es compatibilidad de lectura: el GET no migra ni escribe.
+    """
     projected = deepcopy(ticket)
+    raw_state = projected.get("compra_np_estado") or "Nuevo"
+    if raw_state in {"Stock confirmado", "Preparando"}:
+        projected["compra_np_estado"] = "En preparación"
+    elif raw_state == "Nuevo":
+        projected["compra_np_estado"] = "Recibido"
     projected["compra_np_requiere_detalle"] = not bool(projected.get("compra_np_lineas"))
     for line in projected.get("compra_np_lineas") or []:
         available = int((stock.get("central", {}).get(line["sku"]) or {}).get("cantidad", 0) or 0)
@@ -765,17 +774,12 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
             abort(404)
         except LogisticsError as exc:
             return render_template("error.html", mensaje=str(exc)), 409
-        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
+        return redirect(url_for("logistica_tickets"))
 
-    @app.route("/logistica/tickets/<int:ticket_id>/cuento-con-stock", methods=["POST"], endpoint="logistica_ticket_stock")
+    @app.route("/logistica/tickets/<int:ticket_id>/tengo-stock", methods=["POST"], endpoint="logistica_ticket_stock")
     @role_required("dabra")
     def ticket_stock(ticket_id):
-        return purchase_action(ticket_id, "cuento-stock")
-
-    @app.route("/logistica/tickets/<int:ticket_id>/preparar", methods=["POST"], endpoint="logistica_ticket_prepare")
-    @role_required("dabra")
-    def ticket_prepare(ticket_id):
-        return purchase_action(ticket_id, "preparar")
+        return purchase_action(ticket_id, "tengo-stock")
 
     @app.route("/logistica/tickets/<int:ticket_id>/pedido-preparado", methods=["POST"], endpoint="logistica_ticket_prepared")
     @role_required("dabra")
