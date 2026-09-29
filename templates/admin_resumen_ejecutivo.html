@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Resumen ejecutivo - Tecman{% endblock %}
+{% block nav %}
+<div class="nav no-print">
+  <a href="{{ url_for('admin_panel') }}">← Panel</a>
+  <a href="{{ url_for('admin_resumen_ejecutivo') }}">Resumen ejecutivo</a>
+  <a href="{{ url_for('admin_logout') }}" style="margin-left:auto">Salir</a>
+</div>
+{% endblock %}
+{% block content %}
+<style>
+  .report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.report-head h1{margin:0}.muted{color:#64748b}.actions{display:flex;gap:8px;flex-wrap:wrap}.filters{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.filters label{font-size:12px;font-weight:700;color:#475569}.filters input{display:block;padding:8px;border:1px solid #cbd5e1;border-radius:7px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:18px 0}.kpi{border:1px solid #e2e8f0;border-radius:10px;padding:13px;background:white}.kpi b{display:block;font-size:24px;margin-top:4px}.section{break-inside:avoid;margin:18px 0}.section h2{font-size:18px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}.bar{height:9px;background:#dbeafe;border-radius:5px;min-width:2px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:13px}th{background:#f8fafc}.note{border-left:4px solid #f59e0b;background:#fffbeb;padding:12px;margin:12px 0}.facts{border-left-color:#2563eb;background:#eff6ff}.recommendations{border-left-color:#16a34a;background:#f0fdf4}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#e2e8f0;font-size:12px}.chart-row{display:grid;grid-template-columns:110px 1fr 45px;gap:8px;align-items:center;margin:6px 0;font-size:12px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}} @media print{.no-print{display:none!important}.container{max-width:none}.card{box-shadow:none}.section{page-break-inside:avoid}body{font-size:11px}}
+</style>
+<div class="report-head">
+  <div><h1>Resumen ejecutivo</h1><p class="muted">Período exacto: <strong>{{ report.periodo.desde or 'sin datos' }}</strong> a <strong>{{ report.periodo.hasta_exclusivo or 'sin datos' }}</strong> (hasta exclusivo, {{ report.periodo.dias }} días).</p></div>
+  <div class="actions no-print"><a class="btn" href="{{ url_for('admin_resumen_ejecutivo_xlsx', desde=report.periodo.desde, hasta=report.periodo.hasta_exclusivo) if report.periodo.desde else url_for('admin_resumen_ejecutivo_xlsx') }}">Descargar XLSX</a><button class="btn" onclick="window.print()">Imprimir</button></div>
+</div>
+<form class="card filters no-print" method="get">
+  <label>Desde<input type="date" name="desde" value="{{ request.args.get('desde', '') }}" required></label>
+  <label>Hasta exclusivo<input type="date" name="hasta" value="{{ request.args.get('hasta', '') }}" required></label>
+  <button class="btn" type="submit">Aplicar período</button><a class="btn" href="{{ url_for('admin_resumen_ejecutivo') }}">Período automático</a>
+  <span class="muted">Máximo {{ report.metodologia.limite_consulta_dias }} días.</span>
+</form>
+<div class="grid">
+  <div class="kpi">Tickets<b>{{ report.metricas.total }}</b></div><div class="kpi">Promedio diario<b>{{ report.metricas.promedio_diario }}</b></div><div class="kpi">Promedio semanal<b>{{ report.metricas.promedio_semanal }}</b></div><div class="kpi">Finalización<b>{{ report.metricas.tasa_finalizacion }}%</b></div><div class="kpi">Backlog<b>{{ report.metricas.backlog }}</b></div><div class="kpi">Compras / insumos<b>{{ report.metricas.compras_insumos }}</b><span class="muted">{{ report.metricas.derivaciones_compras_insumos }} derivaciones fechadas</span></div>
+</div>
+<div class="note facts"><strong>Hechos del período.</strong> Los totales fueron reconciliados entre evolución, categorías y estados. Top 5: {{ report.metricas.concentracion_top5 }}%; top 10: {{ report.metricas.concentracion_top10 }}%. Se excluyeron {{ report.metodologia.excluidos_total }} registros sintéticos.</div>
+<div class="two">
+<section class="card section"><h2>Evolución diaria</h2>{% set max_daily = report.evolucion_diaria|map(attribute='cantidad')|max|default(1) %}{% for row in report.evolucion_diaria %}<div class="chart-row"><span>{{ row.fecha }}</span><div class="bar" style="width:{{ (row.cantidad * 100 / max_daily) if max_daily else 0 }}%"></div><b>{{ row.cantidad }}</b></div>{% else %}<p class="muted">Sin tickets.</p>{% endfor %}</section>
+<section class="card section"><h2>Evolución semanal</h2>{% set max_week = report.evolucion_semanal|map(attribute='cantidad')|max|default(1) %}{% for row in report.evolucion_semanal %}<div class="chart-row"><span>{{ row.semana }}</span><div class="bar" style="width:{{ (row.cantidad * 100 / max_week) if max_week else 0 }}%"></div><b>{{ row.cantidad }}</b></div>{% else %}<p class="muted">Sin tickets.</p>{% endfor %}</section>
+</div>
+<section class="card section"><h2>Top 10 sucursales</h2><div class="table-wrap"><table><thead><tr><th>Sucursal</th><th>Tickets</th><th>%</th></tr></thead><tbody>{% for row in report.top_sucursales %}<tr><td>{{ row.nombre }}</td><td>{{ row.cantidad }}</td><td>{{ row.porcentaje }}%</td></tr>{% else %}<tr><td colspan="3">Sin datos</td></tr>{% endfor %}</tbody></table></div><p class="muted">Catálogo: {{ report.sucursales_resumen.catalogadas }} · con tickets: {{ report.sucursales_resumen.con_tickets }} · sin tickets: {{ report.sucursales_resumen.sin_tickets }}. La fuente no permite llamarlas “habilitadas”.</p></section>
+<div class="two">
+<section class="card section"><h2>Categorías / subcategorías / tipos</h2>{% for title, rows in [('Categorías', report.categorias), ('Subcategorías', report.subcategorias), ('Tipos', report.tipos)] %}<h3>{{ title }}</h3><table><tbody>{% for row in rows[:10] %}<tr><td>{{ row.nombre }}</td><td>{{ row.cantidad }}</td><td>{{ row.porcentaje }}%</td></tr>{% endfor %}</tbody></table>{% endfor %}</section>
+<section class="card section"><h2>Estados</h2><table><tbody>{% for row in report.estados %}<tr><td>{{ row.nombre }}</td><td>{{ row.cantidad }}</td><td>{{ row.porcentaje }}%</td></tr>{% else %}<tr><td>Sin datos</td></tr>{% endfor %}</tbody></table><p><strong>Finalizados:</strong> {{ report.metricas.finalizados }} (sólo Resuelto/Cerrado). Rechazado/Cancelado no cuentan como resolución.</p></section>
+</div>
+<div class="two">
+<section class="card section"><h2>Tiempos</h2>{% for label, metric in [('Primera gestión', report.tiempos.primera_gestion), ('Resolución', report.tiempos.resolucion)] %}<p><strong>{{ label }}:</strong> {{ metric.estado }} (n={{ metric.muestra }}){% if metric.estado == 'disponible' %}; mediana {{ metric.mediana_horas }} h, P90 {{ metric.p90_horas }} h{% endif %}.</p>{% endfor %}<p class="muted">Se usan sólo marcas estructuradas posteriores a la creación y muestra mínima de 3.</p></section>
+<section class="card section"><h2>Backlog y responsables</h2><p>{{ report.metricas.backlog }} pendientes; {{ report.metricas.backlog_7_mas }} con 7+ días; {{ report.metricas.backlog_30_mas }} con 30+ días.</p><table><thead><tr><th>Responsable</th><th>Pendientes</th></tr></thead><tbody>{% for row in report.responsables_carga[:10] %}<tr><td>{{ row.nombre }}</td><td>{{ row.cantidad }}</td></tr>{% endfor %}</tbody></table><h3>Sectores con carga pendiente</h3><table><tbody>{% for row in report.sectores_carga[:10] %}<tr><td>{{ row.nombre }}</td><td>{{ row.cantidad }}</td></tr>{% endfor %}</tbody></table></section>
+</div>
+<div class="two">
+<section class="card section"><h2>Ingresos de sucursales</h2><p>Se cuentan únicamente eventos <code>login_success</code>.</p><p><strong>{{ report.login.sucursales_con_evidencia }}</strong> sucursales con evidencia; <strong>{{ report.login.sucursales_sin_evidencia }}</strong> {{ report.login.etiqueta_ausencia }}.</p><p class="muted">Cobertura: {{ report.login.cobertura_desde or 'ausente' }} a {{ report.login.cobertura_hasta or 'ausente' }}. Atribución completa: {{ 'sí' if report.login.atribucion_completa else 'no' }}. “Nunca ingresaron” sólo se usa con cobertura temporal y atribución completas.</p></section>
+<section class="card section"><h2>Calidad</h2><p>Obligatorios vacíos: {{ report.calidad.get('obligatorios_vacios', 0) }}</p><p>Sucursal no normalizada: {{ report.calidad.get('sucursal_no_normalizada', 0) }}</p><p>Adjunto faltante cuando era explícitamente obligatorio: {{ report.calidad.get('adjunto_obligatorio_faltante', 0) }}</p><p class="muted">No se infieren duplicados ni obligatoriedad de adjuntos.</p></section>
+</div>
+<section class="note recommendations section"><h2>Recomendaciones (no son hechos)</h2><ol>{% for item in report.recomendaciones %}<li>{{ item }}</li>{% endfor %}</ol><p class="muted">Reglas documentadas: {{ report.metodologia.umbrales_recomendaciones|join('; ') }}.</p></section>
+<section class="note section"><strong>Advertencias metodológicas.</strong><ul><li>Cohorte automática: [primer ticket real no sintético, +30 días). Consulta manual estricta YYYY-MM-DD, hasta exclusivo, máximo {{ report.metodologia.limite_consulta_dias }} días.</li><li>Exclusiones reproducibles: {{ report.metodologia.reglas_exclusion|join('; ') }}. Conteos: {{ report.metodologia.exclusiones }}.</li><li>{{ report.metodologia.universo_sucursales }}</li><li>{{ report.metodologia.backlog }}</li><li>No se muestran emails, descripciones, adjuntos ni texto libre.</li></ul></section>
+{% endblock %}

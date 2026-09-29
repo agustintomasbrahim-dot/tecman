@@ -5309,9 +5309,10 @@ def _load_tickets_raw():
     return []
 
 
-def load_tickets():
+def load_tickets(readonly=False):
+    """Carga canónica; readonly evita normalizaciones persistentes en consultas GET."""
     tickets = _load_tickets_raw()
-    if not tickets:
+    if not tickets or readonly:
         return tickets
     antes = copy.deepcopy(tickets)
     _normalizar_responsable_materiales(tickets, auditar=True)
@@ -7599,6 +7600,63 @@ def admin_panel():
         metricas_resumen=metricas_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
+    )
+
+
+def _executive_report_sources():
+    """Fuentes canónicas en modo lectura; no transforma ni persiste tickets."""
+    from sucursales_data import SUCURSALES_INFO
+    tickets = load_tickets(readonly=True)
+    if USE_DB:
+        events = AuthAuditEventDB.query.order_by(AuthAuditEventDB.created_at.asc()).all()
+        users = UserDB.query.order_by(UserDB.created_at.asc()).all()
+    else:
+        events = _load_audit_json().get("events", [])
+        users = _load_users_json().get("users", [])
+    return tickets, SUCURSALES_INFO, events, users
+
+
+def _build_executive_report_from_request():
+    from executive_report import build_report
+    tickets, catalog, events, users = _executive_report_sources()
+    branch_email_map = {
+        str(email or "").strip().casefold(): code
+        for code, email in SUCURSAL_EMAILS.items()
+        if str(email or "").strip()
+    }
+    return build_report(
+        tickets, catalog, auth_events=events, users=users, query=request.args,
+        branch_email_map=branch_email_map,
+    )
+
+
+@app.route("/admin/resumen-ejecutivo")
+@admin_required
+def admin_resumen_ejecutivo():
+    try:
+        report = _build_executive_report_from_request()
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 400
+    return render_template("admin_resumen_ejecutivo.html", report=report)
+
+
+@app.route("/admin/resumen-ejecutivo.xlsx")
+@admin_required
+def admin_resumen_ejecutivo_xlsx():
+    from executive_report import workbook_bytes
+    try:
+        report = _build_executive_report_from_request()
+        output = workbook_bytes(report)
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 400
+    desde = report["periodo"]["desde"] or "sin-datos"
+    hasta = report["periodo"]["hasta_exclusivo"] or "sin-datos"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"resumen_ejecutivo_{desde}_{hasta}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        max_age=0,
     )
 
 
