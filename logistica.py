@@ -25,6 +25,10 @@ from openpyxl import Workbook, load_workbook
 
 
 ROLES = {"dabra", "garin", "compras"}
+TICKET_CATEGORY = "Compras no productivas"
+TICKET_TYPE = "compra_no_productiva"
+TICKET_FINAL_STATES = frozenset({"Rechazado", "Resuelto", "Cerrado"})
+TICKET_RESPONSE_MAX_LENGTH = 2000
 PREPARADOR_DABRA_EMAIL = "hdiosque@grupodexter.com.ar"
 REVOKED_LOGISTICS_EMAILS = {"esoria@grupodexter.com.ar"}
 REVOKED_LOGISTICS_USERNAMES = {"esoria", "soria_demo"}
@@ -53,6 +57,104 @@ def _truthy(value) -> bool:
 
 class LogisticsError(ValueError):
     pass
+
+
+def is_non_productive_purchase_ticket(ticket: dict) -> bool:
+    """Clasificación cerrada del circuito: nunca inferirla desde texto libre."""
+    return (
+        isinstance(ticket, dict)
+        and ticket.get("categoria") == TICKET_CATEGORY
+        and ticket.get("tipo") == TICKET_TYPE
+    )
+
+
+def _ticket_by_id(tickets: list[dict], ticket_id: int) -> dict | None:
+    return next(
+        (ticket for ticket in tickets
+         if str(ticket.get("id")) == str(ticket_id)
+         and is_non_productive_purchase_ticket(ticket)),
+        None,
+    )
+
+
+def mutate_purchase_ticket(tickets: list[dict], ticket_id: int, action: str,
+                           actor: str, response: str = "") -> dict:
+    """Valida primero y recién después muta un ticket real de Compras no productivas."""
+    ticket = _ticket_by_id(tickets, ticket_id)
+    if ticket is None:
+        raise LookupError("Ticket inexistente o fuera del alcance de Logística")
+
+    response = str(response or "").strip()
+    if action in {"respond", "resolve"}:
+        if not response:
+            raise LogisticsError("La observación es obligatoria")
+        if len(response) > TICKET_RESPONSE_MAX_LENGTH:
+            raise LogisticsError(
+                f"La observación no puede superar los {TICKET_RESPONSE_MAX_LENGTH} caracteres"
+            )
+
+    current = str(ticket.get("estado") or "")
+    if current in TICKET_FINAL_STATES:
+        # Repetir exactamente la resolución confirmada es un éxito idempotente.
+        if (
+            action == "resolve"
+            and current == "Resuelto"
+            and ticket.get("logistica_resolucion") == response
+        ):
+            return {"ticket": deepcopy(ticket), "changed": False, "idempotent": True}
+        raise LogisticsError("El ticket ya está finalizado")
+
+    now = _now()
+    notes = ticket.setdefault("notas", [])
+    if action == "start":
+        if current == "En progreso":
+            return {"ticket": deepcopy(ticket), "changed": False, "idempotent": True}
+        if current not in {"Nuevo", "Abierto", "Pendiente"}:
+            raise LogisticsError("El ticket no admite pasar a En proceso")
+        ticket["estado"] = "En progreso"
+        ticket["compra_np_estado"] = "En progreso"
+        note_text = "Logística tomó el ticket y comenzó la gestión."
+        note_type = "logistica_en_proceso"
+    elif action == "respond":
+        if any(
+            note.get("tipo") == "logistica_respuesta"
+            and note.get("autor") == actor
+            and note.get("respuesta_operativa") == response
+            for note in notes if isinstance(note, dict)
+        ):
+            return {"ticket": deepcopy(ticket), "changed": False, "idempotent": True}
+        ticket["respuesta_logistica"] = response
+        ticket["respuesta_logistica_actor"] = actor
+        ticket["respuesta_logistica_fecha"] = now
+        note_text = f"Respuesta de Logística: {response}"
+        note_type = "logistica_respuesta"
+    elif action == "resolve":
+        ticket["estado"] = "Resuelto"
+        ticket["compra_np_estado"] = "Resuelto"
+        ticket["logistica_resolucion"] = response
+        ticket["logistica_resolucion_actor"] = actor
+        ticket["logistica_resolucion_fecha"] = now
+        ticket["respuesta_logistica"] = response
+        ticket["respuesta_logistica_actor"] = actor
+        ticket["respuesta_logistica_fecha"] = now
+        ticket["fecha_cierre"] = now
+        note_text = f"Ticket resuelto por Logística. Resultado: {response}"
+        note_type = "logistica_resuelto"
+    else:
+        raise LogisticsError("Acción inválida")
+
+    ticket["actualizado"] = now
+    note = {
+        "autor": actor,
+        "fecha": now,
+        "tipo": note_type,
+        "texto": note_text,
+        "visibilidad": "sucursal",
+    }
+    if action in {"respond", "resolve"}:
+        note["respuesta_operativa"] = response
+    notes.append(note)
+    return {"ticket": deepcopy(ticket), "changed": True, "idempotent": False}
 
 
 class LogisticsStore:
@@ -488,6 +590,8 @@ def logistics_entra_role(identity: dict) -> str | None:
 def register_logistics(app, service: LogisticsService, csrf_validator: Callable[[], bool],
                        entra_enabled: Callable[[], bool], branch_authorized: Callable[[], bool] | None = None,
                        ticket_loader: Callable[[], list] | None = None,
+                       ticket_mutator: Callable[[Callable[[list], dict]], dict] | None = None,
+                       session_validator: Callable[[], bool] | None = None,
                        compras_email_sender: Callable[[dict, dict], None] | None = None):
     def actor():
         return session.get("logistica_name") or session.get("logistica_user") or session.get("suc_nombre") or "Sistema"
@@ -500,7 +604,8 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
                 principal = str(session.get("logistica_user") or "").strip().lower()
                 valid_dabra = role != "dabra" or (session.get("auth_provider") == "entra" and principal == PREPARADOR_DABRA_EMAIL)
                 valid_local = session.get("auth_provider") != "local_logistica" or (app.config.get("LOGISTICA_LOCAL_LOGIN_ENABLED", False) and role != "dabra")
-                if not valid_dabra or not valid_local:
+                valid_session = not session_validator or session_validator()
+                if not valid_dabra or not valid_local or not valid_session:
                     session.clear()
                     return render_template("error.html", mensaje="Acceso restringido al portal de Logística."), 403
                 if role not in roles:
@@ -548,13 +653,85 @@ def register_logistics(app, service: LogisticsService, csrf_validator: Callable[
     @app.route("/logistica", endpoint="logistica_panel")
     @role_required("dabra", "compras")
     def panel():
-        if ticket_loader:
-            service.sync_ticket_orders(ticket_loader())
         state = service.state()
         return render_template("logistica_panel.html", state=state, orders=list(state["orders"].values()),
                                waves=list(state["waves"].values()),
                                requisitions=list(state.get("requisitions", {}).values()),
                                role=session.get("logistica_role"))
+
+    def purchase_tickets() -> list[dict]:
+        if not ticket_loader:
+            return []
+        return [ticket for ticket in ticket_loader() if is_non_productive_purchase_ticket(ticket)]
+
+    def mutate_real_ticket(ticket_id: int, action: str, response: str = "") -> dict:
+        if not ticket_mutator:
+            abort(503)
+        return ticket_mutator(
+            lambda tickets: mutate_purchase_ticket(tickets, ticket_id, action, actor(), response)
+        )
+
+    @app.route("/logistica/tickets", endpoint="logistica_tickets")
+    @role_required("dabra")
+    def tickets_inbox():
+        tickets = sorted(
+            purchase_tickets(),
+            key=lambda ticket: str(ticket.get("creado") or ""),
+            reverse=True,
+        )
+        return render_template("logistica_tickets.html", tickets=tickets)
+
+    @app.route("/logistica/tickets/<int:ticket_id>", endpoint="logistica_ticket")
+    @role_required("dabra")
+    def ticket_detail(ticket_id):
+        ticket = _ticket_by_id(purchase_tickets(), ticket_id)
+        if ticket is None:
+            abort(404)
+        return render_template(
+            "logistica_ticket.html",
+            ticket=ticket,
+            final_states=TICKET_FINAL_STATES,
+            response_max_length=TICKET_RESPONSE_MAX_LENGTH,
+        )
+
+    @app.route("/logistica/tickets/<int:ticket_id>/en-proceso", methods=["POST"],
+               endpoint="logistica_ticket_start")
+    @role_required("dabra")
+    def ticket_start(ticket_id):
+        csrf_or_400()
+        try:
+            mutate_real_ticket(ticket_id, "start")
+        except LookupError:
+            abort(404)
+        except LogisticsError as exc:
+            return render_template("error.html", mensaje=str(exc)), 409
+        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
+
+    @app.route("/logistica/tickets/<int:ticket_id>/responder", methods=["POST"],
+               endpoint="logistica_ticket_respond")
+    @role_required("dabra")
+    def ticket_respond(ticket_id):
+        csrf_or_400()
+        try:
+            mutate_real_ticket(ticket_id, "respond", request.form.get("respuesta", ""))
+        except LookupError:
+            abort(404)
+        except LogisticsError as exc:
+            return render_template("error.html", mensaje=str(exc)), 409
+        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
+
+    @app.route("/logistica/tickets/<int:ticket_id>/resolver", methods=["POST"],
+               endpoint="logistica_ticket_resolve")
+    @role_required("dabra")
+    def ticket_resolve(ticket_id):
+        csrf_or_400()
+        try:
+            mutate_real_ticket(ticket_id, "resolve", request.form.get("respuesta", ""))
+        except LookupError:
+            abort(404)
+        except LogisticsError as exc:
+            return render_template("error.html", mensaje=str(exc)), 409
+        return redirect(url_for("logistica_ticket", ticket_id=ticket_id))
 
     @app.route("/logistica/pedidos/<order_id>", methods=["GET", "POST"], endpoint="logistica_order")
     @role_required("dabra")

@@ -3,6 +3,7 @@
 {% block nav %}
 <div class="nav">
   <a href="{{ url_for('logistica_panel') }}">Pedidos y olas</a>
+  {% if role == 'dabra' %}<a href="{{ url_for('logistica_tickets') }}">Tickets de sucursales</a>{% endif %}
   {% if role == 'dabra' %}<a href="{{ url_for('logistica_stock') }}">Stock Dabra</a>{% endif %}
   <form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -13,6 +14,13 @@
 {% block content %}
 <h2>Logística de Insumos</h2>
 <p style="color:#64748b">{{ session.logistica_name }} · {{ role|upper }}</p>
+{% if role == 'dabra' %}
+<div class="card" style="border-left:4px solid #2563eb;">
+  <h3>Tickets de compras no productivas</h3>
+  <p style="color:#64748b;font-size:13px;">Gestioná acá las solicitudes reales creadas por las sucursales, sin mezclarlas con stock, reservas ni órdenes de distribución.</p>
+  <a class="btn btn-primary" href="{{ url_for('logistica_tickets') }}">Abrir bandeja de tickets</a>
+</div>
+{% endif %}
 <div class="stats">
   <div class="stat-card"><div class="number">{{ orders|length }}</div><div class="label">Tickets / pedidos</div></div>
   <div class="stat-card"><div class="number">{{ waves|length }}</div><div class="label">Olas</div></div>

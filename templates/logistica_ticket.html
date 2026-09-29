@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Logística · Ticket #{{ ticket.id }}{% endblock %}
+{% block nav %}
+<div class="nav">
+  <a href="{{ url_for('logistica_panel') }}">Portal Logística</a>
+  <a href="{{ url_for('logistica_tickets') }}">← Bandeja de tickets</a>
+  <form action="{{ url_for('logistica_logout') }}" method="post" style="margin-left:auto">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-outline" style="margin:5px">Salir</button>
+  </form>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <h2>Ticket #{{ ticket.id }}</h2><span class="badge">{{ ticket.estado }}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;font-size:14px;">
+    <div><span style="color:#64748b;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
+    <div><span style="color:#64748b;">Categoría:</span> {{ ticket.categoria }}</div>
+    <div><span style="color:#64748b;">Rubro:</span> {{ ticket.subcategoria }}</div>
+    <div><span style="color:#64748b;">Cantidad / referencia:</span> {{ ticket.compra_np_cantidad }}</div>
+    <div><span style="color:#64748b;">Sector:</span> {{ ticket.zona_afectada }}</div>
+    <div><span style="color:#64748b;">Fecha necesaria:</span> {{ ticket.compra_np_fecha_necesaria or '-' }}</div>
+  </div>
+  <div style="margin-top:12px;background:#f8fafc;padding:12px;border-radius:8px;white-space:pre-line;">{{ ticket.descripcion }}</div>
+</div>
+
+{% if ticket.estado not in final_states %}
+<div class="card">
+  <h3>Gestión operativa</h3>
+  {% if ticket.estado != 'En progreso' %}
+  <form method="post" action="{{ url_for('logistica_ticket_start', ticket_id=ticket.id) }}" style="margin-bottom:16px;">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-primary" type="submit">Marcar En proceso</button>
+  </form>
+  {% endif %}
+  <form method="post" action="{{ url_for('logistica_ticket_respond', ticket_id=ticket.id) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Respuesta / observación para la sucursal</label><textarea name="respuesta" maxlength="{{ response_max_length }}" required></textarea></div>
+    <button class="btn btn-outline" type="submit">Registrar respuesta</button>
+  </form>
+  <hr style="margin:20px 0;border:0;border-top:1px solid #e5e7eb;">
+  <form method="post" action="{{ url_for('logistica_ticket_resolve', ticket_id=ticket.id) }}" onsubmit="return confirm('¿Confirmás que este ticket quedó resuelto?');">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Resultado final</label><textarea name="respuesta" maxlength="{{ response_max_length }}" required></textarea></div>
+    <button class="btn" style="background:#059669;color:white;" type="submit">Marcar Resuelto</button>
+  </form>
+</div>
+{% endif %}
+
+{% if ticket.notas %}
+<div class="card"><h3>Historial</h3>
+{% for nota in ticket.notas|reverse %}
+  <div style="padding:8px 0;{% if not loop.last %}border-bottom:1px solid #f1f5f9;{% endif %}">
+    <div style="display:flex;justify-content:space-between;font-size:12px;"><strong>{{ nota.autor }}</strong><span style="color:#94a3b8;">{{ (nota.fecha or '')[:16].replace('T',' ') }}</span></div>
+    <div style="font-size:13px;margin-top:4px;white-space:pre-line;">{{ nota.texto }}</div>
+  </div>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

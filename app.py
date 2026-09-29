@@ -19,6 +19,7 @@ import importlib
 import re
 import tempfile
 import unicodedata
+import threading
 import requests
 import bcrypt
 import jwt
@@ -14295,9 +14296,27 @@ def _logistica_send_compras_email(requisition, order):
 
 _logistica_model = LogisticsStateDB if USE_DB else None
 logistica_service = LogisticsService(LogisticsStore(DATA_DIR / "logistica_insumos.json", USE_DB, db if USE_DB else None, _logistica_model))
-# El portal opera sobre su almacenamiento aislado. No sincroniza tickets ni stock reales.
+_LOGISTICA_TICKET_LOCK = threading.RLock()
+
+
+def _logistica_mutate_ticket(mutator):
+    """Muta tickets reales bajo una única sección crítica y sólo tras validar."""
+    with _LOGISTICA_TICKET_LOCK:
+        tickets = _load_tickets_raw()
+        result = mutator(tickets)
+        if result.get("changed"):
+            save_tickets(tickets)
+        return result
+
+
+# Stock, reservas y olas conservan su almacenamiento aislado. La nueva bandeja
+# recibe una proyección de sólo lectura de tickets reales y muta esos mismos
+# registros mediante el helper transaccional, sin copiarlos ni sincronizarlos.
 register_logistics(app, logistica_service, _validate_csrf, _entra_is_configured,
-                   _logistica_branch_authorized, compras_email_sender=_logistica_send_compras_email)
+                   _logistica_branch_authorized, ticket_loader=_load_tickets_raw,
+                   ticket_mutator=_logistica_mutate_ticket,
+                   session_validator=_session_auth_is_valid,
+                   compras_email_sender=_logistica_send_compras_email)
 
 
 @app.errorhandler(500)
