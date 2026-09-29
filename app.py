@@ -6663,10 +6663,10 @@ def responder_ticket_desde_sucursal(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
-    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
-        return render_template("error.html", mensaje="Este pedido no admite respuestas operativas manuales."), 409
     if not _sucursal_session_can_reply_to_ticket(ticket):
         return render_template("error.html", mensaje="No tenés permiso para responder este ticket."), 403
+    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
+        return render_template("error.html", mensaje="Este pedido no admite respuestas operativas manuales."), 409
 
     respuesta = request.form.get("respuesta", "").strip()
     if not respuesta:
@@ -6708,10 +6708,10 @@ def finalizar_ticket_desde_sucursal(ticket_id):
     ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
-    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
-        return render_template("error.html", mensaje="Este pedido se completa sólo desde el circuito de Logística."), 409
     if not _sucursal_session_can_reply_to_ticket(ticket):
         return render_template("error.html", mensaje="No tenés permiso para finalizar este ticket."), 403
+    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
+        return render_template("error.html", mensaje="Este pedido se completa sólo desde el circuito de Logística."), 409
 
     motivo = request.form.get("motivo", "").strip()
     if not motivo:

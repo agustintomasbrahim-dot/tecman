@@ -37,9 +37,9 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         tecman.TICKETS_FILE, tecman.STOCK_FILE, tecman.STOCK_MOV_FILE, tecman.UPLOADS_DIR = self.original_paths
         self.temp.cleanup()
 
-    def branch_session(self):
+    def branch_session(self, branch="Sucursal 011"):
         with self.client.session_transaction() as sess:
-            sess.clear(); sess.update(suc_user="suc011", suc_nombre="Sucursal 011", auth_provider="entra",
+            sess.clear(); sess.update(suc_user="suc011", suc_nombre=branch, auth_provider="entra",
                                       entra_role="sucursal", _csrf_token="csrf-test")
 
     def logistics_session(self, **overrides):
@@ -82,6 +82,10 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         before_ticket = copy.deepcopy(tecman._load_tickets_raw()[0])
         self.assertEqual(self.post(f"/estado/{ticket['id']}/responder", {"respuesta": "comentario"}).status_code, 409)
         self.assertEqual(self.post(f"/estado/{ticket['id']}/finalizar", {"motivo": "cerrar"}).status_code, 409)
+        self.assertEqual(tecman._load_tickets_raw()[0], before_ticket)
+        self.branch_session("Sucursal 014")
+        self.assertEqual(self.post(f"/estado/{ticket['id']}/responder", {"respuesta": "comentario"}).status_code, 403)
+        self.assertEqual(self.post(f"/estado/{ticket['id']}/finalizar", {"motivo": "cerrar"}).status_code, 403)
         self.assertEqual(tecman._load_tickets_raw()[0], before_ticket)
         self.set_stock({self.skus[0]: 4, self.skus[1]: 3})
         before_stock = copy.deepcopy(tecman.load_stock())
