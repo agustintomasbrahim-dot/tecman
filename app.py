@@ -63,6 +63,8 @@ MEDIA_ACCEPT = "image/*,video/mp4,video/quicktime,video/webm"
 TICKET_ATTACHMENT_ACCEPT = f"{MEDIA_ACCEPT},.pdf"
 TICKET_REPLY_MAX_LENGTH = 2000
 TICKET_BRANCH_RESOLUTION_MAX_LENGTH = 2000
+TICKET_REPLY_IDEMPOTENCY_MAX_LENGTH = 128
+_TICKET_REPLY_LOCK = threading.RLock()
 
 
 def is_video_file(filename):
@@ -1957,11 +1959,14 @@ def save_fumigaciones(data):
     _atomic_write(FUMIGACIONES_FILE, data)
 
 
-def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
+def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None, evento_id=None):
     """Agrega una notificacion al buzon de admins (Agustin / Carolina)."""
     data = load_notif_admin()
+    if evento_id and any(n.get("evento_id") == evento_id for n in data.get("notificaciones", [])):
+        return False
     data.setdefault("notificaciones", []).insert(0, {
         "id": uuid.uuid4().hex[:10],
+        **({"evento_id": evento_id} if evento_id else {}),
         "tipo": tipo,
         "titulo": titulo,
         "detalle": detalle,
@@ -1973,6 +1978,7 @@ def agregar_notif_admin(titulo, detalle, tipo="stock", autor="", link=None):
     # Mantener solo las ultimas 200
     data["notificaciones"] = data["notificaciones"][:200]
     save_notif_admin(data)
+    return True
 
 def load_movimientos():
     if USE_DB:
@@ -3697,20 +3703,91 @@ def _sucursal_session_can_access_item(item):
 
 
 def _sucursal_session_can_reply_to_ticket(ticket):
-    if "suc_user" not in session or session.get("oficina_user"):
+    if "suc_user" not in session:
         return False
+    if session.get("oficina_user"):
+        return ticket.get("origen") == "oficina" and _sucursal_session_can_access_item(ticket)
     if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
         return False
     return _sucursal_session_can_access_item(ticket)
 
 
 def _sucursal_session_can_finalize_ticket(ticket):
-    """Todo ticket abierto y dentro del alcance de sucursal puede finalizarse."""
-    return _sucursal_session_can_reply_to_ticket(ticket) and not _is_ticket_finalizado(ticket)
+    """Todo ticket abierto de sucursal (no oficina) y dentro de alcance puede finalizarse."""
+    return (
+        not session.get("oficina_user")
+        and _sucursal_session_can_reply_to_ticket(ticket)
+        and not _is_ticket_finalizado(ticket)
+    )
+
+
+def _ticket_note_role(ticket, note):
+    """Proyecta el rol sin migrar ni modificar notas legacy."""
+    explicit = str(note.get("rol") or "").strip().lower()
+    labels = {
+        "sucursal": "Sucursal",
+        "administracion": "Administración",
+        "admin": "Administración",
+        "sistema": "Sistema",
+        "proveedor": "Proveedor",
+    }
+    if explicit == "sector":
+        return str(note.get("sector") or ticket.get("sector_oficina") or "Sector responsable")
+    if explicit in labels:
+        return labels[explicit]
+    autor = str(note.get("autor") or "").strip()
+    texto = str(note.get("texto") or "").strip().lower()
+    tipo = str(note.get("tipo") or "").strip().lower()
+    if autor.lower() == "sistema":
+        return "Sistema"
+    if (
+        tipo in {"respuesta_sucursal", "resuelto_por_sucursal"}
+        or texto.startswith("respuesta de sucursal:")
+        or autor.lower().startswith("sucursal")
+        or _sucursal_num_from_value(autor) == _sucursal_num_from_value(_ticket_sucursal_value(ticket))
+    ):
+        return "Sucursal"
+    return "Administración"
+
+
+def _ticket_conversation(ticket):
+    """Devuelve una proyección cronológica estable del historial existente."""
+    conversation = []
+    for index, note in enumerate(ticket.get("notas") or []):
+        if not isinstance(note, dict):
+            continue
+        item = dict(note)
+        item["autor"] = str(item.get("autor") or "Sin autor")
+        item["fecha"] = str(item.get("fecha") or "")
+        item["texto"] = str(item.get("texto") or "")
+        item["rol_visible"] = _ticket_note_role(ticket, item)
+        item["_orden"] = index
+        conversation.append(item)
+    conversation.sort(key=lambda item: (item["fecha"], item["_orden"]))
+    return conversation
+
+
+def _valid_reply_idempotency_key(value):
+    value = str(value or "").strip()
+    if not value:
+        return uuid.uuid4().hex
+    if len(value) > TICKET_REPLY_IDEMPOTENCY_MAX_LENGTH or not re.fullmatch(r"[A-Za-z0-9._:-]+", value):
+        return None
+    return value
 
 
 def _session_sucursal_label(default="Portal Sucursales"):
     return session.get("suc_nombre") or default
+
+
+def _session_ticket_reply_actor():
+    if session.get("oficina_user"):
+        return (
+            session.get("nombre") or session.get("oficina_user") or "Portal Oficinas",
+            "sector",
+            session.get("oficina_sector") or "Sector responsable",
+        )
+    return _session_sucursal_label("Portal Sucursales"), "sucursal", ""
 
 
 def _set_sucursal_session_from_entra(identity, suc_user=None):
@@ -6633,7 +6710,7 @@ def nuevo_ticket():
 @app.route("/estado/<int:ticket_id>")
 @any_session_required
 def estado_ticket(ticket_id):
-    tickets = load_tickets()
+    tickets = load_tickets(readonly=True)
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
@@ -6647,8 +6724,13 @@ def estado_ticket(ticket_id):
         ticket=ticket_vista,
         prioridades=PRIORIDADES,
         tiene_abono=tiene_abono,
-        puede_responder_sucursal=_sucursal_session_can_reply_to_ticket(ticket),
+        puede_responder_sucursal=(
+            _sucursal_session_can_reply_to_ticket(ticket)
+            and ticket.get("estado") not in {"Cerrado", "Rechazado"}
+        ),
         puede_finalizar_sucursal=_sucursal_session_can_finalize_ticket(ticket),
+        conversacion=_ticket_conversation(ticket_vista),
+        respuesta_idempotency_key=uuid.uuid4().hex,
         respuesta_max_length=TICKET_REPLY_MAX_LENGTH,
         resolucion_max_length=TICKET_BRANCH_RESOLUTION_MAX_LENGTH,
     )
@@ -6660,15 +6742,6 @@ def responder_ticket_desde_sucursal(ticket_id):
     if not _validate_csrf():
         return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
 
-    tickets = load_tickets()
-    ticket = next((t for t in tickets if t["id"] == ticket_id), None)
-    if not ticket:
-        return "Ticket no encontrado", 404
-    if not _sucursal_session_can_reply_to_ticket(ticket):
-        return render_template("error.html", mensaje="No tenés permiso para responder este ticket."), 403
-    if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
-        return render_template("error.html", mensaje="Este pedido no admite respuestas operativas manuales."), 409
-
     respuesta = request.form.get("respuesta", "").strip()
     if not respuesta:
         return render_template("error.html", mensaje="La respuesta no puede estar vacía."), 400
@@ -6677,25 +6750,82 @@ def responder_ticket_desde_sucursal(ticket_id):
             "error.html",
             mensaje=f"La respuesta no puede superar los {TICKET_REPLY_MAX_LENGTH} caracteres.",
         ), 400
+    idempotency_key = _valid_reply_idempotency_key(request.form.get("idempotency_key"))
+    if idempotency_key is None:
+        return render_template("error.html", mensaje="La clave de reintento de la respuesta es inválida."), 400
 
-    ahora = datetime.datetime.now().isoformat()
-    autor = _session_sucursal_label("Portal Sucursales")
-    ticket.setdefault("notas", []).append({
-        "autor": autor,
-        "fecha": ahora,
-        "texto": f"Respuesta de sucursal: {respuesta}",
-        "visibilidad": "sucursal",
-    })
-    ticket["actualizado"] = ahora
-    save_tickets(tickets)
-    agregar_notif_admin(
-        titulo=f"Respuesta de sucursal en ticket #{ticket_id}",
-        detalle=f"{ticket.get('sucursal', autor)} respondió: {respuesta}",
-        tipo="respuesta_sucursal",
-        autor=autor,
-        link=url_for("admin_ticket", ticket_id=ticket_id),
-    )
-    flash("Respuesta enviada a administración")
+    with _TICKET_REPLY_LOCK:
+        tickets = load_tickets()
+        ticket = next((t for t in tickets if t.get("id") == ticket_id), None)
+        if not ticket:
+            return "Ticket no encontrado", 404
+        if not _sucursal_session_can_reply_to_ticket(ticket):
+            return render_template("error.html", mensaje="No tenés permiso para responder este ticket."), 403
+        if ticket.get("categoria") == "Compras no productivas" and ticket.get("tipo") == "compra_no_productiva":
+            return render_template("error.html", mensaje="Este pedido no admite respuestas operativas manuales."), 409
+        if ticket.get("estado") in {"Cerrado", "Rechazado"}:
+            return render_template("error.html", mensaje="El ticket está cerrado y no admite nuevas respuestas."), 409
+
+        event = next(
+            (
+                note for note in ticket.get("notas", [])
+                if isinstance(note, dict)
+                and note.get("tipo") == "respuesta_sucursal"
+                and note.get("idempotency_key") == idempotency_key
+            ),
+            None,
+        )
+        if event is None:
+            ahora = datetime.datetime.now().isoformat()
+            autor, rol_actor, sector_actor = _session_ticket_reply_actor()
+            estado_anterior = ticket.get("estado")
+            event = {
+                "evento_id": uuid.uuid4().hex,
+                "idempotency_key": idempotency_key,
+                "tipo": "respuesta_sucursal",
+                "rol": rol_actor,
+                **({"sector": sector_actor} if sector_actor else {}),
+                "autor": autor,
+                "fecha": ahora,
+                "texto": f"Respuesta de sucursal: {respuesta}",
+                "visibilidad": "sucursal",
+            }
+            if estado_anterior == "Resuelto":
+                ticket["estado"] = "Pendiente"
+                ticket.pop("fecha_cierre", None)
+                event["estado_anterior"] = "Resuelto"
+                event["estado_nuevo"] = "Pendiente"
+                ticket.setdefault("reaperturas", []).append({
+                    "evento_id": event["evento_id"],
+                    "fecha": ahora,
+                    "actor": autor,
+                    "estado_anterior": "Resuelto",
+                    "estado_nuevo": "Pendiente",
+                    "motivo": respuesta,
+                })
+            ticket.setdefault("notas", []).append(event)
+            ticket["actualizado"] = ahora
+            save_tickets(tickets)
+        autor = event.get("autor") or _session_sucursal_label("Portal Sucursales")
+
+        aviso_ok = True
+        try:
+            agregar_notif_admin(
+                titulo=f"Respuesta de sucursal en ticket #{ticket_id}",
+                detalle=f"{ticket.get('sucursal', autor)} respondió: {respuesta}",
+                tipo="respuesta_sucursal",
+                autor=autor,
+                link=url_for("admin_ticket", ticket_id=ticket_id),
+                evento_id=event["evento_id"],
+            )
+        except Exception:
+            aviso_ok = False
+            app.logger.exception("No se pudo crear el aviso de respuesta del ticket %s", ticket_id)
+
+    if aviso_ok:
+        flash("Respuesta enviada a administración")
+    else:
+        flash("Respuesta guardada. No se pudo crear el aviso interno; administración deberá revisarla.")
     return redirect(url_for("estado_ticket", ticket_id=ticket_id))
 
 
@@ -8365,7 +8495,7 @@ def serve_requisicion(filename):
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_ticket(ticket_id):
-    tickets = load_tickets()
+    tickets = load_tickets(readonly=request.method == "GET")
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
@@ -8522,6 +8652,8 @@ def admin_ticket(ticket_id):
 
         # Accion rapida: responder a la sucursal con una de las 3 opciones
         if accion == "responder_suc":
+            if not _validate_csrf():
+                return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
             motivo = request.form.get("motivo", "").strip()
             detalle = request.form.get("motivo_detalle", "").strip()
             labels = {
@@ -8530,21 +8662,27 @@ def admin_ticket(ticket_id):
                 "no_corresponde": "No corresponde a mantenimiento",
                 "otra": "Otra",
             }
-            label = labels.get(motivo, motivo)
-            mensaje = label if motivo != "otra" else (detalle or label)
+            if motivo not in labels:
+                return render_template("error.html", mensaje="Seleccioná una respuesta válida."), 400
+            if len(detalle) > TICKET_REPLY_MAX_LENGTH:
+                return render_template("error.html", mensaje=f"El detalle no puede superar los {TICKET_REPLY_MAX_LENGTH} caracteres."), 400
+            if motivo == "otra" and not detalle:
+                return render_template("error.html", mensaje="Escribí el detalle de la respuesta."), 400
+            label = labels[motivo]
+            mensaje = label if motivo != "otra" else detalle
             if detalle and motivo != "otra":
                 mensaje += f" - {detalle}"
-            if "notas" not in ticket:
-                ticket["notas"] = []
-            ticket["notas"].append({
+            ahora = datetime.datetime.now().isoformat()
+            ticket.setdefault("notas", []).append({
+                "evento_id": uuid.uuid4().hex,
+                "tipo": "respuesta_administracion",
+                "rol": "administracion",
                 "autor": session.get("nombre", "Admin"),
-                "fecha": datetime.datetime.now().isoformat(),
+                "fecha": ahora,
                 "texto": f"Respuesta a sucursal: {mensaje}",
             })
-            if "notificaciones" not in ticket:
-                ticket["notificaciones"] = []
-            ticket["notificaciones"].append({
-                "fecha": datetime.datetime.now().isoformat(),
+            ticket.setdefault("notificaciones", []).append({
+                "fecha": ahora,
                 "texto": mensaje,
                 "leida": False,
             })
@@ -8554,10 +8692,10 @@ def admin_ticket(ticket_id):
             if motivo == "no_corresponde":
                 ticket["estado"] = "Rechazado"
                 ticket["motivo_rechazo"] = mensaje
-                ticket["fecha_cierre"] = datetime.datetime.now().isoformat()
+                ticket["fecha_cierre"] = ahora
             elif ticket["estado"] in ("Nuevo", "Abierto"):
                 ticket["estado"] = "Pendiente"
-            ticket["actualizado"] = datetime.datetime.now().isoformat()
+            ticket["actualizado"] = ahora
             save_tickets(tickets)
             flash("Respuesta enviada a la sucursal")
             return redirect(url_for("admin_ticket", ticket_id=ticket_id))
@@ -8841,6 +8979,7 @@ def admin_ticket(ticket_id):
     return render_template(
         "admin_ticket.html",
         ticket=ticket,
+        conversacion=_ticket_conversation(ticket),
         estados=ESTADOS,
         prioridades=PRIORIDADES,
         puede_derivar_ceyh=(ticket.get("asignado") == "CEYH" or ticket.get("asignado_proveedor") == "CEYH" or ticket.get("proveedor_nombre") == "CEYH") and ticket.get("asignado") != "Equipo Central",

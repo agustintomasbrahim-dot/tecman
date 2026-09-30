@@ -155,9 +155,9 @@
 </section>
 
 <section class="card" aria-labelledby="quote-history-title">
-    <h3 id="quote-history-title" class="ticket-section-title" style="margin-bottom:14px;">Historial</h3>
-    {% if ticket.notas %}
-    <div class="note-list">{% for nota in ticket.notas|reverse %}<div class="note-card"><div class="note-head"><span class="note-author">{{ nota.autor }}</span><span class="note-date">{{ nota.fecha[:16].replace('T',' ') }}</span></div><p class="note-text">{{ nota.texto }}</p></div>{% endfor %}</div>
+    <h3 id="quote-history-title" class="ticket-section-title" style="margin-bottom:14px;">Historial · Conversación del ticket</h3>
+    {% if conversacion %}
+    <div class="note-list">{% for nota in conversacion %}<div class="note-card"><div class="note-head"><span class="note-author">{{ nota.rol_visible }} · {{ nota.autor }}</span><span class="note-date">{{ nota.fecha[:16].replace('T',' ') }}</span></div><p class="note-text">{{ nota.texto }}</p></div>{% endfor %}</div>
     {% else %}<p style="margin:0;color:#64748b;">Sin movimientos registrados.</p>{% endif %}
 </section>
 <details class="advanced-ticket"><summary>Detalles avanzados</summary><div class="advanced-ticket__body">
@@ -609,16 +609,16 @@
 {% endif %}
 
 {% if session.nombre != 'Rita' %}
-<!-- Notas / Comentarios -->
+<!-- Conversación canónica -->
 <div class="card">
-    <h3 class="ticket-section-title" style="margin-bottom: 16px;">Notas y comentarios</h3>
+    <h3 class="ticket-section-title" style="margin-bottom: 16px;">Conversación del ticket</h3>
 
-    {% if ticket.notas is defined and ticket.notas %}
+    {% if conversacion %}
     <div class="note-list" style="margin-bottom: 16px;">
-        {% for nota in ticket.notas %}
+        {% for nota in conversacion %}
         <div class="note-card">
             <div class="note-head">
-                <span class="note-author">{{ nota.autor }}</span>
+                <span class="note-author">{{ nota.rol_visible }} · {{ nota.autor }}</span>
                 <span class="note-date">{{ nota.fecha[:16].replace('T', ' ') }}</span>
             </div>
             <p class="note-text">{{ nota.texto }}</p>

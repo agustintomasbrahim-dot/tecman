@@ -199,6 +199,7 @@
     <p style="color: #64748b; font-size: 13px; margin-bottom: 12px;">Tu respuesta quedará registrada en el historial de este ticket.</p>
     <form method="POST" action="{{ url_for('responder_ticket_desde_sucursal', ticket_id=ticket.id) }}">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="idempotency_key" value="{{ respuesta_idempotency_key }}">
         <div class="form-group">
             <label for="respuesta-ticket">Respuesta</label>
             <textarea id="respuesta-ticket" name="respuesta" maxlength="{{ respuesta_max_length }}" required placeholder="Escribí acá la información solicitada por administración..."></textarea>
@@ -225,14 +226,14 @@
 </div>
 {% endif %}
 
-<!-- Historial -->
-{% if ticket.notas is defined and ticket.notas %}
+<!-- Conversación canónica: orden cronológico, sin modificar el historial legacy -->
+{% if conversacion %}
 <div class="card">
-    <h3 style="margin-bottom: 12px; font-size: 14px; color: #6b7280;">Historial</h3>
-    {% for nota in ticket.notas | reverse %}
+    <h3 style="margin-bottom: 12px; font-size: 14px; color: #6b7280;">Conversación del ticket</h3>
+    {% for nota in conversacion %}
     <div style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
         <div style="display: flex; justify-content: space-between; font-size: 12px;">
-            <span style="font-weight: 600; color: #374151;">{{ nota.autor }}</span>
+            <span style="font-weight: 600; color: #374151;">{{ nota.rol_visible }} · {{ nota.autor }}</span>
             <span style="color: #9ca3af;">{{ nota.fecha[:16].replace('T', ' ') }}</span>
         </div>
         <p style="color: #374151; font-size: 13px; margin-top: 4px;">{{ nota.texto }}</p>

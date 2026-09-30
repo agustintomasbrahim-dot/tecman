@@ -201,7 +201,10 @@ class RespuestaSucursalTicketTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         persisted = next(item for item in replaced[ticket_model] if item["id"] == 100323)
         self.assertEqual(persisted["notas"][-1]["texto"], "Respuesta de sucursal: Respuesta persistida en payload DB")
+        self.assertEqual(persisted["notas"][-1]["rol"], "sucursal")
+        self.assertEqual(persisted["notas"][-1]["tipo"], "respuesta_sucursal")
         self.assertEqual(replaced[notification_model][0]["tipo"], "respuesta_sucursal")
+        self.assertEqual(replaced[notification_model][0]["evento_id"], persisted["notas"][-1]["evento_id"])
         atomic_write.assert_called()
         smtp_send.assert_not_called()
 
