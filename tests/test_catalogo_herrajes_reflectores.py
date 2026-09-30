@@ -61,6 +61,7 @@ class CatalogoHerrajesReflectoresTest(unittest.TestCase):
 
     def _material_form(self, categoria_mat, subitem_mat):
         return {
+            "_csrf_token": "csrf-test",
             "categoria": "Materiales",
             "subcategoria": "Solicitud de materiales",
             "descripcion": "Reposición para el salón",

@@ -54,6 +54,9 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "true" if os.environ.get("RENDER") else "false").lower() == "true"
 app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(minutes=int(os.environ.get("SESSION_LIFETIME_MINUTES", "480")))
+app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = os.environ.get(
+    "ENABLE_NON_PRODUCTIVE_PURCHASES", "false"
+).strip().lower() == "true"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
@@ -314,6 +317,21 @@ CATEGORIAS = {
     "Seguridad e Higiene": ["Consulta de habilitación", "Permiso", "Documentación faltante", "Otra asistencia S&H"],
     "Otro": ["Otro"],
 }
+
+
+def _non_productive_purchases_enabled():
+    return app.config.get("ENABLE_NON_PRODUCTIVE_PURCHASES") is True
+
+
+def _sucursal_creation_categories():
+    """Catálogo de altas; el catálogo canónico permanece completo para históricos."""
+    if _non_productive_purchases_enabled():
+        return CATEGORIAS
+    return {
+        categoria: subcategorias
+        for categoria, subcategorias in CATEGORIAS.items()
+        if categoria != "Compras no productivas"
+    }
 
 PRIORIDADES = {
     1: "Urgente",
@@ -6534,14 +6552,26 @@ def suc_proveedores():
 def nuevo_ticket():
     if request.method == "POST":
         # Validar íntegramente el pedido estructurado antes de guardar adjuntos.
+        if not _validate_csrf():
+            return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
         categoria_previa = request.form.get("categoria", "").strip()
+        tipo_previo = request.form.get("tipo", "").strip()
+        if (
+            categoria_previa == "Compras no productivas"
+            or tipo_previo == "compra_no_productiva"
+        ) and not _non_productive_purchases_enabled():
+            return render_template("error.html", mensaje="La categoría solicitada no está habilitada."), 404
+        if tipo_previo == "compra_no_productiva" and categoria_previa != "Compras no productivas":
+            return render_template("error.html", mensaje="La categoría solicitada no es válida."), 400
+        categorias_creacion = _sucursal_creation_categories()
+        if categoria_previa not in categorias_creacion:
+            return render_template("error.html", mensaje="La categoría solicitada no es válida."), 400
+        subcategoria_previa = request.form.get("subcategoria", "").strip()
+        if subcategoria_previa not in categorias_creacion[categoria_previa]:
+            return render_template("error.html", mensaje="La subcategoría solicitada no es válida."), 400
         compra_np_lineas = None
         if categoria_previa == "Compras no productivas":
             from logistica import LogisticsError, validate_purchase_lines
-            subcategoria_previa = request.form.get("subcategoria", "").strip()
-            if subcategoria_previa not in CATEGORIAS.get("Compras no productivas", []):
-                flash("En compras no productivas, el rubro no es válido")
-                return redirect(url_for("nuevo_ticket"))
             if not request.form.get("zona_afectada", "").strip():
                 flash("En compras no productivas, la zona o sector del local es obligatorio")
                 return redirect(url_for("nuevo_ticket"))
@@ -6693,16 +6723,21 @@ def nuevo_ticket():
         return render_template("ticket_creado.html", ticket=ticket)
 
     from categories_data import MATERIAL_CATEGORIAS
-    from logistica import non_productive_catalog
+    compras_no_productivas_habilitadas = _non_productive_purchases_enabled()
+    compra_np_catalogo = {}
+    if compras_no_productivas_habilitadas:
+        from logistica import non_productive_catalog
+        compra_np_catalogo = non_productive_catalog()
     sucursal = request.args.get("sucursal", "")
     return render_template(
         "nuevo_ticket.html",
         sucursales=_sucursal_session_scope_labels() if _sucursal_session_is_general() else SUCURSALES,
-        categorias=CATEGORIAS,
+        categorias=_sucursal_creation_categories(),
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
         material_categorias=MATERIAL_CATEGORIAS,
-        compra_np_catalogo=non_productive_catalog(),
+        compra_np_catalogo=compra_np_catalogo,
+        compras_no_productivas_habilitadas=compras_no_productivas_habilitadas,
         oficina_sectores=_oficina_sectores(session.get("oficina_sede")),
     )
 
@@ -14090,6 +14125,8 @@ def serve_syh_upload(filename):
 @app.route("/api/categorias")
 def api_categorias():
     cat = request.args.get("categoria", "")
+    if cat == "Compras no productivas" and not _non_productive_purchases_enabled():
+        return jsonify([])
     return jsonify(CATEGORIAS.get(cat, []))
 
 

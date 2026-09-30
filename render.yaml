@@ -57,6 +57,8 @@ services:
         sync: false
       - key: LOGISTICA_LOCAL_LOGIN_ENABLED
         value: "false"
+      - key: ENABLE_NON_PRODUCTIVE_PURCHASES
+        value: "false"
       - key: SESSION_LIFETIME_MINUTES
         value: "480"
       - key: GOOGLE_TOKEN_JSON

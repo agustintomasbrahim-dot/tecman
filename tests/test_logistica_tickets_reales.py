@@ -27,14 +27,17 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         tecman.STOCK_FILE = root / "stock.json"
         tecman.STOCK_MOV_FILE = root / "stock_movimientos.json"
         tecman.UPLOADS_DIR = root / "uploads"; tecman.UPLOADS_DIR.mkdir()
+        self.original_purchase_flag = tecman.app.config.get("ENABLE_NON_PRODUCTIVE_PURCHASES")
         tecman.app.config.update(TESTING=True, LOGISTICA_LOCAL_LOGIN_ENABLED=False,
-                                 LOGISTICA_PORTAL_TEST_MODE=False, LOGISTICA_SMTP_MOCK=True)
+                                 LOGISTICA_PORTAL_TEST_MODE=False, LOGISTICA_SMTP_MOCK=True,
+                                 ENABLE_NON_PRODUCTIVE_PURCHASES=True)
         self.client = tecman.app.test_client()
         tecman.save_tickets([]); tecman.save_stock({"central": {}, "sucursales": {}}); tecman.save_movimientos({"movimientos": []})
         self.skus = list(non_productive_catalog())
 
     def tearDown(self):
         tecman.TICKETS_FILE, tecman.STOCK_FILE, tecman.STOCK_MOV_FILE, tecman.UPLOADS_DIR = self.original_paths
+        tecman.app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = self.original_purchase_flag
         self.temp.cleanup()
 
     def branch_session(self, branch="Sucursal 011"):
@@ -56,7 +59,8 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
 
     def create_ticket(self, quantities=(2, 1)):
         self.branch_session()
-        data = {"categoria": "Compras no productivas", "subcategoria": "Insumos",
+        data = {"_csrf_token": "csrf-test",
+                "categoria": "Compras no productivas", "subcategoria": "Insumos",
                 "descripcion": "Reposición mensual", "solicitante_nombre": "Ana",
                 "solicitante_apellido": "Sucursal", "zona_afectada": "Administración",
                 "compra_np_sku[]": self.skus[:len(quantities)],
@@ -283,7 +287,8 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         with self.assertRaises(LogisticsError): validate_purchase_lines([self.skus[0], self.skus[0]], [1, 2])
         with self.assertRaises(LogisticsError): validate_purchase_lines(["inventado"], [1])
         self.branch_session(); before = list(tecman.UPLOADS_DIR.iterdir())
-        response = self.client.post("/nuevo", data={"categoria": "Compras no productivas", "subcategoria": "Insumos",
+        response = self.client.post("/nuevo", data={"_csrf_token": "csrf-test",
+            "categoria": "Compras no productivas", "subcategoria": "Insumos",
             "descripcion": "x", "zona_afectada": "Caja", "solicitante_nombre": "A", "solicitante_apellido": "B",
             "compra_np_sku[]": ["inventado"], "compra_np_cantidad[]": ["1"]})
         self.assertEqual(response.status_code, 302); self.assertEqual(tecman._load_tickets_raw(), [])
@@ -296,6 +301,7 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         compatible = dict(historical, id=8, compra_np_estado="Stock confirmado",
                           compra_np_lineas=[{"sku": self.skus[0], "cantidad": 1}])
         tecman.save_tickets([historical, compatible]); self.set_stock({self.skus[0]: 1})
+        tecman.app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = False
         before = Path(tecman.TICKETS_FILE).read_bytes()
         self.logistics_session(); page = self.client.get("/logistica/tickets")
         self.assertIn(b"Requiere completar detalle", page.data)

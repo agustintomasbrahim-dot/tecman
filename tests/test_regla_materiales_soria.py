@@ -58,6 +58,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
             session.clear()
             session["suc_user"] = "sucursal-test"
             session["suc_nombre"] = sucursal
+            session["_csrf_token"] = "csrf-test"
 
     def _admin_session(self):
         with self.client.session_transaction() as session:
@@ -70,6 +71,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
     @staticmethod
     def _material_form():
         return {
+            "_csrf_token": "csrf-test",
             "categoria": "Materiales",
             "subcategoria": "Solicitud de materiales",
             "descripcion": "Pedido de lámparas",
@@ -111,6 +113,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
     def test_creacion_luminarias_va_a_soria_sin_reclasificarse_como_materiales(self):
         self._branch_session("Sucursal 142")
         response = self.client.post("/nuevo", data={
+            "_csrf_token": "csrf-test",
             "categoria": "Problema Eléctrico",
             "subcategoria": "Luminarias",
             "descripcion": "Cambiar luminarias del salón",
@@ -128,6 +131,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
     def test_texto_libre_no_convierte_un_ticket_en_pedido(self):
         self._branch_session("Sucursal 145")
         response = self.client.post("/nuevo", data={
+            "_csrf_token": "csrf-test",
             "categoria": "Otro",
             "subcategoria": "Otro",
             "descripcion": "Parece un pedido de materiales para luminarias",
