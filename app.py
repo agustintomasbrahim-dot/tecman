@@ -571,6 +571,12 @@ FULL_PORTAL_ACCESS_EMAILS = {
     ).split(",")
     if email.strip()
 }
+DEFAULT_ADMIN_SUCURSAL_ACCESS_EMAILS = {"aservita@grupodexter.com.ar"}
+ADMIN_SUCURSAL_ACCESS_EMAILS = DEFAULT_ADMIN_SUCURSAL_ACCESS_EMAILS | {
+    email.strip().lower()
+    for email in os.environ.get("ADMIN_SUCURSAL_ACCESS_EMAILS", "").split(",")
+    if email.strip()
+}
 ENTRA_TOKEN_SCOPES = ENTRA_GRAPH_SCOPES
 ENTRA_SUCURSALES_GROUP_ID = (os.environ.get("ENTRA_SUCURSALES_GROUP_ID") or "d95e0f3b-2237-46b5-8e73-4c25d0c97c1e").strip().lower()
 ENTRA_SUPER_ADMIN_GROUP_ID = (os.environ.get("ENTRA_SUPER_ADMIN_GROUP_ID") or "78516604-f163-4340-a751-641be017538f").strip().lower()
@@ -936,6 +942,10 @@ def _identity_has_full_portal_access(identity):
     return any(email in FULL_PORTAL_ACCESS_EMAILS for email in _identity_email_candidates(identity))
 
 
+def _identity_has_admin_sucursal_access(identity):
+    return any(email in ADMIN_SUCURSAL_ACCESS_EMAILS for email in _identity_email_candidates(identity))
+
+
 def _identity_has_compras_access(identity):
     return any(email in COMPRAS_ACCESS_EMAILS for email in _identity_email_candidates(identity))
 
@@ -1203,6 +1213,54 @@ def _seed_auth_users():
             db.session.add(preparador); db.session.flush()
             db.session.add(AuthIdentityDB(user_id=preparador.id, provider="entra",
                 provider_subject=PREPARADOR_DABRA_EMAIL, tenant_id=ENTRA_TENANT_ID)); changed = True
+        for email in sorted(ADMIN_SUCURSAL_ACCESS_EMAILS):
+            username = email.split("@", 1)[0]
+            first_name, last_name = _split_name(username.replace(".", " ").replace("_", " ").title())
+            existing = _find_db_user(email=email) or _find_db_user(identifier=username)
+            if existing:
+                desired = {
+                    "email": email,
+                    "username": username,
+                    "first_name": existing.first_name or first_name,
+                    "last_name": existing.last_name or last_name,
+                    "role": "admin",
+                    "status": "active",
+                    "must_change_password": False,
+                }
+                for key, value in desired.items():
+                    if getattr(existing, key) != value:
+                        setattr(existing, key, value); changed = True
+                if LocalCredentialDB.query.get(existing.id):
+                    LocalCredentialDB.query.filter_by(user_id=existing.id).delete()
+                    existing.session_version = (existing.session_version or 1) + 1
+                    changed = True
+                if not AuthIdentityDB.query.filter_by(user_id=existing.id, provider="entra").first():
+                    db.session.add(AuthIdentityDB(
+                        user_id=existing.id,
+                        provider="entra",
+                        provider_subject=email,
+                        tenant_id=ENTRA_TENANT_ID,
+                    ))
+                    changed = True
+                continue
+            user = UserDB(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                role="admin",
+                status="active",
+                must_change_password=False,
+            )
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(AuthIdentityDB(
+                user_id=user.id,
+                provider="entra",
+                provider_subject=email,
+                tenant_id=ENTRA_TENANT_ID,
+            ))
+            changed = True
         for username, info in ADMINS.items():
             existing = _find_db_user(identifier=username)
             email = (info.get("email") or "").strip().lower()
@@ -1318,6 +1376,57 @@ def _seed_auth_users():
         identities.append({"id": uuid.uuid4().hex, "provider": "entra",
             "provider_subject": PREPARADOR_DABRA_EMAIL, "tenant_id": ENTRA_TENANT_ID,
             "created_at": _now_utc().isoformat(), "last_login_at": None}); changed = True
+    for email in sorted(ADMIN_SUCURSAL_ACCESS_EMAILS):
+        username = email.split("@", 1)[0]
+        first_name, last_name = _split_name(username.replace(".", " ").replace("_", " ").title())
+        existing = next(
+            (
+                u for u in users
+                if (u.get("email") or "").lower() == email
+                or (u.get("username") or "").lower() == username
+            ),
+            None,
+        )
+        if existing is None:
+            existing = {
+                "id": uuid.uuid4().hex,
+                "username": username,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": "admin",
+                "status": "active",
+                "must_change_password": False,
+                "session_version": 1,
+                "auth_identities": [],
+                "created_at": _now_utc().isoformat(),
+            }
+            users.append(existing); changed = True
+        desired = {
+            "username": username,
+            "email": email,
+            "first_name": existing.get("first_name") or first_name,
+            "last_name": existing.get("last_name") or last_name,
+            "role": "admin",
+            "status": "active",
+            "must_change_password": False,
+        }
+        for key, value in desired.items():
+            if existing.get(key) != value:
+                existing[key] = value; changed = True
+        if existing.pop("local_credentials", None) is not None:
+            existing["session_version"] = int(existing.get("session_version", 1)) + 1; changed = True
+        identities = existing.setdefault("auth_identities", [])
+        if not any(i.get("provider") == "entra" for i in identities):
+            identities.append({
+                "id": uuid.uuid4().hex,
+                "provider": "entra",
+                "provider_subject": email,
+                "tenant_id": ENTRA_TENANT_ID,
+                "created_at": _now_utc().isoformat(),
+                "last_login_at": None,
+            })
+            changed = True
     for username, info in ADMINS.items():
         email = (info.get("email") or "").strip().lower()
         existing = next((u for u in users if (u.get("username") or "").lower() == username.lower()), None)
@@ -4086,7 +4195,7 @@ def _proveedor_internal_identifiers():
         identifiers.update(str(value).strip().lower() for value in globals().get(mapping_name, {}) if value)
     identifiers.update(str(value).strip().lower() for value in LEGACY_DISABLED_USERNAMES if value)
     internal_emails = set(SUCURSAL_EMAILS.values())
-    for collection_name in ("COMPRAS_ACCESS_EMAILS", "FULL_PORTAL_ACCESS_EMAILS"):
+    for collection_name in ("COMPRAS_ACCESS_EMAILS", "FULL_PORTAL_ACCESS_EMAILS", "ADMIN_SUCURSAL_ACCESS_EMAILS"):
         internal_emails.update(globals().get(collection_name, set()))
     internal_emails.update(_supervisores_by_email())
     internal_emails.update(_oficina_by_email())
@@ -7273,10 +7382,11 @@ def entra_callback():
     auth_user = _find_auth_user(entra_object_id=identity["object_id"], email=identity["email"])
     admin_portal_auth_role = _admin_portal_role_from_auth_user(auth_user)
     full_portal_access = _identity_has_full_portal_access(identity)
-    if full_portal_access and requested_portal == "admin":
+    admin_sucursal_access = _identity_has_admin_sucursal_access(identity)
+    if (full_portal_access or admin_sucursal_access) and requested_portal == "admin":
         entra_role = "admin"
         identity["entra_role"] = "admin"
-    if full_portal_access and requested_portal == "sucursal":
+    if (full_portal_access or admin_sucursal_access) and requested_portal == "sucursal":
         entra_role = "sucursal"
         identity["entra_role"] = "sucursal"
     if requested_portal == "supervisor" and (full_portal_access or _supervisor_for_identity(identity)):

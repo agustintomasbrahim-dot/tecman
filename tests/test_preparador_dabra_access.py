@@ -94,8 +94,11 @@ class PreparadorSeedTests(unittest.TestCase):
             "hdiosque": SimpleNamespace(id="new-1", username="hdiosque", email=tecman.PREPARADOR_DABRA_EMAIL,
                                         first_name="Héctor", last_name="Diosque", status="active",
                                         session_version=1, role="tecnico", must_change_password=False),
+            "aservita": SimpleNamespace(id="admin-suc-1", username="aservita", email="aservita@grupodexter.com.ar",
+                                         first_name="Aservita", last_name="", status="disabled",
+                                         session_version=2, role="tecnico", must_change_password=True),
         }
-        credentials = {"old-1": object(), "old-2": object(), "new-1": object()}
+        credentials = {"old-1": object(), "old-2": object(), "new-1": object(), "admin-suc-1": object()}
 
         def find_user(identifier=None, entra_object_id=None, email=None):
             if email:
@@ -136,6 +139,11 @@ class PreparadorSeedTests(unittest.TestCase):
         self.assertEqual(preparador.role, tecman.PREPARADOR_DABRA_ROLE)
         self.assertEqual(preparador.first_name, "Preparador Dabra")
         self.assertEqual(preparador.last_name, "Central")
+        admin_sucursal = users["aservita"]
+        self.assertEqual(admin_sucursal.role, "admin")
+        self.assertEqual(admin_sucursal.status, "active")
+        self.assertFalse(admin_sucursal.must_change_password)
+        self.assertEqual(admin_sucursal.session_version, 3)
 
 
 if __name__ == "__main__":

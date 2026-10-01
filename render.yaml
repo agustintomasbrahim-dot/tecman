@@ -55,6 +55,8 @@ services:
         sync: false
       - key: ENTRA_REDIRECT_URI
         sync: false
+      - key: ADMIN_SUCURSAL_ACCESS_EMAILS
+        value: "aservita@grupodexter.com.ar"
       - key: LOGISTICA_LOCAL_LOGIN_ENABLED
         value: "false"
       - key: ENABLE_NON_PRODUCTIVE_PURCHASES
