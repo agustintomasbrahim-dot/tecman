@@ -6601,6 +6601,14 @@ def nuevo_ticket():
         subcategoria_previa = request.form.get("subcategoria", "").strip()
         if subcategoria_previa not in categorias_creacion[categoria_previa]:
             return render_template("error.html", mensaje="La subcategoría solicitada no es válida."), 400
+
+        def redirect_nuevo_con_seleccion():
+            return redirect(url_for(
+                "nuevo_ticket",
+                categoria=categoria_previa,
+                subcategoria=subcategoria_previa,
+            ))
+
         categoria_mat_previa = request.form.get("categoria_mat", "").strip()
         subitem_mat_previo = request.form.get("subitem_mat", "").strip()
         cantidad_mat_previa = request.form.get("cantidad_mat", "1").strip()
@@ -6618,19 +6626,19 @@ def nuevo_ticket():
                 ):
                     return render_template("error.html", mensaje="El tipo de material solicitado no está habilitado."), 404
                 flash("En materiales, seleccione un tipo y sub-item válidos del catálogo")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
             if not cantidad_mat_previa or (_parse_int_or_none(cantidad_mat_previa) or 0) <= 0:
                 flash("En materiales, la cantidad debe ser mayor a 0")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
             if not zona_afectada_previa:
                 flash("En materiales, la zona o sector del local es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
         compra_np_lineas = None
         if categoria_previa == "Compras no productivas":
             from logistica import LogisticsError, validate_purchase_lines
             if not request.form.get("zona_afectada", "").strip():
                 flash("En compras no productivas, la zona o sector del local es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
             try:
                 compra_np_lineas = validate_purchase_lines(
                     request.form.getlist("compra_np_sku[]"),
@@ -6638,13 +6646,13 @@ def nuevo_ticket():
                 )
             except LogisticsError as exc:
                 flash(str(exc))
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
         tickets = load_tickets()
         tid = next_ticket_id(tickets)
         sucursal_ticket = request.form.get("sucursal", "").strip() if _sucursal_session_is_general() else session.get("suc_nombre", "").strip()
         if not sucursal_ticket:
             flash("Seleccione una sucursal")
-            return redirect(url_for("nuevo_ticket"))
+            return redirect_nuevo_con_seleccion()
         if _is_sucursal_cerrada(sucursal_ticket):
             return render_template("error.html", mensaje="Sucursal cerrada. No admite tickets nuevos."), 403
         if not _sucursal_session_can_access_value(sucursal_ticket):
@@ -6672,7 +6680,7 @@ def nuevo_ticket():
                 sector_oficina = session.get("oficina_sector")
             if not sector_oficina:
                 flash("Seleccione un sector")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
 
         presupuestos_suc = []
         for n in range(1, 4):
@@ -6749,10 +6757,10 @@ def nuevo_ticket():
         elif categoria == "Presupuestos":
             if not proveedor_presupuesto:
                 flash("En presupuestos, el proveedor es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
             if not zona_afectada:
                 flash("En presupuestos, la zona afectada es obligatoria")
-                return redirect(url_for("nuevo_ticket"))
+                return redirect_nuevo_con_seleccion()
             ticket["estado_presupuesto"] = "Nuevo"
             ticket["zona_afectada"] = zona_afectada
             ticket["respuesta_sucursal_presupuesto"] = ""

@@ -70,6 +70,10 @@
             </select>
         </div>
 
+        <div id="aviso-problema-electrico" role="status" aria-live="polite" {% if request.args.get('categoria') != 'Problema Eléctrico' %}hidden{% endif %} style="margin:-4px 0 16px;padding:12px 14px;border:1px solid #92400e;border-radius:8px;background:#fffbeb;color:#78350f;">
+            Importante: esta opción es únicamente para reportar fallas eléctricas. Si necesitás solicitar materiales o repuestos eléctricos, hacelo desde Pedido de materiales.
+        </div>
+
         <div class="form-group" id="subcategoria-group">
             <label>Subcategoria *</label>
             <select name="subcategoria" id="subcategoria" required>
@@ -181,7 +185,13 @@
 var categorias = {{ categorias | tojson }};
 var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
 
+function actualizarAvisoProblemaElectrico(categoria) {
+    var aviso = document.getElementById('aviso-problema-electrico');
+    aviso.hidden = categoria !== 'Problema Eléctrico';
+}
+
 document.getElementById('categoria').addEventListener('change', function() {
+    actualizarAvisoProblemaElectrico(this.value);
     var sub = document.getElementById('subcategoria');
     var subGroup = document.getElementById('subcategoria-group');
     var matGroup = document.getElementById('mat-group');
@@ -336,6 +346,7 @@ document.getElementById('categoria').addEventListener('change', function() {
 {% endif %}
 document.addEventListener('DOMContentLoaded', function() {
     var categoria = document.getElementById('categoria');
+    actualizarAvisoProblemaElectrico(categoria.value);
     if (categoria.value) {
         categoria.dispatchEvent(new Event('change'));
     }
