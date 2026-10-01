@@ -59,6 +59,8 @@ services:
         value: "false"
       - key: ENABLE_NON_PRODUCTIVE_PURCHASES
         value: "false"
+      - key: ENABLE_LIBRARY_CLEANING_SUPPLIES
+        value: "false"
       - key: SESSION_LIFETIME_MINUTES
         value: "480"
       - key: GOOGLE_TOKEN_JSON

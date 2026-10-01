@@ -57,6 +57,9 @@ app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(minutes=int(os.env
 app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = os.environ.get(
     "ENABLE_NON_PRODUCTIVE_PURCHASES", "false"
 ).strip().lower() == "true"
+app.config["ENABLE_LIBRARY_CLEANING_SUPPLIES"] = os.environ.get(
+    "ENABLE_LIBRARY_CLEANING_SUPPLIES", "false"
+).strip().lower() == "true"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
@@ -321,6 +324,35 @@ CATEGORIAS = {
 
 def _non_productive_purchases_enabled():
     return app.config.get("ENABLE_NON_PRODUCTIVE_PURCHASES") is True
+
+
+def _library_cleaning_supplies_enabled():
+    return app.config.get("ENABLE_LIBRARY_CLEANING_SUPPLIES") is True
+
+
+def _sucursal_material_creation_catalog():
+    """Catálogo derivado para altas de Sucursal; conserva el canónico completo."""
+    from categories_data import MATERIAL_CATEGORIAS, INSUMOS_COMPRAS_CATEGORIAS
+
+    if _library_cleaning_supplies_enabled():
+        return MATERIAL_CATEGORIAS
+    categorias_pausadas = set(INSUMOS_COMPRAS_CATEGORIAS)
+    return [
+        categoria
+        for categoria in MATERIAL_CATEGORIAS
+        if categoria.get("nombre") not in categorias_pausadas
+    ]
+
+
+def _sucursal_material_creation_item(categoria, subitem):
+    """Resuelve sólo materiales habilitados para un pedido nuevo de Sucursal."""
+    categoria = str(categoria or "").strip()
+    if not any(
+        item.get("nombre") == categoria
+        for item in _sucursal_material_creation_catalog()
+    ):
+        return None
+    return _material_catalog_item(categoria, subitem)
 
 
 def _sucursal_creation_categories():
@@ -6569,6 +6601,30 @@ def nuevo_ticket():
         subcategoria_previa = request.form.get("subcategoria", "").strip()
         if subcategoria_previa not in categorias_creacion[categoria_previa]:
             return render_template("error.html", mensaje="La subcategoría solicitada no es válida."), 400
+        categoria_mat_previa = request.form.get("categoria_mat", "").strip()
+        subitem_mat_previo = request.form.get("subitem_mat", "").strip()
+        cantidad_mat_previa = request.form.get("cantidad_mat", "1").strip()
+        zona_afectada_previa = request.form.get("zona_afectada", "").strip()
+        if tipo_previo == "materiales" and categoria_previa != "Materiales":
+            return render_template("error.html", mensaje="La categoría solicitada no es válida."), 400
+        if categoria_previa == "Materiales":
+            if tipo_previo not in ("", "materiales"):
+                return render_template("error.html", mensaje="El tipo de solicitud no es válido."), 400
+            if not _sucursal_material_creation_item(categoria_mat_previa, subitem_mat_previo):
+                from categories_data import INSUMOS_COMPRAS_CATEGORIAS
+                if (
+                    categoria_mat_previa in INSUMOS_COMPRAS_CATEGORIAS
+                    and not _library_cleaning_supplies_enabled()
+                ):
+                    return render_template("error.html", mensaje="El tipo de material solicitado no está habilitado."), 404
+                flash("En materiales, seleccione un tipo y sub-item válidos del catálogo")
+                return redirect(url_for("nuevo_ticket"))
+            if not cantidad_mat_previa or (_parse_int_or_none(cantidad_mat_previa) or 0) <= 0:
+                flash("En materiales, la cantidad debe ser mayor a 0")
+                return redirect(url_for("nuevo_ticket"))
+            if not zona_afectada_previa:
+                flash("En materiales, la zona o sector del local es obligatorio")
+                return redirect(url_for("nuevo_ticket"))
         compra_np_lineas = None
         if categoria_previa == "Compras no productivas":
             from logistica import LogisticsError, validate_purchase_lines
@@ -6665,21 +6721,9 @@ def nuevo_ticket():
             ticket["origen"] = "oficina"
 
         if categoria == "Materiales":
-            categoria_mat = request.form.get("categoria_mat", "").strip()
-            subitem_mat = request.form.get("subitem_mat", "").strip()
-            cantidad_mat = request.form.get("cantidad_mat", "1").strip()
-            if not _material_catalog_item(categoria_mat, subitem_mat):
-                flash("En materiales, seleccione un tipo y sub-item válidos del catálogo")
-                return redirect(url_for("nuevo_ticket"))
-            if not cantidad_mat or (_parse_int_or_none(cantidad_mat) or 0) <= 0:
-                flash("En materiales, la cantidad debe ser mayor a 0")
-                return redirect(url_for("nuevo_ticket"))
-            if not zona_afectada:
-                flash("En materiales, la zona o sector del local es obligatorio")
-                return redirect(url_for("nuevo_ticket"))
-            ticket["categoria_mat"] = categoria_mat
-            ticket["subitem_mat"] = subitem_mat
-            ticket["cantidad_mat"] = cantidad_mat
+            ticket["categoria_mat"] = categoria_mat_previa
+            ticket["subitem_mat"] = subitem_mat_previo
+            ticket["cantidad_mat"] = cantidad_mat_previa
             ticket["zona_afectada"] = zona_afectada
             ticket["tipo"] = "materiales"
         elif categoria == "Compras no productivas":
@@ -6722,7 +6766,6 @@ def nuevo_ticket():
         save_tickets(tickets)
         return render_template("ticket_creado.html", ticket=ticket)
 
-    from categories_data import MATERIAL_CATEGORIAS
     compras_no_productivas_habilitadas = _non_productive_purchases_enabled()
     compra_np_catalogo = {}
     if compras_no_productivas_habilitadas:
@@ -6735,7 +6778,7 @@ def nuevo_ticket():
         categorias=_sucursal_creation_categories(),
         prioridades=PRIORIDADES,
         sucursal_selected=sucursal,
-        material_categorias=MATERIAL_CATEGORIAS,
+        material_categorias=_sucursal_material_creation_catalog(),
         compra_np_catalogo=compra_np_catalogo,
         compras_no_productivas_habilitadas=compras_no_productivas_habilitadas,
         oficina_sectores=_oficina_sectores(session.get("oficina_sede")),
