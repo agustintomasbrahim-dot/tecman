@@ -2733,6 +2733,197 @@ def _generador_serie_key(item):
     return (_sucursal_num_from_value(item.get("sucursal_num") or item.get("sucursal")), serie)
 
 
+def _generador_es_equipo_propio(item):
+    """Distingue equipos asignados de registros informativos del shopping/compartidos."""
+    if not isinstance(item, dict):
+        return False
+    observaciones = str(item.get("observaciones") or "").strip().casefold()
+    estado = str(item.get("estado_equipo") or "").strip().casefold()
+    ubicacion = str(item.get("ubicacion") or "").strip().casefold()
+    if "no tiene grupo propio" in observaciones or "compartido con" in estado:
+        return False
+    if "equipo del shopping" in estado or ("shopping" in ubicacion and "shopping" in observaciones):
+        return False
+    return True
+
+
+def _generador_seleccion_sucursal_general(raw_value):
+    """Valida la selección explícita de una sesión general contra su alcance."""
+    suc_num = _sucursal_num_from_value(raw_value)
+    if not suc_num or _is_sucursal_cerrada(suc_num):
+        return None
+    if suc_num not in {_sucursal_num_from_value(label) for label in SUCURSALES}:
+        return None
+    scope_nums = _sucursal_session_scope_nums()
+    if scope_nums is not None and suc_num not in scope_nums:
+        return None
+    return suc_num
+
+
+def _generador_instructivo_filename(equipo):
+    suc_num = _sucursal_num_from_value(equipo.get("sucursal_num") or equipo.get("sucursal")) or "sucursal"
+    raw_id = unicodedata.normalize("NFKD", str(equipo.get("id") or "equipo"))
+    ascii_id = raw_id.encode("ascii", "ignore").decode("ascii")
+    safe_id = re.sub(r"[^A-Za-z0-9_-]+", "-", ascii_id).strip("-_")[:48] or "equipo"
+    return f"instructivo-diario-sucursal-{suc_num}-{safe_id}.pdf"
+
+
+def _generador_instructivo_pdf(equipo, generado_el=None):
+    """Genera en memoria un instructivo prudente; no lee ni escribe archivos públicos."""
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    generado_el = generado_el or datetime.datetime.now()
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=18 * mm,
+        title="Instructivo diario seguro de grupo electrógeno",
+        author="TECMAN",
+        subject="Control y mantenimiento diario seguro",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name="TecmanTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=17,
+        leading=21,
+        textColor=colors.HexColor("#172554"),
+        alignment=TA_CENTER,
+        spaceAfter=10,
+    ))
+    styles.add(ParagraphStyle(
+        name="TecmanHeading",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor("#172554"),
+        spaceBefore=8,
+        spaceAfter=5,
+    ))
+    styles.add(ParagraphStyle(
+        name="TecmanBody",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor("#111827"),
+        spaceAfter=4,
+    ))
+    styles.add(ParagraphStyle(
+        name="TecmanWarning",
+        parent=styles["BodyText"],
+        fontName="Helvetica-Bold",
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor("#7F1D1D"),
+        backColor=colors.HexColor("#FEF2F2"),
+        borderColor=colors.HexColor("#B91C1C"),
+        borderWidth=0.8,
+        borderPadding=7,
+        spaceBefore=5,
+        spaceAfter=8,
+    ))
+
+    def safe(value):
+        return html.escape(str(value or "Sin informar"))
+
+    story = [
+        Paragraph("INSTRUCTIVO DIARIO SEGURO", styles["TecmanTitle"]),
+        Paragraph("Grupo electrógeno - control y registro", styles["Heading3"]),
+    ]
+    identity_rows = [
+        ["Sucursal", safe(equipo.get("sucursal"))],
+        ["Marca", safe(equipo.get("marca"))],
+        ["Modelo", safe(equipo.get("modelo"))],
+        ["Número de serie", safe(equipo.get("numero_serie"))],
+        ["Ubicación", safe(equipo.get("ubicacion"))],
+        ["Fecha de generación", generado_el.strftime("%d/%m/%Y %H:%M")],
+    ]
+    identity = Table(identity_rows, colWidths=[43 * mm, 112 * mm], hAlign="LEFT")
+    identity.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#111827")),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E5E7EB")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#9CA3AF")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story.extend([
+        Spacer(1, 4 * mm),
+        identity,
+        Spacer(1, 4 * mm),
+        Paragraph(
+            "ALCANCE SEGURO: Este instructivo es una guía de observación y registro. "
+            "Siempre prevalecen el manual del fabricante, las indicaciones del proveedor y la intervención de personal autorizado.",
+            styles["TecmanWarning"],
+        ),
+        Paragraph("Checklist diario seguro", styles["TecmanHeading"]),
+    ])
+    checklist = (
+        "1. Realizar sólo una inspección visual externa: observar daños, suciedad, obstrucciones y el estado general sin retirar tapas.<br/>"
+        "2. Confirmar que el área esté ventilada, despejada y libre de materiales combustibles u obstáculos.<br/>"
+        "3. Observar el panel desde el exterior y registrar indicadores o alarmas; no abrir tableros ni intervenir controles internos.<br/>"
+        "4. Verificar combustible, aceite y refrigerante únicamente con el equipo detenido y frío, sólo si el manual indica un control seguro y accesible.<br/>"
+        "5. Realizar una prueba únicamente en el horario y mediante el procedimiento autorizado por la empresa o el proveedor.<br/>"
+        "6. Registrar horas de uso, resultado de la observación o prueba y toda novedad en TECMAN."
+    )
+    story.extend([
+        Paragraph(checklist, styles["TecmanBody"]),
+        Paragraph("Registro sugerido", styles["TecmanHeading"]),
+        Paragraph(
+            "Anotar fecha y hora; lectura de horas; estado visible del panel y alarmas; niveles sólo cuando su control sea seguro; "
+            "resultado de la prueba autorizada; observaciones; nombre de quien registra y aviso generado en TECMAN.",
+            styles["TecmanBody"],
+        ),
+        Paragraph("Detener y reportar", styles["TecmanHeading"]),
+        Paragraph(
+            "Ante humo, fuga, olor inusual, vibración o ruido anormal, o cualquier alarma: detener el equipo sólo si hacerlo es seguro "
+            "y reportar de inmediato por TECMAN y al proveedor o personal autorizado. Alejarse y aislar el área cuando corresponda.",
+            styles["TecmanWarning"],
+        ),
+        Paragraph("Acciones prohibidas", styles["TecmanHeading"]),
+        Paragraph(
+            "No abrir tableros, puentear ni anular protecciones, intervenir cableado, realizar trabajos mecánicos, retirar resguardos "
+            "ni cargar combustible con el equipo encendido o caliente. No operar fuera del procedimiento autorizado.",
+            styles["TecmanBody"],
+        ),
+        Spacer(1, 3 * mm),
+        Paragraph(
+            "TECMAN - Documento generado para el equipo indicado. Conservar junto al procedimiento y manual vigentes.",
+            styles["TecmanBody"],
+        ),
+    ])
+
+    def pdf_canvas(*args, **kwargs):
+        kwargs["pageCompression"] = 0
+        pdf = canvas.Canvas(*args, **kwargs)
+        pdf.setTitle("Instructivo diario seguro de grupo electrógeno")
+        pdf.setAuthor("TECMAN")
+        pdf.setSubject("Control y mantenimiento diario seguro")
+        return pdf
+
+    document.build(story, canvasmaker=pdf_canvas)
+    output.seek(0)
+    return output
+
+
 def _leer_importacion_generadores(file_storage):
     filename = (file_storage.filename or "").lower()
     raw = file_storage.read()
@@ -6367,6 +6558,13 @@ def suc_panel():
     matafuegos = [_enrich_matafuego(m) for m in matafuegos_all if _sucursal_session_can_access_item(m)]
     matafuegos.sort(key=lambda m: (m.get("estado_calc") not in ("rechazado", "vencido"), m.get("fecha_control_calc", "9999-99-99") or "9999-99-99"))
     resumen_matafuegos = _resumen_matafuegos_sucursal(matafuegos)
+    grupos_electrogenos_visibles = [
+        equipo for equipo in load_grupos_electrogenos().get("grupos_electrogenos", [])
+        if _sucursal_session_can_access_item(equipo)
+    ]
+    cantidad_grupos_electrogenos_propios = sum(
+        1 for equipo in grupos_electrogenos_visibles if _generador_es_equipo_propio(equipo)
+    )
     permisos = [p for p in _expand_permisos_para_sucursales(load_permisos().get("permisos", [])) if _sucursal_session_can_access_item(p)]
     permisos.sort(key=lambda p: p.get("created_at", ""), reverse=True)
     estado_syh = {} if is_general else load_syh().get(suc_num, {})
@@ -6388,6 +6586,8 @@ def suc_panel():
         habilitaciones_suc=habs,
         matafuegos_suc=matafuegos,
         resumen_matafuegos=resumen_matafuegos,
+        cantidad_grupos_electrogenos_propios=cantidad_grupos_electrogenos_propios,
+        sucursales_grupos_electrogenos=_sucursal_session_scope_labels() if is_general else [],
         permisos_suc=permisos,
         estado_syh=estado_syh,
         tiene_fumigaciones=tiene_fumigaciones,
@@ -12158,18 +12358,69 @@ def admin_grupos_electrogenos_importar():
 def suc_grupos_electrogenos():
     if session.get("oficina_user"):
         return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
-    if _sucursal_session_is_general() and _sucursal_session_scope_nums() is None:
-        return render_template("error.html", mensaje="Esta sesión no tiene sucursales asignadas."), 403
-    equipos = [
-        x for x in load_grupos_electrogenos().get("grupos_electrogenos", [])
-        if _sucursal_session_can_access_item(x)
-    ]
+    is_general = _sucursal_session_is_general()
+    sucursales_disponibles = _sucursal_session_scope_labels() if is_general else []
+    sucursal_seleccionada = ""
+    seleccion_requerida = False
+    if is_general:
+        seleccion_raw = request.args.get("sucursal", "").strip()
+        if not seleccion_raw:
+            seleccion_requerida = True
+            equipos = []
+        else:
+            suc_num = _generador_seleccion_sucursal_general(seleccion_raw)
+            if not suc_num:
+                return render_template("error.html", mensaje="Sucursal no encontrada."), 404
+            sucursal_seleccionada = _sucursal_label_from_num(suc_num)
+            equipos = [
+                x for x in load_grupos_electrogenos().get("grupos_electrogenos", [])
+                if _sucursal_num_from_value(x.get("sucursal_num") or x.get("sucursal")) == suc_num
+                and _sucursal_session_can_access_item(x)
+            ]
+    else:
+        equipos = [
+            x for x in load_grupos_electrogenos().get("grupos_electrogenos", [])
+            if _sucursal_session_can_access_item(x)
+        ]
+        sucursal_seleccionada = session.get("suc_nombre", "")
+    equipos = [dict(equipo, es_equipo_propio=_generador_es_equipo_propio(equipo)) for equipo in equipos]
     equipos.sort(key=lambda x: (x.get("estado_validacion", "pendiente_validacion") != "pendiente_validacion", x.get("marca", ""), x.get("modelo", "")))
     return render_template(
         "suc_grupos_electrogenos.html",
         equipos=equipos,
+        sucursales_disponibles=sucursales_disponibles,
+        sucursal_seleccionada=sucursal_seleccionada,
+        seleccion_requerida=seleccion_requerida,
         novedad_tipos=GENERADOR_NOVEDAD_TIPOS,
         fecha_evento_default=datetime.datetime.now().replace(second=0, microsecond=0).isoformat(timespec="minutes"),
+    )
+
+
+@app.route("/suc/grupos-electrogenos/<equipo_id>/instructivo-diario.pdf")
+@suc_login_required
+def suc_grupo_electrogeno_instructivo(equipo_id):
+    if session.get("oficina_user") or session.get("user"):
+        return render_template("error.html", mensaje="Acceso restringido al portal de sucursales."), 403
+    equipo = next((
+        item for item in load_grupos_electrogenos().get("grupos_electrogenos", [])
+        if str(item.get("id")) == str(equipo_id) and _sucursal_session_can_access_item(item)
+    ), None)
+    if not equipo or not _generador_es_equipo_propio(equipo):
+        return render_template("error.html", mensaje="Equipo no encontrado."), 404
+    if _sucursal_session_is_general():
+        suc_num_seleccionado = _generador_seleccion_sucursal_general(request.args.get("sucursal", ""))
+        suc_num_equipo = _sucursal_num_from_value(equipo.get("sucursal_num") or equipo.get("sucursal"))
+        if not suc_num_seleccionado:
+            return render_template("error.html", mensaje="Seleccioná una sucursal para descargar el instructivo."), 403
+        if suc_num_seleccionado != suc_num_equipo:
+            return render_template("error.html", mensaje="Equipo no encontrado."), 404
+    pdf = _generador_instructivo_pdf(equipo)
+    return send_file(
+        pdf,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=_generador_instructivo_filename(equipo),
+        max_age=0,
     )
 
 
@@ -14272,12 +14523,34 @@ def admin_habilitaciones_reporte():
 @app.route("/uploads/habilitaciones/<filename>")
 @any_session_required
 def serve_habilitacion(filename):
+    if filename != Path(filename).name or not filename:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if session.get("suc_user"):
+        referenced = any(
+            item.get("archivo") == filename and _sucursal_session_can_access_item(item)
+            for item in load_habilitaciones().get("habilitaciones", [])
+        )
+        if not referenced:
+            return render_template("error.html", mensaje="Archivo no encontrado."), 404
     return send_from_directory(str(HABILITACIONES_DIR), filename)
 
 
 @app.route("/uploads/syh/<filename>")
 @any_session_required
 def serve_syh_upload(filename):
+    if filename != Path(filename).name or not filename:
+        return render_template("error.html", mensaje="Archivo no encontrado."), 404
+    if session.get("suc_user"):
+        referenced = False
+        for suc_num, estado in load_syh().items():
+            if not isinstance(estado, dict) or not _sucursal_session_can_access_value(suc_num):
+                continue
+            documentos = list(estado.get("documentos", []) or []) + list(estado.get("documentos_detallados", []) or [])
+            if any(isinstance(doc, dict) and doc.get("archivo") == filename for doc in documentos):
+                referenced = True
+                break
+        if not referenced:
+            return render_template("error.html", mensaje="Archivo no encontrado."), 404
     return send_from_directory(str(UPLOADS_DIR), filename)
 
 

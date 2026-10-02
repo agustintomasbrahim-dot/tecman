@@ -36,6 +36,7 @@ class GruposElectrogenosTest(unittest.TestCase):
 
     def _admin_session(self):
         with self.client.session_transaction() as sess:
+            sess.clear()
             sess["user"] = "agustin"
             sess["nombre"] = "Admin Test"
             sess["rol"] = "admin"
@@ -176,13 +177,29 @@ class GruposElectrogenosTest(unittest.TestCase):
         items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
         self.assertEqual(items[0]["numero_serie"], "SER-XLSX")
 
-    def test_general_session_without_scope_is_forbidden(self):
+    def test_general_session_requires_explicit_branch_for_download(self):
         suc = tecman.SUCURSALES[0]
         with tecman.app.test_request_context("/"):
             item = tecman._generador_from_values({"sucursal": suc, "marca": "No visible"}, "Admin", "test")
         tecman.save_grupos_electrogenos({"grupos_electrogenos": [item]})
         self._supervisor_session()
-        self.assertEqual(self.client.get("/suc/grupos-electrogenos").status_code, 403)
+        page = self.client.get("/suc/grupos-electrogenos")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Seleccioná una sucursal de tu alcance".encode(), page.data)
+        self.assertNotIn(b"No visible", page.data)
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos/{item['id']}/instructivo-diario.pdf").status_code,
+            403,
+        )
+        selected = self.client.get(f"/suc/grupos-electrogenos?sucursal={item['sucursal_num']}")
+        self.assertEqual(selected.status_code, 200)
+        self.assertIn(b"No visible", selected.data)
+        allowed = self.client.get(
+            f"/suc/grupos-electrogenos/{item['id']}/instructivo-diario.pdf?sucursal={item['sucursal_num']}"
+        )
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.mimetype, "application/pdf")
+        allowed.close()
         response = self.client.post(f"/suc/grupos-electrogenos/{item['id']}/validar", data={
             "_csrf_token": "csrf-test", "accion": "confirmar"
         })
@@ -195,10 +212,23 @@ class GruposElectrogenosTest(unittest.TestCase):
             two = tecman._generador_from_values({"sucursal": suc2, "marca": "Fuera scope"}, "Admin", "test")
         tecman.save_grupos_electrogenos({"grupos_electrogenos": [one, two]})
         self._supervisor_session([one["sucursal_num"]])
-        response = self.client.get("/suc/grupos-electrogenos")
+        prompt = self.client.get("/suc/grupos-electrogenos")
+        self.assertEqual(prompt.status_code, 200)
+        self.assertNotIn(b"En scope", prompt.data)
+        response = self.client.get(f"/suc/grupos-electrogenos?sucursal={one['sucursal_num']}")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"En scope", response.data)
         self.assertNotIn(b"Fuera scope", response.data)
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos?sucursal={two['sucursal_num']}").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(
+                f"/suc/grupos-electrogenos/{one['id']}/instructivo-diario.pdf?sucursal={two['sucursal_num']}"
+            ).status_code,
+            403,
+        )
         forbidden = self.client.post(f"/suc/grupos-electrogenos/{two['id']}/validar", data={
             "_csrf_token": "csrf-test", "accion": "confirmar"
         })
@@ -207,6 +237,136 @@ class GruposElectrogenosTest(unittest.TestCase):
             "_csrf_token": "csrf-test", "accion": "confirmar"
         })
         self.assertEqual(allowed.status_code, 302)
+
+    def test_panel_counts_only_owned_generators_and_explains_non_owned_records(self):
+        suc = tecman.SUCURSALES[0]
+        with tecman.app.test_request_context("/"):
+            own = tecman._generador_from_values({
+                "sucursal": suc, "marca": "Marca propia", "modelo": "M-1"
+            }, "Admin", "test")
+            shopping = tecman._generador_from_values({
+                "sucursal": suc, "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping",
+                "observaciones": "Corresponde al shopping.",
+            }, "Admin", "test")
+            shared = tecman._generador_from_values({
+                "sucursal": suc, "ubicacion": "Móvil compartido", "estado_equipo": "Compartido con Sucursal 999",
+                "observaciones": "No tiene grupo propio; comparte el equipo móvil.",
+            }, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [own, shopping, shared]})
+        self._sucursal_session(suc)
+        panel = self.client.get("/mi-panel")
+        self.assertEqual(panel.status_code, 200)
+        self.assertIn(b"1 equipo asignado", panel.data)
+        self.assertNotIn(b"3 equipos asignados", panel.data)
+
+        only_informational = tecman._generador_from_values({
+            "sucursal": suc, "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping",
+            "observaciones": "No tiene grupo propio; pertenece al shopping.",
+        }, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [only_informational]})
+        panel = self.client.get("/mi-panel")
+        self.assertIn(b"Sin equipos propios asignados", panel.data)
+        self.assertIn(b"shopping o compartidos no cuentan", panel.data)
+
+    def test_cards_show_separate_brand_model_missing_values_and_download_button(self):
+        suc = tecman.SUCURSALES[0]
+        with tecman.app.test_request_context("/"):
+            complete = tecman._generador_from_values({
+                "sucursal": suc, "marca": "Marca visible", "modelo": "Modelo visible"
+            }, "Admin", "test")
+            missing = tecman._generador_from_values({"sucursal": suc}, "Admin", "test")
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [complete, missing]})
+        self._sucursal_session(suc)
+        page = self.client.get("/suc/grupos-electrogenos")
+        html = page.get_data(as_text=True)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Marca visible", html)
+        self.assertIn("Modelo visible", html)
+        self.assertGreaterEqual(html.count("Sin informar"), 2)
+        self.assertEqual(html.count("Descargar instructivo diario"), 2)
+
+    def test_pdf_is_valid_personalized_safe_download_and_get_does_not_mutate(self):
+        suc = tecman.SUCURSALES[0]
+        with tecman.app.test_request_context("/"):
+            item = tecman._generador_from_values({
+                "sucursal": suc,
+                "marca": 'Marca peligrosa "; filename=ataque.pdf',
+                "modelo": "Modelo Ñ",
+                "numero_serie": "SER-123",
+                "ubicacion": "Patio técnico",
+            }, "Admin", "test")
+        item["id"] = 'equipo-á;"peligroso'
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [item]})
+        before_json = tecman.GRUPOS_ELECTROGENOS_FILE.read_bytes()
+        before_uploads = sorted(path.name for path in tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.iterdir())
+        before_notif = tecman.NOTIF_ADMIN_FILE.read_bytes() if tecman.NOTIF_ADMIN_FILE.exists() else None
+        self._sucursal_session(suc)
+
+        response = self.client.get(f"/suc/grupos-electrogenos/{item['id']}/instructivo-diario.pdf")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "application/pdf")
+        self.assertTrue(response.data.startswith(b"%PDF"))
+        disposition = response.headers["Content-Disposition"]
+        self.assertIn("attachment", disposition)
+        self.assertIn("instructivo-diario-sucursal-", disposition)
+        self.assertNotIn("Marca peligrosa", disposition)
+        self.assertNotIn("\r", disposition)
+        self.assertNotIn("\n", disposition)
+        raw_pdf = response.data.decode("latin-1")
+        for key in (
+            "INSTRUCTIVO DIARIO SEGURO", "Marca peligrosa", "Modelo", "SER-123",
+            "Checklist diario seguro", "Acciones prohibidas", "TECMAN",
+        ):
+            self.assertIn(key, raw_pdf)
+        self.assertEqual(tecman.GRUPOS_ELECTROGENOS_FILE.read_bytes(), before_json)
+        self.assertEqual(sorted(path.name for path in tecman.GRUPOS_ELECTROGENOS_UPLOADS_DIR.iterdir()), before_uploads)
+        after_notif = tecman.NOTIF_ADMIN_FILE.read_bytes() if tecman.NOTIF_ADMIN_FILE.exists() else None
+        self.assertEqual(after_notif, before_notif)
+        response.close()
+
+    def test_pdf_rejects_foreign_non_owned_admin_only_and_db_get_is_read_only(self):
+        own = self._equipo(tecman.SUCURSALES[0], "Propio")
+        foreign = self._equipo(tecman.SUCURSALES[1], "Ajeno")
+        informational = self._equipo(tecman.SUCURSALES[0], "Shopping")
+        informational.update({
+            "ubicacion": "Shopping", "estado_equipo": "Equipo del shopping",
+            "observaciones": "No tiene grupo propio; pertenece al shopping.",
+        })
+        tecman.save_grupos_electrogenos({"grupos_electrogenos": [own, foreign, informational]})
+        self._sucursal_session(own["sucursal"])
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos/{foreign['id']}/instructivo-diario.pdf").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos/{informational['id']}/instructivo-diario.pdf").status_code,
+            404,
+        )
+        self._admin_session()
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos/{own['id']}/instructivo-diario.pdf").status_code,
+            302,
+        )
+        with self.client.session_transaction() as sess:
+            sess["suc_user"] = "stale-branch-session"
+            sess["suc_nombre"] = own["sucursal"]
+        self.assertEqual(
+            self.client.get(f"/suc/grupos-electrogenos/{own['id']}/instructivo-diario.pdf").status_code,
+            403,
+        )
+
+        self._sucursal_session(own["sucursal"])
+        with mock.patch.object(tecman, "USE_DB", True), \
+             mock.patch.object(tecman, "GrupoElectrogenoDB", object(), create=True), \
+             mock.patch.object(tecman, "_db_list", return_value=[own]) as db_list, \
+             mock.patch.object(tecman, "_db_replace") as db_replace:
+            page = self.client.get("/suc/grupos-electrogenos")
+            pdf = self.client.get(f"/suc/grupos-electrogenos/{own['id']}/instructivo-diario.pdf")
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(pdf.status_code, 200)
+        self.assertGreaterEqual(db_list.call_count, 2)
+        db_replace.assert_not_called()
+        pdf.close()
 
     def test_invalid_dates_are_rejected_atomically(self):
         self._admin_session()

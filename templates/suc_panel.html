@@ -103,11 +103,30 @@
             <div class="suc-mini-value">{{ matafuegos_suc|length if matafuegos_suc else 0 }}</div>
             <div style="font-size:12px;color:#6b7280;margin-top:4px;">Cantidad y vencimientos · Ver →</div>
         </a>
-        <a href="{{ url_for('suc_grupos_electrogenos') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
+        <div class="suc-mini-card" style="display:block; color:inherit;">
             <div class="suc-mini-label">Grupos electrógenos</div>
-            <div class="suc-mini-value">Ver equipos</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:4px;">Validar inventario asignado →</div>
-        </a>
+            {% if session.suc_general %}
+            <div class="suc-mini-value">Seleccioná una sucursal</div>
+            <form method="GET" action="{{ url_for('suc_grupos_electrogenos') }}" style="margin-top:8px;">
+                <label for="ge-sucursal-panel" style="font-size:12px;color:#475569;">Sucursal a consultar</label>
+                <select id="ge-sucursal-panel" name="sucursal" required style="margin-top:4px;">
+                    <option value="">Seleccionar...</option>
+                    {% for sucursal in sucursales_grupos_electrogenos %}<option value="{{ sucursal }}">{{ sucursal }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn btn-outline btn-sm" style="margin-top:7px;width:100%;">Ver equipos asignados</button>
+            </form>
+            {% else %}
+            <div class="suc-mini-value">
+                {% if cantidad_grupos_electrogenos_propios == 1 %}1 equipo asignado
+                {% elif cantidad_grupos_electrogenos_propios > 1 %}{{ cantidad_grupos_electrogenos_propios }} equipos asignados
+                {% else %}Sin equipos propios asignados{% endif %}
+            </div>
+            <div style="font-size:12px;color:#6b7280;margin-top:4px;">
+                {% if cantidad_grupos_electrogenos_propios %}Marca, modelo e instructivo diario · {% else %}Los registros de shopping o compartidos no cuentan como equipo propio · {% endif %}
+                <a href="{{ url_for('suc_grupos_electrogenos') }}" style="color:#2563eb;text-decoration:none;">Ver →</a>
+            </div>
+            {% endif %}
+        </div>
         {% if tiene_fumigaciones %}
         <a href="{{ url_for('suc_fumigaciones') }}" class="suc-mini-card" style="text-decoration:none; display:block; color:inherit;">
             <div class="suc-mini-label">Fumigaciones</div>
