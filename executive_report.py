@@ -220,6 +220,37 @@ def _user_dict(user):
     }
 
 
+def rank_sucursal_logins(events, desde=None, hasta=None):
+    """Rankea logins atribuibles usando sólo metadata canónica y no sensible."""
+    counts = Counter()
+    labels = {}
+    for raw in events or []:
+        event = _event_dict(raw)
+        if event.get("event_type") != "login_success":
+            continue
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        if details.get("role") != "sucursal":
+            continue
+        happened = _date(event.get("created_at") or event.get("fecha"))
+        if desde and (not happened or happened < desde):
+            continue
+        if hasta and (not happened or happened >= hasta):
+            continue
+        raw_code = _text(details.get("sucursal_num"))
+        raw_label = _text(details.get("sucursal_label"))
+        code = branch_code(raw_code)
+        if not code and raw_code.casefold() in {"central", "garin"}:
+            code = raw_code.casefold()
+        if not code or not raw_label:
+            continue
+        counts[code] += 1
+        labels.setdefault(code, raw_label)
+    return [
+        {"sucursal_num": code, "sucursal_label": labels[code], "ingresos": count}
+        for code, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
 def login_metrics(events, users, catalog_codes, desde, hasta, branch_email_map=None):
     branch_email_map = {
         _text(email).casefold(): branch_code(code)
@@ -266,6 +297,7 @@ def login_metrics(events, users, catalog_codes, desde, hasta, branch_email_map=N
         "cobertura_hasta": max(dates).isoformat() if dates else None,
         "atribucion_completa": all_attributable,
         "cobertura_suficiente": sufficient,
+        "ranking_sucursales": rank_sucursal_logins(events, desde, hasta),
     }
 
 

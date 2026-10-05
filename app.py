@@ -34,7 +34,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, send_file, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, send_file, Response, g
 from werkzeug.exceptions import RequestEntityTooLarge
 
 try:
@@ -668,7 +668,8 @@ def _load_audit_json():
 
 
 def _save_audit_json(data):
-    AUTH_AUDIT_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    AUTH_AUDIT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AUTH_AUDIT_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _split_name(full_name):
@@ -4009,6 +4010,40 @@ def _sucursal_label_from_num(suc_num):
     return str(suc_num or "").strip()
 
 
+def _sucursal_login_audit_details(role, source, suc_user=None, sucursal=None):
+    """Construye metadata operativa de login sin identidad personal."""
+    details = {"role": role, "source": source}
+    if role != "sucursal":
+        return details
+    branch_value = sucursal
+    if not branch_value and suc_user in SUCURSAL_USERS:
+        branch_value = SUCURSAL_USERS[suc_user].get("sucursal")
+    branch_num = _sucursal_num_from_value(branch_value)
+    branch_label = next(
+        (label for label in SUCURSALES if _sucursal_num_from_value(label) == branch_num),
+        None,
+    )
+    if branch_num and branch_label:
+        details["sucursal_num"] = branch_num
+        details["sucursal_label"] = branch_label
+    return details
+
+
+def _record_sucursal_login_success(provider, role, source, user=None, suc_user=None, sucursal=None):
+    """Registra una sola evidencia por request de autenticación completado."""
+    if getattr(g, "_sucursal_login_success_recorded", False):
+        return False
+    details = _sucursal_login_audit_details(
+        role,
+        source,
+        suc_user=suc_user,
+        sucursal=sucursal,
+    )
+    _audit_event("login_success", user=user, provider=provider, details=details)
+    g._sucursal_login_success_recorded = True
+    return True
+
+
 def _sucursal_session_scope_nums():
     scope = session.get("suc_scope_nums")
     if not scope:
@@ -6388,8 +6423,19 @@ def suc_login():
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
         if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
+            session.clear()
+            session.permanent = True
             session["suc_user"] = user
             session["suc_nombre"] = SUCURSAL_USERS[user]["sucursal"]
+            session["suc_general"] = False
+            session["auth_provider"] = "local"
+            _record_sucursal_login_success(
+                "local",
+                "sucursal",
+                "local_credentials",
+                suc_user=user,
+                sucursal=SUCURSAL_USERS[user]["sucursal"],
+            )
             return redirect(url_for("suc_panel"))
         flash("Usuario o contraseña incorrectos")
     return render_template(
@@ -7723,8 +7769,22 @@ def entra_callback():
         ), 403
 
     if entra_role in ("sucursal", "supervisor"):
-        if _set_sucursal_session_from_entra(identity):
-            _audit_event("login_success", user=auth_user, provider="entra", details={"role": entra_role, "source": "entra_allowlist" if auth_user else "entra_group"})
+        suc_user = _sucursal_user_from_entra_identity(identity) if entra_role == "sucursal" else None
+        if _set_sucursal_session_from_entra(identity, suc_user=suc_user):
+            if entra_role == "supervisor":
+                source = "supervisor_scope"
+            elif suc_user:
+                source = "branch_identity"
+            else:
+                source = "entra_allowlist" if auth_user else "entra_group"
+            _record_sucursal_login_success(
+                "entra",
+                entra_role,
+                source,
+                user=auth_user,
+                suc_user=suc_user,
+                sucursal=session.get("suc_nombre") if suc_user else None,
+            )
             return redirect(url_for("suc_panel"))
         return render_template(
             "error.html",
