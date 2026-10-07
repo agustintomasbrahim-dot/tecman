@@ -1767,8 +1767,19 @@ def _set_user_password(user, new_password, must_change=False):
 
 
 def _generate_temporary_password(length=18):
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_"
-    return "".join(secrets.choice(alphabet) for _ in range(length))
+    if length < 10:
+        raise ValueError("La contraseña temporal debe tener al menos 10 caracteres")
+    groups = (
+        "ABCDEFGHJKLMNPQRSTUVWXYZ",
+        "abcdefghijkmnopqrstuvwxyz",
+        "23456789",
+        "!@#$%*-_",
+    )
+    alphabet = "".join(groups)
+    password = [secrets.choice(group) for group in groups]
+    password.extend(secrets.choice(alphabet) for _ in range(length - len(password)))
+    secrets.SystemRandom().shuffle(password)
+    return "".join(password)
 
 
 def _create_auth_user(form):
@@ -4468,6 +4479,11 @@ def _create_proveedor_user(proveedor_nombre, username, password=""):
         raise ValueError("Proveedor no encontrado")
 
     users = load_proveedor_users()
+    existing_username, _ = _proveedor_account_for_name(proveedor_nombre, users=users)
+    if existing_username:
+        raise ValueError(
+            f"{proveedor_nombre} ya tiene el usuario {existing_username}; gestioná ese acceso desde la lista"
+        )
     if username in users:
         raise ValueError("El usuario ya existe")
 
@@ -4509,6 +4525,16 @@ def _proveedor_access_rows():
             "needs_activation": not bool(info.get("password_hash")),
         })
     return sorted(rows, key=lambda row: (row["is_default"], row["proveedor"].casefold(), row["username"]))
+
+
+def _proveedores_disponibles_para_crear(users=None):
+    users = users or load_proveedor_users()
+    return [
+        p for p in PROVEEDORES
+        if p.get("nombre")
+        and p.get("estado_operativo") != "Recurso interno"
+        and not _proveedor_account_for_name(p.get("nombre"), users=users)[0]
+    ]
 
 
 def _proveedor_session_is_valid():
@@ -8421,8 +8447,8 @@ def admin_usuarios():
         return redirect(url_for("admin_usuarios"))
     proveedores_catalogo = sorted(
         (
-            {**p, "acceso_tipo": _proveedor_tipo_cuenta(p)} for p in PROVEEDORES
-            if p.get("nombre") and p.get("estado_operativo") != "Recurso interno"
+            {**p, "acceso_tipo": _proveedor_tipo_cuenta(p)}
+            for p in _proveedores_disponibles_para_crear()
         ),
         key=lambda p: (p.get("nombre") or "").casefold(),
     )
@@ -8483,6 +8509,22 @@ def admin_usuarios_proveedor_accion(username):
         account["session_version"] = int(account.get("session_version", 1)) + 1
         event_type = "provider_user_disabled"
         message = "Acceso de proveedor deshabilitado y sesiones revocadas"
+    elif action == "prepare_access":
+        if account.get("password_hash") or account.get("status") == "active":
+            flash("El acceso ya tiene clave o está habilitado; no se generó una contraseña nueva")
+            return redirect(url_for("admin_usuarios", _anchor="proveedores"))
+        temporary_password = _generate_temporary_password()
+        now = _now_utc().isoformat()
+        account["password_hash"] = _hash_password(temporary_password)
+        account["status"] = "active"
+        account["session_version"] = int(account.get("session_version", 1)) + 1
+        account["password_changed_at"] = now
+        account["status_changed_at"] = now
+        event_type = "provider_access_prepared"
+        message = (
+            f"Acceso preparado para {username}. Contraseña temporal (mostrar una sola vez): "
+            f"{temporary_password}. Compartila por un canal privado."
+        )
     elif action == "enable":
         if not account.get("password_hash"):
             flash("Primero generá una contraseña temporal; luego habilitá el acceso")

@@ -135,10 +135,9 @@ class AdminProveedorAccessTest(unittest.TestCase):
     def test_alta_desde_usuarios_asigna_tipo_hash_login_y_alcance(self):
         self._admin_session()
         cases = (
-            ("Martin Microglobal", "portal_normal", "proveedor", "ClaveNormal-2026"),
-            ("Diprogom", "portal_mata", "matafuegos", "ClaveMata-2026"),
-            ("Gerardo Goog", "portal_fumiga", "fumigacion", "ClaveFumiga-2026"),
-            ("CEYH", "portal_abono", "abono_fijo", "ClaveAbono-2026"),
+            ("Conex", "portal_normal", "proveedor", "ClaveNormal-2026"),
+            ("Jorge Alejandro Gardel", "portal_fumiga", "fumigacion", "ClaveFumiga-2026"),
+            ("Astronovo AM", "portal_abono", "abono_fijo", "ClaveAbono-2026"),
         )
         for proveedor, username, expected_type, password in cases:
             response = self._post_create(proveedor, username, password)
@@ -167,19 +166,23 @@ class AdminProveedorAccessTest(unittest.TestCase):
 
     def test_temporal_se_muestra_una_vez_y_password_explicita_no_se_filtra(self):
         self._admin_session()
-        generated = self._post_create("Martin Microglobal", "temporal_seguro", follow=True)
+        generated = self._post_create("Conex", "temporal_seguro", follow=True)
         body = generated.get_data(as_text=True)
         match = re.search(r"Contraseña temporal \(mostrar una sola vez\): ([^.<]+)", body)
         self.assertIsNotNone(match)
         temporary_password = match.group(1).strip()
         self.assertGreaterEqual(len(temporary_password), 10)
+        self.assertRegex(temporary_password, r"[A-Z]")
+        self.assertRegex(temporary_password, r"[a-z]")
+        self.assertRegex(temporary_password, r"[0-9]")
+        self.assertRegex(temporary_password, r"[!@#$%*\-_]")
         account = self._custom_users()["temporal_seguro"]
         self.assertTrue(tecman._verify_password(temporary_password, account["password_hash"]))
         self.assertNotIn(temporary_password, tecman.PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
         self.assertNotIn(temporary_password, self.client.get("/admin/usuarios").get_data(as_text=True))
 
         explicit = "NoDebeFiltrarse-2026"
-        response = self._post_create("Diprogom", "explicita_segura", explicit, follow=True)
+        response = self._post_create("Astronovo AM", "explicita_segura", explicit, follow=True)
         self.assertNotIn(explicit, response.get_data(as_text=True))
         self.assertNotIn(explicit, tecman.PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
         self.assertNotIn(explicit, tecman.AUTH_AUDIT_FILE.read_text(encoding="utf-8"))
@@ -214,10 +217,10 @@ class AdminProveedorAccessTest(unittest.TestCase):
             self.assertNotIn(username, self._custom_users())
             self.assertEqual(response.status_code, 200)
 
-        self._post_create("CEYH", "duplicado_seguro", "Password-2026")
-        duplicate = self._post_create("Diprogom", "duplicado_seguro", "OtraPassword-2026", follow=True)
+        self._post_create("Conex", "duplicado_seguro", "Password-2026")
+        duplicate = self._post_create("Jorge Alejandro Gardel", "duplicado_seguro", "OtraPassword-2026", follow=True)
         self.assertIn("El usuario ya existe", duplicate.get_data(as_text=True))
-        self.assertEqual(self._custom_users()["duplicado_seguro"]["nombre"], "CEYH")
+        self.assertEqual(self._custom_users()["duplicado_seguro"]["nombre"], "Conex")
 
         protected = self.client.post(
             "/admin/usuarios/proveedores/matafuegos_demo/accion",
@@ -230,6 +233,15 @@ class AdminProveedorAccessTest(unittest.TestCase):
         self.assertEqual(diprogom["status"], "disabled")
         self.assertNotIn("password", diprogom)
         self.assertNotIn("password_hash", diprogom)
+
+        duplicate_provider = self._post_create(
+            "Diprogom", "alias_improvisado", "OtraPassword-2026", follow=True
+        )
+        self.assertIn(
+            "Diprogom ya tiene el usuario diprogom; gestioná ese acceso desde la lista",
+            duplicate_provider.get_data(as_text=True),
+        )
+        self.assertNotIn("alias_improvisado", self._custom_users())
 
     def test_archivo_operativo_preserva_cuentas_previstas_y_no_sobrescribe_defaults(self):
         tecman.PROVEEDOR_USERS_FILE.write_text(
@@ -278,34 +290,57 @@ class AdminProveedorAccessTest(unittest.TestCase):
             self.assertNotIn("password_hash", account)
             self.assertEqual(self._provider_login(username, "prov2026").status_code, 200)
 
-        self._admin_session()
-        blocked_enable = self.client.post(
-            "/admin/usuarios/proveedores/fuego_cero/accion",
-            data={"_csrf_token": "csrf-test", "action": "enable"},
-            follow_redirects=True,
-        )
-        self.assertIn("Primero generá una contraseña temporal", blocked_enable.get_data(as_text=True))
-        self.assertEqual(tecman.load_proveedor_users()["fuego_cero"]["status"], "disabled")
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess["prov_user"] = "fuego_cero"
+            sess["prov_nombre"] = "Fuego Cero"
+            sess["prov_tipo_cuenta"] = "matafuegos"
+            sess["prov_session_version"] = 1
 
-        reset = self.client.post(
+        self._admin_session()
+        prepared = self.client.post(
             "/admin/usuarios/proveedores/fuego_cero/accion",
-            data={"_csrf_token": "csrf-test", "action": "reset_password"},
+            data={"_csrf_token": "csrf-test", "action": "prepare_access"},
             follow_redirects=True,
         )
-        match = re.search(r"Contraseña temporal para fuego_cero \(mostrar una sola vez\): ([^.<]+)", reset.get_data(as_text=True))
+        match = re.search(
+            r"Acceso preparado para fuego_cero\. Contraseña temporal \(mostrar una sola vez\): ([^.<]+)",
+            prepared.get_data(as_text=True),
+        )
         self.assertIsNotNone(match)
         temporary = match.group(1).strip()
         stored = self._custom_users()["fuego_cero"]
-        self.assertEqual(stored["status"], "disabled")
+        self.assertEqual(stored["status"], "active")
+        self.assertEqual(stored["session_version"], 2)
+        self.assertIn("password_changed_at", stored)
+        self.assertIn("status_changed_at", stored)
         self.assertNotIn("password", stored)
         self.assertTrue(tecman._verify_password(temporary, stored["password_hash"]))
         self.assertNotIn(temporary, tecman.PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
+        audit_text = tecman.AUTH_AUDIT_FILE.read_text(encoding="utf-8")
+        self.assertIn("provider_access_prepared", audit_text)
+        self.assertNotIn(temporary, audit_text)
 
-        self._admin_session()
-        self.client.post(
+        original_hash = stored["password_hash"]
+        original_version = stored["session_version"]
+        repeated = self.client.post(
             "/admin/usuarios/proveedores/fuego_cero/accion",
-            data={"_csrf_token": "csrf-test", "action": "enable"},
+            data={"_csrf_token": "csrf-test", "action": "prepare_access"},
+            follow_redirects=True,
         )
+        self.assertIn("no se generó una contraseña nueva", repeated.get_data(as_text=True))
+        repeated_stored = self._custom_users()["fuego_cero"]
+        self.assertEqual(repeated_stored["password_hash"], original_hash)
+        self.assertEqual(repeated_stored["session_version"], original_version)
+
+        with self.client.session_transaction() as sess:
+            sess.clear()
+            sess["prov_user"] = "fuego_cero"
+            sess["prov_nombre"] = "Fuego Cero"
+            sess["prov_tipo_cuenta"] = "matafuegos"
+            sess["prov_session_version"] = 1
+        self.assertEqual(self.client.get("/proveedor").status_code, 302)
+
         login = self._provider_login("fuego_cero", temporary)
         self.assertEqual(login.status_code, 302)
         self.assertTrue(login.headers["Location"].endswith("/proveedor/matafuegos"))
@@ -364,7 +399,7 @@ class AdminProveedorAccessTest(unittest.TestCase):
             data={"proveedor_nombre": "Gerardo Goog", "usuario": "viejo_sin_csrf", "password": "Password-2026"},
         )
         self.assertEqual(no_csrf.status_code, 400)
-        response = self._post_create("Gerardo Goog", "endpoint_viejo", "Password-2026", endpoint="anterior")
+        response = self._post_create("Jorge Alejandro Gardel", "endpoint_viejo", "Password-2026", endpoint="anterior")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self._custom_users()["endpoint_viejo"]["tipo_cuenta"], "fumigacion")
         events = json.loads(tecman.AUTH_AUDIT_FILE.read_text(encoding="utf-8"))["events"]
@@ -373,7 +408,7 @@ class AdminProveedorAccessTest(unittest.TestCase):
     def test_deshabilitar_habilitar_reset_y_revocacion_de_sesion(self):
         self._admin_session()
         original_password = "PasswordOriginal-2026"
-        self._post_create("Martin Microglobal", "gestion_prov", original_password)
+        self._post_create("Conex", "gestion_prov", original_password)
         login = self._provider_login("gestion_prov", original_password)
         self.assertEqual(login.status_code, 302)
         with self.client.session_transaction() as sess:
@@ -391,7 +426,7 @@ class AdminProveedorAccessTest(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess.clear()
             sess["prov_user"] = "gestion_prov"
-            sess["prov_nombre"] = "Martin Microglobal"
+            sess["prov_nombre"] = "Conex"
             sess["prov_tipo_cuenta"] = "proveedor"
             sess["prov_session_version"] = old_version
         blocked_upload = self.client.get("/static/uploads/archivo-protegido.pdf")
@@ -399,7 +434,7 @@ class AdminProveedorAccessTest(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess.clear()
             sess["prov_user"] = "gestion_prov"
-            sess["prov_nombre"] = "Martin Microglobal"
+            sess["prov_nombre"] = "Conex"
             sess["prov_tipo_cuenta"] = "proveedor"
             sess["prov_session_version"] = old_version
         revoked = self.client.get("/proveedor")
@@ -433,7 +468,7 @@ class AdminProveedorAccessTest(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess.clear()
             sess["prov_user"] = "gestion_prov"
-            sess["prov_nombre"] = "Martin Microglobal"
+            sess["prov_nombre"] = "Conex"
             sess["prov_tipo_cuenta"] = "proveedor"
             sess["prov_session_version"] = pre_reset_version
         self.assertEqual(self.client.get("/proveedor").status_code, 302)
@@ -452,6 +487,11 @@ class AdminProveedorAccessTest(unittest.TestCase):
         self.assertIn("Proveedores externos (usuario y contraseña)", page)
         self.assertIn("Personal y sucursales ingresan con Microsoft. Proveedores externos usan este usuario y contraseña", page)
         self.assertIn('<option value="entra" selected>Microsoft Entra (predeterminado)</option>', page)
+        self.assertIn("Generar clave y habilitar", page)
+        self.assertIn("Crear cuenta para un proveedor nuevo", page)
+        self.assertIn("Proveedor sin cuenta", page)
+        self.assertNotIn('<option value="Diprogom">', page)
+        self.assertNotIn('<option value="Fuego Cero">', page)
         self.assertNotIn('name="password" type="text"', page)
         self.assertIn('type="password" name="password"', page)
 
