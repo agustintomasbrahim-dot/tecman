@@ -1917,6 +1917,25 @@ def _db_cfg_set(key, value):
     db.session.commit()
 
 
+def _db_cfg_set_if_absent(key, value):
+    row = ConfigDB.query.get(key)
+    if row:
+        return row.value
+    try:
+        db.session.add(ConfigDB(key=key, value=value))
+        db.session.commit()
+        return value
+    except Exception:
+        # Otro worker puede haber ganado la migración entre el GET y el INSERT.
+        # En ese caso se conserva el documento ya persistido; otros errores siguen
+        # siendo visibles para no convertir una falla de DB en pérdida silenciosa.
+        db.session.rollback()
+        row = ConfigDB.query.get(key)
+        if row:
+            return row.value
+        raise
+
+
 def save_syh(data):
     if USE_DB:
         _db_cfg_set("syh", data)
@@ -4357,21 +4376,52 @@ PLANNED_PROVEEDOR_USERS = {
     "ingam": {"nombre": "INGAM Control de Plagas SRL", "tipo_cuenta": "fumigacion", "proveedores": ["INGAM Control de Plagas SRL"]},
 }
 
+PROVEEDOR_USERS_CONFIG_KEY = "proveedor_users"
+
+
+def _read_proveedor_users_file():
+    if not PROVEEDOR_USERS_FILE.exists():
+        return None
+    try:
+        data = json.loads(PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
+        return None
+
+
+def _load_proveedor_users_document():
+    if not USE_DB:
+        return _read_proveedor_users_file() or {}
+
+    data = _db_cfg_get(PROVEEDOR_USERS_CONFIG_KEY, None)
+    if data is not None:
+        return copy.deepcopy(data) if isinstance(data, dict) else {}
+
+    # Migración de una sola vez para instalaciones que ya tenían cuentas en
+    # proveedor_users.json. Una vez creado el documento, ConfigDB es la fuente
+    # autoritativa y el archivo efímero no vuelve a sobrescribirlo.
+    legacy = _read_proveedor_users_file()
+    if legacy is None:
+        return {}
+    migrated = copy.deepcopy(legacy)
+    persisted = _db_cfg_set_if_absent(PROVEEDOR_USERS_CONFIG_KEY, migrated)
+    return copy.deepcopy(persisted) if isinstance(persisted, dict) else {}
+
 
 def load_proveedor_users():
     users = copy.deepcopy(DEFAULT_PROVEEDOR_USERS)
-    if PROVEEDOR_USERS_FILE.exists():
-        try:
-            data = json.loads(PROVEEDOR_USERS_FILE.read_text(encoding="utf-8"))
-            for username, info in (data.get("users") or {}).items():
-                normalized = str(username or "").lower().strip()
-                if normalized and normalized not in DEFAULT_PROVEEDOR_USERS and isinstance(info, dict):
-                    account = copy.deepcopy(info)
-                    account.setdefault("status", "active")
-                    account.setdefault("session_version", 1)
-                    users[normalized] = account
-        except Exception as exc:
-            print(f"[WARN] No se pudo leer proveedor_users.json: {exc}")
+    data = _load_proveedor_users_document()
+    persisted_users = data.get("users") or {}
+    if not isinstance(persisted_users, dict):
+        persisted_users = {}
+    for username, info in persisted_users.items():
+        normalized = str(username or "").lower().strip()
+        if normalized and normalized not in DEFAULT_PROVEEDOR_USERS and isinstance(info, dict):
+            account = copy.deepcopy(info)
+            account.setdefault("status", "active")
+            account.setdefault("session_version", 1)
+            users[normalized] = account
     for username, info in PLANNED_PROVEEDOR_USERS.items():
         users.setdefault(username, {
             **copy.deepcopy(info),
@@ -4391,8 +4441,12 @@ def save_proveedor_users(users):
     for username, info in users.items():
         if username in DEFAULT_PROVEEDOR_USERS:
             continue
-        custom_users[username] = info
-    _atomic_write(PROVEEDOR_USERS_FILE, {"users": custom_users})
+        custom_users[username] = copy.deepcopy(info)
+    document = {"users": custom_users}
+    if USE_DB:
+        _db_cfg_set(PROVEEDOR_USERS_CONFIG_KEY, document)
+        return
+    _atomic_write(PROVEEDOR_USERS_FILE, document)
 
 
 def _proveedor_login_ok(user_info, password):

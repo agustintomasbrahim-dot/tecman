@@ -4,6 +4,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 _TEST_ROOT = tempfile.TemporaryDirectory()
@@ -509,6 +510,181 @@ class AdminProveedorAccessTest(unittest.TestCase):
         user = tecman._load_users_json()["users"][0]
         self.assertFalse(user.get("local_credentials"))
         self.assertEqual(user["auth_identities"][0]["provider"], "entra")
+
+    def _fake_config_db(self, initial=None):
+        rows = {}
+        commits = []
+
+        class Query:
+            def get(self, key):
+                return rows.get(key)
+
+        class ConfigModel:
+            query = Query()
+
+            def __init__(self, key, value):
+                self.key = key
+                self.value = value
+
+        class Session:
+            def add(self, row):
+                rows[row.key] = row
+
+            def commit(self):
+                commits.append(True)
+
+        if initial is not None:
+            rows[tecman.PROVEEDOR_USERS_CONFIG_KEY] = ConfigModel(
+                tecman.PROVEEDOR_USERS_CONFIG_KEY,
+                initial,
+            )
+        fake_db = type("FakeDB", (), {"session": Session()})()
+        return ConfigModel, fake_db, rows, commits
+
+    def test_db_persiste_cambios_sin_escribir_archivo_json(self):
+        config_model, fake_db, rows, commits = self._fake_config_db()
+        account = {
+            "password_hash": "hash-de-prueba-no-real",
+            "nombre": "Conex",
+            "tipo_cuenta": "proveedor",
+            "proveedores": ["Conex"],
+            "status": "disabled",
+            "session_version": 8,
+        }
+        with patch.object(tecman, "USE_DB", True), \
+             patch.object(tecman, "ConfigDB", config_model, create=True), \
+             patch.object(tecman, "db", fake_db, create=True):
+            tecman.save_proveedor_users({"persistente": account})
+            loaded = tecman.load_proveedor_users()
+
+        self.assertFalse(tecman.PROVEEDOR_USERS_FILE.exists())
+        self.assertEqual(loaded["persistente"]["status"], "disabled")
+        self.assertEqual(loaded["persistente"]["session_version"], 8)
+        self.assertEqual(rows[tecman.PROVEEDOR_USERS_CONFIG_KEY].value["users"]["persistente"], account)
+        self.assertEqual(len(commits), 1)
+
+    def test_db_migra_json_una_sola_vez_y_luego_es_autoritativa(self):
+        legacy = {
+            "users": {
+                "migrado": {
+                    "password_hash": "hash-legacy-de-prueba-no-real",
+                    "nombre": "Conex",
+                    "tipo_cuenta": "proveedor",
+                    "proveedores": ["Conex"],
+                    "status": "active",
+                    "session_version": 4,
+                }
+            }
+        }
+        tecman.PROVEEDOR_USERS_FILE.write_text(json.dumps(legacy), encoding="utf-8")
+        config_model, fake_db, rows, commits = self._fake_config_db()
+        with patch.object(tecman, "USE_DB", True), \
+             patch.object(tecman, "ConfigDB", config_model, create=True), \
+             patch.object(tecman, "db", fake_db, create=True):
+            first = tecman.load_proveedor_users()
+            tecman.PROVEEDOR_USERS_FILE.write_text(
+                json.dumps({"users": {"archivo_nuevo": {"nombre": "No debe migrarse"}}}),
+                encoding="utf-8",
+            )
+            second = tecman.load_proveedor_users()
+
+        self.assertEqual(first["migrado"]["session_version"], 4)
+        self.assertIn("migrado", second)
+        self.assertNotIn("archivo_nuevo", second)
+        self.assertEqual(rows[tecman.PROVEEDOR_USERS_CONFIG_KEY].value, legacy)
+        self.assertEqual(len(commits), 1)
+
+    def test_db_migracion_concurrente_conserva_documento_del_worker_ganador(self):
+        tecman.PROVEEDOR_USERS_FILE.write_text(
+            json.dumps({"users": {"worker_perdedor": {"nombre": "No debe persistir"}}}),
+            encoding="utf-8",
+        )
+        rows = {}
+        rollbacks = []
+        winner = {
+            "users": {
+                "worker_ganador": {
+                    "nombre": "Conex",
+                    "status": "active",
+                    "session_version": 3,
+                }
+            }
+        }
+
+        class Query:
+            def get(self, key):
+                return rows.get(key)
+
+        class ConfigModel:
+            query = Query()
+
+            def __init__(self, key, value):
+                self.key = key
+                self.value = value
+
+        class Session:
+            def add(self, row):
+                self.pending = row
+
+            def commit(self):
+                rows[tecman.PROVEEDOR_USERS_CONFIG_KEY] = ConfigModel(
+                    tecman.PROVEEDOR_USERS_CONFIG_KEY,
+                    winner,
+                )
+                raise RuntimeError("conflicto de inserción simulado")
+
+            def rollback(self):
+                rollbacks.append(True)
+
+        fake_db = type("FakeDB", (), {"session": Session()})()
+        with patch.object(tecman, "USE_DB", True), \
+             patch.object(tecman, "ConfigDB", ConfigModel, create=True), \
+             patch.object(tecman, "db", fake_db, create=True):
+            loaded = tecman.load_proveedor_users()
+
+        self.assertIn("worker_ganador", loaded)
+        self.assertNotIn("worker_perdedor", loaded)
+        self.assertEqual(rows[tecman.PROVEEDOR_USERS_CONFIG_KEY].value, winner)
+        self.assertEqual(len(rollbacks), 1)
+
+    def test_db_sobrevive_reinicio_simulado_y_preserva_defaults_inmutables(self):
+        document = {
+            "users": {
+                "reiniciable": {
+                    "password_hash": "hash-reinicio-de-prueba-no-real",
+                    "nombre": "Conex",
+                    "tipo_cuenta": "proveedor",
+                    "proveedores": ["Conex"],
+                    "status": "active",
+                    "session_version": 6,
+                },
+                "matafuegos_demo": {
+                    "nombre": "Intento de reemplazo",
+                    "status": "disabled",
+                    "session_version": 99,
+                },
+            }
+        }
+        config_model, fake_db, _rows, commits = self._fake_config_db(document)
+        with patch.object(tecman, "USE_DB", True), \
+             patch.object(tecman, "ConfigDB", config_model, create=True), \
+             patch.object(tecman, "db", fake_db, create=True):
+            before_restart = tecman.load_proveedor_users()
+            before_restart["reiniciable"]["status"] = "disabled"
+            tecman.PROVEEDOR_USERS_FILE.write_text(
+                json.dumps({"users": {"efimero": {"nombre": "Sólo filesystem"}}}),
+                encoding="utf-8",
+            )
+            after_restart = tecman.load_proveedor_users()
+
+        self.assertEqual(after_restart["reiniciable"]["status"], "active")
+        self.assertEqual(after_restart["reiniciable"]["session_version"], 6)
+        self.assertNotIn("efimero", after_restart)
+        self.assertEqual(
+            after_restart["matafuegos_demo"]["nombre"],
+            tecman.DEFAULT_PROVEEDOR_USERS["matafuegos_demo"]["nombre"],
+        )
+        self.assertEqual(commits, [])
 
 
 if __name__ == "__main__":
