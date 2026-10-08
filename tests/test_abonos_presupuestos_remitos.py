@@ -382,6 +382,7 @@ class AbonosPresupuestosRemitosTest(unittest.TestCase):
         with patch.object(tecman, "TicketDB", ticket_model, create=True), \
              patch.object(tecman, "_db_list", side_effect=db_list), \
              patch.object(tecman, "_db_replace", side_effect=db_replace), \
+             patch.object(tecman, "load_proveedor_users", return_value=copy.deepcopy(tecman.DEFAULT_PROVEEDOR_USERS)), \
              patch.object(tecman, "_atomic_write") as atomic_write:
             tecman.USE_DB = True
             try:

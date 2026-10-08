@@ -276,6 +276,7 @@ class CotizacionReparacionesTest(unittest.TestCase):
         with patch.object(tecman, "TicketDB", ticket_model, create=True), \
              patch.object(tecman, "_db_list", return_value=copy.deepcopy(tickets)) as db_list, \
              patch.object(tecman, "_db_replace") as db_replace, \
+             patch.object(tecman, "load_proveedor_users", return_value=copy.deepcopy(tecman.DEFAULT_PROVEEDOR_USERS)), \
              patch.object(tecman, "USE_DB", True):
             response = self.client.get("/admin/cotizacion-reparaciones")
         self.assertEqual(response.status_code, 200)
