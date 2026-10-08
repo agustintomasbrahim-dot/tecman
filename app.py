@@ -12372,6 +12372,10 @@ def admin_syh_matafuegos_actualizar_vencimiento(mid):
             item["fecha_vencimiento_original"] = item.get("fecha_vencimiento", "")
         item["fecha_vencimiento_manual"] = nuevo_vencimiento
         item["fecha_vencimiento"] = nuevo_vencimiento
+        if nuevo_vencimiento:
+            # Una fecha corregida por Administración resuelve el rechazo manual
+            # y devuelve el matafuego al estado automático según vencimiento.
+            item["estado_manual"] = ""
         item["fecha_vencimiento_editado_por"] = session.get("nombre", "")
         item["fecha_vencimiento_editado_at"] = datetime.datetime.now().isoformat()
         item["fecha_vencimiento_anterior"] = anterior

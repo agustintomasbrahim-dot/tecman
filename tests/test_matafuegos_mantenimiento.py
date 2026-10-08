@@ -85,6 +85,30 @@ class MatafuegosMantenimientoTest(unittest.TestCase):
         self.assertIn("2027-07-24", page)
         self.assertNotIn("Matafuegos: revisar vencimientos", page)
 
+    def test_admin_corrige_vencimiento_y_resuelve_estado_rechazado(self):
+        self.own["estado_manual"] = "rechazado"
+        tecman.save_matafuegos({"matafuegos": [self.own, self.other]})
+        with self.client.session_transaction() as session:
+            session.clear()
+            session.update(user="admin-test", rol="admin", nombre="Carolina", _csrf_token="csrf-test")
+
+        with patch.object(tecman, "sync_alertas_syh"):
+            response = self.client.post(
+                "/admin/syh/matafuegos/mata-014/vencimiento",
+                data={
+                    "_csrf_token": "csrf-test",
+                    "fecha_vencimiento": "2099-09-01",
+                    "sucursal_actual": "Sucursal 014",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        saved = next(x for x in self._saved() if x["id"] == "mata-014")
+        self.assertEqual(saved["fecha_vencimiento_manual"], "2099-09-01")
+        self.assertEqual(saved["estado_manual"], "")
+        self.assertEqual(saved["fecha_vencimiento_editado_por"], "Carolina")
+        self.assertEqual(tecman._enrich_matafuego(saved)["estado_calc"], "al_dia")
+
     def test_calculo_anual_respeta_bisiesto_y_fin_de_mes(self):
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2024, 2, 29)), tecman.datetime.date(2025, 2, 28))
         self.assertEqual(tecman._sumar_un_anio(tecman.datetime.date(2026, 1, 31)), tecman.datetime.date(2027, 1, 31))
