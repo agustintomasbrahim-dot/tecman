@@ -105,7 +105,19 @@ def inject_upload_helpers():
 def archivo_demasiado_grande(error):
     return render_template("error.html", mensaje=f"El archivo o video excede el limite de {MAX_UPLOAD_MB} MB. Subi un video mas corto o comprimido."), 413
 
-# PostgreSQL via SQLAlchemy (dual-write con fallback a JSON)
+# PostgreSQL via SQLAlchemy. Si DATABASE_URL está configurada, PostgreSQL es
+# obligatorio: una falla de inicialización debe abortar el arranque en vez de
+# degradar silenciosamente a los JSON locales del proceso.
+class PersistenceUnavailableError(RuntimeError):
+    """La persistencia configurada no está disponible; no usar JSON como reemplazo."""
+
+
+def _abort_configured_database_startup():
+    raise PersistenceUnavailableError(
+        "PostgreSQL está configurado pero no disponible; se rechaza el fallback a JSON"
+    ) from None
+
+
 _DB_URL = os.environ.get("DATABASE_URL", "")
 if _DB_URL.startswith("postgres://"):
     _DB_URL = _DB_URL.replace("postgres://", "postgresql://", 1)
@@ -124,8 +136,8 @@ if _DB_URL:
         with app.app_context():
             db.create_all()
         USE_DB = True
-    except Exception as e:
-        print(f"[WARN] DB no disponible, usando JSON: {e}")
+    except Exception:
+        _abort_configured_database_startup()
 
 IS_CLOUD = os.environ.get("RENDER", False)
 _DATA_DIR_OVERRIDE = os.environ.get("TECMAN_DATA_DIR", "").strip()
