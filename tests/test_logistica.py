@@ -1,5 +1,7 @@
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -207,6 +209,30 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("Logística".encode("utf-8"), page.data)
         self.assertIn(b'href="/logistica/login"', page.data)
+
+    def test_modo_demo_es_fail_closed_y_render_lo_desactiva(self):
+        env = os.environ.copy()
+        env.pop("DATABASE_URL", None)
+        env.pop("LOGISTICA_PORTAL_TEST_MODE", None)
+        with tempfile.TemporaryDirectory() as directory:
+            env["TECMAN_DATA_DIR"] = str(Path(directory) / "data")
+            env["TECMAN_UPLOADS_DIR"] = str(Path(directory) / "uploads")
+            result = subprocess.run(
+                [sys.executable, "-c", "import app; assert app.app.config['LOGISTICA_PORTAL_TEST_MODE'] is False"],
+                cwd=Path(__file__).parents[1],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        repo_root = Path(__file__).parents[1]
+        render = (repo_root / "render.yaml").read_text(encoding="utf-8")
+        self.assertRegex(
+            render,
+            r"(?ms)- key: LOGISTICA_PORTAL_TEST_MODE\s+value: [\"']false[\"']",
+        )
+        env_example = (repo_root / ".env.example").read_text(encoding="utf-8")
+        self.assertRegex(env_example, r"(?m)^LOGISTICA_PORTAL_TEST_MODE=false$")
 
     def test_login_local_no_habilita_dabra_y_permanece_oculto_por_defecto(self):
         page = self.client.get("/logistica/login")

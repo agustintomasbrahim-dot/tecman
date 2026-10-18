@@ -15114,7 +15114,7 @@ app.config["LOGISTICA_LOCAL_LOGIN_ENABLED"] = os.environ.get(
 ).strip().lower() in ("1", "true", "yes", "si", "on")
 # Sólo crea pedidos simulados en el almacenamiento logístico aislado.
 app.config["LOGISTICA_PORTAL_TEST_MODE"] = os.environ.get(
-    "LOGISTICA_PORTAL_TEST_MODE", "true"
+    "LOGISTICA_PORTAL_TEST_MODE", "false"
 ).strip().lower() in ("1", "true", "yes", "si", "on")
 # Prueba interna: ninguna ruta ni POST de sucursal se habilita por omisión.
 app.config["LOGISTICA_INSUMOS_SUCURSALES_ENABLED"] = os.environ.get(
