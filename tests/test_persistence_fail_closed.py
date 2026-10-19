@@ -10,8 +10,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+_TEST_ROOT = tempfile.TemporaryDirectory()
+os.environ["TECMAN_DATA_DIR"] = str(Path(_TEST_ROOT.name) / "data")
+os.environ["TECMAN_UPLOADS_DIR"] = str(Path(_TEST_ROOT.name) / "uploads")
 os.environ.pop("DATABASE_URL", None)
-os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-not-for-production")
+os.environ.setdefault("SECRET_KEY", "test-secret-not-for-production")
 
 import app as tecman
 

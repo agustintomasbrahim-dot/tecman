@@ -39,7 +39,7 @@ Tecman se usa como tablero unico de mantenimiento. Cada problema de sucursal deb
 
 - `ceyh`: CEYH.
 
-La clave se configura con `PROVEEDOR_PASSWORD`. Si no esta configurada, en desarrollo usa `prov2026`.
+La clave se configura explícitamente con `PROVEEDOR_PASSWORD`; si falta, el acceso local queda deshabilitado (no existe una clave por defecto).
 
 ## Sucursales del piloto CEYH
 

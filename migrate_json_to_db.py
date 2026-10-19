@@ -1,123 +1,203 @@
-"""
-Migración one-shot: importa los JSON de datos a PostgreSQL.
-Ejecutar una sola vez después de crear la DB en Render:
+"""Import a complete, explicitly selected TECMAN JSON snapshot into PostgreSQL.
 
-    DATABASE_URL=<tu_url> python migrate_json_to_db.py
+The command is intentionally fail-closed: it validates every source document and
+an operator-supplied backup checksum before importing the application or opening
+a database transaction.
 """
+import argparse
+import hashlib
+import json
 import os
 import sys
-import json
+from dataclasses import dataclass
 from pathlib import Path
-
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-if not DATABASE_URL:
-    print("ERROR: DATABASE_URL no está seteada.")
-    sys.exit(1)
-
-if DATABASE_URL.startswith("postgres://"):
-    os.environ["DATABASE_URL"] = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-from app import app, USE_DB
-from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB, GrupoElectrogenoDB, FumigacionDB, HabilitacionDB, ComprobanteDB,
-                    StockMovimientoDB, NotifAdminDB, AlertaSyhDB, SyhGestionDB,
-                    VehiculoDB, PermisoDB, PresupuestoDB, CeyhRetiroDB,
-                    CeyhJornadaDB, LoteFifoDB, TransferDB, ConfigDB)
+from typing import Optional
 
 
-def load_json(path, default):
-    p = Path(path)
-    if p.exists():
-        try:
-            return json.loads(p.read_text())
-        except Exception:
-            pass
-    return default
+class PreflightError(ValueError):
+    """The migration inputs are incomplete or unsafe; the database was untouched."""
 
 
-def migrate_list(model, items, label):
-    db.session.query(model).delete()
-    count = 0
-    for item in items:
-        db.session.add(model.from_dict(item))
-        count += 1
-    db.session.commit()
-    print(f"  {label}: {count} registros migrados")
+@dataclass(frozen=True)
+class ListSource:
+    filename: str
+    label: str
+    root_key: Optional[str] = None
 
 
-def migrate_config(key, value, label):
-    row = ConfigDB.query.get(key)
-    if row:
-        row.value = value
+LIST_SOURCES = (
+    ListSource("tickets.json", "tickets"),
+    ListSource("matafuegos.json", "matafuegos", "matafuegos"),
+    ListSource("matafuegos_visitas.json", "matafuegos_visitas", "visitas"),
+    ListSource("fumigaciones.json", "fumigaciones", "visitas"),
+    ListSource("grupos_electrogenos.json", "grupos_electrogenos", "grupos_electrogenos"),
+    ListSource("habilitaciones.json", "habilitaciones", "habilitaciones"),
+    ListSource("comprobantes.json", "comprobantes", "comprobantes"),
+    ListSource("stock_movimientos.json", "stock_movimientos", "movimientos"),
+    ListSource("notif_admin.json", "notif_admin", "notificaciones"),
+    ListSource("alertas_syh.json", "alertas_syh", "alertas"),
+    ListSource("syh_gestiones.json", "syh_gestiones", "gestiones"),
+    ListSource("stock_lotes.json", "lotes_fifo", "lotes"),
+)
+CONFIG_SOURCES = (
+    ("stock.json", "stock", dict),
+    ("syh.json", "syh", dict),
+    ("alertas_syh_dispatch.json", "alertas_syh_dispatch", dict),
+)
+
+
+def _read_json(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise PreflightError(f"Falta el archivo requerido: {path.name}") from exc
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise PreflightError(f"JSON inválido o ilegible: {path.name}: {exc}") from exc
+
+
+def _extract_items(raw, spec):
+    # fumigaciones historically accepted either a flat list or {"visitas": [...]}.
+    if spec.filename == "fumigaciones.json" and isinstance(raw, list):
+        items = raw
+    elif spec.root_key is None:
+        items = raw
+    elif isinstance(raw, dict):
+        if spec.root_key not in raw:
+            raise PreflightError(f"{spec.filename}: falta la clave {spec.root_key!r}")
+        items = raw[spec.root_key]
     else:
-        db.session.add(ConfigDB(key=key, value=value))
-    db.session.commit()
-    print(f"  {label}: OK")
+        items = None
+    if not isinstance(items, list):
+        raise PreflightError(f"{spec.filename}: se esperaba una lista de registros")
+    if not all(isinstance(item, dict) for item in items):
+        raise PreflightError(f"{spec.filename}: todos los registros deben ser objetos JSON")
+    ids = []
+    for index, item in enumerate(items):
+        value = item.get("id")
+        if value is None or not str(value).strip():
+            raise PreflightError(f"{spec.filename}: registro {index} sin id explícito")
+        ids.append(str(value))
+    if len(ids) != len(set(ids)):
+        raise PreflightError(f"{spec.filename}: contiene ids duplicados")
+    return items
 
 
-DATA = Path(__file__).parent / "data"
+def verify_backup(path, expected_sha256):
+    backup = Path(path).expanduser().resolve()
+    if not backup.is_file():
+        raise PreflightError("El backup requerido no existe o no es un archivo regular")
+    if backup.stat().st_size <= 0:
+        raise PreflightError("El backup requerido está vacío")
+    expected = str(expected_sha256 or "").strip().lower()
+    if len(expected) != 64 or any(ch not in "0123456789abcdef" for ch in expected):
+        raise PreflightError("--backup-sha256 debe ser un SHA-256 hexadecimal de 64 caracteres")
+    digest = hashlib.sha256()
+    with backup.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    actual = digest.hexdigest()
+    if actual != expected:
+        raise PreflightError(f"El SHA-256 del backup no coincide (obtenido {actual})")
+    return backup, actual
 
-with app.app_context():
-    db.create_all()
-    print("Tablas creadas/verificadas.")
 
-    # Tickets (lista plana)
-    tickets = load_json(DATA / "tickets.json", [])
-    migrate_list(TicketDB, tickets, "tickets")
+def preflight(source_dir, backup_path, backup_sha256):
+    source = Path(source_dir).expanduser().resolve()
+    if not source.is_dir():
+        raise PreflightError("--source-dir debe apuntar a un directorio existente")
+    backup, digest = verify_backup(backup_path, backup_sha256)
+    if backup == source or source in backup.parents:
+        raise PreflightError("El backup debe ser un archivo separado del directorio fuente")
 
-    # Matafuegos
-    data = load_json(DATA / "matafuegos.json", {"matafuegos": []})
-    migrate_list(MatafuegoDB, data.get("matafuegos", []), "matafuegos")
+    lists = {}
+    for spec in LIST_SOURCES:
+        lists[spec.label] = _extract_items(_read_json(source / spec.filename), spec)
+    configs = {}
+    for filename, key, expected_type in CONFIG_SOURCES:
+        value = _read_json(source / filename)
+        if not isinstance(value, expected_type):
+            raise PreflightError(f"{filename}: se esperaba un objeto JSON")
+        configs[key] = value
+    return {"source": source, "backup": backup, "backup_sha256": digest,
+            "lists": lists, "configs": configs}
 
-    # Visitas de proveedores de matafuegos
-    data = load_json(DATA / "matafuegos_visitas.json", {"visitas": []})
-    migrate_list(MatafuegoVisitaDB, data.get("visitas", []), "matafuegos_visitas")
 
-    # Visitas simples de fumigación por sucursal
-    data = load_json(DATA / "fumigaciones.json", [])
-    migrate_list(FumigacionDB, data if isinstance(data, list) else data.get("visitas", []), "fumigaciones")
+def _parser():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-dir", required=True, help="Directorio explícito del snapshot JSON completo")
+    parser.add_argument("--backup", required=True, help="Backup previo, no vacío y separado de la fuente")
+    parser.add_argument("--backup-sha256", required=True, help="SHA-256 esperado del backup previo")
+    return parser
 
-    # Grupos electrógenos
-    data = load_json(DATA / "grupos_electrogenos.json", {"grupos_electrogenos": []})
-    migrate_list(GrupoElectrogenoDB, data.get("grupos_electrogenos", []), "grupos_electrogenos")
 
-    # Habilitaciones
-    data = load_json(DATA / "habilitaciones.json", {"habilitaciones": []})
-    migrate_list(HabilitacionDB, data.get("habilitaciones", []), "habilitaciones")
+def migrate(snapshot, database_url):
+    if not database_url:
+        raise PreflightError("DATABASE_URL no está seteada")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    if not database_url.startswith(("postgresql://", "postgresql+")):
+        raise PreflightError("DATABASE_URL debe apuntar explícitamente a PostgreSQL")
 
-    # Comprobantes
-    data = load_json(DATA / "comprobantes.json", {"comprobantes": []})
-    migrate_list(ComprobanteDB, data.get("comprobantes", []), "comprobantes")
+    # Imported only after the complete filesystem/backup preflight has succeeded.
+    from flask import Flask
+    from models import (db, TicketDB, MatafuegoDB, MatafuegoVisitaDB,
+                        GrupoElectrogenoDB, FumigacionDB, HabilitacionDB,
+                        ComprobanteDB, StockMovimientoDB, NotifAdminDB,
+                        AlertaSyhDB, SyhGestionDB, LoteFifoDB, ConfigDB)
 
-    # Stock movimientos
-    data = load_json(DATA / "stock_movimientos.json", {"movimientos": []})
-    migrate_list(StockMovimientoDB, data.get("movimientos", []), "stock_movimientos")
+    model_by_label = {
+        "tickets": TicketDB,
+        "matafuegos": MatafuegoDB,
+        "matafuegos_visitas": MatafuegoVisitaDB,
+        "fumigaciones": FumigacionDB,
+        "grupos_electrogenos": GrupoElectrogenoDB,
+        "habilitaciones": HabilitacionDB,
+        "comprobantes": ComprobanteDB,
+        "stock_movimientos": StockMovimientoDB,
+        "notif_admin": NotifAdminDB,
+        "alertas_syh": AlertaSyhDB,
+        "syh_gestiones": SyhGestionDB,
+        "lotes_fifo": LoteFifoDB,
+    }
+    flask_app = Flask("tecman-json-migration")
+    flask_app.config.update(SQLALCHEMY_DATABASE_URI=database_url,
+                            SQLALCHEMY_TRACK_MODIFICATIONS=False)
+    db.init_app(flask_app)
 
-    # Notif admin
-    data = load_json(DATA / "notif_admin.json", {"notificaciones": []})
-    migrate_list(NotifAdminDB, data.get("notificaciones", []), "notif_admin")
+    with flask_app.app_context():
+        try:
+            # No create_all(): the destination schema must already exist. Every
+            # delete/insert/config replacement below is committed exactly once.
+            for label, items in snapshot["lists"].items():
+                model = model_by_label[label]
+                db.session.query(model).delete(synchronize_session=False)
+                for item in items:
+                    db.session.add(model.from_dict(item))
+            for key, value in snapshot["configs"].items():
+                row = db.session.get(ConfigDB, key)
+                if row is None:
+                    db.session.add(ConfigDB(key=key, value=value))
+                else:
+                    row.value = value
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
-    # Alertas SyH
-    data = load_json(DATA / "alertas_syh.json", {"alertas": []})
-    migrate_list(AlertaSyhDB, data.get("alertas", []), "alertas_syh")
 
-    # SyH gestiones
-    data = load_json(DATA / "syh_gestiones.json", {"gestiones": []})
-    migrate_list(SyhGestionDB, data.get("gestiones", []), "syh_gestiones")
+def main(argv=None):
+    args = _parser().parse_args(argv)
+    try:
+        snapshot = preflight(args.source_dir, args.backup, args.backup_sha256)
+        migrate(snapshot, os.environ.get("DATABASE_URL", "").strip())
+    except PreflightError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    print(f"Migración completada en una transacción. Backup verificado: {snapshot['backup_sha256']}")
+    for label, items in snapshot["lists"].items():
+        print(f"  {label}: {len(items)} registros")
+    return 0
 
-    # Lotes FIFO
-    data = load_json(DATA / "stock_lotes.json", {"lotes": []})
-    migrate_list(LoteFifoDB, data.get("lotes", []), "lotes_fifo")
 
-    # Config: stock
-    stock = load_json(DATA / "stock.json", {"central": {}, "sucursales": {}})
-    migrate_config("stock", stock, "stock")
-
-    # Config: syh (por sucursal)
-    syh = load_json(DATA / "syh.json", {})
-    migrate_config("syh", syh, "syh")
-
-    # Config: alertas dispatch
-    dispatch = load_json(DATA / "alertas_syh_dispatch.json", {"sent": {}})
-    migrate_config("alertas_syh_dispatch", dispatch, "alertas_syh_dispatch")
-
-    print("\nMigración completada.")
+if __name__ == "__main__":
+    raise SystemExit(main())

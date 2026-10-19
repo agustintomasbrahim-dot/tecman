@@ -45,8 +45,24 @@ except ImportError:
 if load_dotenv:
     load_dotenv()
 
+def _env_truthy(name):
+    return str(os.environ.get(name, "")).strip().lower() in ("1", "true", "yes", "on")
+
+
+IS_PRODUCTION = _env_truthy("RENDER") or os.environ.get("FLASK_ENV", "").strip().lower() == "production"
+
+
+def _required_production_secret(name, *, development_default=""):
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value
+    if IS_PRODUCTION:
+        raise RuntimeError(f"{name} debe configurarse explícitamente en producción")
+    return development_default
+
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "tecman-dev-key-2026")
+app.secret_key = _required_production_secret("SECRET_KEY", development_default="tecman-local-dev-only")
 MAX_UPLOAD_BYTES = 60 * 1024 * 1024
 MAX_UPLOAD_MB = MAX_UPLOAD_BYTES // (1024 * 1024)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -139,7 +155,7 @@ if _DB_URL:
     except Exception:
         _abort_configured_database_startup()
 
-IS_CLOUD = os.environ.get("RENDER", False)
+IS_CLOUD = _env_truthy("RENDER")
 _DATA_DIR_OVERRIDE = os.environ.get("TECMAN_DATA_DIR", "").strip()
 
 # En Render usamos el disco persistente montado en /data
@@ -415,10 +431,10 @@ try:
 except Exception:
     pass
 
-_ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "tecman2026")
-_COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "compras2026")
-_CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "central2026")
-_SYH_PWD = os.environ.get("SYH_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "syh2026")
+_ADMIN_PWD = os.environ.get("ADMIN_PASSWORD", "").strip()
+_COMPRAS_PWD = os.environ.get("COMPRAS_PASSWORD", "").strip()
+_CENTRAL_PWD = os.environ.get("CENTRAL_PASSWORD", "").strip()
+_SYH_PWD = (os.environ.get("SYH_PASSWORD") or _ADMIN_PWD).strip()
 COMPRAS_EMAIL = os.environ.get("COMPRAS_EMAIL", "lperonace@grupodexter.com.ar,gpeirano@grupodexter.com.ar,wpereyra@grupodexter.com.ar")
 RITA_EMAIL = os.environ.get("RITA_EMAIL", "rrobles@grupodexter.com.ar").strip()
 PATRICIA_EMAIL = os.environ.get("PATRICIA_EMAIL", "pperez@grupodexter.com.ar")
@@ -619,6 +635,13 @@ def _verify_password(password, password_hash):
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except ValueError:
         return False
+
+
+def _legacy_password_matches(user_info, supplied_password):
+    """Reject missing legacy credentials instead of accepting an empty password."""
+    configured = str((user_info or {}).get("password") or "")
+    supplied = str(supplied_password or "")
+    return bool(configured and supplied) and secrets.compare_digest(configured, supplied)
 
 
 def _hash_token(token):
@@ -3923,7 +3946,7 @@ def registrar_movimiento(item, tipo, cantidad, sucursal="", ticket_id=None, nota
     save_movimientos(data)
 
 # Sucursal login: each sucursal has a unique password
-_SUC_PREFIX = os.environ.get("SUCURSAL_PASSWORD_PREFIX", "mto")
+_SUC_PREFIX = _required_production_secret("SUCURSAL_PASSWORD_PREFIX", development_default="mto")
 
 SUCURSAL_USERS = {}
 for suc in SUCURSALES:
@@ -3936,7 +3959,7 @@ for suc in SUCURSALES:
     elif suc == "Garin":
         SUCURSAL_USERS["garin"] = {"password": f"{_SUC_PREFIX}garin", "sucursal": suc}
 
-_OFICINA_PWD = os.environ.get("OFICINA_PASSWORD", f"{_SUC_PREFIX}oficina")
+_OFICINA_PWD = os.environ.get("OFICINA_PASSWORD", "").strip()
 OFICINA_LOCAL_USERS = {
     "cuentas": {"password": _OFICINA_PWD, "nombre": "Cuentas a pagar", "sector": "Cuentas a pagar"},
     "cuentasapagar": {"password": _OFICINA_PWD, "nombre": "Cuentas a pagar", "sector": "Cuentas a pagar"},
@@ -4304,8 +4327,8 @@ SUCS_NOA = {"120","126","128","135","139","146","158","173","191","193","212","2
 SUCS_MENDOZA = {"128","132","145","206","207","236"}
 SUCS_SANJUAN = {"159","172"}
 
-_PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "prov2026")
-_MATAFUEGOS_DEMO_PWD = os.environ.get("MATAFUEGOS_DEMO_PASSWORD") or _PROVEEDOR_PWD
+_PROVEEDOR_PWD = os.environ.get("PROVEEDOR_PASSWORD", "").strip()
+_MATAFUEGOS_DEMO_PWD = os.environ.get("MATAFUEGOS_DEMO_PASSWORD", "").strip()
 
 # Carteras de matafuegos: los reportes versionados son la fuente autoritativa.
 # Además del campo y la cantidad, fijamos el hash y el conjunto exacto para que
@@ -4466,7 +4489,7 @@ def _proveedor_login_ok(user_info, password):
         return False
     if user_info.get("password_hash"):
         return _verify_password(password, user_info.get("password_hash"))
-    return bool(user_info.get("password") == password)
+    return _legacy_password_matches(user_info, password)
 
 
 PROVEEDOR_USERNAME_MIN_LENGTH = 3
@@ -6514,7 +6537,7 @@ def suc_login():
             return redirect(url_for("suc_login"))
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
-        if user in SUCURSAL_USERS and SUCURSAL_USERS[user]["password"] == pwd:
+        if user in SUCURSAL_USERS and _legacy_password_matches(SUCURSAL_USERS[user], pwd):
             session.clear()
             session.permanent = True
             session["suc_user"] = user
@@ -6558,7 +6581,7 @@ def oficina_login(sede_slug=None):
         pwd = request.form.get("password", "")
         info = OFICINA_LOCAL_USERS.get(user)
         info_sede = info.get("sede", OFICINA_CENTRAL_LABEL) if info else ""
-        if info and info["password"] == pwd:
+        if info and _legacy_password_matches(info, pwd):
             if sede_hint and info_sede != sede_hint:
                 flash("Ese sector pertenece a otra sede.")
                 return render_template(
@@ -7616,7 +7639,7 @@ def admin_login():
         _mark_login_failure(auth_user)
 
         # Compatibilidad temporal con las credenciales legacy por variable de entorno.
-        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "tecnico") and ADMINS[user]["password"] == pwd:
+        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "tecnico") and _legacy_password_matches(ADMINS[user], pwd):
             legacy = _find_auth_user(identifier=user)
             if legacy:
                 _mark_login_success(legacy, "local")
@@ -10458,7 +10481,7 @@ def compras_login():
     if request.method == "POST":
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
-        if user in COMPRAS_USERS and COMPRAS_USERS[user]["password"] == pwd:
+        if user in COMPRAS_USERS and _legacy_password_matches(COMPRAS_USERS[user], pwd):
             session["compras_user"] = user
             session["compras_nombre"] = COMPRAS_USERS[user]["nombre"]
             return redirect(url_for("compras_panel"))
@@ -11028,7 +11051,7 @@ def equipo_login():
     if request.method == "POST":
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
-        if user in EQUIPO_USERS and EQUIPO_USERS[user]["password"] == pwd:
+        if user in EQUIPO_USERS and _legacy_password_matches(EQUIPO_USERS[user], pwd):
             session["equipo_user"] = user
             session["equipo_nombre"] = EQUIPO_USERS[user]["nombre"]
             return redirect(url_for("equipo_panel"))
@@ -11734,13 +11757,13 @@ def syh_login():
     if request.method == "POST":
         user = request.form.get("usuario", "").lower().strip()
         pwd = request.form.get("password", "")
-        if user in SYH_USERS and SYH_USERS[user]["password"] == pwd:
+        if user in SYH_USERS and _legacy_password_matches(SYH_USERS[user], pwd):
             session.clear()
             session["syh_user"] = user
             session["syh_nombre"] = SYH_USERS[user]["nombre"]
             return redirect(url_for("syh_panel"))
         # También permite administradores; otros roles deben usar su portal específico.
-        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "syh") and ADMINS[user]["password"] == pwd:
+        if user in ADMINS and ADMINS[user]["rol"] in ("admin", "syh") and _legacy_password_matches(ADMINS[user], pwd):
             session.clear()
             session["user"] = user
             session["nombre"] = ADMINS[user]["nombre"]
@@ -14933,6 +14956,38 @@ def api_mails_resumen():
         return jsonify({"error": str(e), "total": 0, "mails": []})
 
 
+def _backup_json_default(value):
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    return str(value)
+
+
+def _postgresql_backup_documents():
+    """Return a transactionally consistent, read-only export of every DB table."""
+    from sqlalchemy import MetaData, Table, inspect, select
+
+    documents = {}
+    manifest = {
+        "backend": "postgresql",
+        "generated_at": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "tables": {},
+    }
+    with db.engine.connect() as connection:
+        with connection.begin():
+            if connection.dialect.name != "postgresql":
+                raise RuntimeError("El backup de base activa exige PostgreSQL")
+            connection.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            inspector = inspect(connection)
+            for table_name in sorted(inspector.get_table_names()):
+                metadata = MetaData()
+                table = Table(table_name, metadata, autoload_with=connection)
+                rows = [dict(row._mapping) for row in connection.execute(select(table))]
+                documents[f"database/{table_name}.json"] = rows
+                manifest["tables"][table_name] = len(rows)
+    documents["manifest.json"] = manifest
+    return documents
+
+
 @app.route("/api/backup-data")
 def api_backup_data():
     secret = os.environ.get("BACKUP_SECRET", "")
@@ -14941,8 +14996,15 @@ def api_backup_data():
     buf = io.BytesIO()
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in DATA_DIR.glob("*.json"):
-            zf.write(f, f.name)
+        if USE_DB:
+            for archive_name, payload in _postgresql_backup_documents().items():
+                zf.writestr(
+                    archive_name,
+                    json.dumps(payload, ensure_ascii=False, indent=2, default=_backup_json_default),
+                )
+        else:
+            for f in sorted(DATA_DIR.glob("*.json")):
+                zf.write(f, f.name)
     buf.seek(0)
     filename = f"tecman-data-{ts}.zip"
     return Response(

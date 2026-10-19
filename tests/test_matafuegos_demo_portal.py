@@ -136,12 +136,15 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
     def _order(self, order_id):
         return next(order for order in self._load()["ordenes"] if order["id"] == order_id)
 
-    def test_login_demo_usa_env_o_fallback_y_redirige_sin_aliases(self):
-        account = tecman.DEFAULT_PROVEEDOR_USERS["matafuegos_demo"]
-        self.assertEqual(account["nombre"], "Demo Matafuegos")
-        self.assertEqual(account["tipo_cuenta"], "matafuegos_demo")
-        self.assertEqual(account["proveedores"], [])
-        self.assertEqual(account["password"], os.environ.get("MATAFUEGOS_DEMO_PASSWORD") or tecman._PROVEEDOR_PWD)
+    def test_login_demo_exige_credencial_explicita_y_redirige_sin_aliases(self):
+        default_account = tecman.DEFAULT_PROVEEDOR_USERS["matafuegos_demo"]
+        self.assertEqual(default_account["nombre"], "Demo Matafuegos")
+        self.assertEqual(default_account["tipo_cuenta"], "matafuegos_demo")
+        self.assertEqual(default_account["proveedores"], [])
+        self.assertEqual(default_account["password"], os.environ.get("MATAFUEGOS_DEMO_PASSWORD", ""))
+        self.assertFalse(tecman._proveedor_login_ok(default_account, ""))
+        account = copy.deepcopy(default_account)
+        account["password"] = "demo-explicit-test-password"
         planned = tecman.PLANNED_PROVEEDOR_USERS["diprogom"]
         self.assertEqual(planned["nombre"], "Diprogom")
         self.assertEqual(planned["tipo_cuenta"], "matafuegos")
@@ -151,16 +154,17 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         custom_users.write_text(json.dumps({"users": {"matafuegos_demo": {"password": account["password"], "nombre": "Real", "tipo_cuenta": "proveedor", "proveedores": ["Diprogom"]}}}), encoding="utf-8")
         with patch.object(tecman, "PROVEEDOR_USERS_FILE", custom_users):
             protected_account = tecman.load_proveedor_users()["matafuegos_demo"]
-        self.assertEqual(protected_account, account)
+        self.assertEqual(protected_account, default_account)
 
         login_page = self.client.get("/proveedor/login")
         self.assertEqual(login_page.status_code, 200)
         with self.client.session_transaction() as sess:
             csrf = sess["_csrf_token"]
-        response = self.client.post(
-            "/proveedor/login",
-            data={"_csrf_token": csrf, "usuario": "matafuegos_demo", "password": account["password"]},
-        )
+        with patch.object(tecman, "DEFAULT_PROVEEDOR_USERS", {"matafuegos_demo": account}):
+            response = self.client.post(
+                "/proveedor/login",
+                data={"_csrf_token": csrf, "usuario": "matafuegos_demo", "password": account["password"]},
+            )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/proveedor/matafuegos-demo"))
         with self.client.session_transaction() as sess:
@@ -348,7 +352,9 @@ class MatafuegosDemoPortalTest(unittest.TestCase):
         providers_text = providers_page.get_data(as_text=True)
         self.assertEqual(providers_page.status_code, 200)
         self.assertIn("Demo portal matafuegos", providers_text)
-        self.assertNotIn(tecman.DEFAULT_PROVEEDOR_USERS["matafuegos_demo"]["password"], providers_text)
+        configured_password = tecman.DEFAULT_PROVEEDOR_USERS["matafuegos_demo"]["password"]
+        self.assertFalse(configured_password)
+        self.assertNotIn("demo-explicit-test-password", providers_text)
 
     def test_panel_y_detalle_renderizan_marca_demo_cuatro_estados_y_csrf(self):
         self._demo_session()
