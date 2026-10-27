@@ -15,6 +15,7 @@ import copy
 import time
 import secrets
 import hashlib
+import hmac
 import importlib
 import re
 import tempfile
@@ -60,6 +61,8 @@ app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = os.environ.get(
 app.config["ENABLE_LIBRARY_CLEANING_SUPPLIES"] = os.environ.get(
     "ENABLE_LIBRARY_CLEANING_SUPPLIES", "false"
 ).strip().lower() == "true"
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "")
+TECMAN_BUILD_MARKER = os.environ.get("TECMAN_BUILD_MARKER", "local")
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
@@ -71,6 +74,48 @@ TICKET_REPLY_MAX_LENGTH = 2000
 TICKET_BRANCH_RESOLUTION_MAX_LENGTH = 2000
 TICKET_REPLY_IDEMPOTENCY_MAX_LENGTH = 128
 _TICKET_REPLY_LOCK = threading.RLock()
+
+TICKET_SERVICES = ("mantenimiento", "marketing", "it")
+TICKET_SERVICE_LABELS = {
+    "mantenimiento": "Mantenimiento",
+    "marketing": "Marketing",
+    "it": "IT",
+}
+TICKET_SERVICE_ROLES = {
+    "marketing": "marketing",
+    "responsable_marketing": "marketing",
+    "it": "it",
+    "responsable_it": "it",
+}
+ADMIN_PORTAL_ROLES = ("admin", "tecnico", "marketing", "it", "responsable_marketing", "responsable_it")
+
+
+def normalize_ticket_service(value, *, legacy_default=False):
+    """Normaliza el servicio sin escribir ni migrar tickets históricos."""
+    normalized = str(value or "").strip().lower()
+    if not normalized and legacy_default:
+        return "mantenimiento"
+    return normalized if normalized in TICKET_SERVICES else None
+
+
+def ticket_service(ticket):
+    """Servicio efectivo: los tickets legacy sin campo siguen en Mantenimiento."""
+    if not isinstance(ticket, dict):
+        return "mantenimiento"
+    return normalize_ticket_service(ticket.get("servicio"), legacy_default=True) or "mantenimiento"
+
+
+def ticket_service_label(ticket):
+    return TICKET_SERVICE_LABELS[ticket_service(ticket)]
+
+
+def _role_ticket_service(role):
+    return TICKET_SERVICE_ROLES.get(str(role or "").strip().lower())
+
+
+def _ticket_in_role_scope(ticket, role):
+    scoped_service = _role_ticket_service(role)
+    return scoped_service is None or ticket_service(ticket) == scoped_service
 
 
 def is_video_file(filename):
@@ -98,6 +143,9 @@ def inject_upload_helpers():
         "ticket_attachment_accept": TICKET_ATTACHMENT_ACCEPT,
         "max_upload_bytes": MAX_UPLOAD_BYTES,
         "max_upload_mb": MAX_UPLOAD_MB,
+        "ticket_service": ticket_service,
+        "ticket_service_label": ticket_service_label,
+        "ticket_service_labels": TICKET_SERVICE_LABELS,
     }
 
 
@@ -432,6 +480,9 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or GMAIL_APP_PASSWORD
 MAIL_FROM = os.environ.get("MAIL_FROM") or SMTP_USER or GMAIL_USER
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+EXTERNAL_NOTIFICATIONS_ENABLED = os.environ.get(
+    "TECMAN_EXTERNAL_NOTIFICATIONS_ENABLED", "true"
+).strip().lower() in ("1", "true", "yes", "si", "on")
 SUCURSAL_EMAILS = {
     "011": "suc011@grupodabra.com.ar",
     "014": "suc014@grupodabra.com.ar",
@@ -1805,6 +1856,8 @@ def _create_auth_user(form):
     entra_object_id = form.get("entra_object_id", "").strip() or None
     password = form.get("password", "")
     must_change = bool(form.get("must_change_password"))
+    if role not in ADMIN_PORTAL_ROLES and role not in ("syh", "equipo_central", "compras", "supervisor"):
+        raise ValueError("Rol invalido")
     if auth_provider not in ("local", "entra", "both"):
         raise ValueError("Proveedor invalido")
     if status not in ("active", "blocked", "disabled"):
@@ -3303,6 +3356,9 @@ def _tabla_alertas(filas_html):
     )
 
 def _telegram_notify(mensaje):
+    if not EXTERNAL_NOTIFICATIONS_ENABLED:
+        app.logger.info("Notificación Telegram omitida: comunicaciones externas deshabilitadas")
+        return
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:
@@ -3318,6 +3374,9 @@ def _telegram_notify(mensaje):
 
 
 def _smtp_send(to, subject, html, attachment_path=None, attachment_name=None):
+    if not EXTERNAL_NOTIFICATIONS_ENABLED:
+        app.logger.info("Notificación SMTP omitida: comunicaciones externas deshabilitadas")
+        return
     if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD or not MAIL_FROM:
         raise RuntimeError("SMTP_HOST/SMTP_USER/SMTP_PASSWORD/MAIL_FROM no configurados")
     msg = MIMEMultipart()
@@ -4940,6 +4999,20 @@ def _validar_archivo_ticket(archivo, etiqueta="archivo"):
     return nombre_original, extension, contenido
 
 
+def _guardar_adjuntos_ticket_simple(files, ticket_id):
+    """Valida todos los adjuntos antes de escribir; comparte las reglas seguras existentes."""
+    uploads = [item for item in files if item and item.filename]
+    if len(uploads) > 3:
+        raise ValueError("Podés adjuntar hasta 3 archivos.")
+    validated = [_validar_archivo_ticket(item, "adjunto") for item in uploads]
+    stored = []
+    for original_name, extension, content in validated:
+        filename = f"{ticket_id}_{uuid.uuid4().hex[:8]}{extension}"
+        (UPLOADS_DIR / filename).write_bytes(content)
+        stored.append(filename)
+    return stored
+
+
 def _validar_remito_fumigacion(archivo):
     return _validar_archivo_ticket(archivo, "remito")
 
@@ -6364,6 +6437,8 @@ def _session_can_view_ticket(ticket, tickets):
         rol = session.get("rol")
         if rol == "admin":
             return True
+        if _role_ticket_service(rol):
+            return _ticket_in_role_scope(ticket, rol)
         if rol == "tecnico":
             return _is_material_ticket(ticket)
         if rol == "equipo_central":
@@ -6373,18 +6448,36 @@ def _session_can_view_ticket(ticket, tickets):
     return False
 
 
+def _tickets_in_session_scope(tickets):
+    """Aplica una única regla de alcance para listados del portal administrativo."""
+    role = session.get("rol")
+    if role == "admin":
+        return list(tickets)
+    scoped_service = _role_ticket_service(role)
+    if scoped_service:
+        return [ticket for ticket in tickets if ticket_service(ticket) == scoped_service]
+    return list(tickets)
+
+
 def login_required(f):
-    """Permite acceso a cualquier usuario logueado (admin o tecnico)."""
+    """Permite el portal admin y limita responsables a su cola de tickets."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("admin_login"))
-        if session.get("rol") not in ("admin", "tecnico"):
+        if session.get("rol") not in ADMIN_PORTAL_ROLES:
             return render_template("error.html", mensaje="Acceso restringido al portal administrativo."), 403
+        if _role_ticket_service(session.get("rol")) and request.endpoint not in {
+            "admin_panel", "admin_ticket", "admin_logout", "password_change", "estado_ticket",
+        }:
+            return render_template("error.html", mensaje="Acceso restringido a la cola de tu servicio."), 403
         if session.get("auth_provider") == "entra":
             entra_role = session.get("entra_role")
-            allowed = entra_role == "admin" or (entra_role == "tecnico" and session.get("rol") == "tecnico")
+            allowed = entra_role == "admin" or (
+                entra_role == session.get("rol")
+                and session.get("rol") in ADMIN_PORTAL_ROLES
+            )
             if not allowed:
                 session.clear()
                 return redirect(url_for("admin_login"))
@@ -6401,7 +6494,7 @@ def _admin_portal_role_from_auth_user(auth_user):
         role = _auth_user_role(auth_user)
         if role == PREPARADOR_DABRA_ROLE:
             return "tecnico"
-        if role in ("admin", "tecnico"):
+        if role in ADMIN_PORTAL_ROLES:
             return role
     return None
 
@@ -6491,9 +6584,43 @@ def index():
     return render_template("index.html")
 
 
+@app.before_request
+def require_staging_password():
+    """Protección adicional del staging; no se activa sin DEMO_PASSWORD."""
+    if not DEMO_PASSWORD:
+        return None
+    if request.endpoint in {"health", "demo_login", "static", "favicon"}:
+        return None
+    if session.get("demo_authenticated") is True:
+        return None
+    return redirect(url_for("demo_login"))
+
+
+@app.route("/demo-login", methods=["GET", "POST"])
+def demo_login():
+    if not DEMO_PASSWORD:
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        submitted = request.form.get("password", "")
+        if hmac.compare_digest(submitted.encode("utf-8"), DEMO_PASSWORD.encode("utf-8")):
+            session.clear()
+            session.permanent = True
+            session["demo_authenticated"] = True
+            return redirect(url_for("index"))
+        error = "Contraseña incorrecta."
+    return render_template("demo_login.html", error=error)
+
+
+@app.route("/demo-logout", methods=["POST"])
+def demo_logout():
+    session.clear()
+    return redirect(url_for("demo_login"))
+
+
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "build": TECMAN_BUILD_MARKER})
 
 
 @app.route("/favicon.ico")
@@ -7033,6 +7160,59 @@ def nuevo_ticket():
         # Validar íntegramente el pedido estructurado antes de guardar adjuntos.
         if not _validate_csrf():
             return render_template("error.html", mensaje="Solicitud inválida (CSRF)."), 400
+        servicio = normalize_ticket_service(request.form.get("servicio"))
+        if not servicio:
+            return render_template("error.html", mensaje="El servicio solicitado no es válido."), 400
+
+        if servicio in ("marketing", "it"):
+            asunto = request.form.get("asunto", "").strip()
+            descripcion = request.form.get("descripcion", "").strip()
+            if not asunto or not descripcion:
+                return render_template("error.html", mensaje="Asunto y descripción son obligatorios."), 400
+            if len(asunto) > 200 or len(descripcion) > 5000:
+                return render_template("error.html", mensaje="El asunto o la descripción supera el límite permitido."), 400
+            sucursal_ticket = request.form.get("sucursal", "").strip() if _sucursal_session_is_general() else session.get("suc_nombre", "").strip()
+            if not sucursal_ticket:
+                return render_template("error.html", mensaje="Seleccione una sucursal."), 400
+            if _is_sucursal_cerrada(sucursal_ticket):
+                return render_template("error.html", mensaje="Sucursal cerrada. No admite tickets nuevos."), 403
+            if not _sucursal_session_can_access_value(sucursal_ticket):
+                return render_template("error.html", mensaje="No tenés permiso para cargar tickets en esa sucursal."), 403
+
+            tickets = load_tickets()
+            tid = next_ticket_id(tickets)
+            try:
+                fotos = _guardar_adjuntos_ticket_simple(request.files.getlist("fotos"), tid)
+            except ValueError as exc:
+                return render_template("error.html", mensaje=str(exc)), 400
+            now_iso = datetime.datetime.now().isoformat()
+            solicitante_nombre = request.form.get("solicitante_nombre", "").strip()
+            solicitante_apellido = request.form.get("solicitante_apellido", "").strip()
+            if not solicitante_nombre or not solicitante_apellido:
+                return render_template("error.html", mensaje="Nombre y apellido del solicitante son obligatorios."), 400
+            ticket = {
+                "id": tid,
+                "servicio": servicio,
+                "asunto": asunto,
+                "sucursal": sucursal_ticket,
+                "categoria": "",
+                "subcategoria": "",
+                "descripcion": descripcion,
+                "solicitante_nombre": solicitante_nombre,
+                "solicitante_apellido": solicitante_apellido,
+                "solicitante": f"{solicitante_nombre} {solicitante_apellido}".strip(),
+                "prioridad": 4,
+                "estado": "Nuevo",
+                "asignado": "",
+                "fotos": fotos,
+                "observaciones": "",
+                "creado": now_iso,
+                "actualizado": now_iso,
+            }
+            tickets.append(ticket)
+            save_tickets(tickets)
+            return render_template("ticket_creado.html", ticket=ticket)
+
         categoria_previa = request.form.get("categoria", "").strip()
         tipo_previo = request.form.get("tipo", "").strip()
         if (
@@ -7052,6 +7232,7 @@ def nuevo_ticket():
         def redirect_nuevo_con_seleccion():
             return redirect(url_for(
                 "nuevo_ticket",
+                servicio=servicio,
                 categoria=categoria_previa,
                 subcategoria=subcategoria_previa,
             ))
@@ -7155,6 +7336,7 @@ def nuevo_ticket():
         proveedor_presupuesto = presupuestos_suc[0]["proveedor"] if presupuestos_suc else ""
         ticket = {
             "id": tid,
+            "servicio": servicio,
             "sucursal": sucursal_ticket,
             "categoria": categoria,
             "subcategoria": subcategoria,
@@ -7237,6 +7419,7 @@ def nuevo_ticket():
         compra_np_catalogo=compra_np_catalogo,
         compras_no_productivas_habilitadas=compras_no_productivas_habilitadas,
         oficina_sectores=_oficina_sectores(session.get("oficina_sede")),
+        servicios=TICKET_SERVICE_LABELS,
     )
 
 
@@ -7600,7 +7783,7 @@ def admin_login():
         if (
             auth_user
             and _auth_user_status(auth_user) == "active"
-            and _auth_user_role(auth_user) in ("admin", "tecnico")
+            and _auth_user_role(auth_user) in ADMIN_PORTAL_ROLES
             and _auth_user_allows_provider(auth_user, "local")
             and _verify_password(
                 pwd,
@@ -7759,9 +7942,9 @@ def entra_callback():
         elif not entra_role and auth_role == "admin":
             entra_role = "admin"
             identity["entra_role"] = "admin"
-        elif not entra_role and requested_portal == "admin" and auth_role in ("tecnico", PREPARADOR_DABRA_ROLE):
-            entra_role = "tecnico"
-            identity["entra_role"] = "tecnico"
+        elif not entra_role and requested_portal == "admin" and (auth_role in ADMIN_PORTAL_ROLES or auth_role == PREPARADOR_DABRA_ROLE):
+            entra_role = "tecnico" if auth_role == PREPARADOR_DABRA_ROLE else auth_role
+            identity["entra_role"] = entra_role
     if not entra_role and (identity.get("group_lookup_error") or _entra_claims_have_group_overage(identity)):
         return render_template(
             "error.html",
@@ -7780,7 +7963,7 @@ def entra_callback():
             "error.html",
             mensaje="Tu identidad fue validada correctamente, pero tu cuenta todavía no tiene acceso a esta aplicación. Contactá al administrador.",
         ), 403
-    if requested_portal == "admin" and entra_role not in ("admin", "tecnico"):
+    if requested_portal == "admin" and entra_role not in ADMIN_PORTAL_ROLES:
         return render_template(
             "error.html",
             mensaje="No autorizado. Tu cuenta Microsoft no esta habilitada para el portal administrativo de Tecman.",
@@ -7940,7 +8123,7 @@ def entra_callback():
 
     _mark_login_success(auth_user, "entra")
     _set_admin_session(auth_user, "entra")
-    if entra_role in ("admin", "tecnico"):
+    if entra_role in ADMIN_PORTAL_ROLES:
         session["entra_role"] = entra_role
     return redirect(url_for("admin_panel"))
 
@@ -8145,8 +8328,10 @@ def admin_panel():
     # El rol tecnico trabaja en el perfil operativo de materiales.
     if session.get("rol") == "tecnico":
         return redirect(url_for("admin_materiales"))
-    sync_alertas_syh()
-    tickets = load_tickets()
+    service_scoped_role = bool(_role_ticket_service(session.get("rol")))
+    if not service_scoped_role:
+        sync_alertas_syh()
+    tickets = _tickets_in_session_scope(load_tickets())
     tickets_visibles = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
     tickets_operativos = [t for t in tickets_visibles if _is_ticket_operativo(t)]
     filtro_estado = request.args.get("estado", "")
@@ -8195,10 +8380,14 @@ def admin_panel():
             and asignado in (user_nombre, ASIGNACION_DEFAULT, "", None)
         )
 
-    mis_esperando = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
-    mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and not _is_ticket_finalizado(t)]
+    if service_scoped_role:
+        mis_esperando = [t for t in tickets_operativos if t["estado"] in ("Nuevo", "Abierto")]
+        mis_asignados = [t for t in tickets_operativos if not _is_ticket_finalizado(t)]
+    else:
+        mis_esperando = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and t["estado"] in ("Nuevo", "Abierto")]
+        mis_asignados = [t for t in tickets_operativos if (t.get("asignado") == user_nombre or _es_ticket_para_seguimiento_admin(t)) and not _is_ticket_finalizado(t)]
     sin_asignar = [t for t in tickets_operativos if not t.get("asignado") or t.get("asignado") == ""]
-    vista = request.args.get("vista", "dashboard")
+    vista = "tarjetas" if service_scoped_role else request.args.get("vista", "dashboard")
     if vista == "tarjetas":
         if es_rita:
             filtered = list(tickets_rita_pendientes)
@@ -8232,7 +8421,7 @@ def admin_panel():
     alertas.sort(key=lambda t: t.get("dias", 0), reverse=True)
 
     # Notificaciones admin (stock / facturas cargadas)
-    notif_data = load_notif_admin()
+    notif_data = {"notificaciones": []} if service_scoped_role else load_notif_admin()
     notif_admin = [n for n in notif_data.get("notificaciones", []) if not n.get("leida")]
     notif_tipo_labels = {
         "stock": "Stock",
@@ -9063,6 +9252,8 @@ def admin_ticket(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    if not _session_can_view_ticket(ticket, tickets):
+        return render_template("error.html", mensaje="No tenés permiso para ver este ticket."), 403
     if _is_material_ticket(ticket):
         return redirect(url_for("admin_pedido", ticket_id=ticket_id))
     if session.get("rol") == "tecnico":
@@ -14902,6 +15093,8 @@ def api_mails_resumen():
     secret = os.environ.get("BACKUP_SECRET", "")
     if not secret or request.args.get("token") != secret:
         return Response("Forbidden", status=403)
+    if not EXTERNAL_NOTIFICATIONS_ENABLED:
+        return jsonify({"error": "Comunicaciones externas deshabilitadas", "total": 0, "mails": []}), 503
     try:
         import imaplib
         import email

@@ -7,14 +7,16 @@
     <div class="success-icon">&#10004;</div>
     <h2 style="color: #34d399; margin-bottom: 8px;">Ticket creado exitosamente</h2>
     <p style="color: #94a3b8; margin: 16px 0;">
-        Su {% if ticket.tipo == 'compra_no_productiva' %}solicitud de compras no productivas{% else %}ticket de mantenimiento{% endif %} fue registrado con el numero:
+        Su solicitud para {{ ticket_service_label(ticket) }} fue registrada con el numero:
     </p>
     <div style="font-size: 42px; font-weight: 800; color: #38bdf8; margin: 20px 0;">
         #{{ ticket.id }}
     </div>
     <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: left;">
         <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Sucursal:</span> {{ ticket.sucursal }}</p>
-        <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Categoría:</span> {{ ticket.categoria }}{% if ticket.subcategoria %} — {{ ticket.subcategoria }}{% endif %}</p>
+        <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Servicio:</span> {{ ticket_service_label(ticket) }}</p>
+        {% if ticket.asunto %}<p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Asunto:</span> {{ ticket.asunto }}</p>{% endif %}
+        {% if ticket.categoria or ticket.subcategoria %}<p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Categoría:</span> {{ ticket.categoria }}{% if ticket.subcategoria %} — {{ ticket.subcategoria }}{% endif %}</p>{% endif %}
         <p style="margin-bottom: 6px; color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Solicitante:</span> {{ ticket.solicitante or '-' }}</p>
         <p style="color: #1e293b;"><span style="color: #64748b; font-weight: 600;">Asignado a:</span> {{ ticket.asignado }}</p>
     </div>

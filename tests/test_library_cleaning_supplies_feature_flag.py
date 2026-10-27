@@ -72,6 +72,7 @@ class LibraryCleaningSuppliesFeatureFlagTests(unittest.TestCase):
     def material_payload(self, categoria_mat, subitem_mat, **overrides):
         payload = {
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Materiales",
             "subcategoria": "Solicitud de materiales",
             "categoria_mat": categoria_mat,

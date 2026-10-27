@@ -21,6 +21,7 @@
         <span class="badge badge-{{ estado_visible.lower().replace(' ', '') }}">{{ estado_visible }}</span>
     </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
+        <div><span style="color: #6b7280;">Servicio:</span> <strong>{{ ticket_service_label(ticket) }}</strong></div>
         <div><span style="color: #6b7280;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
         <div><span style="color: #6b7280;">Categoría:</span> {% if ticket.categoria == 'Materiales' %}{{ ticket.categoria }} - {{ ticket.categoria_mat or ticket.subcategoria }}{% if ticket.subitem_mat %} &raquo; {{ ticket.subitem_mat }}{% endif %}{% if ticket.cantidad_mat %} <span style="color:#6b7280;">(x{{ ticket.cantidad_mat }})</span>{% endif %}{% else %}{{ ticket.categoria }} - {{ ticket.subcategoria }}{% endif %}</div>
         <div><span style="color: #6b7280;">Asignado a:</span> {{ ticket.asignado }}</div>

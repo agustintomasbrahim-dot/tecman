@@ -300,9 +300,9 @@ new Chart(document.getElementById('chartAgente'), {
                 </span>
                 <span class="badge badge-p{{ t.prioridad }}">{{ prioridades[t.prioridad] }}</span>
             </div>
-            <h3 style="font-size: 15px; color: #1e293b; margin-bottom: 8px; line-height: 1.3;">{{ t.descripcion[:80] }}{% if t.descripcion|length > 80 %}...{% endif %}</h3>
+            <h3 style="font-size: 15px; color: #1e293b; margin-bottom: 8px; line-height: 1.3;">{{ (t.asunto or t.descripcion)[:80] }}{% if (t.asunto or t.descripcion)|length > 80 %}...{% endif %}</h3>
             <div style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">
-                {{ t.categoria }} &raquo; {{ t.subcategoria }}
+                {{ ticket_service_label(t) }}{% if t.categoria or t.subcategoria %} · {{ t.categoria }}{% if t.subcategoria %} &raquo; {{ t.subcategoria }}{% endif %}{% endif %}
             </div>
             {% if t.categoria == 'Presupuestos' %}
             {% set ep = t.estado_presupuesto or 'Nuevo' %}
@@ -398,7 +398,7 @@ new Chart(document.getElementById('chartAgente'), {
                     </td>
                     <td>
                         <div class="admin-sheet-main">
-                            {% if es_material %}Pedido de materiales{% elif es_compra_np %}Compra no productiva{% else %}{{ t.subcategoria or t.categoria }}{% endif %}
+                            {{ ticket_service_label(t) }} · {% if es_material %}Pedido de materiales{% elif es_compra_np %}Compra no productiva{% else %}{{ t.asunto or t.subcategoria or t.categoria or 'Solicitud' }}{% endif %}
                             {% if t.fotos %}<span style="color:#64748b;font-weight:600;"> · Foto</span>{% endif %}
                         </div>
                         <div class="admin-sheet-sub">

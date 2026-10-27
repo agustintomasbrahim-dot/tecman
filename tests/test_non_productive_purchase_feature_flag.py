@@ -84,6 +84,7 @@ class NonProductivePurchaseFeatureFlagTests(unittest.TestCase):
     def purchase_payload(self, **overrides):
         payload = {
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Compras no productivas",
             "subcategoria": "Insumos",
             "descripcion": "Reposición operativa",

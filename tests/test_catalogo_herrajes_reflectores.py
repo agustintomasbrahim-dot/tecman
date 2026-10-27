@@ -62,6 +62,7 @@ class CatalogoHerrajesReflectoresTest(unittest.TestCase):
     def _material_form(self, categoria_mat, subitem_mat):
         return {
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Materiales",
             "subcategoria": "Solicitud de materiales",
             "descripcion": "Reposición para el salón",
@@ -133,6 +134,7 @@ class CatalogoHerrajesReflectoresTest(unittest.TestCase):
         self._admin_session()
         added = self.client.post(f"/admin/pedido/{self.TICKET_ID}", data={
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "accion": "agregar_material_stock",
             "categoria_complemento": "Herrajes",
             "subitem_complemento": "Cerraduras",
@@ -143,6 +145,7 @@ class CatalogoHerrajesReflectoresTest(unittest.TestCase):
 
         confirmed = self.client.post(f"/admin/pedido/{self.TICKET_ID}", data={
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "accion": "cuento_material",
             "metodo_envio": "Envio desde Central",
             "guia_carga_tipo": "Bultos",
@@ -186,6 +189,7 @@ class CatalogoHerrajesReflectoresTest(unittest.TestCase):
         before = copy.deepcopy(tecman.load_tickets())
         response = self.client.post(f"/admin/pedido/{self.TICKET_ID}", data={
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "accion": "agregar_material_stock",
             "categoria_complemento": "Luminaria",
             "subitem_complemento": "Reflector 100 W - Luz neutra",

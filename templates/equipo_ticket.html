@@ -38,6 +38,7 @@
 <!-- Info del ticket -->
 <div class="card">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px;">
+        <div><span style="color: #64748b;">Servicio:</span> <strong>{{ ticket_service_label(ticket) }}</strong></div>
         <div><span style="color: #64748b;">Sucursal:</span> <strong>{{ ticket.sucursal }}</strong></div>
         <div><span style="color: #64748b;">Categoria:</span> {{ ticket.categoria }}{% if ticket.subcategoria %} &raquo; {{ ticket.subcategoria }}{% endif %}</div>
         <div><span style="color: #64748b;">Creado:</span> {{ ticket.creado[:10] }}</div>

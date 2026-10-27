@@ -60,6 +60,7 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
     def create_ticket(self, quantities=(2, 1)):
         self.branch_session()
         data = {"_csrf_token": "csrf-test",
+        "servicio": "mantenimiento",
                 "categoria": "Compras no productivas", "subcategoria": "Insumos",
                 "descripcion": "Reposición mensual", "solicitante_nombre": "Ana",
                 "solicitante_apellido": "Sucursal", "zona_afectada": "Administración",
@@ -288,6 +289,7 @@ class NonProductivePurchaseFlowTests(unittest.TestCase):
         with self.assertRaises(LogisticsError): validate_purchase_lines(["inventado"], [1])
         self.branch_session(); before = list(tecman.UPLOADS_DIR.iterdir())
         response = self.client.post("/nuevo", data={"_csrf_token": "csrf-test",
+        "servicio": "mantenimiento",
             "categoria": "Compras no productivas", "subcategoria": "Insumos",
             "descripcion": "x", "zona_afectada": "Caja", "solicitante_nombre": "A", "solicitante_apellido": "B",
             "compra_np_sku[]": ["inventado"], "compra_np_cantidad[]": ["1"]})

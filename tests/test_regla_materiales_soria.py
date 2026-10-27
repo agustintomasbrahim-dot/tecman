@@ -72,6 +72,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
     def _material_form():
         return {
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Materiales",
             "subcategoria": "Solicitud de materiales",
             "descripcion": "Pedido de lámparas",
@@ -114,6 +115,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self._branch_session("Sucursal 142")
         response = self.client.post("/nuevo", data={
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Problema Eléctrico",
             "subcategoria": "Luminarias",
             "descripcion": "Cambiar luminarias del salón",
@@ -132,6 +134,7 @@ class ReglaMaterialesSoriaTest(unittest.TestCase):
         self._branch_session("Sucursal 145")
         response = self.client.post("/nuevo", data={
             "_csrf_token": "csrf-test",
+            "servicio": "mantenimiento",
             "categoria": "Otro",
             "subcategoria": "Otro",
             "descripcion": "Parece un pedido de materiales para luminarias",

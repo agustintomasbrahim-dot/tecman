@@ -110,6 +110,7 @@ process.stdout.write(JSON.stringify(estados));
             "/nuevo",
             data={
                 "_csrf_token": "csrf-test",
+                "servicio": "mantenimiento",
                 "categoria": "Problema Eléctrico",
                 "subcategoria": "Tablero",
                 "descripcion": "Falla eléctrica",
@@ -136,6 +137,7 @@ process.stdout.write(JSON.stringify(estados));
             "/nuevo",
             data={
                 "_csrf_token": "csrf-test",
+                "servicio": "mantenimiento",
                 "categoria": "Problema Eléctrico",
                 "subcategoria": "Tablero",
                 "descripcion": "Salta la térmica del tablero principal",

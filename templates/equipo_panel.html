@@ -48,7 +48,7 @@
             </div>
             <h3 style="font-size: 15px; color: #1a1a2e;">{{ t.descripcion[:120] }}{% if t.descripcion|length > 120 %}...{% endif %}</h3>
             <div style="color: #64748b; font-size: 12px; margin-top: 6px;">
-                {{ t.sucursal }} &bull; {{ t.categoria }}{% if t.subcategoria %} &raquo; {{ t.subcategoria }}{% endif %} &bull; {{ t.creado[:10] }}
+                {{ ticket_service_label(t) }} &bull; {{ t.sucursal }} &bull; {{ t.categoria }}{% if t.subcategoria %} &raquo; {{ t.subcategoria }}{% endif %} &bull; {{ t.creado[:10] }}
             </div>
         </div>
     </a>

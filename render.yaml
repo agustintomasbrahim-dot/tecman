@@ -1,12 +1,24 @@
 services:
   - type: web
-    name: tecman
+    name: tecman-pruebas
     runtime: python
+    plan: free
+    branch: openclaw/marketing-it-invgate-gap-20261026
+    autoDeployTrigger: off
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: TECMAN_ENVIRONMENT
+        value: staging
+      - key: TECMAN_EXTERNAL_NOTIFICATIONS_ENABLED
+        value: "false"
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: TECMAN_BUILD_MARKER
+        value: marketing-it-staging-20261027
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_PASSWORD
@@ -30,13 +42,13 @@ services:
       - key: BACKUP_SECRET
         sync: false
       - key: GMAIL_USER
-        value: "agustintomasbrahim@gmail.com"
+        sync: false
       - key: GMAIL_APP_PASSWORD
         sync: false
       - key: SMTP_HOST
-        value: "smtp.gmail.com"
+        sync: false
       - key: SMTP_PORT
-        value: "465"
+        sync: false
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASSWORD
@@ -44,9 +56,11 @@ services:
       - key: MAIL_FROM
         sync: false
       - key: RITA_EMAIL
-        value: "rrobles@grupodexter.com.ar"
-      - key: DATABASE_URL
         sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tecman-pruebas-db
+          property: connectionString
       - key: ENTRA_TENANT_ID
         sync: false
       - key: ENTRA_CLIENT_ID
@@ -56,11 +70,13 @@ services:
       - key: ENTRA_REDIRECT_URI
         sync: false
       - key: ADMIN_SUCURSAL_ACCESS_EMAILS
-        value: "aservita@grupodexter.com.ar"
+        sync: false
       - key: LOGISTICA_LOCAL_LOGIN_ENABLED
         value: "false"
       - key: LOGISTICA_PORTAL_TEST_MODE
         value: "false"
+      - key: LOGISTICA_SMTP_MOCK
+        value: "true"
       - key: ENABLE_NON_PRODUCTIVE_PURCHASES
         value: "false"
       - key: ENABLE_LIBRARY_CLEANING_SUPPLIES
@@ -73,3 +89,10 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+
+databases:
+  - name: tecman-pruebas-db
+    plan: free
+    databaseName: tecman_pruebas
+    user: tecman_pruebas
+    ipAllowList: []

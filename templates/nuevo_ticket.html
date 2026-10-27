@@ -49,7 +49,17 @@
         </div>
         {% endif %}
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+            <label>Servicio *</label>
+            <select name="servicio" id="servicio" required>
+                <option value="">Seleccionar servicio...</option>
+                {% for value, label in servicios.items() %}
+                <option value="{{ value }}" {% if request.args.get('servicio') == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="requester-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
                 <label>Nombre *</label>
                 <input type="text" name="solicitante_nombre" required placeholder="Nombre de quien hace el ticket">
@@ -60,6 +70,14 @@
             </div>
         </div>
 
+        <div id="simple-service-fields" style="display:none;">
+            <div class="form-group">
+                <label>Asunto *</label>
+                <input type="text" name="asunto" id="asunto" maxlength="200" placeholder="Resumen breve de la solicitud">
+            </div>
+        </div>
+
+        <div id="maintenance-fields" style="display:none;">
         <div class="form-group">
             <label>Categoria *</label>
             <select name="categoria" id="categoria" required>
@@ -162,6 +180,7 @@
             {% endfor %}
         </div>
         <input type="hidden" name="proveedor_presupuesto" id="proveedor_presupuesto" value="">
+        </div>
 
         <div class="form-group">
             <label id="descripcion-label">Descripcion del problema *</label>
@@ -170,9 +189,9 @@
 
 
         <div class="form-group">
-            <label>Fotos o videos cortos (opcional, max 3)</label>
-            <input type="file" name="fotos" multiple accept="{{ media_accept }}" style="padding: 10px;">
-            <small style="color: #475569; display: block; margin-top: 6px;">Puede sacar fotos o subir videos cortos desde el celular</small>
+            <label>Adjuntos (opcional, máximo 3)</label>
+            <input type="file" name="fotos" id="ticket-files" multiple accept="{{ ticket_attachment_accept }}" style="padding: 10px;">
+            <small id="ticket-files-help" style="color: #475569; display: block; margin-top: 6px;">Máximo 3 archivos.</small>
         </div>
 
         <button type="submit" class="btn btn-primary btn-block" style="font-size: 18px; padding: 16px; margin-top: 8px;">
@@ -184,6 +203,40 @@
 <script>
 var categorias = {{ categorias | tojson }};
 var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
+
+function actualizarServicio() {
+    var servicio = document.getElementById('servicio').value;
+    var maintenance = servicio === 'mantenimiento';
+    var simple = servicio === 'marketing' || servicio === 'it';
+    var maintenanceFields = document.getElementById('maintenance-fields');
+    var simpleFields = document.getElementById('simple-service-fields');
+    var asunto = document.getElementById('asunto');
+    var categoria = document.getElementById('categoria');
+    var subcategoria = document.getElementById('subcategoria');
+    var descLabel = document.getElementById('descripcion-label');
+    var desc = document.getElementById('descripcion');
+    var files = document.getElementById('ticket-files');
+    maintenanceFields.style.display = maintenance ? 'block' : 'none';
+    simpleFields.style.display = simple ? 'block' : 'none';
+    asunto.required = simple;
+    categoria.required = maintenance;
+    subcategoria.required = maintenance;
+    files.accept = maintenance ? {{ media_accept | tojson }} : {{ ticket_attachment_accept | tojson }};
+    if (maintenance) {
+        descLabel.textContent = 'Descripcion del problema *';
+        desc.placeholder = 'Describa el problema con el mayor detalle posible...';
+        if (categoria.value) categoria.dispatchEvent(new Event('change'));
+    } else if (simple) {
+        subcategoria.removeAttribute('required');
+        descLabel.textContent = 'Descripción de la solicitud *';
+        desc.placeholder = 'Describa la solicitud con la información necesaria para que el equipo pueda revisarla...';
+    } else {
+        categoria.removeAttribute('required');
+        subcategoria.removeAttribute('required');
+    }
+}
+
+document.getElementById('servicio').addEventListener('change', actualizarServicio);
 
 function actualizarAvisoProblemaElectrico(categoria) {
     var aviso = document.getElementById('aviso-problema-electrico');
@@ -345,6 +398,7 @@ document.getElementById('categoria').addEventListener('change', function() {
 })();
 {% endif %}
 document.addEventListener('DOMContentLoaded', function() {
+    actualizarServicio();
     var categoria = document.getElementById('categoria');
     actualizarAvisoProblemaElectrico(categoria.value);
     if (categoria.value) {
