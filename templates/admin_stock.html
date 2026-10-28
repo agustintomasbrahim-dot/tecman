@@ -65,6 +65,7 @@
 <div class="card">
     <h3 style="margin-bottom: 12px;">Agregar al stock</h3>
     <form method="POST" action="{{ url_for('stock_add') }}" id="stock-add-form">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
                 <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Categoria</label>
@@ -165,6 +166,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
     <h3 style="margin-bottom: 12px;">Transferir de Central a Sucursal</h3>
     {% if session.rol != 'admin' %}<p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Usá esta sección solo para enviar stock disponible desde Central a una sucursal.</p>{% endif %}
     <form method="POST" action="{{ url_for('stock_transfer') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div style="flex: 2; min-width: 200px;">
             <label style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 4px;">Item</label>
             <select name="item" required style="width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
@@ -207,6 +209,7 @@ var MATERIAL_CATEGORIAS = {{ material_categorias | tojson }};
                 <td style="text-align: right;">
                     {% if session.rol == 'admin' %}
                     <form method="POST" action="{{ url_for('stock_precio') }}" style="display: inline-flex; gap: 4px; align-items: center; justify-content: flex-end;">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="item" value="{{ item }}">
                         <span style="color: #6b7280;">$</span>
                         <input type="number" name="precio_unitario" step="0.01" min="0" value="{{ '%.2f'|format(precio) }}" style="width: 110px; padding: 4px 6px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; text-align: right;">

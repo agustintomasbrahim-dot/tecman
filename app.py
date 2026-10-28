@@ -8427,7 +8427,7 @@ def admin_cotizacion_reparaciones():
 
 
 @app.route("/admin/metricas/<modulo_slug>")
-@login_required
+@admin_required
 def admin_metricas_detalle(modulo_slug):
     modulo_nombre = _metricas_modulo_nombre(modulo_slug)
     if not modulo_nombre:
@@ -13556,6 +13556,8 @@ def admin_stock():
 @app.route("/admin/stock/add", methods=["POST"])
 @admin_required
 def stock_add():
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
     stock = load_stock()
     # El item puede venir armado desde categoria + subitem o como texto libre.
     categoria = request.form.get("categoria_mat", "").strip()
@@ -13597,6 +13599,8 @@ def stock_add():
 @app.route("/admin/stock/transfer", methods=["POST"])
 @login_required
 def stock_transfer():
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
     stock = load_stock()
     transfers = load_transfers()
 
@@ -13656,6 +13660,8 @@ def stock_transfer():
 @app.route("/admin/stock/precio", methods=["POST"])
 @admin_required
 def stock_precio():
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
     stock = load_stock()
     item = request.form.get("item", "").strip()
     precio_raw = request.form.get("precio_unitario", "").strip().replace(",", ".")
