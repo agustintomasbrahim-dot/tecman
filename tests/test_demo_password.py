@@ -11,7 +11,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _load_app(tmp_path, *, environment="", role_access=False):
+def _load_app(tmp_path, *, environment="", role_access=False, reviewer_temp_password="", reviewer_temp_until=""):
     env = os.environ.copy()
     env.pop("DATABASE_URL", None)
     env.update({
@@ -21,6 +21,8 @@ def _load_app(tmp_path, *, environment="", role_access=False):
         "TECMAN_DEMO_ROLE_ACCESS_ENABLED": "true" if role_access else "false",
         "TECMAN_DATA_DIR": str(tmp_path / "data"),
         "TECMAN_UPLOADS_DIR": str(tmp_path / "uploads"),
+        "TECMAN_GLOBAL_REVIEWER_TEMP_PASSWORD": reviewer_temp_password,
+        "TECMAN_GLOBAL_REVIEWER_TEMP_UNTIL": reviewer_temp_until,
     })
     module_name = f"tecman_demo_password_test_{uuid.uuid4().hex}"
     with patch.dict(os.environ, env, clear=True):
@@ -111,6 +113,61 @@ class DemoPasswordTests(unittest.TestCase):
 
         page = client.get("/")
         self.assertEqual(page.status_code, 200)
+
+    def test_temporary_global_reviewer_can_login_directly_and_stays_read_only(self):
+        module = _load_app(
+            self.root,
+            environment="staging",
+            reviewer_temp_password="Temp-Review-2026!",
+            reviewer_temp_until="2099-01-01T00:00:00Z",
+        )
+        module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
+        client = module.app.test_client()
+
+        login_page = client.get("/admin/login")
+        self.assertEqual(login_page.status_code, 200)
+        with client.session_transaction() as sess:
+            csrf = sess["_csrf_token"]
+        login = client.post(
+            "/admin/login",
+            data={
+                "_csrf_token": csrf,
+                "usuario": module.GLOBAL_REVIEWER_USERNAME,
+                "password": "Temp-Review-2026!",
+            },
+        )
+        self.assertEqual(login.status_code, 302)
+        self.assertTrue(login.headers["Location"].endswith("/admin"))
+        with client.session_transaction() as sess:
+            self.assertEqual(sess["auth_provider"], "local")
+            self.assertEqual(sess["rol"], module.GLOBAL_REVIEWER_ROLE)
+            self.assertEqual(sess["auth_account_role"], module.GLOBAL_REVIEWER_ROLE)
+        self.assertEqual(client.get("/admin?vista=tabla").status_code, 200)
+        denied = client.post("/admin/stock/add", data={"item": "x", "cantidad": "1"})
+        self.assertEqual(denied.status_code, 403)
+
+    def test_expired_temporary_global_reviewer_cannot_login(self):
+        module = _load_app(
+            self.root,
+            environment="staging",
+            reviewer_temp_password="Temp-Review-2026!",
+            reviewer_temp_until="2020-01-01T00:00:00Z",
+        )
+        module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
+        client = module.app.test_client()
+        client.get("/admin/login")
+        with client.session_transaction() as sess:
+            csrf = sess["_csrf_token"]
+        login = client.post(
+            "/admin/login",
+            data={
+                "_csrf_token": csrf,
+                "usuario": module.GLOBAL_REVIEWER_USERNAME,
+                "password": "Temp-Review-2026!",
+            },
+        )
+        self.assertEqual(login.status_code, 200)
+        self.assertIn("Usuario o contraseña incorrectos", login.get_data(as_text=True))
 
     def test_role_cards_require_explicit_staging_configuration(self):
         module = _load_app(self.root, environment="production", role_access=True)

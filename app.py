@@ -103,6 +103,22 @@ TICKET_SERVICE_ROLES = {
 GLOBAL_REVIEWER_ROLE = "revisor_global"
 GLOBAL_REVIEWER_EMAIL = "akaraguezian@grupodexter.com.ar"
 GLOBAL_REVIEWER_USERNAME = "akaraguezian"
+GLOBAL_REVIEWER_TEMP_PASSWORD = os.environ.get("TECMAN_GLOBAL_REVIEWER_TEMP_PASSWORD", "")
+GLOBAL_REVIEWER_TEMP_UNTIL = os.environ.get("TECMAN_GLOBAL_REVIEWER_TEMP_UNTIL", "")
+
+
+def _global_reviewer_temp_access_enabled():
+    if TECMAN_ENVIRONMENT not in {"demo", "staging"} or not GLOBAL_REVIEWER_TEMP_PASSWORD:
+        return False
+    try:
+        expires_at = datetime.datetime.fromisoformat(GLOBAL_REVIEWER_TEMP_UNTIL.replace("Z", "+00:00"))
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
+    except (TypeError, ValueError):
+        return False
+    return datetime.datetime.now(datetime.timezone.utc) < expires_at.astimezone(datetime.timezone.utc)
+
+
 ADMIN_PORTAL_ROLES = (
     "admin", "tecnico", "marketing", "it", "responsable_marketing", "responsable_it",
     GLOBAL_REVIEWER_ROLE,
@@ -138,12 +154,18 @@ def _ticket_in_role_scope(ticket, role):
 
 
 def _is_global_reviewer_session():
-    """Reconoce únicamente la sesión Entra del rol de revisión sin escritura."""
-    return bool(
-        session.get("auth_provider") == "entra"
-        and session.get("entra_role") == GLOBAL_REVIEWER_ROLE
-        and session.get("rol") == GLOBAL_REVIEWER_ROLE
+    """Reconoce el rol de revisión firmado, incluido el fallback temporal de staging."""
+    role_matches = (
+        session.get("rol") == GLOBAL_REVIEWER_ROLE
         and session.get("auth_account_role") == GLOBAL_REVIEWER_ROLE
+    )
+    if not role_matches:
+        return False
+    if session.get("auth_provider") == "entra":
+        return session.get("entra_role") == GLOBAL_REVIEWER_ROLE
+    return bool(
+        session.get("auth_provider") == "local"
+        and _global_reviewer_temp_access_enabled()
     )
 
 
@@ -1304,7 +1326,15 @@ def _seed_auth_users():
                 if getattr(reviewer, key) != value:
                     setattr(reviewer, key, value)
                     changed = True
-            if LocalCredentialDB.query.get(reviewer.id):
+            reviewer_credential = LocalCredentialDB.query.get(reviewer.id)
+            if _global_reviewer_temp_access_enabled() and not reviewer_credential:
+                db.session.add(LocalCredentialDB(
+                    user_id=reviewer.id,
+                    password_hash=_hash_password(GLOBAL_REVIEWER_TEMP_PASSWORD),
+                ))
+                reviewer.session_version = (reviewer.session_version or 1) + 1
+                changed = True
+            elif not _global_reviewer_temp_access_enabled() and reviewer_credential:
                 LocalCredentialDB.query.filter_by(user_id=reviewer.id).delete()
                 reviewer.session_version = (reviewer.session_version or 1) + 1
                 changed = True
@@ -1334,6 +1364,12 @@ def _seed_auth_users():
                 provider_subject=GLOBAL_REVIEWER_EMAIL,
                 tenant_id=ENTRA_TENANT_ID,
             ))
+            if _global_reviewer_temp_access_enabled():
+                db.session.add(LocalCredentialDB(
+                    user_id=reviewer.id,
+                    password_hash=_hash_password(GLOBAL_REVIEWER_TEMP_PASSWORD),
+                ))
+                reviewer.session_version = (reviewer.session_version or 1) + 1
             changed = True
         preparador = _find_db_user(email=PREPARADOR_DABRA_EMAIL) or _find_db_user(identifier=PREPARADOR_DABRA_USERNAME)
         if preparador:
@@ -1536,7 +1572,16 @@ def _seed_auth_users():
         if reviewer.get(key) != value:
             reviewer[key] = value
             changed = True
-    if reviewer.pop("local_credentials", None) is not None:
+    reviewer_credential = reviewer.get("local_credentials") or {}
+    if _global_reviewer_temp_access_enabled() and not reviewer_credential.get("password_hash"):
+        reviewer["local_credentials"] = {
+            "password_hash": _hash_password(GLOBAL_REVIEWER_TEMP_PASSWORD),
+            "failed_attempts": 0,
+            "locked_until": None,
+        }
+        reviewer["session_version"] = int(reviewer.get("session_version", 1)) + 1
+        changed = True
+    elif not _global_reviewer_temp_access_enabled() and reviewer.pop("local_credentials", None) is not None:
         reviewer["session_version"] = int(reviewer.get("session_version", 1)) + 1
         changed = True
     identities = reviewer.setdefault("auth_identities", [])
@@ -6745,11 +6790,18 @@ def require_staging_password():
         "favicon",
         "entra_start",
         "entra_callback",
+        "admin_login",
     }:
         return None
     if session.get("demo_authenticated") is True:
         return None
     if session.get("auth_provider") == "entra":
+        return None
+    if (
+        session.get("auth_provider") == "local"
+        and session.get("rol") == GLOBAL_REVIEWER_ROLE
+        and _global_reviewer_temp_access_enabled()
+    ):
         return None
     return redirect(url_for("demo_login"))
 
@@ -7962,6 +8014,10 @@ def admin_login():
             auth_user
             and _auth_user_status(auth_user) == "active"
             and _auth_user_role(auth_user) in ADMIN_PORTAL_ROLES
+            and (
+                _auth_user_role(auth_user) != GLOBAL_REVIEWER_ROLE
+                or _global_reviewer_temp_access_enabled()
+            )
             and _auth_user_allows_provider(auth_user, "local")
             and _verify_password(
                 pwd,
