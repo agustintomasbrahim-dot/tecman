@@ -92,6 +92,26 @@ class DemoPasswordTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertNotIn("Gestionar únicamente la cola de Marketing", page.get_data(as_text=True))
 
+    def test_authorized_entra_flow_bypasses_shared_staging_password(self):
+        module = _load_app(self.root, environment="staging")
+        module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
+        client = module.app.test_client()
+
+        start = client.get("/auth/entra/start?portal=admin")
+        self.assertEqual(start.status_code, 302)
+        self.assertTrue(start.headers["Location"].endswith("/admin/login"))
+
+        callback = client.get("/auth/entra/callback")
+        self.assertEqual(callback.status_code, 500)
+
+        with client.session_transaction() as sess:
+            sess["auth_provider"] = "entra"
+            sess["user"] = "reviewer"
+            sess["rol"] = "revisor_global"
+
+        page = client.get("/")
+        self.assertEqual(page.status_code, 200)
+
     def test_role_cards_require_explicit_staging_configuration(self):
         module = _load_app(self.root, environment="production", role_access=True)
         module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

@@ -6738,9 +6738,18 @@ def require_staging_password():
     """Protección adicional del staging; no se activa sin DEMO_PASSWORD."""
     if not DEMO_PASSWORD:
         return None
-    if request.endpoint in {"health", "demo_login", "static", "favicon"}:
+    if request.endpoint in {
+        "health",
+        "demo_login",
+        "static",
+        "favicon",
+        "entra_start",
+        "entra_callback",
+    }:
         return None
     if session.get("demo_authenticated") is True:
+        return None
+    if session.get("auth_provider") == "entra":
         return None
     return redirect(url_for("demo_login"))
 
