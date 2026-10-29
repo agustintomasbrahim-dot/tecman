@@ -154,7 +154,22 @@ class AdminSucursalEntraAccessTest(unittest.TestCase):
             must_change_password=False,
             session_version=1,
         )
-        users = {"aservita": existing, tecman.PREPARADOR_DABRA_USERNAME: preparador}
+        reviewer = SimpleNamespace(
+            id="reviewer-id",
+            username=tecman.GLOBAL_REVIEWER_USERNAME,
+            email=tecman.GLOBAL_REVIEWER_EMAIL,
+            first_name="Anabella",
+            last_name="Karaguezian",
+            role=tecman.GLOBAL_REVIEWER_ROLE,
+            status="active",
+            must_change_password=False,
+            session_version=1,
+        )
+        users = {
+            "aservita": existing,
+            tecman.PREPARADOR_DABRA_USERNAME: preparador,
+            tecman.GLOBAL_REVIEWER_USERNAME: reviewer,
+        }
         credentials = {"aservita-id": object()}
         identities = set()
 

@@ -13,6 +13,14 @@
             color: #1a1a2e;
             min-height: 100vh;
         }
+        body.tecman-read-only form[method="post" i],
+        body.tecman-read-only a[href*="/guia"],
+        body.tecman-read-only a[href*="crear-demo-fuga"] { display: none !important; }
+        .read-only-banner {
+            padding: 10px 24px; background: #eff6ff; color: #1e3a8a;
+            border-bottom: 1px solid #bfdbfe; font-size: 13px; font-weight: 700;
+            text-align: center;
+        }
         .container { max-width: 960px; margin: 0 auto; padding: 24px; }
 
         /* Header */
@@ -172,7 +180,7 @@
         }
     </style>
 </head>
-<body>
+<body{% if read_only_reviewer %} class="tecman-read-only"{% endif %}>
     <div class="header">
         <div class="logo">T</div>
         <div>
@@ -180,6 +188,9 @@
             <div class="subtitle">Grupo Dabra</div>
         </div>
     </div>
+    {% if read_only_reviewer %}
+    <div class="read-only-banner">Modo revisión · acceso global de solo lectura · las acciones de cambio están deshabilitadas</div>
+    {% endif %}
     {% block nav %}{% endblock %}
     <div class="container">
         {% with messages = get_flashed_messages() %}

@@ -85,6 +85,15 @@ def admin_required(view):
         if "user" not in session or not _session_valid():
             session.clear()
             return redirect(url_for("admin_login"))
+        is_reviewer = (
+            request.method in {"GET", "HEAD", "OPTIONS"}
+            and session.get("auth_provider") == "entra"
+            and session.get("entra_role") == "revisor_global"
+            and session.get("rol") == "revisor_global"
+            and session.get("auth_account_role") == "revisor_global"
+        )
+        if is_reviewer:
+            return view(*args, **kwargs)
         if session.get("rol") != "admin":
             return render_template("error.html", mensaje="Acceso restringido. Solo administradores."), 403
         if session.get("auth_provider") == "entra" and session.get("entra_role") != "admin":

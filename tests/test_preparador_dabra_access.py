@@ -97,6 +97,12 @@ class PreparadorSeedTests(unittest.TestCase):
             "aservita": SimpleNamespace(id="admin-suc-1", username="aservita", email="aservita@grupodexter.com.ar",
                                          first_name="Aservita", last_name="", status="disabled",
                                          session_version=2, role="tecnico", must_change_password=True),
+            tecman.GLOBAL_REVIEWER_USERNAME: SimpleNamespace(
+                id="reviewer-1", username=tecman.GLOBAL_REVIEWER_USERNAME,
+                email=tecman.GLOBAL_REVIEWER_EMAIL, first_name="Anabella", last_name="Karaguezian",
+                status="active", session_version=1, role=tecman.GLOBAL_REVIEWER_ROLE,
+                must_change_password=False,
+            ),
         }
         credentials = {"old-1": object(), "old-2": object(), "new-1": object(), "admin-suc-1": object()}
 

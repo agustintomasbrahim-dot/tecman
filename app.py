@@ -100,7 +100,13 @@ TICKET_SERVICE_ROLES = {
     "it": "it",
     "responsable_it": "it",
 }
-ADMIN_PORTAL_ROLES = ("admin", "tecnico", "marketing", "it", "responsable_marketing", "responsable_it")
+GLOBAL_REVIEWER_ROLE = "revisor_global"
+GLOBAL_REVIEWER_EMAIL = "akaraguezian@grupodexter.com.ar"
+GLOBAL_REVIEWER_USERNAME = "akaraguezian"
+ADMIN_PORTAL_ROLES = (
+    "admin", "tecnico", "marketing", "it", "responsable_marketing", "responsable_it",
+    GLOBAL_REVIEWER_ROLE,
+)
 
 
 def normalize_ticket_service(value, *, legacy_default=False):
@@ -131,6 +137,16 @@ def _ticket_in_role_scope(ticket, role):
     return scoped_service is None or ticket_service(ticket) == scoped_service
 
 
+def _is_global_reviewer_session():
+    """Reconoce únicamente la sesión Entra del rol de revisión sin escritura."""
+    return bool(
+        session.get("auth_provider") == "entra"
+        and session.get("entra_role") == GLOBAL_REVIEWER_ROLE
+        and session.get("rol") == GLOBAL_REVIEWER_ROLE
+        and session.get("auth_account_role") == GLOBAL_REVIEWER_ROLE
+    )
+
+
 def is_video_file(filename):
     return Path(str(filename or "")).suffix.lower() in VIDEO_EXTENSIONS
 
@@ -159,6 +175,7 @@ def inject_upload_helpers():
         "ticket_service": ticket_service,
         "ticket_service_label": ticket_service_label,
         "ticket_service_labels": TICKET_SERVICE_LABELS,
+        "read_only_reviewer": _is_global_reviewer_session(),
     }
 
 
@@ -1215,6 +1232,9 @@ def _mark_login_failure(user):
     if not user:
         _audit_event("login_failed", details={"reason": "unknown_user"})
         return
+    if not _auth_user_allows_provider(user, "local"):
+        _audit_event("login_failed", user=user, provider="local", details={"reason": "provider_not_enabled"})
+        return
     if USE_DB:
         credential = LocalCredentialDB.query.get(user.id)
         if credential:
@@ -1269,6 +1289,52 @@ def _seed_auth_users():
                 legacy.status = "disabled"
                 legacy.session_version = (legacy.session_version or 1) + 1
                 changed = True
+        reviewer = _find_db_user(email=GLOBAL_REVIEWER_EMAIL) or _find_db_user(identifier=GLOBAL_REVIEWER_USERNAME)
+        if reviewer:
+            desired = {
+                "email": GLOBAL_REVIEWER_EMAIL,
+                "username": GLOBAL_REVIEWER_USERNAME,
+                "first_name": "Anabella",
+                "last_name": "Karaguezian",
+                "role": GLOBAL_REVIEWER_ROLE,
+                "status": "active",
+                "must_change_password": False,
+            }
+            for key, value in desired.items():
+                if getattr(reviewer, key) != value:
+                    setattr(reviewer, key, value)
+                    changed = True
+            if LocalCredentialDB.query.get(reviewer.id):
+                LocalCredentialDB.query.filter_by(user_id=reviewer.id).delete()
+                reviewer.session_version = (reviewer.session_version or 1) + 1
+                changed = True
+            if not AuthIdentityDB.query.filter_by(user_id=reviewer.id, provider="entra").first():
+                db.session.add(AuthIdentityDB(
+                    user_id=reviewer.id,
+                    provider="entra",
+                    provider_subject=GLOBAL_REVIEWER_EMAIL,
+                    tenant_id=ENTRA_TENANT_ID,
+                ))
+                changed = True
+        else:
+            reviewer = UserDB(
+                username=GLOBAL_REVIEWER_USERNAME,
+                email=GLOBAL_REVIEWER_EMAIL,
+                first_name="Anabella",
+                last_name="Karaguezian",
+                role=GLOBAL_REVIEWER_ROLE,
+                status="active",
+                must_change_password=False,
+            )
+            db.session.add(reviewer)
+            db.session.flush()
+            db.session.add(AuthIdentityDB(
+                user_id=reviewer.id,
+                provider="entra",
+                provider_subject=GLOBAL_REVIEWER_EMAIL,
+                tenant_id=ENTRA_TENANT_ID,
+            ))
+            changed = True
         preparador = _find_db_user(email=PREPARADOR_DABRA_EMAIL) or _find_db_user(identifier=PREPARADOR_DABRA_USERNAME)
         if preparador:
             desired = {"email": PREPARADOR_DABRA_EMAIL, "username": PREPARADOR_DABRA_USERNAME,
@@ -1433,6 +1499,57 @@ def _seed_auth_users():
             legacy["status"] = "disabled"
             legacy["session_version"] = int(legacy.get("session_version", 1)) + 1
             changed = True
+    reviewer = next(
+        (
+            u for u in users
+            if (u.get("email") or "").lower() == GLOBAL_REVIEWER_EMAIL
+            or (u.get("username") or "").lower() == GLOBAL_REVIEWER_USERNAME
+        ),
+        None,
+    )
+    if reviewer is None:
+        reviewer = {
+            "id": uuid.uuid4().hex,
+            "username": GLOBAL_REVIEWER_USERNAME,
+            "email": GLOBAL_REVIEWER_EMAIL,
+            "first_name": "Anabella",
+            "last_name": "Karaguezian",
+            "role": GLOBAL_REVIEWER_ROLE,
+            "status": "active",
+            "must_change_password": False,
+            "session_version": 1,
+            "auth_identities": [],
+            "created_at": _now_utc().isoformat(),
+        }
+        users.append(reviewer)
+        changed = True
+    desired = {
+        "username": GLOBAL_REVIEWER_USERNAME,
+        "email": GLOBAL_REVIEWER_EMAIL,
+        "first_name": "Anabella",
+        "last_name": "Karaguezian",
+        "role": GLOBAL_REVIEWER_ROLE,
+        "status": "active",
+        "must_change_password": False,
+    }
+    for key, value in desired.items():
+        if reviewer.get(key) != value:
+            reviewer[key] = value
+            changed = True
+    if reviewer.pop("local_credentials", None) is not None:
+        reviewer["session_version"] = int(reviewer.get("session_version", 1)) + 1
+        changed = True
+    identities = reviewer.setdefault("auth_identities", [])
+    if not any(i.get("provider") == "entra" for i in identities):
+        identities.append({
+            "id": uuid.uuid4().hex,
+            "provider": "entra",
+            "provider_subject": GLOBAL_REVIEWER_EMAIL,
+            "tenant_id": ENTRA_TENANT_ID,
+            "created_at": _now_utc().isoformat(),
+            "last_login_at": None,
+        })
+        changed = True
     preparador = next((u for u in users if (u.get("email") or "").lower() == PREPARADOR_DABRA_EMAIL
                        or (u.get("username") or "").lower() == PREPARADOR_DABRA_USERNAME), None)
     if preparador is None:
@@ -6498,6 +6615,20 @@ def login_required(f):
     return decorated
 
 
+@app.before_request
+def block_global_reviewer_writes():
+    """La cuenta revisora no ejecuta mutaciones, aunque una ruta legacy use GET."""
+    if not _is_global_reviewer_session():
+        return None
+    unsafe_get_endpoints = {"admin_pedido_guia", "admin_crear_demo_fuga"}
+    if request.method not in {"GET", "HEAD", "OPTIONS"} or request.endpoint in unsafe_get_endpoints:
+        return render_template(
+            "error.html",
+            mensaje="Acceso de revisión: esta cuenta no puede modificar datos ni ejecutar acciones.",
+        ), 403
+    return None
+
+
 def _admin_portal_role_from_auth_user(auth_user):
     if (
         auth_user
@@ -6513,12 +6644,14 @@ def _admin_portal_role_from_auth_user(auth_user):
 
 
 def admin_required(f):
-    """Solo permite acceso a usuarios con rol 'admin'."""
+    """Permite administración plena o lectura global al rol revisor Entra."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user" not in session or not _session_auth_is_valid():
             session.clear()
             return redirect(url_for("admin_login"))
+        if _is_global_reviewer_session() and request.method in {"GET", "HEAD", "OPTIONS"}:
+            return f(*args, **kwargs)
         if session.get("auth_provider") == "entra" and session.get("entra_role") != "admin":
             session.clear()
             return redirect(url_for("admin_login"))
@@ -8365,7 +8498,7 @@ def admin_panel():
     if session.get("rol") == "tecnico":
         return redirect(url_for("admin_materiales"))
     service_scoped_role = bool(_role_ticket_service(session.get("rol")))
-    if not service_scoped_role:
+    if not service_scoped_role and not _is_global_reviewer_session():
         sync_alertas_syh()
     tickets = _tickets_in_session_scope(load_tickets())
     tickets_visibles = [t for t in tickets if not _is_ticket_sucursal_cerrada(t)]
@@ -12281,7 +12414,11 @@ def syh_edit(suc_num):
 def admin_syh():
     from sucursales_data import SUCURSALES_INFO
     syh_data = load_syh()
-    alertas_syh = sync_alertas_syh()
+    alertas_syh = (
+        load_alertas_syh().get("alertas", [])
+        if _is_global_reviewer_session()
+        else sync_alertas_syh()
+    )
 
     # Mapa sucursal_num → habilitacion detallada (fuente de verdad si existe)
     habs_detalle = {}
