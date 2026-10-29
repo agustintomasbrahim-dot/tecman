@@ -5,6 +5,10 @@
     {% if es_rita %}
     <a href="{{ url_for('admin_panel', vista='dashboard') }}">Requisiciones</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Pendientes</a>
+    {% elif service_scoped_role %}
+    <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mi cola</a>
+    <a href="{{ url_for('admin_panel', vista='tabla') }}">Lista</a>
+    <a href="{{ url_for('admin_panel', vista='metricas') }}">Métricas</a>
     {% else %}
     <a href="{{ url_for('admin_panel', vista='dashboard') }}">Dashboard</a>
     <a href="{{ url_for('admin_panel', vista='tarjetas') }}">Mis tickets</a>
@@ -15,8 +19,8 @@
     <a href="{{ url_for('admin_panel', vista='metricas') }}">Métricas</a>
     <a class="admin-nav-right" href="{{ url_for('admin_buscar') }}">&#128269; Buscar</a>
     {% endif %}
-    <a class="{% if es_rita %}admin-nav-right{% endif %}" href="{{ url_for('admin_resumen_ejecutivo') }}">Resumen ejecutivo</a>
-    <a href="{{ url_for('admin_logout') }}">Salir ({{ session.nombre }})</a>
+    {% if not service_scoped_role %}<a class="{% if es_rita %}admin-nav-right{% endif %}" href="{{ url_for('admin_resumen_ejecutivo') }}">Resumen ejecutivo</a>{% endif %}
+    <a class="{% if service_scoped_role %}admin-nav-right{% endif %}" href="{{ url_for('admin_logout') }}">Salir ({{ session.nombre }})</a>
 </div>
 {% endblock %}
 {% block content %}
@@ -81,6 +85,13 @@
     {% if not tickets_rita_pendientes %}
     <div style="padding:12px 0;color:#6b7280;">No hay requisiciones pendientes para Rita.</div>
     {% endif %}
+</div>
+{% endif %}
+
+{% if service_scoped_role %}
+<div class="card" style="border-left:4px solid #2563eb;margin-bottom:16px;padding:16px;">
+    <h2 style="margin:0;color:#0f172a;font-size:20px;">Cola de {{ scoped_service_label }}</h2>
+    <p style="margin:5px 0 0;color:#64748b;font-size:13px;">Este perfil gestiona únicamente tickets del servicio {{ scoped_service_label }}.</p>
 </div>
 {% endif %}
 

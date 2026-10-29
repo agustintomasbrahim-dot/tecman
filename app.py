@@ -62,6 +62,19 @@ app.config["ENABLE_LIBRARY_CLEANING_SUPPLIES"] = os.environ.get(
     "ENABLE_LIBRARY_CLEANING_SUPPLIES", "false"
 ).strip().lower() == "true"
 DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "")
+TECMAN_ENVIRONMENT = os.environ.get("TECMAN_ENVIRONMENT", "").strip().lower()
+_DEMO_ROLE_ACCESS_REQUESTED = os.environ.get(
+    "TECMAN_DEMO_ROLE_ACCESS_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "si", "on")
+DEMO_ROLE_ACCESS_ENABLED = bool(
+    DEMO_PASSWORD
+    and TECMAN_ENVIRONMENT in {"demo", "staging"}
+    and _DEMO_ROLE_ACCESS_REQUESTED
+)
+DEMO_TICKET_ROLES = {
+    "marketing": "Marketing",
+    "it": "IT",
+}
 TECMAN_BUILD_MARKER = os.environ.get("TECMAN_BUILD_MARKER", "local")
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -6581,7 +6594,10 @@ def filtrar_stock_laura(stock):
 def index():
     if "suc_user" in session:
         return redirect(url_for("suc_panel"))
-    return render_template("index.html")
+    return render_template(
+        "index.html",
+        demo_role_access_enabled=DEMO_ROLE_ACCESS_ENABLED,
+    )
 
 
 @app.before_request
@@ -6610,6 +6626,26 @@ def demo_login():
             return redirect(url_for("index"))
         error = "Contraseña incorrecta."
     return render_template("demo_login.html", error=error)
+
+
+@app.route("/demo/rol/<role>", methods=["POST"])
+def demo_role_login(role):
+    """Acceso acotado a una cola ficticia, sólo dentro del staging/demo protegido."""
+    role = str(role or "").strip().lower()
+    if not DEMO_ROLE_ACCESS_ENABLED or role not in DEMO_TICKET_ROLES:
+        return render_template("error.html", mensaje="Acceso demo no habilitado."), 404
+    if session.get("demo_authenticated") is not True:
+        return redirect(url_for("demo_login"))
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida."), 400
+    session.clear()
+    session.permanent = True
+    session["demo_authenticated"] = True
+    session["user"] = f"demo-{role}"
+    session["nombre"] = f"Demo {DEMO_TICKET_ROLES[role]}"
+    session["rol"] = role
+    session["auth_provider"] = "demo"
+    return redirect(url_for("admin_panel"))
 
 
 @app.route("/demo-logout", methods=["POST"])
@@ -8467,6 +8503,11 @@ def admin_panel():
         metricas_resumen=metricas_resumen,
         material_stage_meta=MATERIAL_STAGE_META,
         es_rita=es_rita,
+        service_scoped_role=service_scoped_role,
+        scoped_service_label=(
+            TICKET_SERVICE_LABELS[_role_ticket_service(session.get("rol"))]
+            if service_scoped_role else None
+        ),
     )
 
 

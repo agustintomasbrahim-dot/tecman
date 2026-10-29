@@ -17,6 +17,8 @@ services:
         value: "false"
       - key: DEMO_PASSWORD
         sync: false
+      - key: TECMAN_DEMO_ROLE_ACCESS_ENABLED
+        value: "true"
       - key: TECMAN_BUILD_MARKER
         value: marketing-it-staging-20261027
       - key: SECRET_KEY
