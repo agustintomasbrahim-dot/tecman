@@ -169,6 +169,18 @@ class DemoPasswordTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
         self.assertIn("Usuario o contraseña incorrectos", login.get_data(as_text=True))
 
+    def test_staging_demo_roles_seed_service_tickets_once(self):
+        module = _load_app(self.root, environment="staging", role_access=True)
+        seeded = [
+            ticket for ticket in module.load_tickets(readonly=True)
+            if str(ticket.get("ticket_prueba", "")).startswith("demo_")
+        ]
+        self.assertEqual({ticket["servicio"] for ticket in seeded}, {"it", "marketing"})
+        self.assertEqual(len(seeded), 2)
+        ticket_count = len(module.load_tickets(readonly=True))
+        self.assertEqual(module._ensure_demo_service_tickets(), [])
+        self.assertEqual(len(module.load_tickets(readonly=True)), ticket_count)
+
     def test_role_cards_require_explicit_staging_configuration(self):
         module = _load_app(self.root, environment="production", role_access=True)
         module.app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

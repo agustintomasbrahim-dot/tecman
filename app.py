@@ -6257,6 +6257,67 @@ for _test_material_ticket in TEST_MATERIAL_TICKETS:
     _ensure_test_material_ticket(_test_material_ticket)
 
 
+def _ensure_demo_service_tickets():
+    """Crea fixtures idempotentes de IT/Marketing sólo para el demo de staging."""
+    if USE_DB or TECMAN_ENVIRONMENT != "staging" or not DEMO_ROLE_ACCESS_ENABLED:
+        return []
+    tickets = load_tickets()
+    specs = (
+        ("demo_it_circuit_2026_11_01", "it", "IT"),
+        ("demo_marketing_circuit_2026_11_01", "marketing", "Marketing"),
+    )
+    existing_marks = {ticket.get("ticket_prueba") for ticket in tickets}
+    numeric_ids = []
+    for ticket in tickets:
+        try:
+            numeric_ids.append(int(ticket.get("id")))
+        except (TypeError, ValueError):
+            continue
+    next_id = max(numeric_ids + [0]) + 1
+    now_iso = datetime.datetime.now().isoformat()
+    created = []
+    for mark, service, label in specs:
+        if mark in existing_marks:
+            continue
+        ticket = {
+            "id": next_id,
+            "servicio": service,
+            "asunto": f"[DEMO] Validación de circuito {label}",
+            "sucursal": "Sucursal 011",
+            "categoria": "",
+            "subcategoria": "",
+            "descripcion": (
+                f"Ticket ficticio creado en staging para validar el circuito de {label}. "
+                "No requiere acción operativa."
+            ),
+            "solicitante_nombre": "Agustin",
+            "solicitante_apellido": "Prueba",
+            "solicitante": "Agustin Prueba",
+            "prioridad": 4,
+            "estado": "Nuevo",
+            "asignado": "",
+            "fotos": [],
+            "observaciones": "Fixture de staging; no corresponde a una solicitud real.",
+            "creado": now_iso,
+            "actualizado": now_iso,
+            "ticket_prueba": mark,
+            "notas": [{
+                "autor": "Sistema",
+                "fecha": now_iso,
+                "texto": "Ticket DEMO para validar el aislamiento de la cola por servicio.",
+            }],
+        }
+        tickets.append(ticket)
+        created.append(ticket["id"])
+        next_id += 1
+    if created:
+        save_tickets(tickets)
+    return created
+
+
+_ensure_demo_service_tickets()
+
+
 def load_syh_gestiones():
     if USE_DB:
         return {"gestiones": _db_list(SyhGestionDB)}
