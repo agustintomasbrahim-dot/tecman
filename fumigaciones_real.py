@@ -27,6 +27,11 @@ def _session_valid():
     return bool(validator() if validator else True)
 
 
+def _global_reviewer_session():
+    validator = current_app.config.get("TECMAN_GLOBAL_REVIEWER_SESSION_VALIDATOR")
+    return bool(validator() if validator else False)
+
+
 def _refresh_provider():
     callback = current_app.config.get("FUMIGACIONES_REFRESH_SESSION")
     return callback() if callback else session.get("prov_tipo_cuenta")
@@ -50,13 +55,7 @@ def admin_required(view):
         if not session.get("user") or not _session_valid():
             session.clear()
             return redirect(url_for("admin_login"))
-        is_reviewer = (
-            request.method in {"GET", "HEAD", "OPTIONS"}
-            and session.get("auth_provider") == "entra"
-            and session.get("entra_role") == "revisor_global"
-            and session.get("rol") == "revisor_global"
-            and session.get("auth_account_role") == "revisor_global"
-        )
+        is_reviewer = request.method in {"GET", "HEAD", "OPTIONS"} and _global_reviewer_session()
         if is_reviewer:
             return view(*args, **kwargs)
         if session.get("rol") != "admin" or (session.get("auth_provider") == "entra" and session.get("entra_role") != "admin"):
@@ -376,7 +375,11 @@ def complete_legacy(record_id):
 @fumigaciones_bp.get("/suc/fumigaciones/visita/<record_id>/archivo/<filename>")
 @fumigaciones_bp.get("/proveedor/fumigaciones/visita/<record_id>/archivo/<filename>")
 def serve_file(record_id, filename):
-    admin = bool(session.get("user") and session.get("rol") == "admin" and _session_valid())
+    admin = bool(
+        session.get("user")
+        and _session_valid()
+        and (session.get("rol") == "admin" or _global_reviewer_session())
+    )
     provider = bool(session.get("prov_user") and _session_valid() and _refresh_provider() == "fumigacion")
     branch = bool(session.get("suc_user") and _session_valid())
     if not (admin or provider or branch):

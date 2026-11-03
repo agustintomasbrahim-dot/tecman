@@ -67,6 +67,11 @@ def _session_valid():
     return bool(validator() if validator else True)
 
 
+def _global_reviewer_session():
+    validator = current_app.config.get("TECMAN_GLOBAL_REVIEWER_SESSION_VALIDATOR")
+    return bool(validator() if validator else False)
+
+
 def real_required(view):
     @wraps(view)
     def decorated(*args, **kwargs):
@@ -85,13 +90,7 @@ def admin_required(view):
         if "user" not in session or not _session_valid():
             session.clear()
             return redirect(url_for("admin_login"))
-        is_reviewer = (
-            request.method in {"GET", "HEAD", "OPTIONS"}
-            and session.get("auth_provider") == "entra"
-            and session.get("entra_role") == "revisor_global"
-            and session.get("rol") == "revisor_global"
-            and session.get("auth_account_role") == "revisor_global"
-        )
+        is_reviewer = request.method in {"GET", "HEAD", "OPTIONS"} and _global_reviewer_session()
         if is_reviewer:
             return view(*args, **kwargs)
         if session.get("rol") != "admin":
@@ -579,7 +578,14 @@ def return_for_changes(branch):
 
 @real_bp.get("/proveedor/matafuegos/visita/<visit_id>/archivo/<filename>")
 def serve_file(visit_id, filename):
-    is_admin = bool(session.get("user") and session.get("rol") == "admin" and _session_valid() and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin"))
+    is_admin = bool(
+        session.get("user")
+        and _session_valid()
+        and (
+            (session.get("rol") == "admin" and (session.get("auth_provider") != "entra" or session.get("entra_role") == "admin"))
+            or _global_reviewer_session()
+        )
+    )
     is_provider = bool(session.get("prov_user") and _session_valid() and _refresh_session() == "matafuegos")
     if not (is_admin or is_provider):
         return render_template("error.html", mensaje="Acceso restringido al archivo."), 403

@@ -146,6 +146,40 @@ class DemoPasswordTests(unittest.TestCase):
         denied = client.post("/admin/stock/add", data={"item": "x", "cantidad": "1"})
         self.assertEqual(denied.status_code, 403)
 
+        ticket = _ticket(701, "mantenimiento")
+        matafuego = {
+            "id": "MAT-101", "sucursal": "Sucursal 101", "sucursal_num": "101",
+            "local_nombre": "Local Uno", "tipo": "ABC", "capacidad": "5 KG",
+            "cantidad": 1, "ubicacion": "Salón", "nro_extintor": "SER-101",
+            "fecha_carga": "2025-01-01", "fecha_vencimiento": "2026-01-01",
+        }
+        fumigacion = {
+            "id": "FUM-101", "sucursal_num": "101", "sucursal": "Sucursal 101",
+            "proveedor": "Proveedor Fumigaciones", "estado": "Programada",
+            "fecha_programada": "2026-11-10", "documentos": {}, "historial": [],
+            "creado": "2026-11-03T10:00:00", "actualizado": "2026-11-03T10:00:00",
+        }
+        overrides = {
+            "MATAFUEGOS_REAL_LOAD_INVENTORY": lambda: {"matafuegos": [matafuego]},
+            "MATAFUEGOS_REAL_LOAD_VISITS": lambda: {"visitas": []},
+            "MATAFUEGOS_REAL_ADMIN_PORTFOLIO": lambda: {"101": {"Proveedor Matafuegos"}},
+            "FUMIGACIONES_LOAD": lambda: [fumigacion],
+            "FUMIGACIONES_BRANCH_INFO": lambda num: {"direccion": "Calle de prueba"},
+            "FUMIGACIONES_SIMPLE_PROVIDER_NAMES": (),
+        }
+        module.app.config.update(overrides)
+        with patch.object(module, "load_tickets", return_value=[ticket]):
+            self.assertEqual(client.get("/admin/ticket/701").status_code, 200)
+        self.assertEqual(client.get("/admin/proveedores/matafuegos/sucursal/101").status_code, 200)
+        self.assertEqual(client.get("/admin/proveedores/fumigaciones/visita/FUM-101").status_code, 200)
+        for path in (
+            "/admin/ticket/701",
+            "/admin/proveedores/matafuegos/sucursal/101/validar",
+            "/admin/proveedores/fumigaciones/visita/FUM-101/validar",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(client.post(path, data={"_csrf_token": "irrelevante"}).status_code, 403)
+
     def test_expired_temporary_global_reviewer_cannot_login(self):
         module = _load_app(
             self.root,

@@ -102,6 +102,52 @@ class GlobalReviewerAccessTests(unittest.TestCase):
         self.assertEqual(self.client.get("/admin/proveedores/matafuegos").status_code, 200)
         self.assertEqual(self.client.get("/admin/proveedores/fumigaciones").status_code, 200)
 
+    def test_entra_lee_detalles_globales_y_portales_sin_habilitar_mutaciones(self):
+        self._callback()
+        ticket = {
+            "id": 701, "sucursal": "Sucursal 101", "servicio": "mantenimiento",
+            "asunto": "Revisión global", "categoria": "Mantenimiento", "subcategoria": "",
+            "descripcion": "Detalle visible para revisión", "prioridad": 3, "estado": "Nuevo",
+            "asignado": "", "fotos": [], "observaciones": "", "notas": [],
+            "creado": "2026-11-03T10:00:00", "actualizado": "2026-11-03T10:00:00",
+        }
+        matafuego = {
+            "id": "MAT-101", "sucursal": "Sucursal 101", "sucursal_num": "101",
+            "local_nombre": "Local Uno", "tipo": "ABC", "capacidad": "5 KG",
+            "cantidad": 1, "ubicacion": "Salón", "nro_extintor": "SER-101",
+            "fecha_carga": "2025-01-01", "fecha_vencimiento": "2026-01-01",
+        }
+        fumigacion = {
+            "id": "FUM-101", "sucursal_num": "101", "sucursal": "Sucursal 101",
+            "proveedor": "Proveedor Fumigaciones", "estado": "Programada",
+            "fecha_programada": "2026-11-10", "documentos": {}, "historial": [],
+            "creado": "2026-11-03T10:00:00", "actualizado": "2026-11-03T10:00:00",
+        }
+        overrides = {
+            "MATAFUEGOS_REAL_LOAD_INVENTORY": lambda: {"matafuegos": [matafuego]},
+            "MATAFUEGOS_REAL_LOAD_VISITS": lambda: {"visitas": []},
+            "MATAFUEGOS_REAL_ADMIN_PORTFOLIO": lambda: {"101": {"Proveedor Matafuegos"}},
+            "FUMIGACIONES_LOAD": lambda: [fumigacion],
+            "FUMIGACIONES_BRANCH_INFO": lambda num: {"direccion": "Calle de prueba"},
+            "FUMIGACIONES_SIMPLE_PROVIDER_NAMES": (),
+        }
+        previous = {key: tecman.app.config.get(key) for key in overrides}
+        tecman.app.config.update(overrides)
+        try:
+            with patch.object(tecman, "load_tickets", return_value=[ticket]):
+                self.assertEqual(self.client.get("/admin/ticket/701").status_code, 200)
+            self.assertEqual(self.client.get("/admin/proveedores/matafuegos/sucursal/101").status_code, 200)
+            self.assertEqual(self.client.get("/admin/proveedores/fumigaciones/visita/FUM-101").status_code, 200)
+            for path in (
+                "/admin/ticket/701",
+                "/admin/proveedores/matafuegos/sucursal/101/validar",
+                "/admin/proveedores/fumigaciones/visita/FUM-101/validar",
+            ):
+                with self.subTest(path=path):
+                    self.assertEqual(self.client.post(path, data={"_csrf_token": "irrelevante"}).status_code, 403)
+        finally:
+            tecman.app.config.update(previous)
+
     def test_toda_escritura_se_rechaza_sin_mutar_archivos(self):
         self._callback()
         watched = [tecman.USERS_FILE, tecman.TICKETS_FILE]

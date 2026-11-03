@@ -6652,6 +6652,8 @@ def any_session_required(f):
 
 def _session_can_view_ticket(ticket, tickets):
     """Limita la vista generica de estado al alcance del portal autenticado."""
+    if _is_global_reviewer_session():
+        return True
     if "suc_user" in session:
         return _sucursal_session_can_access_item(ticket)
     if "prov_user" in session:
@@ -10193,6 +10195,7 @@ def _notificar_programacion_fumigacion(visita):
 
 app.config.update(
     TECMAN_SESSION_AUTH_VALIDATOR=_session_auth_is_valid,
+    TECMAN_GLOBAL_REVIEWER_SESSION_VALIDATOR=_is_global_reviewer_session,
     MATAFUEGOS_REAL_LOAD_INVENTORY=load_matafuegos,
     MATAFUEGOS_REAL_SAVE_INVENTORY=save_matafuegos,
     MATAFUEGOS_REAL_LOAD_VISITS=load_matafuegos_visitas,
