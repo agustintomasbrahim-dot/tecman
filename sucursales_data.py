@@ -108,6 +108,7 @@ SUCURSALES_INFO = {
     "231": {"marca": "MV", "tienda": "Moov Portal Neuquen", "ciudad": "Neuquen", "provincia": "Neuquen", "direccion": "Juan Julian Lastra 2400", "lat": -38.9516, "lng": -68.0591},
     "232": {"marca": "MV", "tienda": "Moov Moreno", "ciudad": "Moreno", "provincia": "Buenos Aires", "direccion": "Av. Mitre 2229", "lat": -34.6378, "lng": -58.7899},
     "233": {"marca": "DX", "tienda": "Dexter Cordoba 9 de Julio", "ciudad": "Cordoba Capital", "provincia": "Cordoba", "direccion": "C Dj 54", "lat": -31.4201, "lng": -64.1888},
+    "234": {"marca": "MV", "tienda": "Moov Parque Brown", "ciudad": "CABA", "provincia": "CABA", "direccion": "Av. Francisco Fernandez De La Cruz 4602", "lat": -34.6750, "lng": -58.4450},
     "235": {"marca": "DX", "tienda": "Dexter Jujuy", "ciudad": "San Salvador de Jujuy", "provincia": "Jujuy", "direccion": "Belgrano 825", "lat": -24.1858, "lng": -65.2995},
     "236": {"marca": "MV", "tienda": "Moov Mendoza Plaza Shopping", "ciudad": "Mendoza Ciudad", "provincia": "Mendoza", "direccion": "Av. De Acceso Este 3280", "lat": -32.8895, "lng": -68.8167},
     "237": {"marca": "DX", "tienda": "Dexter Shopping Portal Canning", "ciudad": "Canning", "provincia": "Buenos Aires", "direccion": "Av Pedro Dreyer 4670 - Local 1048", "lat": -34.8596, "lng": -58.5084},
