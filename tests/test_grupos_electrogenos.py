@@ -432,7 +432,16 @@ class GruposElectrogenosTest(unittest.TestCase):
             elif suc_num == "224":
                 old_values.pop("marca")
                 old_values.pop("modelo")
-            with tecman.app.test_request_context("/"):
+            # La 166 se construye como dato histórico previo al cierre. El helper
+            # de altas debe rechazarla en el catálogo activo actual.
+            closed = set(tecman.SUCURSALES_CERRADAS)
+            active = list(tecman.SUCURSALES)
+            if suc_num == "166":
+                closed.discard("166")
+                active.append("Sucursal 166")
+            with mock.patch.object(tecman, "SUCURSALES_CERRADAS", closed), \
+                 mock.patch.object(tecman, "SUCURSALES", active), \
+                 tecman.app.test_request_context("/"):
                 item = tecman._generador_from_values(old_values, "Sistema", "inventario anterior")
             item.update({
                 "id": f"ge-20260923-{suc_num}",
@@ -456,7 +465,7 @@ class GruposElectrogenosTest(unittest.TestCase):
             first = tecman._ensure_grupos_electrogenos_inventario_2026_09()
             second = tecman._ensure_grupos_electrogenos_inventario_2026_09()
 
-        self.assertEqual(first, 21)
+        self.assertEqual(first, 20)
         self.assertEqual(second, 0)
         items = tecman.load_grupos_electrogenos()["grupos_electrogenos"]
         self.assertEqual(len(items), 21)
@@ -481,7 +490,8 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual(audit["revision"], "2026-09-28")
         self.assertEqual(audit["sha256"], tecman.GRUPOS_ELECTROGENOS_INVENTARIO_SHA256)
 
-        self.assertEqual((by_branch["166"]["marca"], by_branch["166"]["modelo"]), ("ARVEK", "16000NT"))
+        self.assertEqual((by_branch["166"]["marca"], by_branch["166"]["modelo"]), ("", ""))
+        self.assertEqual(by_branch["166"]["fuente_importacion"], "inventario_grupos_2026-09-23")
         self.assertEqual((by_branch["176"]["modelo"], by_branch["176"]["ubicacion"]), ("4105ZD", "Móvil"))
         self.assertEqual((by_branch["177"]["marca"], by_branch["177"]["modelo"]), ("Kipor", "KDE30SS3"))
         self.assertEqual((by_branch["186"]["ubicacion"], by_branch["186"]["proveedor"], by_branch["186"]["marca"]), ("Fijo", "Fenk", "termoelectra"))
@@ -495,9 +505,10 @@ class GruposElectrogenosTest(unittest.TestCase):
         self.assertEqual((by_branch["240"]["modelo"], by_branch["240"]["numero_serie"]), ("404D-22", "190363620"))
         self.assertEqual(by_branch["241"]["estado_equipo"], "Compartido con Sucursal 239")
         self.assertIn("No tiene grupo propio", by_branch["241"]["observaciones"])
-        self.assertTrue(all(item["fuente_importacion"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE for item in items))
-        self.assertTrue(all(item["fuente_revision"] == "2026-09-28" for item in items))
-        self.assertTrue(all(item["fuente_sha256"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_SHA256 for item in items))
+        activos = [item for item in items if item["sucursal_num"] != "166"]
+        self.assertTrue(all(item["fuente_importacion"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_FUENTE for item in activos))
+        self.assertTrue(all(item["fuente_revision"] == "2026-09-28" for item in activos))
+        self.assertTrue(all(item["fuente_sha256"] == tecman.GRUPOS_ELECTROGENOS_INVENTARIO_SHA256 for item in activos))
 
     def test_novedades_validas_persisten_foto_auditoria_y_campos_por_tipo(self):
         equipo = self._equipo()

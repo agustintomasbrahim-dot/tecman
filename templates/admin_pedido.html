@@ -18,6 +18,14 @@
 {% endblock %}
 {% block content %}
 
+{% if sucursal_cerrada %}
+<section class="card" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;padding:16px;margin-bottom:16px;">
+    <strong>Sucursal cerrada · consulta histórica</strong>
+    <div style="margin-top:4px;">El pedido y sus adjuntos se conservan para Administración. No admite nuevas acciones ni cambios.</div>
+</section>
+<style>.pedido-page--closed form { display:none !important; }</style>
+{% endif %}
+
 <style>
 .pedido-page .card { box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
 .pedido-grid-top { display:grid; grid-template-columns: 1.2fr 0.8fr; gap:16px; }
@@ -64,7 +72,7 @@
 }
 </style>
 
-<div class="pedido-page">
+<div class="pedido-page{% if sucursal_cerrada %} pedido-page--closed{% endif %}">
 <div class="pedido-grid-top" style="margin-bottom: 16px;">
 <div class="card" style="border-left: 4px solid #e63946; margin-bottom: 0;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
@@ -154,6 +162,28 @@
         <button type="submit" class="btn" style="background:#2563eb;color:#fff;">Enviar respuesta</button>
     </form>
 </div>
+
+{% if can_close_without_dispatch and not sucursal_cerrada and ticket.estado not in ('Rechazado', 'Resuelto', 'Cerrado') %}
+<div class="card" style="border-left:4px solid #b91c1c;background:#fff7f7;">
+    <h3 style="margin-bottom:6px;color:#991b1b;">Cerrar sin salida</h3>
+    <p class="pedido-help" style="margin-bottom:12px;">Acción excepcional para pedidos duplicados o que no deben despacharse. Cierra el ticket sin descontar stock y sin crear movimientos, lotes, remitos ni salidas.</p>
+    <form method="POST" action="{{ url_for('admin_pedido_cerrar_sin_salida', ticket_id=ticket.id) }}" style="display:grid;gap:10px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="idempotency_key" value="{{ close_without_dispatch_key }}">
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Tipo de motivo</label>
+            <select name="motivo_tipo" required>
+                {% for value, label in close_without_dispatch_reasons.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Motivo del cierre</label>
+            <textarea name="motivo" maxlength="2000" required placeholder="Ej: pedido duplicado del ticket #12345; no corresponde preparar ni despachar."></textarea>
+        </div>
+        <button type="submit" class="btn" style="background:#b91c1c;color:white;" onclick="return confirm('¿Cerrar este ticket sin salida? No se descontará stock ni se generarán documentos.');">Cerrar sin salida</button>
+    </form>
+</div>
+{% endif %}
 
 <!-- Stock relevante al pedido -->
 <div class="card">

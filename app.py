@@ -71,6 +71,12 @@ TICKET_REPLY_MAX_LENGTH = 2000
 TICKET_BRANCH_RESOLUTION_MAX_LENGTH = 2000
 TICKET_REPLY_IDEMPOTENCY_MAX_LENGTH = 128
 _TICKET_REPLY_LOCK = threading.RLock()
+MATERIAL_CLOSE_WITHOUT_DISPATCH_MAX_LENGTH = 2000
+MATERIAL_CLOSE_WITHOUT_DISPATCH_REASONS = {
+    "duplicado": "Ticket duplicado",
+    "otro": "Otro cierre excepcional",
+}
+_MATERIAL_CLOSE_WITHOUT_DISPATCH_LOCK = threading.RLock()
 
 
 def is_video_file(filename):
@@ -292,7 +298,7 @@ SUCURSALES = [
     "Sucursal 237", "Sucursal 238", "Sucursal 239", "Sucursal 240",
     "Sucursal 241",
 ]
-SUCURSALES_CERRADAS = {"028", "185", "199", "215"}
+SUCURSALES_CERRADAS = {"028", "166", "185", "199", "215"}
 
 
 def _raw_sucursal_num_from_value(value):
@@ -2715,6 +2721,8 @@ def _ensure_grupos_electrogenos_inventario_2026_09():
     changed = 0
     for values in GRUPOS_ELECTROGENOS_INVENTARIO_2026_09:
         suc_num = _sucursal_num_from_value(values["sucursal"])
+        if _is_sucursal_cerrada(suc_num):
+            continue
         matches = [
             item for item in items
             if _sucursal_num_from_value(item.get("sucursal_num") or item.get("sucursal")) == suc_num
@@ -5882,6 +5890,98 @@ def save_tickets(tickets):
     if USE_DB:
         _db_replace(TicketDB, tickets)
     _atomic_write(TICKETS_FILE, tickets)
+
+
+def _can_close_material_without_dispatch():
+    """Limita el cierre excepcional al perfil administrativo que gestiona tickets."""
+    if "user" not in session or not _session_auth_is_valid():
+        return False
+    if session.get("rol") != "admin":
+        return False
+    return session.get("auth_provider") != "entra" or session.get("entra_role") == "admin"
+
+
+def _material_close_without_dispatch_apply(ticket, actor, reason_code, reason, idempotency_key):
+    """Valida y aplica sólo la transición del ticket; no toca inventario ni documentos."""
+    if not _is_material_ticket(ticket):
+        raise LookupError("El ticket no pertenece al circuito de materiales")
+    if _is_ticket_sucursal_cerrada(ticket):
+        raise LookupError("Sucursal cerrada. El pedido histórico está disponible sólo para consulta.")
+
+    previous = next(
+        (
+            event for event in (ticket.get("cierre_sin_salida_historial") or [])
+            if isinstance(event, dict) and event.get("idempotency_key") == idempotency_key
+        ),
+        None,
+    )
+    if previous:
+        return {"changed": False, "ticket": copy.deepcopy(ticket), "event": copy.deepcopy(previous)}
+    if _is_ticket_finalizado(ticket):
+        raise ValueError("El ticket ya está finalizado")
+
+    now = datetime.datetime.now().isoformat()
+    event = {
+        "accion": "cerrado_sin_salida",
+        "actor": actor,
+        "fecha": now,
+        "motivo_tipo": reason_code,
+        "motivo": reason,
+        "estado_anterior": ticket.get("estado", ""),
+        "estado_final": "Cerrado",
+        "idempotency_key": idempotency_key,
+        "sin_descuento_stock": True,
+        "sin_salida": True,
+    }
+    ticket["estado"] = "Cerrado"
+    ticket["fecha_cierre"] = now
+    ticket["actualizado"] = now
+    ticket["cierre_sin_salida"] = copy.deepcopy(event)
+    ticket.setdefault("cierre_sin_salida_historial", []).append(copy.deepcopy(event))
+    ticket.setdefault("notas", []).append({
+        "autor": actor,
+        "fecha": now,
+        "tipo": "cierre_sin_salida",
+        "texto": (
+            f"Cierre excepcional sin salida ({MATERIAL_CLOSE_WITHOUT_DISPATCH_REASONS[reason_code]}): "
+            f"{reason}. No se descontó stock ni se generaron movimientos, lotes, remitos o salidas."
+        ),
+        "visibilidad": "sucursal",
+    })
+    return {"changed": True, "ticket": copy.deepcopy(ticket), "event": copy.deepcopy(event)}
+
+
+def _material_close_without_dispatch_transaction(ticket_id, actor, reason_code, reason, idempotency_key):
+    """Relee y persiste un único ticket bajo exclusión, con soporte JSON y PostgreSQL."""
+    with _MATERIAL_CLOSE_WITHOUT_DISPATCH_LOCK:
+        if USE_DB:
+            try:
+                row = TicketDB.query.filter_by(id=str(ticket_id)).with_for_update().first()
+                ticket = copy.deepcopy(row.payload) if row else None
+                if ticket is None:
+                    raise LookupError("Ticket no encontrado")
+                result = _material_close_without_dispatch_apply(
+                    ticket, actor, reason_code, reason, idempotency_key
+                )
+                if result["changed"]:
+                    row.payload = ticket
+                    row.estado = ticket["estado"]
+                    db.session.commit()
+                return result
+            except Exception:
+                db.session.rollback()
+                raise
+
+        tickets = _load_tickets_raw()
+        ticket = next((item for item in tickets if str(item.get("id")) == str(ticket_id)), None)
+        if ticket is None:
+            raise LookupError("Ticket no encontrado")
+        result = _material_close_without_dispatch_apply(
+            ticket, actor, reason_code, reason, idempotency_key
+        )
+        if result["changed"]:
+            _atomic_write(TICKETS_FILE, tickets)
+        return result
 
 
 MIGRATION_PENDING_PROVIDER_CLEANUP = {
@@ -9059,10 +9159,21 @@ def serve_requisicion(filename):
 @app.route("/admin/ticket/<int:ticket_id>", methods=["GET", "POST"])
 @login_required
 def admin_ticket(ticket_id):
-    tickets = load_tickets(readonly=request.method == "GET")
+    tickets = load_tickets(readonly=True)
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    sucursal_cerrada = _is_ticket_sucursal_cerrada(ticket)
+    if request.method == "POST" and sucursal_cerrada:
+        return render_template(
+            "error.html",
+            mensaje="Sucursal cerrada. El ticket histórico está disponible sólo para consulta.",
+        ), 409
+    if request.method == "POST":
+        tickets = load_tickets()
+        ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+        if not ticket:
+            return "Ticket no encontrado", 404
     if _is_material_ticket(ticket):
         return redirect(url_for("admin_pedido", ticket_id=ticket_id))
     if session.get("rol") == "tecnico":
@@ -9555,6 +9666,7 @@ def admin_ticket(ticket_id):
         proveedores_catalogo=_proveedores_catalogo_ticket(_suc_num_at),
         es_fumigacion=_ticket_es_fumigacion(ticket),
         fumigacion=_fumigacion_ticket_para_vista(ticket) if _ticket_es_fumigacion(ticket) else None,
+        sucursal_cerrada=sucursal_cerrada,
     )
 
 
@@ -9609,7 +9721,7 @@ def _cartera_matafuegos_usuario():
             continue
         for sucursal in proveedor.get("sucursales", []):
             numero = _normalizar_sucursal_matafuegos(sucursal)
-            if numero:
+            if numero and not _is_sucursal_cerrada(numero):
                 cartera[numero] = proveedor.get("nombre") or session.get("prov_nombre") or "Proveedor"
     return cartera
 
@@ -9621,7 +9733,7 @@ def _cartera_matafuegos_admin():
             continue
         for sucursal in proveedor.get("sucursales", []):
             numero = _normalizar_sucursal_matafuegos(sucursal)
-            if numero:
+            if numero and not _is_sucursal_cerrada(numero):
                 cartera.setdefault(numero, []).append(proveedor.get("nombre") or "Proveedor")
     return cartera
 
@@ -10657,6 +10769,8 @@ def compras_stock():
     # Stock por sucursal filtrado a insumos de compras
     stock_sucursales = {}
     for suc, items_suc in (stock.get("sucursales", {}) or {}).items():
+        if _is_sucursal_cerrada(suc):
+            continue
         filtrados = {k: v for k, v in (items_suc or {}).items() if _es_insumo_compras(k)}
         if filtrados:
             stock_sucursales[suc] = filtrados
@@ -11302,35 +11416,41 @@ def serve_trabajo(filename):
 def admin_sucursal(suc_num):
     from sucursales_data import SUCURSALES_INFO
 
-    if _is_sucursal_cerrada(suc_num):
-        return render_template("error.html", mensaje="Sucursal cerrada. Sin gestión activa."), 404
+    suc_num = _sucursal_num_from_value(suc_num)
+    sucursal_cerrada = _is_sucursal_cerrada(suc_num)
 
     # Sucursal info
     info = SUCURSALES_INFO.get(suc_num, {})
     suc_name = f"Sucursal {suc_num}"
 
-    # Tickets
-    tickets = load_tickets()
-    suc_tickets = [t for t in tickets if t["sucursal"] == suc_name]
-    activos = [t for t in suc_tickets if not _is_ticket_finalizado(t)]
-    cerrados = [t for t in suc_tickets if _is_ticket_finalizado(t)]
+    # Tickets históricos se leen sin normalizaciones persistentes.
+    tickets = load_tickets(readonly=sucursal_cerrada)
+    suc_tickets = [
+        t for t in tickets
+        if _sucursal_num_from_value(_ticket_sucursal_value(t)) == suc_num
+    ]
+    activos = [] if sucursal_cerrada else [t for t in suc_tickets if not _is_ticket_finalizado(t)]
+    cerrados = list(suc_tickets) if sucursal_cerrada else [t for t in suc_tickets if _is_ticket_finalizado(t)]
     presupuestos_data = load_presupuestos().get("presupuestos", [])
     presupuestos_sucursal = [p for p in presupuestos_data if p.get("sucursal") == suc_name]
     presupuestos_sucursal.sort(key=lambda x: x.get("fecha_carga", ""), reverse=True)
 
     # Proveedores que cubren esta sucursal
     mis_proveedores = []
-    for p in _proveedores_enriquecidos():
-        for s in p["sucursales"]:
-            if s == suc_num or s == suc_num.lstrip("0"):
-                if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
-                    continue
-                mis_proveedores.append(p)
-                break
+    if not sucursal_cerrada:
+        for p in _proveedores_enriquecidos():
+            for s in p["sucursales"]:
+                if s == suc_num or s == suc_num.lstrip("0"):
+                    if p.get("tipo") == "Fumigaciones" and p.get("mostrar_sucursal") is False:
+                        continue
+                    mis_proveedores.append(p)
+                    break
 
     # Inventario from Google Sheets
     inventario = {}
     try:
+        if sucursal_cerrada:
+            raise RuntimeError("La ficha cerrada no consulta inventario operativo externo")
         import sys
 
         from gauth import sheets as get_sheets
@@ -11363,6 +11483,7 @@ def admin_sucursal(suc_num):
         mis_proveedores=mis_proveedores,
         inventario=inventario,
         prioridades=PRIORIDADES,
+        sucursal_cerrada=sucursal_cerrada,
     )
 
 
@@ -12871,10 +12992,21 @@ def admin_pedidos():
 def admin_pedido(ticket_id):
     from categories_data import MATERIAL_CATEGORIAS
 
-    tickets = load_tickets()
+    tickets = load_tickets(readonly=True)
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+    sucursal_cerrada = _is_ticket_sucursal_cerrada(ticket)
+    if request.method == "POST" and sucursal_cerrada:
+        return render_template(
+            "error.html",
+            mensaje="Sucursal cerrada. El pedido histórico está disponible sólo para consulta.",
+        ), 409
+    if request.method == "POST":
+        tickets = load_tickets()
+        ticket = next((t for t in tickets if t["id"] == ticket_id), None)
+        if not ticket:
+            return "Ticket no encontrado", 404
 
     stock = load_stock()
     central = stock.get("central", {})
@@ -13427,7 +13559,61 @@ def admin_pedido(ticket_id):
         es_ceyh=es_ceyh,
         material_categorias=MATERIAL_CATEGORIAS,
         salida_destinos=_salida_parcial_destinos(ticket),
+        can_close_without_dispatch=_can_close_material_without_dispatch(),
+        close_without_dispatch_reasons=MATERIAL_CLOSE_WITHOUT_DISPATCH_REASONS,
+        close_without_dispatch_key=uuid.uuid4().hex,
+        sucursal_cerrada=sucursal_cerrada,
     )
+
+
+@app.route("/admin/pedido/<int:ticket_id>/cerrar-sin-salida", methods=["POST"])
+def admin_pedido_cerrar_sin_salida(ticket_id):
+    """Cierre excepcional separado del despacho normal de materiales."""
+    if not _can_close_material_without_dispatch():
+        return render_template("error.html", mensaje="No tenés permiso para cerrar sin salida."), 403
+    if not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
+
+    reason_code = (request.form.get("motivo_tipo") or "").strip()
+    reason = (request.form.get("motivo") or "").strip()
+    idempotency_key = (request.form.get("idempotency_key") or "").strip()
+    if reason_code not in MATERIAL_CLOSE_WITHOUT_DISPATCH_REASONS:
+        return render_template("error.html", mensaje="Seleccioná un motivo de cierre válido."), 400
+    if not reason or len(reason) > MATERIAL_CLOSE_WITHOUT_DISPATCH_MAX_LENGTH:
+        return render_template(
+            "error.html",
+            mensaje=f"El motivo es obligatorio y admite hasta {MATERIAL_CLOSE_WITHOUT_DISPATCH_MAX_LENGTH} caracteres.",
+        ), 400
+    if (
+        not idempotency_key
+        or len(idempotency_key) > TICKET_REPLY_IDEMPOTENCY_MAX_LENGTH
+        or not re.fullmatch(r"[A-Za-z0-9._:-]+", idempotency_key)
+    ):
+        return render_template("error.html", mensaje="Identificador de operación inválido."), 400
+
+    actor = session.get("nombre") or session.get("user") or "Administración"
+    try:
+        result = _material_close_without_dispatch_transaction(
+            ticket_id, actor, reason_code, reason, idempotency_key
+        )
+    except LookupError as exc:
+        message = str(exc)
+        if message == "Ticket no encontrado":
+            status = 404
+        elif message.startswith("Sucursal cerrada."):
+            status = 409
+        else:
+            status = 400
+        return render_template("error.html", mensaje=message), status
+    except ValueError as exc:
+        return render_template("error.html", mensaje=str(exc)), 409
+
+    flash(
+        "El ticket ya estaba cerrado por esta operación."
+        if not result["changed"]
+        else "Ticket cerrado sin salida. No se modificó el inventario ni se generaron documentos."
+    )
+    return redirect(url_for("admin_pedido", ticket_id=ticket_id))
 
 
 @app.route("/admin/pedido/<int:ticket_id>/guia")
@@ -13440,6 +13626,14 @@ def admin_pedido_guia(ticket_id):
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
     if not ticket:
         return "Ticket no encontrado", 404
+
+    # Los comprobantes históricos ya emitidos siguen consultables, pero el GET
+    # no puede crear una guía nueva para una sucursal cerrada.
+    if _is_ticket_sucursal_cerrada(ticket) and not ticket.get("guia_transporte_numero"):
+        return render_template(
+            "error.html",
+            mensaje="Sucursal cerrada. No se generan documentos operativos nuevos.",
+        ), 409
 
     # Numero de guia: si el ticket ya tiene uno, lo reutilizamos.
     existing = ticket.get("guia_transporte_numero")
@@ -13528,7 +13722,11 @@ def admin_stock():
     stock = load_stock()
     transfers = load_transfers()
     central = stock.get("central", {})
-    sucursales_stock = stock.get("sucursales", {})
+    sucursales_stock = {
+        suc: items
+        for suc, items in (stock.get("sucursales", {}) or {}).items()
+        if not _is_sucursal_cerrada(suc)
+    }
 
     # Sort items → lista de (item, cantidad, precio_unitario)
     central_items = sorted(
@@ -13574,6 +13772,12 @@ def stock_add():
     cantidad = int(request.form.get("cantidad", 0))
     ubicacion = request.form.get("ubicacion", "central")
 
+    if ubicacion != "central" and _is_sucursal_cerrada(ubicacion):
+        return render_template(
+            "error.html",
+            mensaje="Sucursal cerrada. No admite movimientos nuevos de inventario.",
+        ), 409
+
     if item and cantidad > 0:
         if ubicacion == "central":
             actual = get_central_qty(stock, item)
@@ -13607,6 +13811,12 @@ def stock_transfer():
     item = request.form.get("item", "").strip()
     cantidad = int(request.form.get("cantidad", 0))
     destino = request.form.get("destino", "")
+
+    if destino and _is_sucursal_cerrada(destino):
+        return render_template(
+            "error.html",
+            mensaje="Sucursal cerrada. No admite transferencias nuevas de inventario.",
+        ), 409
 
     if item and cantidad > 0 and destino:
         # Check stock
@@ -13693,7 +13903,7 @@ def admin_stock_item():
     stock_sucursales = {
         suc: items.get(item, 0)
         for suc, items in stock.get("sucursales", {}).items()
-        if items.get(item, 0) > 0
+        if items.get(item, 0) > 0 and not _is_sucursal_cerrada(suc)
     }
 
     data = load_movimientos()

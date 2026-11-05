@@ -113,7 +113,14 @@
     }
 </style>
 
-<div class="ticket-page">
+<div class="ticket-page{% if sucursal_cerrada %} ticket-page--closed{% endif %}">
+{% if sucursal_cerrada %}
+<section class="card" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;padding:16px;">
+    <strong>Sucursal cerrada · consulta histórica</strong>
+    <div style="margin-top:4px;">El ticket y sus adjuntos se conservan para Administración. No admite nuevas acciones ni cambios.</div>
+</section>
+<style>.ticket-page--closed form { display:none !important; }</style>
+{% endif %}
 <a href="{{ url_for('admin_panel') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← {% if session.nombre == 'Rita' %}Requisiciones{% else %}Tickets{% endif %}</a>
 {% if es_presupuesto_recibido %}
 <section class="quote-decision" aria-labelledby="quote-decision-title">

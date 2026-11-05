@@ -15,6 +15,13 @@
 
 <a href="{{ url_for('admin_mapa') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; color: #374151; font-size: 13px; font-weight: 600; margin-bottom: 16px;">← Mapa</a>
 
+{% if sucursal_cerrada %}
+<section class="card" style="border:1px solid #f59e0b;background:#fffbeb;color:#92400e;padding:16px;margin-bottom:16px;">
+    <strong>Sucursal cerrada · consulta histórica</strong>
+    <div style="margin-top:4px;">La identidad, los metadatos y los tickets se conservan sin habilitar gestión nueva.</div>
+</section>
+{% endif %}
+
 <!-- Header sucursal -->
 <div class="card" style="border-left: 4px solid #e63946;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
@@ -117,7 +124,7 @@
 {% if cerrados %}
 <div class="card">
     <h3 style="margin-bottom: 12px; font-size: 15px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">
-        Tickets cerrados ({{ cerrados | length }})
+        {% if sucursal_cerrada %}Tickets históricos{% else %}Tickets cerrados{% endif %} ({{ cerrados | length }})
     </h3>
     <table>
         <thead>
@@ -125,8 +132,8 @@
         </thead>
         <tbody>
             {% for t in cerrados %}
-            <tr style="opacity: 0.6;">
-                <td>{{ t.id }}</td>
+            <tr style="opacity: 0.75;cursor:pointer;" onclick="window.location='/admin/ticket/{{ t.id }}'">
+                <td><a href="{{ url_for('admin_ticket', ticket_id=t.id) }}">{{ t.id }}</a></td>
                 <td>{{ t.subcategoria }}</td>
                 <td>{{ t.creado[:10] }}</td>
                 <td style="font-size: 12px;">{{ t.observaciones[:50] }}</td>
