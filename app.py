@@ -60,6 +60,9 @@ app.config["ENABLE_NON_PRODUCTIVE_PURCHASES"] = os.environ.get(
 app.config["ENABLE_LIBRARY_CLEANING_SUPPLIES"] = os.environ.get(
     "ENABLE_LIBRARY_CLEANING_SUPPLIES", "false"
 ).strip().lower() == "true"
+app.config["RUN_LEGACY_DEMO_DATA_TASKS"] = os.environ.get(
+    "RUN_LEGACY_DEMO_DATA_TASKS", "false"
+).strip().lower() == "true"
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
@@ -2235,7 +2238,8 @@ def _cleanup_demo_central_stock():
     return {"stock": removed_stock, "comprobantes": removed_comprobantes, "movimientos": removed_movimientos}
 
 
-_cleanup_demo_central_stock()
+if app.config["RUN_LEGACY_DEMO_DATA_TASKS"]:
+    _cleanup_demo_central_stock()
 
 
 # --- FIFO por lotes ---
@@ -6005,8 +6009,9 @@ def _ensure_test_material_ticket(spec):
     return ticket["id"]
 
 
-for _test_material_ticket in TEST_MATERIAL_TICKETS:
-    _ensure_test_material_ticket(_test_material_ticket)
+if app.config["RUN_LEGACY_DEMO_DATA_TASKS"]:
+    for _test_material_ticket in TEST_MATERIAL_TICKETS:
+        _ensure_test_material_ticket(_test_material_ticket)
 
 
 def load_syh_gestiones():
@@ -9609,7 +9614,7 @@ def _cartera_matafuegos_usuario():
             continue
         for sucursal in proveedor.get("sucursales", []):
             numero = _normalizar_sucursal_matafuegos(sucursal)
-            if numero:
+            if numero and not _is_sucursal_cerrada(numero):
                 cartera[numero] = proveedor.get("nombre") or session.get("prov_nombre") or "Proveedor"
     return cartera
 
@@ -9621,7 +9626,7 @@ def _cartera_matafuegos_admin():
             continue
         for sucursal in proveedor.get("sucursales", []):
             numero = _normalizar_sucursal_matafuegos(sucursal)
-            if numero:
+            if numero and not _is_sucursal_cerrada(numero):
                 cartera.setdefault(numero, []).append(proveedor.get("nombre") or "Proveedor")
     return cartera
 
@@ -12873,8 +12878,10 @@ def admin_pedido(ticket_id):
 
     tickets = load_tickets()
     ticket = next((t for t in tickets if t["id"] == ticket_id), None)
-    if not ticket:
-        return "Ticket no encontrado", 404
+    if not ticket or not _is_material_ticket(ticket):
+        return "Pedido de materiales no encontrado", 404
+    if request.method == "POST" and not _validate_csrf():
+        return render_template("error.html", mensaje="Solicitud inválida o vencida."), 400
 
     stock = load_stock()
     central = stock.get("central", {})

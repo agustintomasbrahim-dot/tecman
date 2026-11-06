@@ -122,6 +122,23 @@ class MatafuegosRealPorSucursalesTest(unittest.TestCase):
         self.assertEqual(set(catalog), {"Diprogom", "Fuego Cero"})
         self.assertEqual(catalog, loaded)
 
+    def test_carteras_excluyen_sucursales_cerradas(self):
+        tecman.PROVEEDORES = [{
+            "nombre": "Proveedor A",
+            "tipo": "Matafuegos",
+            "workflow": "matafuegos_remito_vencimiento",
+            "sucursales": ["101", "185"],
+        }]
+        with tecman.app.test_request_context():
+            tecman.session.update(
+                prov_user="proveedor_a",
+                prov_nombre="Proveedor A",
+                prov_tipo_cuenta="matafuegos",
+                prov_session_version=1,
+            )
+            self.assertEqual(set(tecman._cartera_matafuegos_usuario()), {"101"})
+            self.assertEqual(set(tecman._cartera_matafuegos_admin()), {"101"})
+
     def test_cartera_lista_sucursales_inventario_y_rechaza_acceso_cruzado(self):
         tickets_before = tecman.TICKETS_FILE.read_bytes()
         self.provider()

@@ -146,6 +146,7 @@
     </div>
     {% endif %}
     <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="responder_suc">
         <div class="form-group" style="margin-bottom:10px;">
             <label>Mensaje para la sucursal</label>
@@ -353,6 +354,7 @@
         <h4 style="color: #b91c1c;">No cuento con stock — Derivar a Rita</h4>
         <p class="pedido-help" style="margin-bottom:10px;">Rita arma la requisición y después la envía a Compras.</p>
         <form method="POST">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="derivar_a_rita">
             <div class="form-group"><label>Material</label><input type="text" name="item_compra" placeholder="Ej: cable 2,5 mm" required></div>
             <div class="pedido-two-cols">
@@ -525,6 +527,7 @@
 
     <!-- Retiro / Envio con fecha -->
     <form method="POST" style="margin-bottom: 0;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="gestion_retiro">
         <h4 style="margin-bottom: 10px; color: #374151;">Retiro / Envío del material</h4>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
@@ -608,6 +611,7 @@
 
     <div style="border-top: 1px solid #e5e7eb; padding-top: 14px; margin-top: 4px;">
         <form method="POST">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="accion" value="enviado">
             {% if ticket.fecha_envio %}
             <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">📅 Fecha programada: <strong>{{ ticket.fecha_envio }}</strong></p>
@@ -624,6 +628,7 @@
     <p style="color: #0f766e; font-weight: 600;">Rita debe armar la requisición antes de pasar a Compras.</p>
     {% if session.nombre == 'Rita' %}
     <form method="POST" enctype="multipart/form-data" style="margin-top: 12px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="cargar_requisicion_material">
         <div class="form-group">
             <label>Número de requisición</label>
@@ -648,6 +653,7 @@
     <h3 style="margin-bottom: 12px;">3. Esperando compras</h3>
     <p style="color: #b45309; font-weight: 600;">Esperando material de Compras</p>
     <form method="POST" style="margin-top: 12px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="cuento_material">
         <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">Cuando llegue el material, seleccione metodo de envio:</p>
         <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
@@ -675,6 +681,7 @@
     <h3 style="margin-bottom: 12px;">4. Recepción confirmada</h3>
     <p style="color: #047857; font-weight: 600;">La sucursal confirmó que recibió los materiales.</p>
     <form method="POST" style="margin-top: 12px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="accion" value="cerrar_pedido">
         <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('Cerrar este pedido de materiales?')">Cerrar pedido</button>
     </form>

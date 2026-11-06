@@ -72,6 +72,40 @@ class AdminSecurityGuardsTest(unittest.TestCase):
         self.assertEqual(tecman.get_central_qty(stock, "Guantes"), 3)
         self.assertEqual(stock["sucursales"]["Sucursal 001"]["Guantes"], 2)
 
+    def test_pedido_materiales_rechaza_ticket_ajeno_al_modulo(self):
+        self.session("tecnico")
+        ticket = {
+            "id": 77,
+            "sucursal": "Sucursal 142",
+            "categoria": "Problema Eléctrico",
+            "subcategoria": "Tablero",
+            "estado": "Nuevo",
+            "notas": [],
+        }
+        with patch.object(tecman, "load_tickets", return_value=[ticket]):
+            response = self.client.get("/admin/pedido/77")
+        self.assertEqual(response.status_code, 404)
+
+    def test_pedido_materiales_requiere_csrf_para_cualquier_accion(self):
+        self.session("tecnico")
+        ticket = {
+            "id": 78,
+            "sucursal": "Sucursal 142",
+            "categoria": "Materiales",
+            "subcategoria": "Solicitud de materiales",
+            "estado": "Nuevo",
+            "notas": [],
+        }
+        with patch.object(tecman, "load_tickets", return_value=[ticket]), \
+             patch.object(tecman, "save_tickets") as save_tickets:
+            response = self.client.post(
+                "/admin/pedido/78",
+                data={"accion": "cerrar_pedido"},
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ticket["estado"], "Nuevo")
+        save_tickets.assert_not_called()
+
     def test_altas_y_precios_de_stock_requieren_csrf(self):
         self.session("admin")
         self.assertEqual(
