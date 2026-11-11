@@ -14,12 +14,24 @@
 </div>
 <div class="card">
   <h3>Seguimiento</h3>
-  <div style="overflow-x:auto"><table><thead><tr><th>Pedido</th><th>Estado</th><th>Detalle</th></tr></thead><tbody>
+  <div style="overflow-x:auto"><table><thead><tr><th>Pedido</th><th>Estado</th><th>Detalle</th><th>Recepción</th></tr></thead><tbody>
   {% for o in orders %}<tr>
     <td>#{{ o.id }}</td>
     <td>{{ o.status|replace('_',' ') }}</td>
     <td>{% for l in o.lines %}{{ l.item }} · pedidas {{ l.requested }}{% if l.approved %} · validadas {{ l.approved }}{% endif %}{% if l.shortage %} · faltan {{ l.shortage }}{% endif %}<br>{% endfor %}{% if o.requisition_number %}<strong>Compras: {{ o.requisition_number }}</strong>{% endif %}</td>
-  </tr>{% else %}<tr><td colspan="3">Todavía no hay pedidos.</td></tr>{% endfor %}
+    <td>
+      {% if o.received_at %}
+        Confirmada {{ o.received_at }}
+      {% elif o.wave_id %}
+        <form method="post" action="{{ url_for('logistica_branch_receipt', order_id=o.id) }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-success btn-sm" type="submit">Confirmar recepción</button>
+        </form>
+      {% else %}
+        Pendiente
+      {% endif %}
+    </td>
+  </tr>{% else %}<tr><td colspan="4">Todavía no hay pedidos.</td></tr>{% endfor %}
   </tbody></table></div>
 </div>
 {% endblock %}

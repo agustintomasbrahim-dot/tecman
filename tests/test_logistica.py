@@ -409,9 +409,15 @@ class LogisticsRouteTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(own["id"].encode(), page.data)
         self.assertNotIn(other["id"].encode(), page.data)
+        receipt_path = f"/logistica/sucursal/pedidos/{own['id']}/recepcion"
+        self.assertIn(receipt_path.encode(), page.data)
+        self.assertIn("Confirmar recepción".encode(), page.data)
         self.assertEqual(self.post(f"/logistica/sucursal/pedidos/{other['id']}/recepcion").status_code, 403)
-        self.assertEqual(self.post(f"/logistica/sucursal/pedidos/{own['id']}/recepcion").status_code, 302)
+        self.assertEqual(self.post(receipt_path).status_code, 302)
         self.assertEqual(service.state()["orders"][own["id"]]["status"], "recibido")
+        confirmed = self.client.get("/logistica/sucursal")
+        self.assertNotIn(receipt_path.encode(), confirmed.data)
+        self.assertIn(b"Confirmada", confirmed.data)
 
 
 if __name__ == "__main__":
