@@ -29,6 +29,17 @@ class LogisticsServiceTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_estado_json_corrupto_falla_cerrado_sin_sobrescribir(self):
+        corrupt = b'{"orders": '
+        self.path.write_bytes(corrupt)
+
+        with self.assertRaisesRegex(LogisticsError, "No se pudo leer"):
+            self.service.state()
+        with self.assertRaisesRegex(LogisticsError, "No se pudo leer"):
+            self.service.create_order("Sucursal 011", [{"item": "Guantes", "requested": 1}], "Sucursal")
+
+        self.assertEqual(self.path.read_bytes(), corrupt)
+
     def stock(self, csv_text="item,cantidad\nGuantes,5\n"):
         return self.service.import_stock(csv_text.encode(), "stock.csv", "Dabra")
 

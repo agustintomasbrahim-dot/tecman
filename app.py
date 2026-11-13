@@ -11698,9 +11698,12 @@ def admin_exportar():
     writer.writerow(["ID", "Sucursal", "Categoria", "Subcategoria", "Descripcion", "Prioridad", "Estado", "Asignado", "Observaciones", "Creado", "Actualizado"])
     for t in tickets:
         writer.writerow([
-            t["id"], t["sucursal"], t["categoria"], t["subcategoria"],
-            t["descripcion"], t["prioridad"], t["estado"], t["asignado"],
-            t["observaciones"], t["creado"][:10], t["actualizado"][:10],
+            t.get("id", ""), t.get("sucursal", ""), t.get("categoria", ""),
+            t.get("subcategoria", ""), t.get("descripcion", ""),
+            t.get("prioridad", ""), t.get("estado", ""), t.get("asignado", ""),
+            t.get("observaciones", ""),
+            str(t.get("creado") or t.get("fecha") or "")[:10],
+            str(t.get("actualizado") or "")[:10],
         ])
     output.seek(0)
     return Response(

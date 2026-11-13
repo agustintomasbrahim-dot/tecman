@@ -247,9 +247,11 @@ class LogisticsStore:
                 return _blank_state()
             try:
                 data = json.loads(self.json_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                return _blank_state()
-            return data if isinstance(data, dict) else _blank_state()
+            except (OSError, json.JSONDecodeError) as exc:
+                raise LogisticsError("No se pudo leer el estado de Logística") from exc
+            if not isinstance(data, dict):
+                raise LogisticsError("El estado de Logística tiene un formato inválido")
+            return data
 
     def mutate(self, fn: Callable[[dict], object]):
         if self.use_db:

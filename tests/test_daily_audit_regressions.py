@@ -1,4 +1,6 @@
+import csv
 import datetime
+import io
 import json
 import os
 import tempfile
@@ -69,6 +71,30 @@ class DailyAuditRegressionsTest(unittest.TestCase):
             self.assertNotIn("user", session)
             self.assertNotIn("rol", session)
             self.assertEqual(session["syh_user"], "patricia")
+
+    def test_exportar_tolera_campos_legacy_ausentes(self):
+        tickets = [{
+            "id": 1,
+            "sucursal": "Sucursal 001",
+            "categoria": "Electricidad",
+            "subcategoria": "Iluminación",
+            "descripcion": "Prueba",
+            "prioridad": 2,
+            "estado": "Nuevo",
+            "asignado": "Mantenimiento",
+            "fecha": "2026-11-12T10:00:00",
+        }]
+        with self.client.session_transaction() as session:
+            session.update(user="auditor", nombre="Auditor", rol="admin")
+        with patch.object(tecman, "load_tickets", return_value=tickets):
+            response = self.client.get("/admin/exportar")
+
+        self.assertEqual(response.status_code, 200)
+        rows = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual(rows[1][0], "1")
+        self.assertEqual(rows[1][8], "")
+        self.assertEqual(rows[1][9], "2026-11-12")
+        self.assertEqual(rows[1][10], "")
 
     def test_resumen_funciona_en_json_y_usa_fecha_creado(self):
         today = datetime.date.today().isoformat()
